@@ -1,0 +1,1447 @@
+# CRM CARGAR SAS — Plan de Arquitectura y Desarrollo
+
+> **Resumen Ejecutivo:** Se desarrollará un CRM full-stack (React + Node.js + PostgreSQL) a medida para CARGAR SAS, empresa del sector logístico con equipos de 1–5 usuarios. El sistema cubrirá 12 módulos funcionales incluyendo pipeline de ventas, gestión de inventarios, integración con WhatsApp Business y sugerencias de estrategia mediante IA. La autenticación se manejará con OAuth social (Google, Microsoft). El sistema contempla integración futura con central telefónica **Asterisk vía AMI/ARI** para click-to-call, screen pop, registro automático de llamadas y grabaciones vinculadas al contacto. El proyecto se divide en 5 fases con un MVP funcional entregable en las primeras 10 semanas.
+
+---
+
+## 1. Análisis y Arquitectura
+
+### 1.1 Arquitectura General del Sistema
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        CLIENTE (Browser)                        │
+│              React 18 + Vite + Zustand + TanStack Query         │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ HTTPS / WebSocket
+┌────────────────────────────▼────────────────────────────────────┐
+│                    API GATEWAY / REVERSE PROXY                  │
+│                         Nginx + Rate Limiter                    │
+└───────────┬────────────────────────────────────────┬───────────┘
+            │                                        │
+┌───────────▼──────────┐                 ┌───────────▼──────────┐
+│   BACKEND (REST API) │                 │  WORKER / QUEUE      │
+│   Node.js + Express  │                 │  BullMQ + Redis      │
+│   + Passport OAuth   │                 │  (emails, webhooks,  │
+│   + JWT / Sessions   │                 │   automatizaciones)  │
+└──────┬───────────────┘                 └──────────────────────┘
+       │
+┌──────▼───────────────────────────────────────────────────────┐
+│                    CAPA DE DATOS                              │
+│   PostgreSQL 16  │  Redis (cache/sessions)  │  S3/MinIO      │
+│   (principal)    │                          │  (archivos)    │
+└──────────────────────────────────────────────────────────────┘
+       │
+┌──────▼──────────────────────────────────────────────────────┐
+│                  SERVICIOS EXTERNOS                          │
+│  Google OAuth │ Microsoft OAuth │ WhatsApp Business API     │
+│  SendGrid/SES │ OpenAI API (IA) │ Twilio (SMS opcional)     │
+│  Asterisk AMI/ARI (central telefónica, integración futura)  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Decisiones de arquitectura:**
+
+| Decisión | Opción elegida | Alternativa | Justificación |
+|---|---|---|---|
+| API | REST + Express | GraphQL | Menor curva, equipo pequeño, suficiente para 12 módulos |
+| Auth | Passport.js + JWT | Auth0/Supabase Auth | Control total, sin vendor lock-in para equipo pequeño |
+| State Frontend | Zustand + TanStack Query | Redux Toolkit | Menor boilerplate, TanStack para server state |
+| Queue | BullMQ + Redis | SQS/RabbitMQ | Self-hosted, perfecto para escala inicial |
+| Archivos | MinIO (S3-compatible) | Cloudinary | Control de costos, migración futura a S3 transparente |
+
+---
+
+### 1.2 Modelo de Datos — Entidades Principales
+
+```
+users ──────< activities >────── contacts
+  │                                  │
+  │                              companies
+  │
+  ├──< opportunities >── pipeline_stages
+  │         │
+  │         ├── quotes
+  │         │     └── quote_items
+  │         └── communications
+  │
+  ├──< leads >── campaigns
+  │
+  ├──< tasks >── activities
+  │
+  ├──< inventory_items >── inventory_movements
+  │
+  └──< support_tickets >── ticket_messages
+```
+
+**Entidades clave:**
+- `users` — agentes comerciales con roles (admin, agente, viewer)
+- `contacts` — personas de contacto en empresas clientes
+- `companies` — empresas/clientes del sector logístico
+- `opportunities` — oportunidades de negocio en el pipeline
+- `pipeline_stages` — etapas configurables del embudo
+- `quotes` / `quote_items` — cotizaciones y líneas de producto
+- `communications` — registro de emails, llamadas, WhatsApp
+- `leads` — prospectos de marketing
+- `campaigns` — campañas de marketing con métricas
+- `tasks` / `activities` — seguimiento de agenda comercial
+- `inventory_items` / `inventory_movements` — control de inventario logístico
+- `support_tickets` / `ticket_messages` — portal de atención al cliente
+- `ai_suggestions` — sugerencias generadas por IA almacenadas por contexto
+- `automations` / `automation_logs` — reglas de automatización y su ejecución
+- `call_records` — registro detallado de llamadas originadas/recibidas vía Asterisk (canal, duración, URL grabación)
+- `asterisk_config` — configuración AMI/ARI por tenant (host, puerto, usuario, extensiones de agentes)
+
+---
+
+### 1.3 Riesgos Técnicos y Mitigaciones
+
+| Riesgo | Probabilidad | Impacto | Mitigación |
+|---|---|---|---|
+| API WhatsApp (Meta) — aprobación lenta | Alta | Alto | Iniciar proceso de aprobación en semana 1; usar Twilio como fallback |
+| Integración OAuth social mal configurada | Media | Alto | Usar Passport.js con estrategias probadas; pruebas de regresión |
+| Costos de OpenAI API escalando | Media | Medio | Rate limiting por usuario, caché de respuestas similares en Redis |
+| Pérdida de datos en PostgreSQL | Baja | Crítico | Backups automatizados cada 6h + WAL archiving + réplica de lectura |
+| Rendimiento con histórico de comunicaciones | Media | Medio | Paginación cursor-based, índices por `company_id` + `created_at` |
+| Asterisk AMI — conexión TCP inestable en red LAN | Media | Alto | Reconexión automática con backoff exponencial; pool de conexiones AMI persistente |
+| Acceso a grabaciones de Asterisk desde nube | Media | Medio | Sincronización periódica de archivos WAV/MP3 desde Asterisk a S3/MinIO vía SFTP o API |
+| Versión de Asterisk incompatible con ARI | Baja | Alto | Establecer requisito mínimo Asterisk 13+; documentar en README de la integración |
+
+---
+
+### 1.4 Patrones de Diseño Recomendados
+
+- **Backend:** Repository Pattern (separar lógica de negocio de queries SQL), Service Layer, Middleware Chain para auth/validación
+- **Frontend:** Container/Presenter, Custom Hooks para lógica de negocio, Optimistic UI con TanStack Query
+- **Automatizaciones:** Event-Driven con BullMQ (jobs), Strategy Pattern para tipos de acciones
+- **IA:** Prompt Templates centralizados, fallback graceful si OpenAI no responde
+- **Asterisk/Telefonía:** Adapter Pattern — `AsteriskAdapter` abstrae AMI vs ARI; el backend nunca habla directamente con Asterisk, siempre pasa por el adapter, lo que permite cambiar la implementación sin afectar capas superiores
+
+---
+
+## 2. Plan de Proyecto por Fases
+
+### Orden de Prioridad (MoSCoW)
+
+**Must Have (MVP):** Contactos/Empresas, Pipeline, Tareas, Autenticación Social, Dashboard básico  
+**Should Have:** Comunicaciones, Cotizaciones, Leads, Inventario básico  
+**Could Have:** WhatsApp, IA Sugerencias, Automatizaciones, Portal Cliente  
+**Integración futura planificada:** Asterisk AMI/ARI — click-to-call, screen pop, grabaciones (puede activarse en v2 sin refactoring)  
+**Won't Have (v1):** App móvil nativa, BI avanzado
+
+---
+
+### Fase 1 — Fundación y MVP (Semanas 1–4)
+**Sprint 1 (sem 1–2): Infraestructura Base**
+- Setup monorepo (`/backend`, `/frontend`, `/workers`)
+- PostgreSQL schema inicial, migraciones con `node-postgres-migrate`
+- Autenticación OAuth (Google + Microsoft) + JWT refresh tokens
+- CRUD Empresas y Contactos (API + UI básica)
+
+**Sprint 2 (sem 3–4): Pipeline de Ventas**
+- Módulo Oportunidades con stages configurables
+- Kanban drag-and-drop (React Beautiful DnD)
+- Dashboard básico con métricas clave (revenue por etapa, actividades pendientes)
+- Sistema de tareas y recordatorios
+
+**Entregables Fase 1:** Sistema usable con 3 módulos core, deploy en staging
+
+---
+
+### Fase 2 — Comunicaciones y Cotizaciones (Semanas 5–8)
+**Sprint 3 (sem 5–6): Historial de Comunicaciones**
+- Registro manual de llamadas/emails/WhatsApp
+- Integración IMAP/SMTP para sincronización de correo
+- Timeline de actividades por contacto/empresa
+
+**Sprint 4 (sem 7–8): Cotizaciones y Propuestas**
+- Builder de cotizaciones con productos/servicios logísticos
+- Generación de PDF (Puppeteer)
+- Envío por email desde el sistema
+- Historial y versioning de cotizaciones
+
+**Entregables Fase 2:** Flujo comercial completo: prospecto → oportunidad → cotización → email
+
+---
+
+### Fase 3 — Leads, Marketing e Inventario (Semanas 9–12)
+**Sprint 5 (sem 9–10): Leads y Campañas**
+- Intake de leads (formulario embebible + importación CSV)
+- Pipeline de calificación de leads
+- Gestión básica de campañas con métricas (open rate, conversión)
+
+**Sprint 6 (sem 11–12): Inventario**
+- Catálogo de ítems logísticos (vehículos, equipos, servicios)
+- Movimientos de inventario (entrada/salida)
+- Alertas de stock mínimo
+- Vinculación con cotizaciones
+
+**Entregables Fase 3:** Ciclo completo lead-to-cash, control de inventario
+
+---
+
+### Fase 4 — Integraciones Avanzadas y IA (Semanas 13–17)
+**Sprint 7 (sem 13–14): WhatsApp Business**
+- Webhook Meta Cloud API para recepción de mensajes
+- Envío de mensajes de plantilla aprobados
+- Timeline de conversaciones en el CRM
+
+**Sprint 8 (sem 15–16): Sugerencias de IA**
+- Análisis de pipeline con OpenAI (GPT-4o)
+- Sugerencias: "Este lead lleva 15 días sin contacto, considera enviar propuesta X"
+- Redacción asistida de emails y cotizaciones
+- Análisis de sentimiento en comunicaciones
+
+**Sprint 9 (sem 17): Automatizaciones**
+- Motor de reglas: IF [evento] THEN [acción]
+- Triggers: nuevo lead, etapa de pipeline, vencimiento de tarea
+- Acciones: enviar email, crear tarea, asignar agente, notificación push
+- **[Preparación Asterisk]** Diseño del esquema `call_records` + `asterisk_config`; stub del `AsteriskAdapter` con interfaz definida pero sin implementar, lista para activar en v2
+
+**Entregables Fase 4:** Diferenciadores competitivos activos + arquitectura Asterisk lista para conectar
+
+---
+
+### Fase 5 — Portal Cliente y Producción (Semanas 18–20)
+**Sprint 10 (sem 18–19): Portal de Soporte**
+- Portal externo para clientes (subdominio separado)
+- Tickets de soporte con chat en tiempo real (WebSocket)
+- Base de conocimiento básica
+
+**Sprint 11 (sem 20): Hardening y Go-Live**
+- Auditoría de seguridad OWASP básica
+- Performance testing (k6)
+- Setup producción completo
+- Documentación de usuario y administrador
+
+---
+
+## 3. Diseño de Base de Datos
+
+### Esquema SQL Principal
+
+```sql
+-- ============================================================
+-- USUARIOS Y AUTENTICACIÓN
+-- ============================================================
+CREATE TABLE users (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email         VARCHAR(255) UNIQUE NOT NULL,
+  full_name     VARCHAR(255) NOT NULL,
+  avatar_url    TEXT,
+  role          VARCHAR(50) NOT NULL DEFAULT 'agent' 
+                  CHECK (role IN ('admin','agent','viewer')),
+  is_active     BOOLEAN DEFAULT TRUE,
+  last_login_at TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE oauth_accounts (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider    VARCHAR(50) NOT NULL CHECK (provider IN ('google','microsoft')),
+  provider_id VARCHAR(255) NOT NULL,
+  access_token TEXT,
+  refresh_token TEXT,
+  token_expiry TIMESTAMPTZ,
+  UNIQUE(provider, provider_id)
+);
+
+-- ============================================================
+-- EMPRESAS Y CONTACTOS
+-- ============================================================
+CREATE TABLE companies (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        VARCHAR(255) NOT NULL,
+  nit         VARCHAR(20) UNIQUE,
+  industry    VARCHAR(100) DEFAULT 'logistics',
+  website     TEXT,
+  phone       VARCHAR(30),
+  address     TEXT,
+  city        VARCHAR(100),
+  country     VARCHAR(100) DEFAULT 'Colombia',
+  assigned_to UUID REFERENCES users(id),
+  tags        TEXT[],
+  notes       TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE contacts (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id  UUID REFERENCES companies(id) ON DELETE SET NULL,
+  first_name  VARCHAR(100) NOT NULL,
+  last_name   VARCHAR(100),
+  email       VARCHAR(255),
+  phone       VARCHAR(30),
+  whatsapp    VARCHAR(30),
+  position    VARCHAR(100),
+  is_primary  BOOLEAN DEFAULT FALSE,
+  assigned_to UUID REFERENCES users(id),
+  tags        TEXT[],
+  notes       TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- PIPELINE DE VENTAS
+-- ============================================================
+CREATE TABLE pipeline_stages (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name         VARCHAR(100) NOT NULL,
+  order_index  INT NOT NULL,
+  color        VARCHAR(7) DEFAULT '#6366f1',
+  probability  INT DEFAULT 0 CHECK (probability BETWEEN 0 AND 100),
+  is_closed_won  BOOLEAN DEFAULT FALSE,
+  is_closed_lost BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE opportunities (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title           VARCHAR(255) NOT NULL,
+  company_id      UUID REFERENCES companies(id),
+  contact_id      UUID REFERENCES contacts(id),
+  stage_id        UUID NOT NULL REFERENCES pipeline_stages(id),
+  assigned_to     UUID REFERENCES users(id),
+  value           NUMERIC(15,2) DEFAULT 0,
+  currency        VARCHAR(3) DEFAULT 'COP',
+  expected_close  DATE,
+  probability     INT DEFAULT 0,
+  source          VARCHAR(100),  -- 'web','referido','campaña','whatsapp'
+  lost_reason     TEXT,
+  tags            TEXT[],
+  notes           TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- COTIZACIONES
+-- ============================================================
+CREATE TABLE quotes (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_number    VARCHAR(20) UNIQUE NOT NULL,
+  opportunity_id  UUID REFERENCES opportunities(id),
+  company_id      UUID REFERENCES companies(id),
+  contact_id      UUID REFERENCES contacts(id),
+  created_by      UUID REFERENCES users(id),
+  status          VARCHAR(30) DEFAULT 'draft'
+                    CHECK (status IN ('draft','sent','viewed','accepted','rejected','expired')),
+  subtotal        NUMERIC(15,2) DEFAULT 0,
+  tax_rate        NUMERIC(5,2) DEFAULT 19.0,
+  tax_amount      NUMERIC(15,2) DEFAULT 0,
+  total           NUMERIC(15,2) DEFAULT 0,
+  currency        VARCHAR(3) DEFAULT 'COP',
+  valid_until     DATE,
+  notes           TEXT,
+  pdf_url         TEXT,
+  sent_at         TIMESTAMPTZ,
+  viewed_at       TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE quote_items (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_id    UUID NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  description TEXT NOT NULL,
+  quantity    NUMERIC(10,2) NOT NULL DEFAULT 1,
+  unit_price  NUMERIC(15,2) NOT NULL DEFAULT 0,
+  discount    NUMERIC(5,2) DEFAULT 0,
+  total       NUMERIC(15,2) GENERATED ALWAYS AS 
+                (quantity * unit_price * (1 - discount/100)) STORED,
+  order_index INT DEFAULT 0
+);
+
+-- ============================================================
+-- TAREAS Y ACTIVIDADES
+-- ============================================================
+CREATE TABLE tasks (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title        VARCHAR(255) NOT NULL,
+  description  TEXT,
+  type         VARCHAR(50) DEFAULT 'task'
+                 CHECK (type IN ('task','call','meeting','email','follow_up')),
+  status       VARCHAR(30) DEFAULT 'pending'
+                 CHECK (status IN ('pending','in_progress','completed','cancelled')),
+  priority     VARCHAR(20) DEFAULT 'medium'
+                 CHECK (priority IN ('low','medium','high','urgent')),
+  assigned_to  UUID REFERENCES users(id),
+  related_type VARCHAR(50),  -- 'opportunity','contact','company','lead'
+  related_id   UUID,
+  due_date     TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  created_by   UUID REFERENCES users(id),
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- COMUNICACIONES
+-- ============================================================
+CREATE TABLE communications (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type           VARCHAR(30) NOT NULL
+                   CHECK (type IN ('email','call','whatsapp','meeting','note')),
+  direction      VARCHAR(10) DEFAULT 'outbound'
+                   CHECK (direction IN ('inbound','outbound')),
+  subject        VARCHAR(255),
+  body           TEXT,
+  duration_sec   INT,                     -- duración en segundos (más preciso para llamadas Asterisk)
+  company_id     UUID REFERENCES companies(id),
+  contact_id     UUID REFERENCES contacts(id),
+  opportunity_id UUID REFERENCES opportunities(id),
+  created_by     UUID REFERENCES users(id),
+  occurred_at    TIMESTAMPTZ DEFAULT NOW(),
+  external_id    VARCHAR(255),            -- ID en Gmail/WhatsApp/Asterisk UniqueID
+  call_record_id UUID,                   -- FK a call_records si es llamada vía Asterisk
+  metadata       JSONB DEFAULT '{}'::jsonb,
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- INTEGRACIÓN ASTERISK (CENTRAL TELEFÓNICA)
+-- ============================================================
+CREATE TABLE asterisk_config (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name          VARCHAR(100) NOT NULL DEFAULT 'Principal',
+  ami_host      VARCHAR(255) NOT NULL,   -- IP o hostname del servidor Asterisk
+  ami_port      INT NOT NULL DEFAULT 5038,
+  ami_user      VARCHAR(100) NOT NULL,
+  ami_secret    TEXT NOT NULL,           -- almacenar cifrado (AES-256)
+  ari_base_url  TEXT,                    -- ej: http://asterisk-host:8088/ari
+  ari_user      VARCHAR(100),
+  ari_password  TEXT,
+  recording_path TEXT,                   -- ruta base de grabaciones en el servidor Asterisk
+  recording_s3_prefix TEXT DEFAULT 'recordings/', -- prefix en S3/MinIO para grabaciones sincronizadas
+  is_active     BOOLEAN DEFAULT TRUE,
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE asterisk_extensions (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  extension   VARCHAR(20) NOT NULL,      -- extensión SIP/PJSIP del agente, ej: '101'
+  display_name VARCHAR(100),
+  is_active   BOOLEAN DEFAULT TRUE,
+  UNIQUE(user_id)
+);
+
+CREATE TABLE call_records (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  asterisk_uniqueid VARCHAR(100) UNIQUE NOT NULL, -- Asterisk CDR UniqueID
+  asterisk_linkedid VARCHAR(100),                 -- para llamadas transferidas
+  channel           VARCHAR(255),                 -- canal SIP/PJSIP origen
+  destination       VARCHAR(100),                 -- número o extensión destino
+  caller_number     VARCHAR(30),
+  called_number     VARCHAR(30),
+  direction         VARCHAR(10) CHECK (direction IN ('inbound','outbound','internal')),
+  status            VARCHAR(30)                   -- 'answered','no_answer','busy','failed'
+                      CHECK (status IN ('answered','no_answer','busy','failed','ringing')),
+  started_at        TIMESTAMPTZ NOT NULL,
+  answered_at       TIMESTAMPTZ,
+  ended_at          TIMESTAMPTZ,
+  duration_sec      INT GENERATED ALWAYS AS (
+                      EXTRACT(EPOCH FROM (ended_at - COALESCE(answered_at, started_at)))::INT
+                    ) STORED,
+  recording_filename TEXT,               -- nombre del archivo en Asterisk (ej: 20240407-101-0001.wav)
+  recording_url     TEXT,               -- URL pública en S3/MinIO (disponible tras sincronización)
+  agent_user_id     UUID REFERENCES users(id),
+  contact_id        UUID REFERENCES contacts(id),
+  company_id        UUID REFERENCES companies(id),
+  opportunity_id    UUID REFERENCES opportunities(id),
+  communication_id  UUID,               -- FK inversa a communications
+  screen_pop_shown  BOOLEAN DEFAULT FALSE, -- si se mostró el screen pop al agente
+  ami_raw_event     JSONB,              -- evento AMI original para auditoría
+  created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- LEADS Y CAMPAÑAS
+-- ============================================================
+CREATE TABLE campaigns (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        VARCHAR(255) NOT NULL,
+  type        VARCHAR(50) CHECK (type IN ('email','whatsapp','social','referral')),
+  status      VARCHAR(30) DEFAULT 'draft',
+  budget      NUMERIC(12,2),
+  start_date  DATE,
+  end_date    DATE,
+  created_by  UUID REFERENCES users(id),
+  metrics     JSONB DEFAULT '{}'::jsonb,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE leads (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  first_name   VARCHAR(100) NOT NULL,
+  last_name    VARCHAR(100),
+  email        VARCHAR(255),
+  phone        VARCHAR(30),
+  company_name VARCHAR(255),
+  source       VARCHAR(100),
+  campaign_id  UUID REFERENCES campaigns(id),
+  status       VARCHAR(30) DEFAULT 'new'
+                 CHECK (status IN ('new','contacted','qualified','converted','dead')),
+  score        INT DEFAULT 0,
+  assigned_to  UUID REFERENCES users(id),
+  converted_contact_id UUID REFERENCES contacts(id),
+  converted_at TIMESTAMPTZ,
+  notes        TEXT,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- INVENTARIO
+-- ============================================================
+CREATE TABLE inventory_items (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sku           VARCHAR(50) UNIQUE,
+  name          VARCHAR(255) NOT NULL,
+  description   TEXT,
+  category      VARCHAR(100),
+  unit          VARCHAR(30) DEFAULT 'unidad',
+  unit_cost     NUMERIC(15,2) DEFAULT 0,
+  unit_price    NUMERIC(15,2) DEFAULT 0,
+  stock_current INT DEFAULT 0,
+  stock_minimum INT DEFAULT 0,
+  is_active     BOOLEAN DEFAULT TRUE,
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE inventory_movements (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id     UUID NOT NULL REFERENCES inventory_items(id),
+  type        VARCHAR(20) NOT NULL CHECK (type IN ('in','out','adjustment')),
+  quantity    INT NOT NULL,
+  reference   VARCHAR(255),      -- número de orden, cotización, etc.
+  notes       TEXT,
+  created_by  UUID REFERENCES users(id),
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- SOPORTE AL CLIENTE
+-- ============================================================
+CREATE TABLE support_tickets (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticket_number VARCHAR(20) UNIQUE NOT NULL,
+  title       VARCHAR(255) NOT NULL,
+  description TEXT,
+  status      VARCHAR(30) DEFAULT 'open'
+                CHECK (status IN ('open','in_progress','waiting','resolved','closed')),
+  priority    VARCHAR(20) DEFAULT 'medium',
+  company_id  UUID REFERENCES companies(id),
+  contact_id  UUID REFERENCES contacts(id),
+  assigned_to UUID REFERENCES users(id),
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ
+);
+
+-- ============================================================
+-- AUTOMATIZACIONES E IA
+-- ============================================================
+CREATE TABLE automations (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        VARCHAR(255) NOT NULL,
+  is_active   BOOLEAN DEFAULT TRUE,
+  trigger_type VARCHAR(100) NOT NULL,   -- 'stage_changed','lead_created','task_overdue'
+  trigger_conditions JSONB DEFAULT '{}'::jsonb,
+  actions     JSONB NOT NULL,            -- array de acciones a ejecutar
+  created_by  UUID REFERENCES users(id),
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE ai_suggestions (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID REFERENCES users(id),
+  context_type VARCHAR(50),   -- 'opportunity','lead','communication'
+  context_id  UUID,
+  suggestion  TEXT NOT NULL,
+  action_type VARCHAR(100),
+  is_dismissed BOOLEAN DEFAULT FALSE,
+  is_applied  BOOLEAN DEFAULT FALSE,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- ÍNDICES DE RENDIMIENTO
+-- ============================================================
+CREATE INDEX idx_contacts_company ON contacts(company_id);
+CREATE INDEX idx_contacts_email ON contacts(email);
+CREATE INDEX idx_opportunities_stage ON opportunities(stage_id);
+CREATE INDEX idx_opportunities_assigned ON opportunities(assigned_to);
+CREATE INDEX idx_opportunities_expected_close ON opportunities(expected_close);
+CREATE INDEX idx_communications_company ON communications(company_id, occurred_at DESC);
+CREATE INDEX idx_communications_contact ON communications(contact_id, occurred_at DESC);
+CREATE INDEX idx_tasks_assigned_due ON tasks(assigned_to, due_date);
+CREATE INDEX idx_tasks_related ON tasks(related_type, related_id);
+CREATE INDEX idx_leads_status ON leads(status, created_at DESC);
+CREATE INDEX idx_inventory_movements_item ON inventory_movements(item_id, created_at DESC);
+CREATE INDEX idx_ai_suggestions_user ON ai_suggestions(user_id, is_dismissed, created_at DESC);
+-- Asterisk
+CREATE INDEX idx_call_records_caller ON call_records(caller_number, started_at DESC);
+CREATE INDEX idx_call_records_contact ON call_records(contact_id, started_at DESC);
+CREATE INDEX idx_call_records_agent ON call_records(agent_user_id, started_at DESC);
+CREATE INDEX idx_call_records_uniqueid ON call_records(asterisk_uniqueid);
+```
+
+### Estrategia de Backup
+- **Frecuencia:** pg_dump completo cada 6 horas + WAL continuous archiving
+- **Retención:** 30 días de backups diarios, 12 meses de backups semanales
+- **Almacenamiento:** S3 bucket dedicado con versioning habilitado
+- **RPO/RTO objetivo:** RPO < 6h, RTO < 2h
+- **Testing:** Restore drill mensual automatizado
+
+---
+
+## 4. Desarrollo del Backend
+
+### 4.1 Estructura de Carpetas
+
+```
+backend/
+├── src/
+│   ├── config/
+│   │   ├── database.js       # Pool de conexiones PostgreSQL
+│   │   ├── redis.js          # Cliente Redis
+│   │   ├── passport.js       # Estrategias OAuth
+│   │   └── env.js            # Validación de variables de entorno (Zod)
+│   ├── middleware/
+│   │   ├── auth.js           # Verificación JWT
+│   │   ├── rbac.js           # Control de acceso por rol
+│   │   ├── validate.js       # Validación con Zod schemas
+│   │   ├── rateLimiter.js    # express-rate-limit
+│   │   └── errorHandler.js   # Manejo centralizado de errores
+│   ├── modules/
+│   │   ├── auth/
+│   │   │   ├── auth.routes.js
+│   │   │   ├── auth.controller.js
+│   │   │   └── auth.service.js
+│   │   ├── companies/
+│   │   │   ├── companies.routes.js
+│   │   │   ├── companies.controller.js
+│   │   │   ├── companies.service.js
+│   │   │   └── companies.repository.js
+│   │   ├── contacts/          # (misma estructura)
+│   │   ├── opportunities/
+│   │   ├── quotes/
+│   │   ├── tasks/
+│   │   ├── communications/
+│   │   ├── leads/
+│   │   ├── campaigns/
+│   │   ├── inventory/
+│   │   ├── support/
+│   │   ├── automations/
+│   │   ├── ai/
+│   │   └── reports/
+│   ├── workers/
+│   │   ├── email.worker.js
+│   │   ├── whatsapp.worker.js
+│   │   ├── automation.worker.js
+│   │   ├── ai.worker.js
+│   │   └── asterisk.worker.js    # Procesa eventos AMI: CDR, hangup, screen pop
+│   ├── jobs/                  # Definiciones de BullMQ jobs
+│   ├── adapters/
+│   │   └── asterisk/
+│   │       ├── AsteriskAdapter.js    # Interfaz común (click-to-call, getChannels, hangup)
+│   │       ├── AmiClient.js          # Implementación vía AMI (asterisk npm)
+│   │       └── AriClient.js          # Implementación vía ARI REST (node-ari-client)
+│   ├── utils/
+│   │   ├── logger.js          # Winston + estructura JSON
+│   │   ├── pagination.js      # Cursor-based pagination helper
+│   │   ├── pdf.js             # Puppeteer para generación de PDFs
+│   │   └── phoneNumber.js     # Normalización E.164, búsqueda de contacto por número
+│   └── app.js                 # Express app
+├── migrations/                # SQL migrations numeradas
+├── seeds/                     # Datos iniciales (stages, roles, etc.)
+├── tests/
+│   ├── unit/
+│   └── integration/
+├── .env.example
+└── package.json
+```
+
+### 4.2 Endpoints Principales de la API REST
+
+**Base URL:** `/api/v1`
+
+#### Auth
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/auth/google` | Inicia OAuth con Google |
+| GET | `/auth/google/callback` | Callback Google OAuth |
+| GET | `/auth/microsoft` | Inicia OAuth con Microsoft |
+| GET | `/auth/microsoft/callback` | Callback Microsoft OAuth |
+| POST | `/auth/refresh` | Refresca JWT access token |
+| POST | `/auth/logout` | Cierra sesión e invalida refresh token |
+| GET | `/auth/me` | Perfil del usuario actual |
+
+#### Companies & Contacts
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/companies` | Lista con filtros, búsqueda y paginación cursor |
+| POST | `/companies` | Crear empresa |
+| GET | `/companies/:id` | Detalle + contactos + oportunidades activas |
+| PATCH | `/companies/:id` | Actualización parcial |
+| DELETE | `/companies/:id` | Soft delete |
+| GET | `/companies/:id/timeline` | Historial completo de actividades |
+| GET | `/contacts` | Lista contacts |
+| POST | `/contacts` | Crear contacto |
+| GET | `/contacts/:id` | Detalle contacto |
+| PATCH | `/contacts/:id` | Actualizar |
+
+#### Pipeline
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/opportunities` | Lista con filtros (etapa, agente, rango de valor) |
+| POST | `/opportunities` | Crear oportunidad |
+| PATCH | `/opportunities/:id` | Actualizar (incluyendo cambio de etapa) |
+| PATCH | `/opportunities/:id/stage` | Mover en pipeline (registra historial) |
+| GET | `/pipeline/stages` | Etapas configuradas |
+| POST | `/pipeline/stages` | Crear etapa |
+| PUT | `/pipeline/stages/reorder` | Reordenar etapas |
+
+#### Cotizaciones
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/quotes` | Crear cotización |
+| GET | `/quotes/:id` | Detalle con items |
+| PATCH | `/quotes/:id` | Actualizar |
+| POST | `/quotes/:id/send` | Enviar por email (genera PDF, adjunta) |
+| GET | `/quotes/:id/pdf` | Descargar PDF |
+| POST | `/quotes/:id/duplicate` | Duplicar cotización |
+
+#### IA
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/ai/suggest` | Sugerencia para un contexto dado |
+| POST | `/ai/draft-email` | Redactar email asistido |
+| GET | `/ai/pipeline-insights` | Análisis del pipeline completo |
+| PATCH | `/ai/suggestions/:id/dismiss` | Descartar sugerencia |
+| PATCH | `/ai/suggestions/:id/apply` | Marcar como aplicada |
+
+#### Automatizaciones
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/automations` | Lista de reglas |
+| POST | `/automations` | Crear regla |
+| PATCH | `/automations/:id` | Actualizar regla |
+| PATCH | `/automations/:id/toggle` | Activar/desactivar |
+| GET | `/automations/:id/logs` | Historial de ejecuciones |
+
+#### Integración Asterisk (Telefonía)
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/telephony/click-to-call` | Origina llamada desde extensión del agente al número del contacto |
+| GET | `/telephony/calls` | Lista de llamadas con filtros (agente, contacto, fecha, estado) |
+| GET | `/telephony/calls/:id` | Detalle de llamada + URL de grabación firmada (S3 pre-signed) |
+| GET | `/telephony/calls/:id/recording` | Redirect a grabación en S3 (URL temporal 15 min) |
+| PATCH | `/telephony/calls/:id/link` | Vincula manualmente una llamada a oportunidad/contacto |
+| GET | `/telephony/config` | Obtiene configuración AMI/ARI actual (admin only) |
+| PUT | `/telephony/config` | Actualiza configuración de Asterisk (admin only) |
+| GET | `/telephony/extensions` | Lista extensiones de agentes |
+| PUT | `/telephony/extensions/:userId` | Asigna/actualiza extensión a un usuario |
+| POST | `/webhooks/asterisk/ami` | Endpoint interno que recibe eventos AMI desde el worker |
+
+### 4.3 Ejemplo: Service Layer (Oportunidades)
+
+```javascript
+// src/modules/opportunities/opportunities.service.js
+import { OpportunitiesRepository } from './opportunities.repository.js';
+import { automationQueue } from '../../jobs/automation.queue.js';
+import { aiQueue } from '../../jobs/ai.queue.js';
+
+export class OpportunitiesService {
+  constructor() {
+    this.repo = new OpportunitiesRepository();
+  }
+
+  async moveStage(opportunityId, newStageId, userId) {
+    const opportunity = await this.repo.findById(opportunityId);
+    if (!opportunity) throw new NotFoundError('Oportunidad no encontrada');
+
+    const previousStageId = opportunity.stage_id;
+
+    // Registra historial de movimiento
+    await this.repo.recordStageChange(opportunityId, previousStageId, newStageId, userId);
+
+    // Actualiza la oportunidad
+    const updated = await this.repo.updateStage(opportunityId, newStageId);
+
+    // Dispara automatizaciones de forma asíncrona
+    await automationQueue.add('trigger', {
+      event: 'stage_changed',
+      payload: { opportunityId, previousStageId, newStageId, userId }
+    });
+
+    // Solicita sugerencia de IA en background
+    await aiQueue.add('generate-suggestion', {
+      contextType: 'opportunity',
+      contextId: opportunityId,
+      userId,
+      trigger: 'stage_changed',
+      data: { newStageId }
+    });
+
+    return updated;
+  }
+}
+```
+
+### 4.4 Autenticación y Autorización
+
+```javascript
+// Middleware RBAC
+const permissions = {
+  admin:  ['*'],                              // Todo
+  agent:  ['read:*', 'write:own', 'create'], // Sólo sus registros
+  viewer: ['read:*']                          // Solo lectura
+};
+
+// Uso en rutas
+router.delete('/companies/:id',
+  authenticate,            // Verifica JWT
+  authorize('admin'),      // Solo admins pueden eliminar
+  companiesController.delete
+);
+```
+
+### 4.5 Seguridad (OWASP Básico)
+- **A01 Broken Access Control:** RBAC en cada endpoint, validación `assigned_to` en agents
+- **A03 Injection:** Queries parametrizadas con `pg` (nunca interpolación de strings)
+- **A05 Security Misconfiguration:** Helmet.js, CORS restringido, headers seguros
+- **A07 Auth Failures:** JWT con expiración corta (15min) + refresh tokens rotativos
+- **A09 Logging:** Winston structured logging, audit trail en operaciones críticas
+- **Rate Limiting:** 100 req/min por IP general, 10 req/min en endpoints de auth
+
+---
+
+## 5. Desarrollo del Frontend
+
+### 5.1 Estructura de Carpetas
+
+```
+frontend/
+├── src/
+│   ├── assets/               # Logos, íconos, fuentes
+│   ├── components/
+│   │   ├── ui/               # Atomic: Button, Input, Badge, Modal, etc.
+│   │   ├── layout/           # Sidebar, Header, PageWrapper
+│   │   ├── forms/            # ContactForm, OpportunityForm, etc.
+│   │   └── charts/           # Recharts wrappers
+│   ├── pages/
+│   │   ├── Auth/             # Login con OAuth
+│   │   ├── Dashboard/        # KPIs y widgets
+│   │   ├── Companies/        # Lista + Detalle
+│   │   ├── Contacts/
+│   │   ├── Pipeline/         # Kanban view
+│   │   ├── Opportunities/    # Lista + Detalle
+│   │   ├── Quotes/           # Builder + Lista
+│   │   ├── Tasks/            # Calendario + Lista
+│   │   ├── Leads/
+│   │   ├── Campaigns/
+│   │   ├── Inventory/
+│   │   ├── Support/
+│   │   ├── Reports/
+│   │   ├── Automations/
+│   │   ├── AI/               # Panel de sugerencias
+│   │   └── Settings/
+│   ├── hooks/
+│   │   ├── useAuth.js
+│   │   ├── useOpportunities.js
+│   │   ├── usePipeline.js
+│   │   └── useRealtime.js    # WebSocket hook
+│   ├── stores/
+│   │   ├── authStore.js      # Zustand: sesión de usuario
+│   │   └── uiStore.js        # Zustand: sidebar, modals, theme
+│   ├── lib/
+│   │   ├── api.js            # Axios instance con interceptors
+│   │   └── queryClient.js    # TanStack Query config
+│   ├── routes/               # React Router v6 con lazy loading
+│   └── main.jsx
+```
+
+### 5.2 Flujos de Navegación Críticos
+
+```
+Login (OAuth) → Dashboard
+  ↓
+Dashboard → Pipeline (Kanban)
+  → Click card → Opportunity Detail (slideout panel)
+    → Editar etapa (drag & drop)
+    → Crear cotización → Quote Builder
+      → Previsualizar → Enviar por email
+    → Ver timeline de comunicaciones
+    → Ver sugerencias de IA (widget lateral)
+
+Dashboard → Leads → Calificar lead → Convertir a Contacto+Empresa+Oportunidad (wizard)
+```
+
+### 5.3 Manejo de Estado
+
+| Tipo de estado | Solución | Razón |
+|---|---|---|
+| Auth / sesión | **Zustand** | Persistido en localStorage, acceso global |
+| Datos del servidor | **TanStack Query** | Cache, refetch, optimistic updates |
+| UI local (modales, sidebar) | **Zustand** | Simple, sin boilerplate |
+| Formularios | **React Hook Form + Zod** | Validación tipada, performance |
+
+```javascript
+// Ejemplo: Optimistic update en cambio de etapa
+const { mutate: moveStage } = useMutation({
+  mutationFn: ({ id, stageId }) => api.patch(`/opportunities/${id}/stage`, { stageId }),
+  onMutate: async ({ id, stageId }) => {
+    await queryClient.cancelQueries(['pipeline']);
+    const previous = queryClient.getQueryData(['pipeline']);
+    // Actualiza UI inmediatamente
+    queryClient.setQueryData(['pipeline'], old => moveCardOptimistically(old, id, stageId));
+    return { previous };
+  },
+  onError: (err, vars, ctx) => {
+    queryClient.setQueryData(['pipeline'], ctx.previous); // Rollback
+  },
+  onSettled: () => queryClient.invalidateQueries(['pipeline']),
+});
+```
+
+### 5.4 Diseño y UX
+- **Design System:** Basado en variables CSS custom properties (modo oscuro por defecto)
+- **Paleta:** Índigo (`#6366f1`) primario, gris oscuro fondo, verde/rojo para estados
+- **Tipografía:** Inter (Google Fonts)
+- **Componentes:** Shadcn/ui como base de componentes accesibles
+- **Responsive:** Mobile-first pero optimizado para desktop (uso CRM en oficina)
+- **Accesibilidad:** ARIA labels, navegación por teclado en Kanban y formularios
+
+---
+
+## 6. Integraciones y Automatizaciones
+
+### 6.1 OAuth Social (Google + Microsoft)
+
+```javascript
+// backend/src/config/passport.js (fragmento)
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: '/api/v1/auth/google/callback',
+  scope: ['profile', 'email', 'https://www.googleapis.com/auth/gmail.readonly']
+}, async (accessToken, refreshToken, profile, done) => {
+  const user = await findOrCreateUser(profile, 'google', { accessToken, refreshToken });
+  return done(null, user);
+}));
+```
+
+### 6.2 WhatsApp Business (Meta Cloud API)
+
+```javascript
+// Webhook handler
+app.post('/webhooks/whatsapp', async (req, res) => {
+  const { entry } = req.body;
+  for (const change of entry[0].changes) {
+    if (change.value.messages) {
+      const msg = change.value.messages[0];
+      await whatsappQueue.add('process-inbound', {
+        from: msg.from,       // número del cliente
+        text: msg.text?.body,
+        type: msg.type,       // text, image, document
+        timestamp: msg.timestamp
+      });
+    }
+  }
+  res.sendStatus(200);
+});
+
+// Worker: busca contacto y registra comunicación
+whatsappQueue.process('process-inbound', async (job) => {
+  const { from, text } = job.data;
+  const contact = await findContactByPhone(from);
+  await communicationsService.create({
+    type: 'whatsapp',
+    direction: 'inbound',
+    body: text,
+    contact_id: contact?.id,
+    metadata: { whatsapp_number: from }
+  });
+});
+```
+
+### 6.3 Integración de Email (IMAP + SMTP)
+
+- **Envío:** SendGrid / SMTP propio via Nodemailer
+- **Recepción/Sync:** IMAP via `imapflow` — sincroniza bandeja de agente, asocia emails a contactos por dominio/email match
+- **Thread tracking:** Pixel de tracking en emails enviados desde el CRM
+
+### 6.4 Motor de Automatizaciones
+
+```javascript
+// Estructura de una regla de automatización (JSONB en DB)
+{
+  "trigger": {
+    "event": "opportunity_stage_changed",
+    "conditions": [
+      { "field": "new_stage.is_closed_won", "op": "eq", "value": true }
+    ]
+  },
+  "actions": [
+    { "type": "send_email", "template": "won_deal_internal", "to": "assigned_agent" },
+    { "type": "create_task", "title": "Generar factura para {{opportunity.company}}", 
+      "assignTo": "assigned_agent", "dueInDays": 2 },
+    { "type": "update_field", "entity": "opportunity", "field": "won_at", "value": "{{now}}" }
+  ]
+}
+```
+
+### 6.5 Integración de IA (OpenAI GPT-4o)
+
+```javascript
+// src/modules/ai/ai.service.js
+export async function generatePipelineSuggestions(userId) {
+  const opportunities = await getStaleOpportunities(userId); // > 14 días sin actividad
+  
+  const prompt = `Eres un consultor de ventas especializado en logística.
+Analiza estas oportunidades estancadas y sugiere acciones concretas:
+${JSON.stringify(opportunities.map(o => ({
+  empresa: o.company_name,
+  etapa: o.stage_name,
+  valor: o.value,
+  diasSinContacto: o.days_since_contact,
+  ultimaComunicacion: o.last_communication_summary
+})))}
+
+Por cada oportunidad responde en JSON con: 
+{ id, sugerencia, accionRecomendada, urgencia: 'alta'|'media'|'baja' }`;
+
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [{ role: 'user', content: prompt }],
+    response_format: { type: 'json_object' },
+    max_tokens: 1000
+  });
+
+  // Cachea resultado 4 horas en Redis para no consumir tokens repetidamente
+  await redis.setex(`ai:pipeline:${userId}`, 14400, completion.choices[0].message.content);
+  return JSON.parse(completion.choices[0].message.content);
+}
+```
+
+### 6.6 Integración Asterisk (Central Telefónica AMI/ARI)
+
+> **Estrategia:** La integración se diseña desde v1 como un módulo desactivado por feature flag (`ASTERISK_ENABLED=false`). Cuando el cliente active su central Asterisk, solo se requiere configurar las credenciales AMI/ARI y el flag — sin necesidad de refactoring.
+
+#### Arquitectura de la Integración
+
+```
+┌─────────────────┐      AMI (TCP 5038)     ┌──────────────────┐
+│  Backend Node.js │ ◄──────────────────────► │  Asterisk PBX    │
+│  AmiClient.js    │                          │  (servidor LAN)  │
+│                  │  ARI REST (HTTP 8088)   │                  │
+│  AriClient.js    │ ◄──────────────────────► │  /ari/...        │
+└────────┬─────────┘                          └──────────────────┘
+         │ BullMQ job                                  │
+         │ 'process-ami-event'                         │ grabaciones WAV
+┌────────▼─────────┐                          ┌────────▼─────────┐
+│  asterisk.worker  │                         │  S3/MinIO        │
+│  - screen pop     │  WebSocket al frontend  │  (sync periódica)│
+│  - registra CDR   │ ─────────────────────►  │                  │
+│  - vincula contacto                         └──────────────────┘
+└──────────────────┘
+```
+
+#### Click-to-Call (AMI Originate)
+
+```javascript
+// src/adapters/asterisk/AmiClient.js
+import AmiIo from 'asterisk-ami'; // npm: asterisk-ami
+
+export class AmiClient {
+  constructor(config) {
+    this.ami = new AmiIo({
+      host: config.ami_host,
+      port: config.ami_port,
+      login: config.ami_user,
+      password: config.ami_secret,
+      reconnect: true,           // reconexión automática
+      reconnectTimeout: 5000,
+    });
+    this._setupEventListeners();
+  }
+
+  // Click-to-call: origina llamada desde la extensión del agente
+  async clickToCall({ agentExtension, destinationNumber, contactId, opportunityId, userId }) {
+    return new Promise((resolve, reject) => {
+      const actionId = `ctc-${Date.now()}`;
+      this.ami.action({
+        Action:   'Originate',
+        ActionID:  actionId,
+        Channel:  `PJSIP/${agentExtension}`,   // extensión del agente
+        Exten:     destinationNumber,           // número del cliente
+        Context:  'from-internal',
+        Priority:  1,
+        CallerID: `CARGAR SAS <${agentExtension}>`,
+        Timeout:   30000,                       // 30 segundos espera
+        Variable: [
+          `CRM_CONTACT_ID=${contactId}`,
+          `CRM_OPPORTUNITY_ID=${opportunityId ?? ''}`,
+          `CRM_USER_ID=${userId}`,
+        ].join(','),
+        Async: 'true',
+      }, (err, res) => {
+        if (err) return reject(err);
+        resolve(res);
+      });
+    });
+  }
+
+  // Escucha eventos y los encola en BullMQ para procesamiento asíncrono
+  _setupEventListeners() {
+    this.ami.on('event', async (event) => {
+      if (['Hangup', 'CDR', 'VarSet'].includes(event.event)) {
+        await asteriskQueue.add('process-ami-event', { event });
+      }
+    });
+  }
+}
+```
+
+#### Screen Pop al Agente
+
+```javascript
+// src/workers/asterisk.worker.js
+asteriskQueue.process('process-ami-event', async (job) => {
+  const { event } = job.data;
+
+  if (event.event === 'Newchannel' && event.context === 'from-trunk') {
+    // Llamada ENTRANTE: buscar contacto por número
+    const callerNumber = normalizeE164(event.calleridnum);
+    const contact = await findContactByPhone(callerNumber);
+
+    if (contact) {
+      // Screen Pop: notificar al agente via WebSocket
+      const agentExtension = event.exten;
+      const userId = await getUserIdByExtension(agentExtension);
+
+      if (userId) {
+        websocketServer.notifyUser(userId, {
+          type:    'SCREEN_POP',
+          payload: {
+            contact,
+            callerNumber,
+            asteriskChannel: event.channel,
+            linkedOpportunities: await getOpenOpportunities(contact.id),
+          }
+        });
+      }
+    }
+  }
+
+  if (event.event === 'Hangup') {
+    // Registrar CDR automáticamente en communications
+    const crmVars = parseCrmVariables(event);
+    await callRecordsService.createFromHangup(event, crmVars);
+  }
+});
+```
+
+#### Sincronización de Grabaciones a S3
+
+```javascript
+// src/workers/asterisk.worker.js — job programado cada 5 minutos
+ascterikQueue.process('sync-recordings', async (job) => {
+  const pendingRecordings = await db.query(`
+    SELECT id, recording_filename FROM call_records
+    WHERE recording_filename IS NOT NULL
+      AND recording_url IS NULL
+      AND started_at > NOW() - INTERVAL '24 hours'
+  `);
+
+  for (const record of pendingRecordings.rows) {
+    try {
+      // Descarga de Asterisk vía SFTP o HTTP (carpeta /var/spool/asterisk/monitor)
+      const fileBuffer = await downloadFromAsterisk(record.recording_filename);
+      
+      // Sube a S3/MinIO
+      const s3Key = `recordings/${record.id}/${record.recording_filename}`;
+      await s3.putObject({ Bucket: 'crm-files', Key: s3Key, Body: fileBuffer });
+      
+      // Actualiza URL en BD
+      await db.query(
+        'UPDATE call_records SET recording_url = $1 WHERE id = $2',
+        [`${S3_BASE_URL}/${s3Key}`, record.id]
+      );
+    } catch (err) {
+      logger.error('Error syncing recording', { recordId: record.id, err });
+    }
+  }
+});
+```
+
+#### Componente React — Botón Click-to-Call
+
+```jsx
+// src/components/ui/ClickToCallButton.jsx
+function ClickToCallButton({ contactPhone, contactId, opportunityId }) {
+  const { user } = useAuth();
+  const [callState, setCallState] = useState('idle'); // idle | calling | connected | ended
+
+  // Escucha screen pop via WebSocket
+  useEffect(() => {
+    const unsubscribe = websocket.on('SCREEN_POP', (data) => {
+      if (data.contact.id === contactId) setCallState('connected');
+    });
+    return unsubscribe;
+  }, [contactId]);
+
+  const handleCall = async () => {
+    setCallState('calling');
+    try {
+      await api.post('/telephony/click-to-call', {
+        destinationNumber: contactPhone,
+        contactId,
+        opportunityId,
+      });
+      // El agente verá sonar su teléfono; el estado cambia via WebSocket
+    } catch (err) {
+      setCallState('idle');
+      toast.error('Error al iniciar llamada');
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCall}
+      disabled={callState === 'calling'}
+      className={`btn-call btn-call--${callState}`}
+      aria-label={`Llamar a ${contactPhone}`}
+    >
+      <PhoneIcon />
+      {callState === 'idle'   && contactPhone}
+      {callState === 'calling' && 'Conectando...'}
+      {callState === 'connected' && 'En llamada'}
+    </button>
+  );
+}
+```
+
+#### Feature Flag y Variables de Entorno
+
+```bash
+# .env — Asterisk (desactivado por defecto)
+ASTERISK_ENABLED=false
+ASTERISK_AMI_HOST=192.168.1.100
+ASTERISK_AMI_PORT=5038
+ASTERISK_AMI_USER=crm_user
+ASTERISK_AMI_SECRET=secret_seguro
+ASTERISK_ARI_URL=http://192.168.1.100:8088
+ASTERISK_ARI_USER=ari_user
+ASTERISK_ARI_PASSWORD=ari_secret
+ASTERISK_RECORDING_SYNC_INTERVAL=300  # segundos entre sincronizaciones
+```
+
+#### Requisitos Mínimos del Servidor Asterisk
+| Requisito | Valor |
+|---|---|
+| Versión mínima Asterisk | 13 LTS (recomendado 18 LTS o 20 LTS) |
+| Módulos requeridos | `res_ari`, `res_manager`, `app_mixmonitor` (grabaciones), `cdr_custom` |
+| Puerto AMI | 5038 TCP (accesible desde servidor CRM) |
+| Puerto ARI | 8088 HTTP o 8089 HTTPS |
+| Carpeta grabaciones | `/var/spool/asterisk/monitor/` con acceso SFTP/HTTP |
+| Dialplan | Variable `CRM_CONTACT_ID` propagada en contexto `from-internal` |
+
+---
+
+## 7. Despliegue y DevOps
+
+### 7.1 Docker Compose (Desarrollo)
+
+```yaml
+# docker-compose.yml
+version: '3.9'
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: cargar_crm
+      POSTGRES_USER: crm_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports: ["5432:5432"]
+  
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+  
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://crm_user:${DB_PASSWORD}@postgres:5432/cargar_crm
+      REDIS_URL: redis://redis:6379
+    ports: ["4000:4000"]
+    depends_on: [postgres, redis]
+    volumes:
+      - ./backend/src:/app/src  # hot reload en dev
+  
+  frontend:
+    build: ./frontend
+    ports: ["3000:3000"]
+    depends_on: [backend]
+
+volumes:
+  postgres_data:
+```
+
+### 7.2 Infraestructura de Producción (Opción Recomendada: AWS / DigitalOcean)
+
+```
+┌─────────────────────────────────────────────┐
+│               DigitalOcean                  │
+│                                             │
+│  App Platform (Backend)  ←→  Managed PG DB  │
+│  App Platform (Frontend)     (1 replica)    │
+│                          ←→  Managed Redis  │
+│  Spaces (S3-compatible)                     │
+│  for PDFs and uploads                       │
+└─────────────────────────────────────────────┘
+```
+
+**Razón:** DigitalOcean es más económico que AWS para equipos pequeños, managed databases incluyen backups automáticos, y App Platform simplifica el CI/CD.
+
+**Alternativa AWS si se necesita escalar:** EC2 t3.small + RDS PostgreSQL + ElastiCache Redis + S3
+
+### 7.3 CI/CD con GitHub Actions
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy to Production
+on:
+  push:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run backend tests
+        run: cd backend && npm test
+      - name: Run frontend build check
+        run: cd frontend && npm run build
+  
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to DigitalOcean App Platform
+        uses: digitalocean/app_action@v1.1.5
+        with:
+          app_name: cargar-crm
+          token: ${{ secrets.DO_API_TOKEN }}
+```
+
+### 7.4 Ambientes
+
+| Ambiente | URL | Propósito |
+|---|---|---|
+| Desarrollo | `localhost:3000` | Trabajo diario con hot reload |
+| Staging | `staging.cargar-crm.com` | QA, demos, pruebas de integración |
+| Producción | `crm.cargarsas.com` | Usuarios finales |
+
+### 7.5 Monitoreo
+- **Error tracking:** Sentry (plan free/team, <5K errores/mes gratis)
+- **Métricas:** UptimeRobot para uptime + alertas por email/WhatsApp
+- **Logs:** LogDNA o Logtail (integrado con DigitalOcean)
+- **Performance DB:** pganalyze o pg_stat_statements para queries lentas
+
+---
+
+## 8. Estimación de Costos y Recursos
+
+### 8.1 Esfuerzo por Módulo (horas de desarrollo)
+
+| Módulo | Backend (h) | Frontend (h) | QA (h) | Total |
+|---|---|---|---|---|
+| Auth + Infra base | 30 | 20 | 10 | **60h** |
+| Contactos / Empresas | 20 | 30 | 10 | **60h** |
+| Pipeline de ventas | 25 | 40 | 15 | **80h** |
+| Tareas / Actividades | 15 | 25 | 8 | **48h** |
+| Cotizaciones + PDF | 30 | 40 | 12 | **82h** |
+| Comunicaciones + Email | 25 | 30 | 10 | **65h** |
+| Leads + Campañas | 20 | 30 | 10 | **60h** |
+| Inventario | 20 | 28 | 8 | **56h** |
+| Reportes + Dashboard | 20 | 35 | 10 | **65h** |
+| WhatsApp Integration | 30 | 20 | 15 | **65h** |
+| IA Sugerencias | 25 | 20 | 10 | **55h** |
+| Automatizaciones | 30 | 25 | 12 | **67h** |
+| Portal Soporte | 25 | 35 | 12 | **72h** |
+| **Asterisk AMI/ARI** _(v2, activable)_ | **35** | **20** | **15** | **70h** |
+| DevOps + Infra | 40 | — | 10 | **50h** |
+| **TOTAL (sin Asterisk activo)** | | | | **~885h** |
+| **TOTAL (con Asterisk activo en v2)** | | | | **~955h** |
+
+### 8.2 Perfil de Equipo Ideal
+
+| Rol | Dedicación | Responsabilidad |
+|---|---|---|
+| Fullstack Senior (1) | 100% | Arquitectura, backend, integraciones complejas |
+| Frontend Mid (1) | 100% | UI/UX, componentes, experiencia de usuario |
+| QA / DevOps (0.5) | 50% | Testing, CI/CD, monitoreo |
+| PM / Analista (0.5) | 50% | Gestión, documentación, demos a cliente |
+
+**Duración estimada:** 20 semanas con el equipo propuesto (~5 meses)
+
+### 8.3 Costos de Infraestructura Mensual (Producción)
+
+| Servicio | Plan | Costo/mes (USD) |
+|---|---|---|
+| DigitalOcean App Platform Backend | Basic 1GB | $12 |
+| DigitalOcean App Platform Frontend | Static Site | $3 |
+| DigitalOcean Managed PostgreSQL | 1GB RAM, 25GB | $15 |
+| DigitalOcean Managed Redis | 1GB | $15 |
+| DigitalOcean Spaces (S3) | 250GB | $5 |
+| SendGrid Email | Essentials 50K/mes | $15 |
+| OpenAI API (GPT-4o) | ~$0.01/1K tokens | ~$20-50 |
+| WhatsApp Business API | Por mensaje | ~$10-30 |
+| Sentry (error tracking) | Team | $0 (free) |
+| GitHub Actions | 2000 min/mes | $0 (free) |
+| **Asterisk PBX** _(on-premise, no aplica costo cloud)_ | Servidor del cliente | $0 adicionional |
+| **TOTAL ESTIMADO (sin Asterisk activo)** | | **~$95–145 USD/mes** |
+| **TOTAL ESTIMADO (con Asterisk activo)** | | **~$95–145 USD/mes** _(Asterisk es on-premise)_ |
+
+> **Equivalente en COP:** ~$400,000–$580,000 COP/mes (TRM ~4,000)
+
+### 8.4 Costo de Desarrollo (Referencia)
+
+| Perfil | Tarifa hora (COP) | Horas | Total |
+|---|---|---|---|
+| Fullstack Senior | $80,000–$120,000 | 530h | $42,400,000–$63,600,000 |
+| Frontend Mid | $50,000–$80,000 | 280h | $14,000,000–$22,400,000 |
+| QA / DevOps | $50,000–$70,000 | 75h | $3,750,000–$5,250,000 |
+| **Total Aprox.** | | | **$60–91 millones COP** |
+
+---
+
+## Decisiones Abiertas para Aprobación
+
+> [!IMPORTANT]
+> **¿Usar DigitalOcean o AWS?** DO es más económico y simple para empezar. AWS da más flexibilidad futura. Recomiendo DigitalOcean para v1.
+
+> [!IMPORTANT]
+> **¿Implementar WhatsApp desde MVP o en Fase 4?** El proceso de aprobación de Meta puede tomar 2-4 semanas. Recomiendo iniciar el proceso en la Fase 1 aunque el código se desarrolle en Fase 4.
+
+> [!WARNING]
+> **Costo de OpenAI:** Si el equipo usa la IA frecuentemente, el costo puede superar $50 USD/mes. Podría implementarse con límite de consultas diarias por usuario.
+
+> [!NOTE]
+> **Portal de cliente (Fase 5):** Si el soporte es principalmente por WhatsApp, este módulo podría ser deprioritizado. ¿Confirmar si es Must Have para v1?
+
+> [!IMPORTANT]
+> **Integración Asterisk — Decisiones pendientes:**
+> 1. **¿Versión de Asterisk instalada?** Se requiere mínimo v13; se recomienda v18 LTS o v20 LTS para soporte ARI estable.
+> 2. **¿El servidor Asterisk estará en la red LAN de CARGAR SAS?** Si el CRM está en la nube, se necesita una VPN o túnel seguro (WireGuard/OpenVPN) entre el servidor Asterisk y el backend para exponer el puerto AMI 5038.
+> 3. **¿AMI o ARI?** AMI es más simple para click-to-call básico; ARI permite control programático avanzado (IVR, conferencias). Recomiendo **empezar con AMI** y migrar partes específicas a ARI según necesidad.
+> 4. **¿Grabaciones habilitadas en Asterisk?** Se requiere `app_mixmonitor` y espacio en disco en el servidor Asterisk; las grabaciones se sincronizarán periódicamente a S3.

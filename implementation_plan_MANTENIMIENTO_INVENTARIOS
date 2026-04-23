@@ -1,0 +1,32 @@
+# Plan de Implementación — Mantenimiento Preventivo
+
+## Archivos a crear / modificar
+
+### Backend
+| # | Archivo | Acción |
+|---|---------|--------|
+| 1 | `migrations/008_preventivo_module.sql` | **CREAR** — Tablas nuevas + ALTER a existentes + seeds |
+| 2 | `src/modules/mantenimiento/pm.repository.js` | **CREAR** — Repository para plantillas PM |
+| 3 | `src/modules/mantenimiento/pm.controller.js` | **CREAR** — Controller para endpoints PM |
+| 4 | `src/modules/mantenimiento/mantenimiento.repository.js` | **MODIFICAR** — Ampliar createOT, findOTById, liquidarOT |
+| 5 | `src/modules/mantenimiento/mantenimiento.routes.js` | **MODIFICAR** — Agregar rutas PM |
+| 6 | `src/modules/mantenimiento/mantenimiento.controller.js` | **MODIFICAR** — Agregar updateActividadPM |
+| 7 | `src/utils/pdfGenerator.js` | **MODIFICAR** — Secciones PM en PDF |
+
+### Frontend
+| # | Archivo | Acción |
+|---|---------|--------|
+| 8 | `src/pages/Mantenimiento/OTFormPage.jsx` | **MODIFICAR** — Selector frecuencia + actividades |
+| 9 | `src/pages/Mantenimiento/OTDetailPage.jsx` | **MODIFICAR** — Mostrar actividades PM |
+| 10 | `src/pages/Mantenimiento/PMAdminPage.jsx` | **CREAR** — Panel admin plantillas |
+| 11 | `src/App.jsx` | **MODIFICAR** — Agregar ruta admin PM |
+
+## Orden de ejecución
+1. Migration SQL (tablas + seeds)
+2. PM Repository + Controller + Routes (backend)
+3. Modificar createOT/findOTById/liquidarOT
+4. Modificar OTFormPage (frontend)
+5. Modificar OTDetailPage (frontend)
+6. Crear PMAdminPage
+7. Actualizar PDF generator
+8. Agregar rutas frontend

@@ -1,0 +1,186 @@
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'react-hot-toast';
+import { useAuthStore } from './stores/authStore';
+
+// Lazy loaded pages
+const LoginPage     = lazy(() => import('./pages/Auth/LoginPage').then(m => ({ default: m.LoginPage })));
+const AuthCallback  = lazy(() => import('./pages/Auth/AuthCallback').then(m => ({ default: m.AuthCallbackPage })));
+const DashboardPage = lazy(() => import('./pages/Dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const CompaniesPage = lazy(() => import('./pages/Companies/CompaniesPage').then(m => ({ default: m.CompaniesPage })));
+const CompanyDetailPage = lazy(() => import('./pages/Companies/CompanyDetailPage').then(m => ({ default: m.CompanyDetailPage })));
+const ContactsPage = lazy(() => import('./pages/Contacts/ContactsPage').then(m => ({ default: m.ContactsPage })));
+const PipelinePage = lazy(() => import('./pages/Pipeline/PipelinePage').then(m => ({ default: m.PipelinePage })));
+const TasksPage = lazy(() => import('./pages/Tasks/TasksPage').then(m => ({ default: m.TasksPage })));
+const QuotesPage = lazy(() => import('./pages/Quotes/QuotesPage').then(m => ({ default: m.QuotesPage })));
+const LeadsPage = lazy(() => import('./pages/Leads/LeadsPage').then(m => ({ default: m.LeadsPage })));
+const InventoryPage = lazy(() => import('./pages/Inventory/InventoryPage').then(m => ({ default: m.InventoryPage })));
+const CampaignsPage = lazy(() => import('./pages/Campaigns/CampaignsPage').then(m => ({ default: m.CampaignsPage })));
+const SupportPage   = lazy(() => import('./pages/Support/SupportPage').then(m => ({ default: m.SupportPage })));
+const EmployeesPage = lazy(() => import('./pages/Employees/EmployeesPage').then(m => ({ default: m.EmployeesPage })));
+const EquiposPage   = lazy(() => import('./pages/Equipos/EquiposPage').then(m => ({ default: m.EquiposPage })));
+const MantenimientoPage = lazy(() => import('./pages/Mantenimiento/MantenimientoPage').then(m => ({ default: m.MantenimientoPage })));
+const OTFormPage    = lazy(() => import('./pages/Mantenimiento/OTFormPage').then(m => ({ default: m.OTFormPage })));
+const OTDetailPage  = lazy(() => import('./pages/Mantenimiento/OTDetailPage').then(m => ({ default: m.OTDetailPage })));
+const PMAdminPage   = lazy(() => import('./pages/Mantenimiento/PMAdminPage').then(m => ({ default: m.PMAdminPage })));
+
+const ProveedoresListPage = lazy(() => import('./pages/Proveedores/ProveedoresListPage').then(m => ({ default: m.ProveedoresListPage })));
+const ProveedorFormPage = lazy(() => import('./pages/Proveedores/ProveedorFormPage').then(m => ({ default: m.ProveedorFormPage })));
+const ProveedorFichaPage = lazy(() => import('./pages/Proveedores/ProveedorFichaPage').then(m => ({ default: m.ProveedorFichaPage })));
+
+const DashboardComprasPage = lazy(() => import('./pages/Compras/DashboardComprasPage').then(m => ({ default: m.DashboardComprasPage })));
+const SolicitudesListPage = lazy(() => import('./pages/Compras/SolicitudesListPage').then(m => ({ default: m.SolicitudesListPage })));
+const SolicitudFormPage = lazy(() => import('./pages/Compras/SolicitudFormPage').then(m => ({ default: m.SolicitudFormPage })));
+const ComparacionCotizacionesPage = lazy(() => import('./pages/Compras/ComparacionCotizacionesPage').then(m => ({ default: m.ComparacionCotizacionesPage })));
+const OrdenesCompraPage = lazy(() => import('./pages/Compras/OrdenesCompraPage').then(m => ({ default: m.OrdenesCompraPage })));
+const OrdenCompraFormPage = lazy(() => import('./pages/Compras/OrdenCompraFormPage').then(m => ({ default: m.OrdenCompraFormPage })));
+const AprobacionesPage = lazy(() => import('./pages/Compras/AprobacionesPage').then(m => ({ default: m.AprobacionesPage })));
+const RecepcionMercanciaPage = lazy(() => import('./pages/Compras/RecepcionMercanciaPage').then(m => ({ default: m.RecepcionMercanciaPage })));
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime:  5 * 60 * 1000,   // datos frescos por 5 minutos
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+function ProtectedRoute({ children }) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+}
+
+function PublicRoute({ children }) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  return !isAuthenticated ? children : <Navigate to="/dashboard" replace />;
+}
+
+import { useThemeStore } from './stores/themeStore';
+
+const PageLoader = () => (
+  <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', background: 'var(--bg-app)' }}>
+    <div className="spinner" style={{ width: '2rem', height: '2rem' }} />
+  </div>
+);
+
+function App() {
+  const applyTheme = useThemeStore(s => s.applyTheme);
+
+  React.useEffect(() => {
+    applyTheme();
+  }, [applyTheme]);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            {/* Rutas públicas */}
+            <Route path="/login" element={
+              <PublicRoute><LoginPage /></PublicRoute>
+            } />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+
+            {/* Rutas protegidas */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute><DashboardPage /></ProtectedRoute>
+            } />
+            <Route path="/companies" element={
+              <ProtectedRoute><CompaniesPage /></ProtectedRoute>
+            } />
+            <Route path="/companies/:id" element={
+              <ProtectedRoute><CompanyDetailPage /></ProtectedRoute>
+            } />
+            <Route path="/contacts" element={
+              <ProtectedRoute><ContactsPage /></ProtectedRoute>
+            } />
+            <Route path="/pipeline" element={
+              <ProtectedRoute><PipelinePage /></ProtectedRoute>
+            } />
+            <Route path="/tasks" element={
+              <ProtectedRoute><TasksPage /></ProtectedRoute>
+            } />
+            <Route path="/quotes" element={
+              <ProtectedRoute><QuotesPage /></ProtectedRoute>
+            } />
+            <Route path="/leads" element={
+              <ProtectedRoute><LeadsPage /></ProtectedRoute>
+            } />
+            <Route path="/inventory" element={
+              <ProtectedRoute><InventoryPage /></ProtectedRoute>
+            } />
+            <Route path="/campaigns" element={
+              <ProtectedRoute><CampaignsPage /></ProtectedRoute>
+            } />
+            <Route path="/support" element={
+              <ProtectedRoute><SupportPage /></ProtectedRoute>
+            } />
+            <Route path="/employees" element={
+              <ProtectedRoute><EmployeesPage /></ProtectedRoute>
+            } />
+            <Route path="/equipos" element={
+              <ProtectedRoute><EquiposPage /></ProtectedRoute>
+            } />
+            <Route path="/mantenimiento" element={
+              <ProtectedRoute><MantenimientoPage /></ProtectedRoute>
+            } />
+            <Route path="/mantenimiento/nueva" element={
+              <ProtectedRoute><OTFormPage /></ProtectedRoute>
+            } />
+            <Route path="/mantenimiento/:id" element={
+              <ProtectedRoute><OTDetailPage /></ProtectedRoute>
+            } />
+            <Route path="/mantenimiento/:id/editar" element={
+              <ProtectedRoute><OTFormPage /></ProtectedRoute>
+            } />
+            <Route path="/mantenimiento/configuracion" element={
+              <ProtectedRoute><PMAdminPage /></ProtectedRoute>
+            } />
+
+            {/* Submódulo Proveedores */}
+            <Route path="/proveedores" element={<ProtectedRoute><ProveedoresListPage /></ProtectedRoute>} />
+            <Route path="/proveedores/nuevo" element={<ProtectedRoute><ProveedorFormPage /></ProtectedRoute>} />
+            <Route path="/proveedores/:id/editar" element={<ProtectedRoute><ProveedorFormPage /></ProtectedRoute>} />
+            <Route path="/proveedores/:id" element={<ProtectedRoute><ProveedorFichaPage /></ProtectedRoute>} />
+
+            {/* Módulo Órdenes de Compra */}
+            <Route path="/compras" element={<ProtectedRoute><DashboardComprasPage /></ProtectedRoute>} />
+            <Route path="/compras/solicitudes" element={<ProtectedRoute><SolicitudesListPage /></ProtectedRoute>} />
+            <Route path="/compras/solicitudes/nueva" element={<ProtectedRoute><SolicitudFormPage /></ProtectedRoute>} />
+            <Route path="/compras/solicitudes/:id/editar" element={<ProtectedRoute><SolicitudFormPage /></ProtectedRoute>} />
+            <Route path="/compras/cotizaciones/comparativa/:solicitudId" element={<ProtectedRoute><ComparacionCotizacionesPage /></ProtectedRoute>} />
+            <Route path="/compras/oc" element={<ProtectedRoute><OrdenesCompraPage /></ProtectedRoute>} />
+            <Route path="/compras/oc/nueva/:cotizacionId" element={<ProtectedRoute><OrdenCompraFormPage /></ProtectedRoute>} />
+            <Route path="/compras/oc/:id/editar" element={<ProtectedRoute><OrdenCompraFormPage /></ProtectedRoute>} />
+            <Route path="/compras/aprobaciones" element={<ProtectedRoute><AprobacionesPage /></ProtectedRoute>} />
+            <Route path="/compras/recepcion/:id" element={<ProtectedRoute><RecepcionMercanciaPage /></ProtectedRoute>} />
+
+
+            {/* Redirect raíz */}
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: 'var(--bg-elevated)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-color)',
+            fontFamily: 'var(--font-sans)',
+            fontSize: '14px',
+          },
+          success: { iconTheme: { primary: '#22c55e', secondary: 'white' } },
+          error:   { iconTheme: { primary: '#ef4444', secondary: 'white' } },
+        }}
+      />
+    </QueryClientProvider>
+  );
+}
+
+export default App;

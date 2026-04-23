@@ -1,0 +1,39 @@
+# Dependencias
+node_modules/
+.npm
+
+# Variables de entorno (NUNCA comitear)
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Docker volumes locales
+docker-volumes/
+
+# Archivos temporales de PDF
+*.pdf.tmp
+uploads/tmp/
