@@ -2,39 +2,39 @@
    CARGAR CRM — Design System
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Nunito+Sans:wght@300;400;600;700&family=Poppins:wght@300;400;500;600;700&display=swap');
 
 /* ─── Tokens ─────────────────────────────────────────────── */
 :root {
-  /* Colores primarios */
-  --clr-primary-50:  #eef2ff;
-  --clr-primary-100: #e0e7ff;
-  --clr-primary-400: #818cf8;
-  --clr-primary-500: #6366f1;
-  --clr-primary-600: #4f46e5;
-  --clr-primary-700: #4338ca;
+  /* Colores primarios (Azul corporativo) */
+  --clr-primary-50:  #eff6ff;
+  --clr-primary-100: #dbeafe;
+  --clr-primary-400: #60a5fa;
+  --clr-primary-500: #2563EB; /* Primary */
+  --clr-primary-600: #1d4ed8;
+  --clr-primary-700: #1E3A8A; /* Primary Dark */
 
   /* Grises */
-  --clr-gray-50:  #f8fafc;
-  --clr-gray-100: #f1f5f9;
-  --clr-gray-200: #e2e8f0;
-  --clr-gray-300: #cbd5e1;
-  --clr-gray-400: #94a3b8;
-  --clr-gray-500: #64748b;
-  --clr-gray-600: #475569;
-  --clr-gray-700: #334155;
-  --clr-gray-800: #1e293b;
-  --clr-gray-900: #0f172a;
-  --clr-gray-950: #020617;
+  --clr-gray-50:  #F5F7FA; /* Background */
+  --clr-gray-100: #f3f4f6;
+  --clr-gray-200: #E5E7EB; /* Border */
+  --clr-gray-300: #d1d5db;
+  --clr-gray-400: #9ca3af;
+  --clr-gray-500: #6B7280; /* Text Soft */
+  --clr-gray-600: #4b5563;
+  --clr-gray-700: #374151;
+  --clr-gray-800: #1f2937;
+  --clr-gray-900: #111827; /* Text Main */
+  --clr-gray-950: #030712;
 
   /* Estados */
-  --clr-success: #22c55e;
-  --clr-warning: #f59e0b;
-  --clr-danger:  #ef4444;
+  --clr-success: #10B981;
+  --clr-warning: #F59E0B;
+  --clr-danger:  #EF4444;
   --clr-info:    #3b82f6;
 
-  /* Inversión de tokens semánticos (fondos y textos) */
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Tipografía */
+  --font-sans: 'Inter', 'Poppins', 'Nunito Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
   --text-xs:   0.75rem;
@@ -59,24 +59,29 @@
   --header-height: 64px;
 }
 
-/* ─── Modo Claro (Refined: Soft UI / Premium Light) ───────── */
+/* ─── Modo Claro (SaaS Premium) ───────── */
 :root, [data-theme="light"] {
-  --bg-app:       #e2e8f0; /* Un gris más profundo y descansado */
-  --bg-surface:   #ffffff;
-  --bg-elevated:  #f1f5f9;
-  --bg-overlay:   rgba(226, 232, 240, 0.95);
+  --bg-app:       #E8EDF2; /* Fondo gris-azulado suave para descanso visual */
+  --bg-surface:   #FFFFFF;
+  --bg-elevated:  #FFFFFF;
+  --bg-overlay:   rgba(232, 237, 242, 0.95);
 
-  --text-primary:   #1a202c;
-  --text-secondary: #4a5568;
+  --text-primary:   #1A202C;
+  --text-secondary: #4A5568; 
   --text-muted:     #718096;
 
-  --border-color:  #cbd5e0; /* Bordes un poco más oscuros para mejor contraste */
-  --border-subtle: #e2e8f0;
+  --border-color:  #BCCCDC; /* Bordes mucho más visibles y definidos */
+  --border-subtle: #D9E2EC;
 
-  --shadow-sm:  0 2px 4px rgba(0,0,0,0.05);
-  --shadow-md:  0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
-  --shadow-lg:  0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
-  --shadow-glow: 0 0 15px rgba(99,102,241,0.25);
+  --shadow-sm:  0 2px 5px rgba(0,0,0,0.08);
+  --shadow-md:  0 4px 6px -1px rgba(0,0,0,0.12), 0 2px 4px -1px rgba(0,0,0,0.07);
+  --shadow-lg:  0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+  --shadow-glow: 0 0 15px rgba(37,99,235,0.25);
+
+  --sidebar-bg: #1E2A44;
+  --sidebar-text: #F3F4F6;
+  --sidebar-text-muted: #9CA3AF;
+  --sidebar-border: #1E2A44;
 }
 
 /* ─── Modo Oscuro ────────────────────────────────────────── */
@@ -97,6 +102,11 @@
   --shadow-md:  0 4px 16px rgba(0,0,0,0.4);
   --shadow-lg:  0 12px 40px rgba(0,0,0,0.5);
   --shadow-glow: 0 0 20px rgba(99,102,241,0.3);
+
+  --sidebar-bg: #12141c;
+  --sidebar-text: #f1f5f9;
+  --sidebar-text-muted: #94a3b8;
+  --sidebar-border: #252b3b;
 }
 
 /* ─── Reset y base ───────────────────────────────────────── */
@@ -138,16 +148,23 @@ img, video { max-width: 100%; display: block; }
 .sidebar {
   grid-column: 1;
   grid-row: 1 / -1;
-  background: var(--bg-surface);
-  border-right: 1px solid var(--border-color);
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
   display: flex;
   flex-direction: column;
   position: sticky;
   top: 0;
   height: 100vh;
   overflow-y: auto;
-  box-shadow: 4px 0 15px rgba(0, 0, 0, 0.08);
+  box-shadow: 4px 0 15px rgba(0, 0, 0, 0.05);
   z-index: 20;
+
+  /* Redefine local variables for sidebar text */
+  --text-primary: var(--sidebar-text);
+  --text-secondary: var(--sidebar-text);
+  --text-muted: var(--sidebar-text-muted);
+  --border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
 }
 
 .sidebar__logo {
@@ -169,7 +186,7 @@ img, video { max-width: 100%; display: block; }
   gap: 0.75rem;
   padding: 0.625rem 0.875rem;
   border-radius: var(--radius-md);
-  color: var(--text-secondary);
+  color: var(--sidebar-text-muted);
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
@@ -181,17 +198,17 @@ img, video { max-width: 100%; display: block; }
 }
 
 .nav-item:hover {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--sidebar-text);
 }
 
 .nav-item--active {
-  background: rgba(99,102,241,0.15);
-  color: var(--clr-primary-400);
+  background: var(--clr-primary-500);
+  color: #FFFFFF;
 }
 
 .nav-item--active:hover {
-  background: rgba(99,102,241,0.2);
+  background: var(--clr-primary-600);
 }
 
 .nav-section-label {
@@ -216,7 +233,7 @@ img, video { max-width: 100%; display: block; }
   position: sticky;
   top: 0;
   z-index: 10;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02); /* Sutil sombra inferior */
 }
 
 /* ─── Cards ──────────────────────────────────────────────── */
@@ -226,7 +243,7 @@ img, video { max-width: 100%; display: block; }
   border-radius: var(--radius-lg);
   padding: 1.5rem;
   transition: all var(--transition-fast);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03); /* Sombras muy sutiles para aspecto ordenado */
 }
 
 .card:hover { 
@@ -364,38 +381,46 @@ img, video { max-width: 100%; display: block; }
 .badge--danger   { background: rgba(239,68,68,0.15);  color: #f87171; }
 .badge--gray     { background: var(--bg-elevated);    color: var(--text-secondary); }
 
-/* ─── Tablas ─────────────────────────────────────────────── */
+/* ─── Tablas (Premium CRM Style) ─────────────────────────── */
 .table-wrapper {
   overflow-x: auto;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 
 table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate; /* Cambiado para soportar bordes radius */
+  border-spacing: 0;
   font-size: var(--text-sm);
 }
 
 thead {
   background: var(--bg-elevated);
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 th {
-  padding: 0.875rem 1rem;
+  padding: 0.75rem 1rem;
   text-align: left;
   font-weight: 600;
   color: var(--text-secondary);
-  font-size: var(--text-xs);
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
 }
 
 td {
-  padding: 0.875rem 1rem;
-  border-bottom: 1px solid var(--border-color);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color); /* Borde de fila más visible */
   color: var(--text-primary);
+  vertical-align: middle;
 }
 
 tr:last-child td { border-bottom: none; }
@@ -403,7 +428,9 @@ tr:last-child td { border-bottom: none; }
 tbody tr {
   transition: background var(--transition-fast);
 }
-tbody tr:hover { background: var(--bg-elevated); }
+tbody tr:hover { 
+  background: var(--clr-gray-50); 
+}
 
 /* ─── KPI Cards ──────────────────────────────────────────── */
 .kpi-grid {

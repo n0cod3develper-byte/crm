@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, CheckCircle2, Circle, Clock, AlertTriangle, Phone, Mail, Users, RotateCcw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { TaskForm } from '../../components/Tasks/TaskForm';
 import api from '../../lib/api';
@@ -68,17 +69,15 @@ export function TasksPage() {
     <div className="app-layout">
       <Sidebar />
 
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Tareas</h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            {tasks.length} tareas
-          </p>
-        </div>
-        <button className="btn btn--primary" onClick={handleCreate}>
-          <Plus size={16} /> Nueva tarea
-        </button>
-      </header>
+      <Topbar 
+        title="Tareas" 
+        subtitle={`${tasks.length} tareas`} 
+        rightContent={
+          <button className="btn btn--primary" onClick={handleCreate}>
+            <Plus size={16} /> Nueva tarea
+          </button>
+        } 
+      />
 
       <main className="main-content">
         {/* Search + Filters */}

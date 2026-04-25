@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
 function getEstadoStyle(estado) {
@@ -58,10 +59,13 @@ export function OTDetailPage() {
     return (
       <div className="app-layout">
         <Sidebar />
-        <header className="header" />
-        <main className="main-content">
-          <div className="empty-state"><div className="spinner" style={{ width: '2rem', height: '2rem' }} /></div>
-        </main>
+      <Topbar 
+        title={ot?.consecutivo || 'Cargando...'} 
+        subtitle={ot ? `Creada ${fmtDate(ot.created_at)}` : 'Espere un momento'} 
+      />
+      <main className="main-content">
+        <div className="empty-state"><div className="spinner" style={{ width: '2rem', height: '2rem' }} /></div>
+      </main>
       </div>
     );
   }
@@ -95,39 +99,30 @@ export function OTDetailPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button className="btn btn--ghost" onClick={() => navigate('/mantenimiento')}>
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 800, color: 'var(--clr-primary-400)' }}>
-                {ot.consecutivo}
-              </h1>
-              <span className="badge" style={{ background: est.bg, color: est.color, fontSize: '12px', padding: '4px 12px' }}>
-                {est.label}
-              </span>
-              <span className={`badge ${ot.tipo_mantenimiento === 'CORRECTIVO' ? 'badge--warning' : 'badge--primary'}`}>
-                {ot.tipo_mantenimiento}
-              </span>
-            </div>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-              Creada {fmtDate(ot.created_at)}
-            </p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          {canEdit && (
-            <button className="btn btn--secondary" onClick={() => navigate(`/mantenimiento/${id}/editar`)}>
-              <Edit size={16} /> Editar
+      <Topbar 
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+            <button className="btn btn--ghost" onClick={() => navigate('/mantenimiento')} style={{ padding: '0.25rem' }}>
+              <ArrowLeft size={18} />
             </button>
-          )}
-          <button className="btn btn--primary" onClick={handleDownloadPDF}>
-            <Download size={16} /> Descargar PDF
-          </button>
-        </div>
-      </header>
+            <div style={{ width: 1, height: 20, background: 'var(--border-color)' }} />
+            <span>Orden de Trabajo #{ot.consecutivo}</span>
+          </div>
+        } 
+        subtitle={`Creada el ${fmtDate(ot.created_at)}`} 
+        rightContent={
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {canEdit && (
+              <button className="btn btn--secondary" onClick={() => navigate(`/mantenimiento/${id}/editar`)}>
+                <Edit size={16} /> Editar
+              </button>
+            )}
+            <button className="btn btn--primary" onClick={handleDownloadPDF}>
+              <Download size={16} /> Descargar PDF
+            </button>
+          </div>
+        } 
+      />
 
       <main className="main-content" style={{ maxWidth: 1100 }}>
 

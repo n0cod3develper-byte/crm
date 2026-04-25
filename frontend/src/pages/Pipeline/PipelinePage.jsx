@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, DollarSign, TrendingUp, Target } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { OpportunityForm } from '../../components/Opportunities/OpportunityForm';
 import api from '../../lib/api';
@@ -86,17 +87,15 @@ export function PipelinePage() {
     <div className="app-layout">
       <Sidebar />
 
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Pipeline</h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            {opportunities.length} oportunidades activas
-          </p>
-        </div>
-        <button className="btn btn--primary" onClick={() => handleCreate()}>
-          <Plus size={16} /> Nueva oportunidad
-        </button>
-      </header>
+      <Topbar 
+        title="Pipeline" 
+        subtitle={`${opportunities.length} oportunidades activas`} 
+        rightContent={
+          <button className="btn btn--primary" onClick={() => handleCreate()}>
+            <Plus size={16} /> Nueva oportunidad
+          </button>
+        } 
+      />
 
       <main className="main-content" style={{ overflowX: 'auto' }}>
         {/* Summary cards */}

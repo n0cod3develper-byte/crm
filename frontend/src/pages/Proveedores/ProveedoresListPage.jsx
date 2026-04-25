@@ -7,6 +7,7 @@ import {
   Building2, Globe, ShieldCheck, AlertCircle
 } from 'lucide-react';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
 export function ProveedoresListPage() {
@@ -61,20 +62,20 @@ export function ProveedoresListPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div className="flex items-center gap-3">
-          <div style={{ padding: '0.5rem', background: 'var(--clr-primary-500)', borderRadius: 'var(--radius-md)' }}>
-             <Building2 color="white" size={20} />
+      <Topbar 
+        title="Catálogo de Proveedores" 
+        subtitle="Directorio centralizado de suministros y servicios" 
+        rightContent={
+          <div className="flex items-center gap-3">
+            <div style={{ padding: '0.5rem', background: 'var(--clr-primary-500)', borderRadius: 'var(--radius-md)' }}>
+              <Building2 color="white" size={20} />
+            </div>
+            <button className="btn btn--primary" onClick={() => navigate('/proveedores/nuevo')}>
+              <Plus size={18} /> Nuevo Proveedor
+            </button>
           </div>
-          <div>
-            <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Catálogo de Proveedores</h1>
-            <p className="text-sm text-muted">Directorio centralizado de suministros y servicios</p>
-          </div>
-        </div>
-        <button className="btn btn--primary" onClick={() => navigate('/proveedores/nuevo')}>
-          <Plus size={18} /> Nuevo Proveedor
-        </button>
-      </header>
+        } 
+      />
 
       <main className="main-content">
         {/* Filters and Search */}

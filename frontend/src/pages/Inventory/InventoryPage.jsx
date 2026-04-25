@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Box, Trash2, Edit2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { InventoryForm } from '../../components/Inventory/InventoryForm';
 import api from '../../lib/api';
@@ -47,17 +48,15 @@ export function InventoryPage() {
     <div className="app-layout">
       <Sidebar />
 
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Inventario y Catálogo</h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            Gestiona productos y servicios para tus cotizaciones
-          </p>
-        </div>
-        <button className="btn btn--primary" onClick={handleCreate}>
-          <Plus size={16} /> Nuevo Ítem
-        </button>
-      </header>
+      <Topbar 
+        title="Inventario y Catálogo" 
+        subtitle="Gestiona productos y servicios para tus cotizaciones" 
+        rightContent={
+          <button className="btn btn--primary" onClick={handleCreate}>
+            <Plus size={16} /> Nuevo Ítem
+          </button>
+        } 
+      />
 
       <main className="main-content">
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>

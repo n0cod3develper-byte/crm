@@ -1,6 +1,7 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import { Settings, Plus, Edit2, CheckCircle, Package, Trash2, Save, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../../lib/api';
@@ -124,16 +125,15 @@ export function PMAdminPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Settings size={22} color="var(--clr-primary-400)" /> Configuración Preventivo
-          </h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-            Administra las frecuencias, actividades e insumos de los mantenimientos preventivos.
-          </p>
-        </div>
-      </header>
+      <Topbar 
+        title={
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Settings size={22} color="var(--clr-primary-400)" />
+            <span>Configuración Preventivo</span>
+          </div>
+        }
+        subtitle="Administra las frecuencias, actividades e insumos de los mantenimientos preventivos." 
+      />
 
       <main className="main-content" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1.5rem', alignItems: 'start' }}>
         

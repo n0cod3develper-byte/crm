@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Megaphone, Trash2, Edit2, ArrowRightCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { LeadForm } from '../../components/Leads/LeadForm';
 import api from '../../lib/api';
@@ -64,17 +65,15 @@ export function LeadsPage() {
     <div className="app-layout">
       <Sidebar />
 
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Leads</h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            Prospectos comerciales en fases iniciales
-          </p>
-        </div>
-        <button className="btn btn--primary" onClick={handleCreate}>
-          <Plus size={16} /> Nuevo Lead
-        </button>
-      </header>
+      <Topbar 
+        title="Leads" 
+        subtitle="Prospectos comerciales en fases iniciales" 
+        rightContent={
+          <button className="btn btn--primary" onClick={handleCreate}>
+            <Plus size={16} /> Nuevo Lead
+          </button>
+        } 
+      />
 
       <main className="main-content">
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>

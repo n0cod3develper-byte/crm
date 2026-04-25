@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, FileText, Download, Target, Trash2, Edit2, Calendar } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { QuoteForm } from '../../components/Quotes/QuoteForm';
 import api from '../../lib/api';
@@ -77,17 +78,15 @@ export function QuotesPage() {
     <div className="app-layout">
       <Sidebar />
 
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Cotizaciones</h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            Gestiona propuestas y presupuestos comerciales
-          </p>
-        </div>
-        <button className="btn btn--primary" onClick={handleCreate}>
-          <Plus size={16} /> Nueva cotización
-        </button>
-      </header>
+      <Topbar 
+        title="Cotizaciones" 
+        subtitle="Gestiona propuestas y presupuestos comerciales" 
+        rightContent={
+          <button className="btn btn--primary" onClick={handleCreate}>
+            <Plus size={16} /> Nueva cotización
+          </button>
+        } 
+      />
 
       <main className="main-content">
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>

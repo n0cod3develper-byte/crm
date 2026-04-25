@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { TicketForm } from '../../components/Support/TicketForm';
 import { TicketDetail } from '../../components/Support/TicketDetail';
@@ -196,20 +197,20 @@ export function SupportPage() {
     <div className="app-layout">
       <Sidebar />
 
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+      <Topbar 
+        title={
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <LifeBuoy size={22} style={{ color: 'var(--clr-primary-500)' }} />
-            Soporte al cliente
-          </h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            {tickets.length} ticket{tickets.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-        <button id="btn-new-ticket" className="btn btn--primary" onClick={handleCreate}>
-          <Plus size={16} /> Nuevo ticket
-        </button>
-      </header>
+            <span>Soporte al cliente</span>
+          </div>
+        }
+        subtitle={`${tickets.length} ticket${tickets.length !== 1 ? 's' : ''}`} 
+        rightContent={
+          <button id="btn-new-ticket" className="btn btn--primary" onClick={handleCreate}>
+            <Plus size={16} /> Nuevo ticket
+          </button>
+        } 
+      />
 
       <main className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 

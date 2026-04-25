@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Building2, ExternalLink } from 'lucide-react';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 import { toast } from 'react-hot-toast';
 
@@ -55,18 +56,16 @@ export function CompaniesPage() {
     <div className="app-layout">
       <Sidebar />
 
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Empresas</h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            {data?.pagination ? `${companies.length} empresas` : 'Cargando...'}
-          </p>
-        </div>
-        <button className="btn btn--primary" onClick={handleCreate}>
-          <Plus size={16} />
-          Nueva empresa
-        </button>
-      </header>
+      <Topbar 
+        title="Empresas" 
+        subtitle={data?.pagination ? `${companies.length} empresas` : 'Cargando...'} 
+        rightContent={
+          <button className="btn btn--primary" onClick={handleCreate}>
+            <Plus size={16} />
+            Nueva empresa
+          </button>
+        }
+      />
 
       <main className="main-content">
         {/* Buscador */}
@@ -103,6 +102,7 @@ export function CompaniesPage() {
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: 40 }}><input type="checkbox" className="custom-checkbox" /></th>
                   <th>Empresa</th>
                   <th>NIT</th>
                   <th>Ciudad</th>
@@ -115,6 +115,7 @@ export function CompaniesPage() {
               <tbody>
                 {companies.map(company => (
                   <tr key={company.id}>
+                    <td><input type="checkbox" className="custom-checkbox" /></td>
                     <td>
                       <Link 
                         to={`/companies/${company.id}`} 

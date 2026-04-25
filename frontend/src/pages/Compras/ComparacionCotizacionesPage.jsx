@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
 export function ComparacionCotizacionesPage() {
@@ -112,20 +113,20 @@ export function ComparacionCotizacionesPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div className="flex items-center gap-3">
-          <button className="btn btn--ghost" onClick={() => navigate('/compras/solicitudes')}>
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Comparativa de Cotizaciones</h1>
-            <p className="text-sm text-muted">Solicitud {solicitud.consecutivo} — {solicitud.area_solicitante}</p>
+      <Topbar 
+        title="Comparativa de Cotizaciones" 
+        subtitle={`Solicitud ${solicitud.consecutivo} — ${solicitud.area_solicitante}`} 
+        rightContent={
+          <div className="flex items-center gap-3">
+            <button className="btn btn--ghost" onClick={() => navigate('/compras/solicitudes')}>
+              <ArrowLeft size={18} />
+            </button>
+            <button className="btn btn--primary" onClick={() => setShowModal(true)}>
+              <Plus size={16} /> Registrar Cotización
+            </button>
           </div>
-        </div>
-        <button className="btn btn--primary" onClick={() => setShowModal(true)}>
-          <Plus size={16} /> Registrar Cotización
-        </button>
-      </header>
+        } 
+      />
 
       <main className="main-content">
         <div className="card mb-6" style={{ background: 'var(--bg-elevated)', border: 'none' }}>

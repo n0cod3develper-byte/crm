@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
 export function OrdenCompraFormPage() {
@@ -96,42 +97,35 @@ export function OrdenCompraFormPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div className="flex items-center gap-3">
-          <button className="btn btn--ghost" onClick={() => navigate('/compras/oc')}>
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <div className="flex items-center gap-2">
-               <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Orden de Compra {oc.consecutivo}</h1>
-               <span className={`badge ${oc.estado === 'APROBADA' || oc.estado.startsWith('RECIBIDA') ? 'badge--success' : (oc.estado === 'EN_APROBACION' ? 'badge--warning' : 'badge--gray')}`}>
-                  {oc.estado}
-               </span>
-            </div>
-            <p className="text-sm text-muted">Gestión de detalle y autorizaciones</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-           <button className="btn btn--secondary" onClick={handleDownloadPDF}>
+      <Topbar 
+        title={`Orden de Compra ${oc.consecutivo}`} 
+        subtitle="Gestión de detalle y autorizaciones" 
+        rightContent={
+          <div className="flex items-center gap-2">
+            <button className="btn btn--ghost" onClick={() => navigate('/compras/oc')}>
+              <ArrowLeft size={18} />
+            </button>
+            <button className="btn btn--secondary" onClick={handleDownloadPDF}>
               <Download size={16} /> PDF
-           </button>
-           {canSend && (
-             <button className="btn btn--primary" onClick={() => sendForApprovalMut.mutate()} disabled={sendForApprovalMut.isPending}>
+            </button>
+            {canSend && (
+              <button className="btn btn--primary" onClick={() => sendForApprovalMut.mutate()} disabled={sendForApprovalMut.isPending}>
                 <Send size={16} /> Solicitar Aprobación
-             </button>
-           )}
-           {canEmit && (
+              </button>
+            )}
+            {canEmit && (
               <button className="btn btn--primary" onClick={() => emitMut.mutate()} disabled={emitMut.isPending}>
-                 <CheckCircle size={16} /> Emitir OC
+                <CheckCircle size={16} /> Emitir OC
               </button>
-           )}
-           {canReceive && (
+            )}
+            {canReceive && (
               <button className="btn btn--primary" onClick={() => navigate(`/compras/recepcion/${id}`)}>
-                 <Package size={16} /> Recibir Mercancía
+                <Package size={16} /> Recibir Mercancía
               </button>
-           )}
-        </div>
-      </header>
+            )}
+          </div>
+        } 
+      />
 
       <main className="main-content" style={{ maxWidth: 1100, display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.5rem', alignItems: 'start' }}>
         

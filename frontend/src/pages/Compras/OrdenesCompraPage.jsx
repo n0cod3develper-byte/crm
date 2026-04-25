@@ -6,6 +6,7 @@ import {
   AlertCircle, DollarSign, Package
 } from 'lucide-react';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
 export function OrdenesCompraPage() {
@@ -50,17 +51,17 @@ export function OrdenesCompraPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div className="flex items-center gap-3">
-          <div className="card--interactive" style={{ padding: '0.5rem', background: 'var(--clr-primary-500)', borderRadius: 'var(--radius-md)' }}>
-             <ShoppingCart color="white" size={20} />
+      <Topbar 
+        title="Órdenes de Compra" 
+        subtitle="Aprobación, emisión y seguimiento de compras externalizadas" 
+        rightContent={
+          <div className="flex items-center gap-3">
+            <div className="card--interactive" style={{ padding: '0.5rem', background: 'var(--clr-primary-500)', borderRadius: 'var(--radius-md)' }}>
+              <ShoppingCart color="white" size={20} />
+            </div>
           </div>
-          <div>
-            <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Órdenes de Compra</h1>
-            <p className="text-sm text-muted">Aprobación, emisión y seguimiento de compras externalizadas</p>
-          </div>
-        </div>
-      </header>
+        } 
+      />
 
       <main className="main-content">
         {/* KPI Row */}

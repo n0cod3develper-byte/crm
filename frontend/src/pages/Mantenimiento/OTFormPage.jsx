@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
 export function OTFormPage() {
@@ -309,26 +310,22 @@ export function OTFormPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button className="btn btn--ghost" onClick={() => navigate('/mantenimiento')}>
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>
-              {isEditing ? `Editar OT ${otData?.consecutivo || ''}` : 'Nueva Orden de Trabajo'}
-            </h1>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-              {isEditing ? 'Modifica los datos de la orden' : 'Completa los datos para crear una nueva OT'}
-            </p>
+      <Topbar 
+        title={isEditing ? `Editar OT ${otData?.consecutivo || ''}` : 'Nueva Orden de Trabajo'} 
+        subtitle={isEditing ? 'Modifica los datos de la orden' : 'Completa los datos para crear una nueva OT'} 
+        rightContent={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <button className="btn btn--ghost" onClick={() => navigate('/mantenimiento')}>
+              <ArrowLeft size={18} />
+            </button>
+            {!isLiqOrClosed && (
+              <button className="btn btn--primary" onClick={handleSave} disabled={saveMut.isPending}>
+                <Save size={16} /> {saveMut.isPending ? 'Guardando...' : 'Guardar OT'}
+              </button>
+            )}
           </div>
-        </div>
-        {!isLiqOrClosed && (
-          <button className="btn btn--primary" onClick={handleSave} disabled={saveMut.isPending}>
-            <Save size={16} /> {saveMut.isPending ? 'Guardando...' : 'Guardar OT'}
-          </button>
-        )}
-      </header>
+        } 
+      />
 
       <main className="main-content" style={{ maxWidth: 1100 }}>
         {/* ═══ SECCIÓN A: Datos Generales ═══ */}

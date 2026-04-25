@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Plus, Search, Users, Mail, Phone, Building2, ExternalLink } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { ContactForm } from '../../components/Contacts/ContactForm';
 import api from '../../lib/api';
@@ -52,18 +53,16 @@ export function ContactsPage() {
     <div className="app-layout">
       <Sidebar />
 
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Contactos</h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            {contacts.length} contactos registrados
-          </p>
-        </div>
-        <button className="btn btn--primary" onClick={handleCreate}>
-          <Plus size={16} />
-          Nuevo contacto
-        </button>
-      </header>
+      <Topbar 
+        title="Contactos" 
+        subtitle={`${contacts.length} contactos registrados`} 
+        rightContent={
+          <button className="btn btn--primary" onClick={handleCreate}>
+            <Plus size={16} />
+            Nuevo contacto
+          </button>
+        } 
+      />
 
       <main className="main-content">
         {/* Buscador */}

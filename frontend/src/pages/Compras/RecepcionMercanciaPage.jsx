@@ -12,6 +12,7 @@ import {
   Hash
 } from 'lucide-react';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
 export const RecepcionMercanciaPage = () => {
@@ -114,22 +115,20 @@ export const RecepcionMercanciaPage = () => {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div className="flex items-center gap-3">
-          <button className="btn btn--ghost btn--sm" onClick={() => navigate(-1)}>
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Recepción de Mercancía</h1>
-            <p className="text-sm text-muted">Registro de ingreso al almacén y actualización de inventario</p>
+      <Topbar 
+        title="Recepción de Mercancía" 
+        subtitle="Registro de ingreso al almacén y actualización de inventario" 
+        rightContent={
+          <div className="flex items-center gap-3">
+            <button className="btn btn--ghost btn--sm" onClick={() => navigate(-1)}>
+              <ArrowLeft size={18} />
+            </button>
+            <span className={`badge ${oc.estado === 'EMITIDA' ? 'badge--primary' : 'badge--warning'}`}>
+              {oc.estado}
+            </span>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className={`badge ${oc.estado === 'EMITIDA' ? 'badge--primary' : 'badge--warning'}`}>
-            {oc.estado}
-          </span>
-        </div>
-      </header>
+        } 
+      />
 
       <main className="main-content">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '1.5rem', alignItems: 'start' }}>

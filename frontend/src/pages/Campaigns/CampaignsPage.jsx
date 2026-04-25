@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Megaphone, Plus, Search, Trash2, Edit2, Zap, BarChart3, TrendingUp, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { CampaignForm } from '../../components/Campaigns/CampaignForm';
 import api from '../../lib/api';
@@ -72,17 +73,15 @@ export function CampaignsPage() {
     <div className="app-layout">
       <Sidebar />
 
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Campañas de Marketing</h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            Mide el Retorno de Inversión (ROI) y administra presupuestos
-          </p>
-        </div>
-        <button className="btn btn--primary" onClick={handleCreate}>
-          <Plus size={16} /> Nueva Campaña
-        </button>
-      </header>
+      <Topbar 
+        title="Campañas de Marketing" 
+        subtitle="Mide el Retorno de Inversión (ROI) y administra presupuestos" 
+        rightContent={
+          <button className="btn btn--primary" onClick={handleCreate}>
+            <Plus size={16} /> Nueva Campaña
+          </button>
+        } 
+      />
 
       <main className="main-content">
         {/* KPI Cards */}

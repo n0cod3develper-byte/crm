@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Truck, Filter, Trash2, Edit, MoreVertical, Building2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { EquipoForm } from '../../components/Equipos/EquipoForm';
 import api from '../../lib/api';
@@ -50,17 +51,15 @@ export function EquiposPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Equipos &amp; Maquinaria</h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-            Gestiona la flota de tus clientes ({equipos.length} registrados)
-          </p>
-        </div>
-        <button className="btn btn--primary" onClick={handleCreate}>
-          <Plus size={16} /> Nuevo Equipo
-        </button>
-      </header>
+      <Topbar 
+        title="Equipos & Maquinaria" 
+        subtitle={`Gestiona la flota de tus clientes (${equipos.length} registrados)`} 
+        rightContent={
+          <button className="btn btn--primary" onClick={handleCreate}>
+            <Plus size={16} /> Nuevo Equipo
+          </button>
+        } 
+      />
 
       <main className="main-content">
         {/* Filtros */}

@@ -9,6 +9,7 @@ import {
   Info, User
 } from 'lucide-react';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
 export function ProveedorFichaPage() {
@@ -38,8 +39,10 @@ export function ProveedorFichaPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div className="flex items-center gap-3">
+            <Topbar 
+        title={proveedor.razon_social} 
+        subtitle="null"
+        rightContent={<div className="flex items-center gap-3">
           <button className="btn btn--ghost btn--sm" onClick={() => navigate('/proveedores')}>
             <ArrowLeft size={18} />
           </button>
@@ -47,13 +50,7 @@ export function ProveedorFichaPage() {
              <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--clr-primary-500)', display: 'grid', placeItems: 'center', color: 'white', fontWeight: 800, fontSize: '1.25rem' }}>
                 {proveedor.razon_social.charAt(0)}
              </div>
-             <div>
-                <div className="flex items-center gap-2">
-                   <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 800 }}>{proveedor.razon_social}</h1>
-                   <span className={`badge ${proveedor.estado === 'ACTIVO' ? 'badge--success' : 'badge--warning'}`}>
-                     {proveedor.estado}
-                   </span>
-                </div>
+             
                 <div className="flex items-center gap-3 text-sm text-muted">
                    <span>NIT: {proveedor.numero_documento}-{proveedor.digito_verificacion || '0'}</span>
                    <span>·</span>
@@ -72,8 +69,8 @@ export function ProveedorFichaPage() {
           <button className="btn btn--primary" onClick={() => navigate(`/compras/solicitudes/nueva?proveedorId=${id}`)}>
             <Plus size={16} /> Crear Solicitud
           </button>
-        </div>
-      </header>
+        </div>} 
+      />
 
       <main className="main-content">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '2rem', alignItems: 'start' }}>

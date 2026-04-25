@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, User, Phone, Mail, Filter, Trash2, Edit } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { EmployeeForm } from '../../components/Employees/EmployeeForm';
 import api from '../../lib/api';
@@ -48,17 +49,15 @@ export function EmployeesPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Empleados</h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            {employees.length} registrados
-          </p>
-        </div>
-        <button id="btn-new-employee" className="btn btn--primary" onClick={handleCreate}>
-          <Plus size={16} /> Nuevo Empleado
-        </button>
-      </header>
+      <Topbar 
+        title="Empleados" 
+        subtitle={`${employees.length} registrados`} 
+        rightContent={
+          <button id="btn-new-employee" className="btn btn--primary" onClick={handleCreate}>
+            <Plus size={16} /> Nuevo Empleado
+          </button>
+        }
+      />
 
       <main className="main-content">
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>

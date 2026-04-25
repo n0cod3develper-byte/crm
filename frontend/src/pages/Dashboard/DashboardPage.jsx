@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, Users, DollarSign, CheckSquare, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
 function KpiCard({ label, value, delta, deltaType, icon: Icon, color }) {
@@ -68,18 +69,10 @@ export function DashboardPage() {
     <div className="app-layout">
       <Sidebar />
 
-      {/* Header */}
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Dashboard</h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-            {new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <span className="badge badge--primary">Sistema activo</span>
-        </div>
-      </header>
+      <Topbar 
+        title="Dashboard" 
+        subtitle={new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} 
+      />
 
       {/* Content */}
       <main className="main-content">

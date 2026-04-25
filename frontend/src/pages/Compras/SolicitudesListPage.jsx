@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
 export function SolicitudesListPage() {
@@ -56,20 +57,20 @@ export function SolicitudesListPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div className="flex items-center gap-3">
-          <div className="card--interactive" style={{ padding: '0.5rem', background: 'var(--clr-primary-500)', borderRadius: 'var(--radius-md)' }}>
-             <ShoppingBag color="white" size={20} />
+      <Topbar 
+        title="Solicitudes de Compra" 
+        subtitle="Gestiona los requerimientos internos de materiales y servicios" 
+        rightContent={
+          <div className="flex items-center gap-3">
+            <div className="card--interactive" style={{ padding: '0.5rem', background: 'var(--clr-primary-500)', borderRadius: 'var(--radius-md)' }}>
+              <ShoppingBag color="white" size={20} />
+            </div>
+            <button className="btn btn--primary" onClick={() => navigate('/compras/solicitudes/nueva')}>
+              <Plus size={18} /> Nueva Solicitud
+            </button>
           </div>
-          <div>
-            <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Solicitudes de Compra</h1>
-            <p className="text-sm text-muted">Gestiona los requerimientos internos de materiales y servicios</p>
-          </div>
-        </div>
-        <button className="btn btn--primary" onClick={() => navigate('/compras/solicitudes/nueva')}>
-          <Plus size={18} /> Nueva Solicitud
-        </button>
-      </header>
+        } 
+      />
 
       <main className="main-content">
         {/* KPI Row */}

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
 export function SolicitudFormPage() {
@@ -142,38 +143,27 @@ export function SolicitudFormPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div className="flex items-center gap-3">
-          <button className="btn btn--ghost" onClick={() => navigate('/compras/solicitudes')}>
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>
-                {isEditing ? `Solicitud ${solData?.consecutivo}` : 'Nueva Solicitud de Compra'}
-              </h1>
-              {isEditing && (
-                <span className={`badge ${solData?.estado === 'BORRADOR' ? 'badge--gray' : 'badge--primary'}`}>
-                  {solData?.estado}
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-muted">Añade los productos o servicios que necesitas adquirir</p>
+      <Topbar 
+        title={isEditing ? `Solicitud ${solData?.consecutivo}` : 'Nueva Solicitud de Compra'} 
+        subtitle="Añade los productos o servicios que necesitas adquirir" 
+        rightContent={
+          <div className="flex items-center gap-2">
+            <button className="btn btn--ghost" onClick={() => navigate('/compras/solicitudes')}>
+              <ArrowLeft size={18} />
+            </button>
+            {(!isEditing || solData?.estado === 'BORRADOR') && (
+              <button className="btn btn--secondary" onClick={handleSave} disabled={saveMut.isPending}>
+                <Save size={16} /> {saveMut.isPending ? 'Guardando...' : 'Guardar Borrador'}
+              </button>
+            )}
+            {isEditing && solData?.estado === 'BORRADOR' && (
+              <button className="btn btn--primary" onClick={() => enviarMut.mutate()} disabled={enviarMut.isPending}>
+                <Send size={16} /> {enviarMut.isPending ? 'Enviando...' : 'Enviar a Cotización'}
+              </button>
+            )}
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {(!isEditing || solData?.estado === 'BORRADOR') && (
-            <button className="btn btn--secondary" onClick={handleSave} disabled={saveMut.isPending}>
-              <Save size={16} /> {saveMut.isPending ? 'Guardando...' : 'Guardar Borrador'}
-            </button>
-          )}
-          {isEditing && solData?.estado === 'BORRADOR' && (
-            <button className="btn btn--primary" onClick={() => enviarMut.mutate()} disabled={enviarMut.isPending}>
-              <Send size={16} /> {enviarMut.isPending ? 'Enviando...' : 'Enviar a Cotización'}
-            </button>
-          )}
-        </div>
-      </header>
+        } 
+      />
 
       <main className="main-content" style={{ maxWidth: 900 }}>
         <div className="card mb-6">

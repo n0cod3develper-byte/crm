@@ -9,6 +9,7 @@ import {
   Briefcase, Mail, Phone, Info
 } from 'lucide-react';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 import { createProveedorSchema } from '../../../../backend/src/modules/proveedores/proveedores.schema'; // Error potential if path is wrong, I'll copy the schema if needed or use relative
 
@@ -86,29 +87,27 @@ export function ProveedorFormPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div className="flex items-center gap-3">
-          <button className="btn btn--ghost btn--sm" onClick={() => navigate('/proveedores')}>
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>
-              {isEdit ? 'Editar Proveedor' : 'Nuevo Proveedor'}
-            </h1>
-            <p className="text-sm text-muted">Información legal, comercial y de contacto</p>
+      <Topbar 
+        title={isEdit ? 'Editar Proveedor' : 'Nuevo Proveedor'} 
+        subtitle="Información legal, comercial y de contacto" 
+        rightContent={
+          <div className="flex items-center gap-3">
+            <button className="btn btn--ghost btn--sm" onClick={() => navigate('/proveedores')}>
+              <ArrowLeft size={18} />
+            </button>
+            <button 
+              className="btn btn--primary" 
+              onClick={handleSubmit(onSubmit, (errs) => {
+                console.error('Validation errors:', errs);
+                toast.error('Revisa los campos obligatorios del formulario');
+              })}
+              disabled={isSubmitting}
+            >
+              <Save size={18} /> {isSubmitting ? 'Guardando...' : 'Guardar Proveedor'}
+            </button>
           </div>
-        </div>
-        <button 
-          className="btn btn--primary" 
-          onClick={handleSubmit(onSubmit, (errs) => {
-            console.error('Validation errors:', errs);
-            toast.error('Revisa los campos obligatorios del formulario');
-          })}
-          disabled={isSubmitting}
-        >
-          <Save size={18} /> {isSubmitting ? 'Guardando...' : 'Guardar Proveedor'}
-        </button>
-      </header>
+        } 
+      />
 
       <main className="main-content">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '2rem' }}>

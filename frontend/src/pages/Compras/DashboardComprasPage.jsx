@@ -12,6 +12,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 import { NavLink } from 'react-router-dom';
 
@@ -143,21 +144,18 @@ export const DashboardComprasPage = () => {
     <div className="app-layout">
       <Sidebar />
 
-      <header className="header">
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-            <ShoppingCart size={18} className="text-primary" />
-            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Gestión Logística</span>
-          </div>
-          <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--text-primary)' }}>Módulo de Compras</h1>
+            <Topbar 
+        title="Módulo de Compras" 
+        subtitle="null"
+        rightContent={<h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--text-primary)' }}>Módulo de Compras</h1>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <NavLink to="/compras/solicitudes/nueva" className="btn btn--primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Plus size={18} />
             Nueva Solicitud
           </NavLink>
-        </div>
-      </header>
+        </div>} 
+      />
 
       <main className="main-content">
         {/* KPI Grid */}

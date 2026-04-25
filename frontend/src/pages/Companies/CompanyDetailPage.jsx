@@ -7,6 +7,7 @@ import {
   Edit2, Plus, Mail, MessageSquare, Truck
 } from 'lucide-react';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { ContactForm } from '../../components/Contacts/ContactForm';
 import { EquipoForm } from '../../components/Equipos/EquipoForm';
@@ -83,28 +84,20 @@ export function CompanyDetailPage() {
     <div className="app-layout">
       <Sidebar />
 
-      <header className="header" style={{ borderBottom: '1px solid var(--border-color)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Link to="/companies" className="btn btn--ghost btn--sm">
-            <ArrowLeft size={16} />
-          </Link>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>{company.name}</h1>
-              {company.industry && (
-                <span className="badge badge--primary">{company.industry}</span>
-              )}
-            </div>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-              NIT: {company.nit || 'Sin NIT'} · Creado el {new Date(company.created_at).toLocaleDateString()}
-            </p>
+      <Topbar 
+        title={company.name} 
+        subtitle={`NIT: ${company.nit || 'Sin NIT'} · Creado el ${new Date(company.created_at).toLocaleDateString()}`} 
+        rightContent={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Link to="/companies" className="btn btn--ghost btn--sm">
+              <ArrowLeft size={16} />
+            </Link>
+            <button className="btn btn--secondary">
+              <Edit2 size={16} /> Editar info
+            </button>
           </div>
-        </div>
-        <button className="btn btn--secondary">
-          <Edit2 size={16} />
-          Editar info
-        </button>
-      </header>
+        } 
+      />
 
       <main className="main-content" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '1.5rem' }}>
         

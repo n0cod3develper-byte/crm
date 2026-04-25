@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
+import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
 const ESTADOS = [
@@ -69,19 +70,20 @@ export function MantenimientoPage() {
   return (
     <div className="app-layout">
       <Sidebar />
-      <header className="header">
-        <div>
-          <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Wrench size={22} color="var(--clr-primary-400)" /> Mantenimiento
-          </h1>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
-            Órdenes de trabajo — Correctivo y Preventivo
-          </p>
-        </div>
-        <button className="btn btn--primary" onClick={() => navigate('/mantenimiento/nueva')}>
-          <Plus size={16} /> Nueva OT
-        </button>
-      </header>
+      <Topbar 
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Wrench size={22} color="var(--clr-primary-400)" />
+            <span>Mantenimiento</span>
+          </div>
+        } 
+        subtitle="Órdenes de trabajo — Correctivo y Preventivo" 
+        rightContent={
+          <button className="btn btn--primary" onClick={() => navigate('/mantenimiento/nueva')}>
+            <Plus size={16} /> Nueva OT
+          </button>
+        } 
+      />
 
       <main className="main-content">
         {/* KPIs */}
