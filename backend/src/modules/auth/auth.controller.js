@@ -4,6 +4,7 @@ import { query } from '../../config/database.js';
 import { AppError } from '../../utils/errors.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
+import bcrypt from 'bcryptjs';
 
 /**
  * Llamado después de que Passport completa el OAuth flow.
@@ -90,10 +91,106 @@ async function updateProfile(req, res, next) {
   }
 }
 
+async function register(req, res, next) {
+  try {
+    const { email, password, full_name } = req.body;
+    
+    if (!email || !password || !full_name) {
+      throw new AppError('Email, password and full name are required', 400);
+    }
+
+    const checkUser = await query('SELECT id FROM users WHERE email = $1', [email]);
+    if (checkUser.rows.length > 0) {
+      throw new AppError('Email is already registered', 409);
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    const result = await query(
+      `INSERT INTO users (email, full_name, password_hash) 
+       VALUES ($1, $2, $3) RETURNING id, email, full_name, role`,
+      [email, full_name, passwordHash]
+    );
+
+    const user = result.rows[0];
+    const { accessToken, refreshToken } = generateTokenPair(user.id);
+    
+    await query(
+      `UPDATE users SET last_login_at = NOW() WHERE id = $1`,
+      [user.id]
+    );
+
+    res.status(201).json({
+      success: true,
+      data: {
+        user,
+        accessToken,
+        refreshToken
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function login(req, res, next) {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      throw new AppError('Email and password are required', 400);
+    }
+
+    const result = await query(
+      'SELECT id, email, full_name, role, password_hash, is_active FROM users WHERE email = $1',
+      [email]
+    );
+
+    const user = result.rows[0];
+
+    if (!user || !user.is_active) {
+      throw new AppError('Invalid credentials or inactive user', 401);
+    }
+
+    if (!user.password_hash) {
+      throw new AppError('User created with OAuth. Please log in with Google or Microsoft.', 401);
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      throw new AppError('Invalid credentials', 401);
+    }
+
+    const { accessToken, refreshToken } = generateTokenPair(user.id);
+
+    await query(
+      `UPDATE users SET last_login_at = NOW() WHERE id = $1`,
+      [user.id]
+    );
+
+    // Remove password_hash from response
+    delete user.password_hash;
+
+    res.json({
+      success: true,
+      data: {
+        user,
+        accessToken,
+        refreshToken
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export const authController = {
   oauthCallback,
   refreshToken,
   logout,
   me,
   updateProfile,
+  register,
+  login,
 };

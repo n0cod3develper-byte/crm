@@ -1,5 +1,5 @@
 import React from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 
 const GOOGLE_ICON = (
   <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -22,6 +22,7 @@ const MICROSOFT_ICON = (
 
 export function LoginPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const errorMsg = searchParams.get('error');
 
   const apiBase = import.meta.env.VITE_API_URL || '/api/v1';
@@ -65,11 +66,63 @@ export function LoginPage() {
           </div>
         )}
 
+        {/* Local Login Form */}
+        <form 
+          onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              const api = (await import('../../lib/api.js')).default;
+              const authStore = (await import('../../stores/authStore.js')).useAuthStore.getState();
+              
+              const res = await api.post('/auth/login', {
+                email: e.target.email.value,
+                password: e.target.password.value
+              });
+              
+              if (res.data.success) {
+                const { accessToken, refreshToken, user } = res.data.data;
+                authStore.setTokens(accessToken, refreshToken);
+                authStore.setUser(user);
+                navigate('/dashboard');
+              }
+            } catch (err) {
+              alert(err.response?.data?.message || 'Error al iniciar sesión');
+            }
+          }}
+          style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}
+        >
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: 'var(--text-sm)' }}>Email</label>
+            <input 
+              name="email" 
+              type="email" 
+              required 
+              style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} 
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: 'var(--text-sm)' }}>Contraseña</label>
+            <input 
+              name="password" 
+              type="password" 
+              required 
+              style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} 
+            />
+          </div>
+          <button type="submit" style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', background: 'var(--primary-color)', color: 'white', fontWeight: 600, border: 'none', cursor: 'pointer' }}>
+            Ingresar
+          </button>
+        </form>
+
         {/* OAuth buttons */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
-            Iniciar sesión con
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '0.5rem 0' }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--border-color)' }} />
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, margin: 0 }}>
+              O iniciar sesión con
+            </p>
+            <div style={{ flex: 1, height: 1, background: 'var(--border-color)' }} />
+          </div>
 
           <a href={`${apiBase}/auth/google`} style={{ textDecoration: 'none' }}>
             <button className="oauth-btn" type="button">
@@ -86,9 +139,11 @@ export function LoginPage() {
           </a>
         </div>
 
-        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textAlign: 'center' }}>
-          Solo los usuarios autorizados pueden acceder al sistema.
-        </p>
+        <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: 'var(--text-sm)' }}>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            ¿No tienes cuenta? <Link to="/register" style={{ color: 'var(--primary-color)', textDecoration: 'none', fontWeight: 600 }}>Regístrate aquí</Link>
+          </p>
+        </div>
       </div>
     </div>
   );

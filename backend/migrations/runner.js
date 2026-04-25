@@ -38,6 +38,8 @@ const MIGRATION_FILES = [
   '006_mantenimiento_module.sql',
   '007_proveedores_compras_module.sql',
   '008_preventivo_module.sql',
+  '009_fix_horometro_frecuencia.sql',
+  '010_add_password_to_users.sql',
 ];
 
 async function ensureMigrationsTable(client) {

@@ -51,7 +51,7 @@ export function Sidebar() {
       await api.post('/auth/logout').catch(() => { });
     } finally {
       logout();
-      window.location.href = '/login';
+      navigate('/login');
     }
   }
 

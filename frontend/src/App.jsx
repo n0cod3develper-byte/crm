@@ -6,6 +6,7 @@ import { useAuthStore } from './stores/authStore';
 
 // Lazy loaded pages
 const LoginPage = lazy(() => import('./pages/Auth/LoginPage').then(m => ({ default: m.LoginPage })));
+const RegisterPage = lazy(() => import('./pages/Auth/RegisterPage').then(m => ({ default: m.RegisterPage })));
 const AuthCallback = lazy(() => import('./pages/Auth/AuthCallback').then(m => ({ default: m.AuthCallbackPage })));
 const DashboardPage = lazy(() => import('./pages/Dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const CompaniesPage = lazy(() => import('./pages/Companies/CompaniesPage').then(m => ({ default: m.CompaniesPage })));
@@ -74,12 +75,15 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename="/crm">
+      <BrowserRouter basename={import.meta.env.PROD ? '/crm' : '/'}>
         <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Rutas públicas */}
             <Route path="/login" element={
               <PublicRoute><LoginPage /></PublicRoute>
+            } />
+            <Route path="/register" element={
+              <PublicRoute><RegisterPage /></PublicRoute>
             } />
             <Route path="/auth/callback" element={<AuthCallback />} />
 
