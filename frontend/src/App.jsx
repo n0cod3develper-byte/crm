@@ -5,8 +5,8 @@ import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './stores/authStore';
 
 // Lazy loaded pages
-const LoginPage     = lazy(() => import('./pages/Auth/LoginPage').then(m => ({ default: m.LoginPage })));
-const AuthCallback  = lazy(() => import('./pages/Auth/AuthCallback').then(m => ({ default: m.AuthCallbackPage })));
+const LoginPage = lazy(() => import('./pages/Auth/LoginPage').then(m => ({ default: m.LoginPage })));
+const AuthCallback = lazy(() => import('./pages/Auth/AuthCallback').then(m => ({ default: m.AuthCallbackPage })));
 const DashboardPage = lazy(() => import('./pages/Dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const CompaniesPage = lazy(() => import('./pages/Companies/CompaniesPage').then(m => ({ default: m.CompaniesPage })));
 const CompanyDetailPage = lazy(() => import('./pages/Companies/CompanyDetailPage').then(m => ({ default: m.CompanyDetailPage })));
@@ -17,13 +17,13 @@ const QuotesPage = lazy(() => import('./pages/Quotes/QuotesPage').then(m => ({ d
 const LeadsPage = lazy(() => import('./pages/Leads/LeadsPage').then(m => ({ default: m.LeadsPage })));
 const InventoryPage = lazy(() => import('./pages/Inventory/InventoryPage').then(m => ({ default: m.InventoryPage })));
 const CampaignsPage = lazy(() => import('./pages/Campaigns/CampaignsPage').then(m => ({ default: m.CampaignsPage })));
-const SupportPage   = lazy(() => import('./pages/Support/SupportPage').then(m => ({ default: m.SupportPage })));
+const SupportPage = lazy(() => import('./pages/Support/SupportPage').then(m => ({ default: m.SupportPage })));
 const EmployeesPage = lazy(() => import('./pages/Employees/EmployeesPage').then(m => ({ default: m.EmployeesPage })));
-const EquiposPage   = lazy(() => import('./pages/Equipos/EquiposPage').then(m => ({ default: m.EquiposPage })));
+const EquiposPage = lazy(() => import('./pages/Equipos/EquiposPage').then(m => ({ default: m.EquiposPage })));
 const MantenimientoPage = lazy(() => import('./pages/Mantenimiento/MantenimientoPage').then(m => ({ default: m.MantenimientoPage })));
-const OTFormPage    = lazy(() => import('./pages/Mantenimiento/OTFormPage').then(m => ({ default: m.OTFormPage })));
-const OTDetailPage  = lazy(() => import('./pages/Mantenimiento/OTDetailPage').then(m => ({ default: m.OTDetailPage })));
-const PMAdminPage   = lazy(() => import('./pages/Mantenimiento/PMAdminPage').then(m => ({ default: m.PMAdminPage })));
+const OTFormPage = lazy(() => import('./pages/Mantenimiento/OTFormPage').then(m => ({ default: m.OTFormPage })));
+const OTDetailPage = lazy(() => import('./pages/Mantenimiento/OTDetailPage').then(m => ({ default: m.OTDetailPage })));
+const PMAdminPage = lazy(() => import('./pages/Mantenimiento/PMAdminPage').then(m => ({ default: m.PMAdminPage })));
 
 const ProveedoresListPage = lazy(() => import('./pages/Proveedores/ProveedoresListPage').then(m => ({ default: m.ProveedoresListPage })));
 const ProveedorFormPage = lazy(() => import('./pages/Proveedores/ProveedorFormPage').then(m => ({ default: m.ProveedorFormPage })));
@@ -40,7 +40,7 @@ const RecepcionMercanciaPage = lazy(() => import('./pages/Compras/RecepcionMerca
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime:  5 * 60 * 1000,   // datos frescos por 5 minutos
+      staleTime: 5 * 60 * 1000,   // datos frescos por 5 minutos
       retry: 1,
       refetchOnWindowFocus: false,
     },
@@ -74,7 +74,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename="/crm">
         <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Rutas públicas */}
@@ -176,7 +176,7 @@ function App() {
             fontSize: '14px',
           },
           success: { iconTheme: { primary: '#22c55e', secondary: 'white' } },
-          error:   { iconTheme: { primary: '#ef4444', secondary: 'white' } },
+          error: { iconTheme: { primary: '#ef4444', secondary: 'white' } },
         }}
       />
     </QueryClientProvider>
