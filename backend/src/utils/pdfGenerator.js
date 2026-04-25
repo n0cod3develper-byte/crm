@@ -535,11 +535,20 @@ function buildOTHtml(ot) {
 export async function generateOTPdf(ot) {
   const html = buildOTHtml(ot);
 
-  const browser = await puppeteer.launch({
+  const launchOptions = {
     headless: 'new',
-    executablePath: '/usr/bin/chromium-browser',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  });
+  };
+
+  // Usar la ruta específica de Linux si estamos en ese entorno (ej. Docker)
+  // o si está configurada en las variables de entorno.
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  } else if (process.platform === 'linux') {
+    launchOptions.executablePath = '/usr/bin/chromium-browser';
+  }
+
+  const browser = await puppeteer.launch(launchOptions);
 
   try {
     const page = await browser.newPage();

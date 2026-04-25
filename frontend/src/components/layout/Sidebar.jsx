@@ -9,33 +9,33 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 
 const navItems = [
-  { label: 'Dashboard',   icon: LayoutDashboard, to: '/dashboard' },
+  { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
   { section: 'Comercial' },
-  { label: 'Empresas',    icon: Building2,       to: '/companies' },
-  { label: 'Contactos',   icon: Users,           to: '/contacts' },
-  { label: 'Pipeline',    icon: TrendingUp,      to: '/pipeline' },
-  { label: 'Tareas',      icon: CheckSquare,     to: '/tasks' },
-  { label: 'Cotizaciones',icon: FileText,        to: '/quotes' },
+  { label: 'Empresas', icon: Building2, to: '/companies' },
+  { label: 'Contactos', icon: Users, to: '/contacts' },
+  { label: 'Pipeline', icon: TrendingUp, to: '/pipeline' },
+  { label: 'Tareas', icon: CheckSquare, to: '/tasks' },
+  { label: 'Cotizaciones', icon: FileText, to: '/quotes' },
   { section: 'Marketing' },
-  { label: 'Leads',       icon: Megaphone,       to: '/leads' },
-  { label: 'Campañas',    icon: Zap,             to: '/campaigns' },
+  { label: 'Leads', icon: Megaphone, to: '/leads' },
+  { label: 'Campañas', icon: Zap, to: '/campaigns' },
   { section: 'Operaciones' },
-  { label: 'Inventario',  icon: Box,             to: '/inventory' },
-  { label: 'Soporte',     icon: LifeBuoy,        to: '/support' },
-  { label: 'Empleados',   icon: Users,           to: '/employees' },
-  { label: 'Equipos',     icon: Truck,           to: '/equipos' },
-  { label: 'Mantenimiento', icon: Wrench,        to: '/mantenimiento' },
-  { label: 'Plantillas PM', icon: Settings,      to: '/mantenimiento/configuracion' },
+  { label: 'Inventario', icon: Box, to: '/inventory' },
+  { label: 'Soporte', icon: LifeBuoy, to: '/support' },
+  { label: 'Empleados', icon: Users, to: '/employees' },
+  { label: 'Equipos', icon: Truck, to: '/equipos' },
+  { label: 'Mantenimiento', icon: Wrench, to: '/mantenimiento' },
+  { label: 'Plantillas PM', icon: Settings, to: '/mantenimiento/configuracion' },
   { section: 'Logística' },
-  { label: 'Proveedores', icon: ShoppingBag,      to: '/proveedores' },
-  { label: 'Compras',     icon: ShoppingCart,    to: '/compras' },
+  { label: 'Proveedores', icon: ShoppingBag, to: '/proveedores' },
+  { label: 'Compras', icon: ShoppingCart, to: '/compras' },
   { section: 'Herramientas' },
   { label: 'Comunicaciones', icon: MessageSquare, to: '/communications' },
-  { label: 'Telefonía',   icon: Phone,           to: '/telephony' },
+  { label: 'Biométrico', icon: Phone, to: '/telephony' },
   { label: 'IA Sugerencias', icon: BrainCircuit, to: '/ai' },
-  { label: 'Reportes',    icon: BarChart3,       to: '/reports' },
-  { label: 'Automatizaciones', icon: Zap,        to: '/automations' },
-  { label: 'Configuración', icon: Settings,      to: '/settings' },
+  { label: 'Reportes', icon: BarChart3, to: '/reports' },
+  { label: 'Automatizaciones', icon: Zap, to: '/automations' },
+  { label: 'Configuración', icon: Settings, to: '/settings' },
 ];
 
 import { useThemeStore } from '../../stores/themeStore';
@@ -48,7 +48,7 @@ export function Sidebar() {
 
   async function handleLogout() {
     try {
-      await api.post('/auth/logout').catch(() => {});
+      await api.post('/auth/logout').catch(() => { });
     } finally {
       logout();
       window.location.href = '/login';
@@ -72,7 +72,7 @@ export function Sidebar() {
           </div>
           <div>
             <div style={{ fontWeight: 800, fontSize: 'var(--text-sm)', lineHeight: 1.2 }}>CARGAR SAS</div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>CRM Logístico</div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>CRM & ERP Logístico</div>
           </div>
         </div>
       </div>
@@ -101,7 +101,7 @@ export function Sidebar() {
 
       {/* User + theme + logout */}
       <div style={{ padding: '1rem 0.75rem', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        
+
         {/* Profile */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           {user?.avatar_url ? (
@@ -132,10 +132,10 @@ export function Sidebar() {
         </div>
 
         {/* Theme Switcher */}
-        <div style={{ 
-          display: 'flex', 
-          background: 'var(--bg-elevated)', 
-          padding: '2px', 
+        <div style={{
+          display: 'flex',
+          background: 'var(--bg-elevated)',
+          padding: '2px',
           borderRadius: 'var(--radius-md)',
           border: '1px solid var(--border-color)'
         }}>
