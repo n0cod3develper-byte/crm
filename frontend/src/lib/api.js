@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { useAuthStore } from '../stores/authStore';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api/v1',
@@ -9,8 +8,10 @@ const api = axios.create({
 
 // ─── Request interceptor: adjunta el JWT ──────────────────
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken;
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -28,6 +29,7 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Si recibimos 401 y no es un reintento
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -41,22 +43,30 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = useAuthStore.getState().refreshToken;
+      const refreshToken = localStorage.getItem('refreshToken');
       if (!refreshToken) {
-        useAuthStore.getState().logout();
+        // Si no hay refresh token, forzar logout (limpiar localstorage y recargar)
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/login';
         return Promise.reject(error);
       }
 
       try {
-        const { data } = await axios.post('/api/v1/auth/refresh', { refreshToken });
+        const { data } = await axios.post(`${api.defaults.baseURL}/auth/refresh`, { refreshToken });
         const { accessToken, refreshToken: newRefresh } = data.data;
-        useAuthStore.getState().setTokens(accessToken, newRefresh);
+        
+        localStorage.setItem('token', accessToken);
+        localStorage.setItem('refreshToken', newRefresh);
+        
         processQueue(null, accessToken);
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        useAuthStore.getState().logout();
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/login';
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

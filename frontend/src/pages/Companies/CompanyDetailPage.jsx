@@ -4,13 +4,15 @@ import { useQuery } from '@tanstack/react-query';
 import { 
   Building2, Phone, Globe, MapPin, Calendar, 
   Users, TrendingUp, History, ArrowLeft, 
-  Edit2, Plus, Mail, MessageSquare, Truck
+  Edit2, Plus, Mail, MessageSquare, Truck, FileText
 } from 'lucide-react';
 import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { ContactForm } from '../../components/Contacts/ContactForm';
 import { EquipoForm } from '../../components/Equipos/EquipoForm';
+import { DocumentosList } from '../../components/documentos/DocumentosList';
+import { DocumentoUploader } from '../../components/documentos/DocumentoUploader';
 import api from '../../lib/api';
 
 export function CompanyDetailPage() {
@@ -18,6 +20,7 @@ export function CompanyDetailPage() {
   const [activeTab, setActiveTab] = React.useState('timeline');
   const [isContactModalOpen, setIsContactModalOpen] = React.useState(false);
   const [isEquipoModalOpen, setIsEquipoModalOpen] = React.useState(false);
+  const [isDocumentoModalOpen, setIsDocumentoModalOpen] = React.useState(false);
 
   const { data: company, isLoading } = useQuery({
     queryKey: ['company', id],
@@ -76,6 +79,7 @@ export function CompanyDetailPage() {
     { id: 'timeline', label: 'Actividad', icon: History },
     { id: 'contacts', label: 'Contactos', icon: Users },
     { id: 'equipos', label: 'Equipos', icon: Truck },
+    { id: 'documentos', label: 'Documentos', icon: FileText },
     { id: 'opportunities', label: 'Oportunidades', icon: TrendingUp },
     { id: 'info', label: 'Información General', icon: Building2 },
   ];
@@ -285,6 +289,18 @@ export function CompanyDetailPage() {
               </div>
             )}
 
+            {activeTab === 'documentos' && (
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 style={{ fontWeight: 700 }}>Documentos de la Empresa</h3>
+                  <button className="btn btn--primary btn--sm" onClick={() => setIsDocumentoModalOpen(true)}>
+                    <Plus size={14} /> Subir documento
+                  </button>
+                </div>
+                <DocumentosList entidadTipo="EMPRESA" entidadId={id} />
+              </div>
+            )}
+
             {activeTab === 'info' && (
               <div className="grid grid-cols-2 gap-6">
                 <div>
@@ -393,6 +409,19 @@ export function CompanyDetailPage() {
             defaultCompanyId={id}
             onSuccess={() => setIsEquipoModalOpen(false)}
             onCancel={() => setIsEquipoModalOpen(false)}
+          />
+        </Modal>
+      )}
+      {isDocumentoModalOpen && (
+        <Modal 
+          title="Subir Documento" 
+          onClose={() => setIsDocumentoModalOpen(false)}
+        >
+          <DocumentoUploader 
+            entidadTipo="EMPRESA" 
+            entidadId={id} 
+            onClose={() => setIsDocumentoModalOpen(false)} 
+            onUploadSuccess={() => setIsDocumentoModalOpen(false)}
           />
         </Modal>
       )}

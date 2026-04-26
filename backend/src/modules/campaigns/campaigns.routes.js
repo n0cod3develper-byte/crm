@@ -1,6 +1,6 @@
 import express from 'express';
 import campaignsController from './campaigns.controller.js';
-import { authenticate } from '../../utils/jwt.js';
+import { authenticate } from '../../middleware/auth.js';
 
 const router = express.Router();
 

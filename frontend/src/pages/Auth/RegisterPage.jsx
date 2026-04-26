@@ -1,94 +1,167 @@
-import React from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import api from '../../lib/api';
-import { useAuthStore } from '../../stores/authStore';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { UserPlus, User, Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 export function RegisterPage() {
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token');
+  
+  const [formData, setFormData] = useState({
+    nombre: '',
+    apellido: '',
+    password: '',
+    confirmPassword: ''
+  });
+  
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { register } = useAuth();
   const navigate = useNavigate();
-  const setTokens = useAuthStore(state => state.setTokens);
-  const setUser = useAuthStore(state => state.setUser);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    const email = formData.get('email');
-    const password = formData.get('password');
-    const full_name = formData.get('full_name');
-
-    try {
-      const res = await api.post('/auth/register', { email, password, full_name });
-      if (res.data.success) {
-        const { accessToken, refreshToken, user } = res.data.data;
-        setTokens(accessToken, refreshToken);
-        setUser(user);
-        navigate('/dashboard');
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Error al registrar usuario');
+  useEffect(() => {
+    if (!token) {
+      toast.error('Token de invitación requerido');
+      navigate('/login');
     }
-  };
+  }, [token, navigate]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (formData.password !== formData.confirmPassword) {
+      return toast.error('Las contraseñas no coinciden');
+    }
+    if (formData.password.length < 6) {
+      return toast.error('La contraseña debe tener al menos 6 caracteres');
+    }
+
+    setIsSubmitting(true);
+    const success = await register({
+      token,
+      nombre: formData.nombre,
+      apellido: formData.apellido,
+      password: formData.password
+    });
+    
+    if (success) {
+      navigate('/dashboard');
+    }
+    setIsSubmitting(false);
+  }
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div style={{ textAlign: 'center' }}>
+    <div className="login-page" style={{ 
+      minHeight: '100vh', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      background: 'radial-gradient(circle at top right, var(--bg-elevated), var(--bg-app))',
+      padding: '2rem'
+    }}>
+      <div className="card" style={{ 
+        width: '100%', 
+        maxWidth: '480px', 
+        padding: '2.5rem',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div style={{
-            width: 56, height: 56, borderRadius: 16,
-            background: 'linear-gradient(135deg, #10b981, #047857)',
+            width: 56, height: 56, borderRadius: 14,
+            background: 'linear-gradient(135deg, var(--clr-success-500), var(--clr-success-700))',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             marginBottom: '1rem',
-            boxShadow: '0 0 30px rgba(16,185,129,0.4)',
+            boxShadow: '0 8px 16px rgba(34,197,94,0.2)',
           }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
-              <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-            </svg>
+            <UserPlus size={28} color="white" />
           </div>
-          <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, marginBottom: '0.25rem' }}>
-            Registro CARGAR CRM
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.5rem' }}>
+            Activa tu cuenta
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
-            Crea una nueva cuenta
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+            Completa tu perfil para acceder al CRM de CARGAR SAS
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.5rem' }}>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: 'var(--text-sm)' }}>Nombre Completo</label>
-            <input 
-              name="full_name" 
-              type="text" 
-              required 
-              style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} 
-            />
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="input-group">
+              <label className="input-label">Nombre</label>
+              <input 
+                type="text" 
+                className="input" 
+                placeholder="Ej. Juan"
+                required
+                value={formData.nombre}
+                onChange={e => setFormData({...formData, nombre: e.target.value})}
+              />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Apellido</label>
+              <input 
+                type="text" 
+                className="input" 
+                placeholder="Ej. Pérez"
+                required
+                value={formData.apellido}
+                onChange={e => setFormData({...formData, apellido: e.target.value})}
+              />
+            </div>
           </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: 'var(--text-sm)' }}>Email</label>
-            <input 
-              name="email" 
-              type="email" 
-              required 
-              style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} 
-            />
+
+          <div className="input-group">
+            <label className="input-label">Nueva Contraseña</label>
+            <div style={{ position: 'relative' }}>
+              <Lock size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input 
+                type={showPassword ? 'text' : 'password'} 
+                className="input" 
+                placeholder="Mínimo 6 caracteres"
+                style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem' }}
+                required
+                value={formData.password}
+                onChange={e => setFormData({...formData, password: e.target.value})}
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: 'var(--text-sm)' }}>Contraseña</label>
-            <input 
-              name="password" 
-              type="password" 
-              required 
-              style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} 
-            />
+
+          <div className="input-group">
+            <label className="input-label">Confirmar Contraseña</label>
+            <div style={{ position: 'relative' }}>
+              <Lock size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input 
+                type={showPassword ? 'text' : 'password'} 
+                className="input" 
+                placeholder="Repite tu contraseña"
+                style={{ paddingLeft: '2.5rem' }}
+                required
+                value={formData.confirmPassword}
+                onChange={e => setFormData({...formData, confirmPassword: e.target.value})}
+              />
+            </div>
           </div>
-          <button type="submit" style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', background: '#10b981', color: 'white', fontWeight: 600, border: 'none', cursor: 'pointer', marginTop: '0.5rem' }}>
-            Registrarse
+
+          <div style={{ padding: '1rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', gap: '0.75rem' }}>
+            <ShieldCheck size={20} style={{ color: 'var(--clr-success-500)', flexShrink: 0 }} />
+            <p>Tu información está protegida. Al activar tu cuenta, aceptas las políticas de seguridad y uso de datos de CARGAR SAS.</p>
+          </div>
+
+          <button 
+            type="submit" 
+            className="btn btn--primary" 
+            style={{ width: '100%', padding: '0.875rem', marginTop: '0.5rem', fontSize: '1rem', fontWeight: 600 }}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Activando cuenta...' : 'Activar mi cuenta'}
           </button>
         </form>
-
-        <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: 'var(--text-sm)' }}>
-          <p style={{ color: 'var(--text-secondary)' }}>
-            ¿Ya tienes cuenta? <Link to="/login" style={{ color: 'var(--primary-color)', textDecoration: 'none', fontWeight: 600 }}>Inicia sesión</Link>
-          </p>
-        </div>
       </div>
     </div>
   );

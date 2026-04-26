@@ -347,6 +347,16 @@ export class MantenimientoRepository {
           }
           const consecutivo = otRes.rows[0].consecutivo;
 
+          // 1.5 Verificar completitud documental (OT Firmada)
+          const docCheckRes = await client.query(`SELECT puede_liquidar FROM ot_puede_liquidar WHERE id = $1`, [ot_id]);
+          if (docCheckRes.rows.length > 0 && !docCheckRes.rows[0].puede_liquidar) {
+              const err = new Error("No se puede liquidar la OT");
+              err.codigo = "OT_FIRMADA_REQUERIDA";
+              err.mensaje = "Debes subir la orden de trabajo firmada por el cliente antes de liquidar. Usa el botón 'Subir OT firmada' en la sección de documentos.";
+              err.ot_consecutivo = consecutivo;
+              throw err;
+          }
+
           // 2. Sumar Mano de Obra
           const moRes = await client.query(`SELECT SUM(total_mano_obra) as sum_mo FROM ot_tecnicos WHERE orden_trabajo_id = $1`, [ot_id]);
           const total_mano_obra = parseFloat(moRes.rows[0].sum_mo) || 0;

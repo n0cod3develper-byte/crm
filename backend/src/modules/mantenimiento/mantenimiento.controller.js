@@ -107,6 +107,14 @@ export const liquidar = async (req, res, next) => {
     const result = await repo.liquidarOT(req.params.id, notas_liquidacion, impuesto_pct, req.user.id);
     res.json({ success: true, ...result });
   } catch (err) {
+    if (err.codigo === 'OT_FIRMADA_REQUERIDA') {
+      return res.status(422).json({
+        error: err.message,
+        codigo: err.codigo,
+        mensaje: err.mensaje,
+        ot_consecutivo: err.ot_consecutivo
+      });
+    }
     if (err.message?.includes('Stock insuficiente') || err.message?.includes('ya está')) {
       return next(new BadRequestError(err.message));
     }

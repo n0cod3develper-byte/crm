@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { quotesController } from './quotes.controller.js';
-import { authenticate } from '../../utils/jwt.js';
+import { authenticate } from '../../middleware/auth.js';
 
 const router = Router();
 router.use(authenticate);

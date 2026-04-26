@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Save, Wrench, Plus, Trash2, Search, DollarSign,
-  User, Package, AlertCircle, CheckCircle2, Clock
+  User, Package, AlertCircle, CheckCircle2, Clock, Download
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
+import { OTFirmadaUploader } from '../../components/documentos/OTFirmadaUploader';
 import api from '../../lib/api';
 
 export function OTFormPage() {
@@ -51,6 +52,15 @@ export function OTFormPage() {
     queryFn: async () => {
       const { data } = await api.get(`/mantenimiento/ot/${id}`);
       return data.data;
+    },
+    enabled: isEditing,
+  });
+
+  const { data: otFirmadaData } = useQuery({
+    queryKey: ['ot-firmada', id],
+    queryFn: async () => {
+      const { data } = await api.get(`/documentos/ot/${id}/firmada`);
+      return data.data; // Puede ser null si no hay
     },
     enabled: isEditing,
   });
@@ -202,6 +212,25 @@ export function OTFormPage() {
     onError: (err) => toast.error(err.response?.data?.message || 'Error al liquidar'),
   });
 
+  const handleDownloadPDF = async () => {
+    if (!isEditing || !otData) return;
+    try {
+      toast.loading('Generando PDF...', { id: 'pdf' });
+      const response = await api.get(`/mantenimiento/ot/${id}/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${otData.consecutivo || 'OT'}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('PDF descargado', { id: 'pdf' });
+    } catch {
+      toast.error('Error al generar el PDF', { id: 'pdf' });
+    }
+  };
+
   // ─── Handlers ──────────────────────────────────────────
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -318,6 +347,11 @@ export function OTFormPage() {
             <button className="btn btn--ghost" onClick={() => navigate('/mantenimiento')}>
               <ArrowLeft size={18} />
             </button>
+            {isEditing && (
+              <button className="btn btn--secondary" onClick={handleDownloadPDF} title="Descargar OT (Blanco) para Técnico">
+                <Download size={16} /> <span className="hidden sm:inline">Descargar PDF</span>
+              </button>
+            )}
             {!isLiqOrClosed && (
               <button className="btn btn--primary" onClick={handleSave} disabled={saveMut.isPending}>
                 <Save size={16} /> {saveMut.isPending ? 'Guardando...' : 'Guardar OT'}
@@ -817,10 +851,19 @@ export function OTFormPage() {
           <div className="card" style={{
             border: '2px solid rgba(34,197,94,0.3)',
             background: 'linear-gradient(135deg, var(--bg-surface), rgba(34,197,94,0.03))',
+            display: 'flex', flexDirection: 'column', gap: '1.5rem'
           }}>
-            <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <DollarSign size={18} color="#22c55e" /> Resumen de Liquidación
-            </h2>
+            <OTFirmadaUploader 
+              otId={id} 
+              otConsecutivo={otData?.consecutivo}
+              otFirmadaActual={otFirmadaData}
+              onUploadSuccess={() => qc.invalidateQueries({ queryKey: ['ot-firmada', id] })}
+            />
+            
+            <div>
+              <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <DollarSign size={18} color="#22c55e" /> Resumen de Liquidación
+              </h2>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.375rem 2rem', fontSize: '14px', maxWidth: 400 }}>
               <span style={{ color: 'var(--text-secondary)' }}>Total Mano de Obra</span>
@@ -869,6 +912,7 @@ export function OTFormPage() {
                 </div>
               )}
             </div>
+          </div>
           </div>
         )}
       </main>

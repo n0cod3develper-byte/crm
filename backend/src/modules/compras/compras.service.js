@@ -198,19 +198,48 @@ export class ComprasService {
         if (item.cantidad_recibida > 0) {
           let itemInvId = currentItem.item_inventario_id;
 
-          // If it was a new item, create it in inventory
+          // If it was a manual item with no inventory link, create it now
           if (!itemInvId) {
+            // Accept enriched data from frontend (sku, category, stock_minimum)
+            const newInvData = item.new_inventory_data || {};
             const resNewInv = await client.query(`
-              INSERT INTO inventory_items (name, description, unit, unit_cost, stock_current, stock_minimum)
-              VALUES ($1, $2, $3, $4, $5, 0)
+              INSERT INTO inventory_items (sku, name, description, category, unit, unit_cost, unit_price, stock_current, stock_minimum, is_active)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
               RETURNING id
-            `, [currentItem.descripcion, currentItem.descripcion, currentItem.unidad, currentItem.precio_unitario, item.cantidad_recibida]);
+            `, [
+              newInvData.sku || null,
+              newInvData.name || currentItem.descripcion,
+              newInvData.description || currentItem.descripcion,
+              newInvData.category || null,
+              currentItem.unidad,
+              currentItem.precio_unitario,
+              newInvData.unit_price || currentItem.precio_unitario,
+              item.cantidad_recibida,
+              newInvData.stock_minimum || 0
+            ]);
             itemInvId = resNewInv.rows[0].id;
             
-            // update oc_item to link it
+            // link oc_item with the new inventory record
             await client.query('UPDATE oc_items SET item_inventario_id = $1 WHERE id = $2', [itemInvId, item.oc_item_id]);
+
+            // also link solicitud_item if traceability is available
+            await client.query(`
+              UPDATE solicitud_items si
+              SET item_inventario_id = $1
+              FROM oc_items oi
+              WHERE oi.id = $2
+                AND si.id = (
+                  SELECT ci.solicitud_item_id
+                  FROM cotizacion_items ci
+                  JOIN cotizaciones c ON c.id = ci.cotizacion_id
+                  JOIN ordenes_compra oc ON oc.cotizacion_id = c.id
+                  WHERE oc.id = $3 AND ci.descripcion = $4
+                  LIMIT 1
+                )
+            `, [itemInvId, item.oc_item_id, ocId, currentItem.descripcion]);
+
           } else {
-             // update existing inventory stock AND cost
+             // update existing inventory stock AND cost (weighted average would be ideal, this updates to latest)
              await client.query(`
                 UPDATE inventory_items 
                 SET stock_current = stock_current + $1, unit_cost = $2, updated_at = NOW() 

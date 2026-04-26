@@ -50,12 +50,13 @@ function formatMinutes(mins) {
 }
 
 /**
- * Genera la sección HTML de actividades del preventivo para el PDF.
+ * Genera la sección HTML de actividades para el PDF.
+ * Si no hay actividades (ej. Mantenimiento Correctivo sin plan), imprime filas en blanco.
  */
 function buildActividadesSection(ot) {
   const actividades = ot.pm_actividades || [];
-  if (actividades.length === 0) return '';
-
+  const hasActividades = actividades.length > 0;
+  
   const estadoColors = {
     'COMPLETADA': '#22c55e',
     'OMITIDA': '#f59e0b',
@@ -63,34 +64,42 @@ function buildActividadesSection(ot) {
     'PENDIENTE': '#94a3b8',
   };
 
-  return `
-  <div class="section">
-    <div class="section-title">Actividades Realizadas — Preventivo ${ot.frecuencia_nombre || ''}</div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width:30px">#</th>
-          <th>Actividad</th>
-          <th>Estado</th>
-          <th>Técnico</th>
-          <th>Fecha</th>
-          <th>Observación</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${actividades.map(a => `
+  const rows = hasActividades ? actividades.map(a => `
         <tr>
           <td style="text-align:center">${a.orden}</td>
-          <td style="font-weight:600">${a.nombre}</td>
+          <td style="font-weight:600">${a.codigo || ''} - ${a.nombre}</td>
           <td>
             <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;color:white;background:${estadoColors[a.estado] || '#94a3b8'}">
               ${a.estado}
             </span>
           </td>
           <td>${a.completada_por_nombre || '—'}</td>
-          <td>${a.fecha_completado ? formatDate(a.fecha_completado) : '—'}</td>
           <td style="font-size:9px;color:#64748b">${a.observacion || ''}</td>
-        </tr>`).join('')}
+        </tr>`).join('') 
+        : Array(6).fill(0).map((_, i) => `
+        <tr>
+          <td style="text-align:center;height:24px;">${i + 1}</td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>`).join('');
+
+  return `
+  <div class="section">
+    <div class="section-title">Actividades Realizadas ${ot.frecuencia_nombre ? `— Preventivo ${ot.frecuencia_nombre}` : ''}</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30px">Item</th>
+          <th>Actividad (Código / Descripción)</th>
+          <th>Estado</th>
+          <th>Técnico</th>
+          <th>Observaciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
       </tbody>
     </table>
   </div>`;
@@ -409,8 +418,8 @@ function buildOTHtml(ot) {
     <div class="detail-text">${ot.observaciones}</div>
   </div>` : ''}
 
-  <!-- Actividades del preventivo (solo si es PM) -->
-  ${isPM ? buildActividadesSection(ot) : ''}
+  <!-- Actividades del mantenimiento -->
+  ${buildActividadesSection(ot)}
 
   <!-- Técnicos asignados -->
   ${tecnicos.length > 0 ? `
@@ -423,8 +432,6 @@ function buildOTHtml(ot) {
           <th>Fecha/Hora Salida</th>
           <th>Fecha/Hora Regreso</th>
           <th class="text-right">Tiempo</th>
-          <th class="text-right">Tarifa/h</th>
-          <th class="text-right">Total M.O.</th>
         </tr>
       </thead>
       <tbody>
@@ -434,13 +441,7 @@ function buildOTHtml(ot) {
           <td>${formatDate(t.fecha_salida)} ${formatTime(t.hora_salida)}</td>
           <td>${formatDate(t.fecha_regreso)} ${formatTime(t.hora_regreso)}</td>
           <td class="text-right">${formatMinutes(t.tiempo_total_min)}</td>
-          <td class="text-right">${formatCOP(t.tarifa_hora)}</td>
-          <td class="text-right">${formatCOP(t.total_mano_obra)}</td>
         </tr>`).join('')}
-        <tr class="total-row">
-          <td colspan="5" class="text-right">Total Mano de Obra</td>
-          <td class="text-right">${formatCOP(totalMO)}</td>
-        </tr>
       </tbody>
     </table>
   </div>` : ''}

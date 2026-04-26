@@ -1,148 +1,126 @@
-import React from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-
-const GOOGLE_ICON = (
-  <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M47.532 24.552c0-1.636-.146-3.2-.418-4.704H24v8.897h13.192c-.569 3.065-2.294 5.66-4.888 7.4v6.152h7.911c4.628-4.26 7.317-10.536 7.317-17.745z" fill="#4285F4"/>
-    <path d="M24 48c6.624 0 12.18-2.196 16.24-5.96l-7.912-6.152c-2.196 1.472-5.004 2.34-8.328 2.34-6.408 0-11.832-4.328-13.776-10.148H1.976v6.352C6.02 42.652 14.392 48 24 48z" fill="#34A853"/>
-    <path d="M10.224 28.08A14.94 14.94 0 019.36 24c0-1.42.244-2.8.864-4.08v-6.352H1.976A23.963 23.963 0 000 24c0 3.868.928 7.524 2.576 10.752L10.224 28.08z" fill="#FBBC05"/>
-    <path d="M24 9.552c3.612 0 6.856 1.244 9.404 3.68l7.056-7.056C36.18 2.196 30.624 0 24 0 14.392 0 6.02 5.348 2.576 13.248l7.648 6.352C12.168 13.88 17.592 9.552 24 9.552z" fill="#EA4335"/>
-  </svg>
-);
-
-const MICROSOFT_ICON = (
-  <svg width="20" height="20" viewBox="0 0 23 23" xmlns="http://www.w3.org/2000/svg">
-    <path fill="#f3f3f3" d="M0 0h23v23H0z"/>
-    <path fill="#f35325" d="M1 1h10v10H1z"/>
-    <path fill="#81bc06" d="M12 1h10v10H12z"/>
-    <path fill="#05a6f0" d="M1 12h10v10H1z"/>
-    <path fill="#ffba08" d="M12 12h10v10H12z"/>
-  </svg>
-);
+import React, { useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { LogIn, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 export function LoginPage() {
-  const [searchParams] = useSearchParams();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login } = useAuth();
   const navigate = useNavigate();
-  const errorMsg = searchParams.get('error');
 
-  const apiBase = import.meta.env.VITE_API_URL || '/api/v1';
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setIsSubmitting(true);
+    const success = await login(email, password);
+    if (success) {
+      navigate('/dashboard');
+    }
+    setIsSubmitting(false);
+  }
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        {/* Logo / Branding */}
-        <div style={{ textAlign: 'center' }}>
+    <div className="login-page" style={{ 
+      minHeight: '100vh', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      background: 'radial-gradient(circle at top right, var(--bg-elevated), var(--bg-app))',
+      padding: '2rem'
+    }}>
+      <div className="card" style={{ 
+        width: '100%', 
+        maxWidth: '420px', 
+        padding: '2.5rem',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
           <div style={{
-            width: 56, height: 56, borderRadius: 16,
-            background: 'linear-gradient(135deg, #6366f1, #4338ca)',
+            width: 64, height: 64, borderRadius: 16,
+            background: 'linear-gradient(135deg, var(--clr-primary-500), var(--clr-primary-700))',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: '1rem',
-            boxShadow: '0 0 30px rgba(99,102,241,0.4)',
+            marginBottom: '1.25rem',
+            boxShadow: '0 10px 20px rgba(37,99,235,0.2)',
           }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
               <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zm-.5 1.5L21.96 13H17V9.5h2.5zM6 18c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm2.22-3c-.55-.61-1.33-1-2.22-1-.89 0-1.67.39-2.22 1H3V6h12v9H8.22zM18 18c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/>
             </svg>
           </div>
-          <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, marginBottom: '0.25rem' }}>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.5rem', letterSpacing: '-0.025em' }}>
             CARGAR SAS CRM
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
-            Gestión comercial para el sector logístico
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+            Ingresa tus credenciales para continuar
           </p>
         </div>
 
-        {/* Error message */}
-        {errorMsg && (
-          <div style={{
-            padding: '0.75rem 1rem',
-            background: 'rgba(239,68,68,0.1)',
-            border: '1px solid rgba(239,68,68,0.3)',
-            borderRadius: 'var(--radius-md)',
-            color: '#f87171',
-            fontSize: 'var(--text-sm)',
-            textAlign: 'center',
-          }}>
-            Error al iniciar sesión. Por favor intenta de nuevo.
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="input-group">
+            <label className="input-label">Correo electrónico</label>
+            <div style={{ position: 'relative' }}>
+              <Mail size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input 
+                type="email" 
+                className="input" 
+                placeholder="nombre@empresa.com"
+                style={{ paddingLeft: '2.5rem' }}
+                required
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+              />
+            </div>
           </div>
-        )}
 
-        {/* Local Login Form */}
-        <form 
-          onSubmit={async (e) => {
-            e.preventDefault();
-            try {
-              const api = (await import('../../lib/api.js')).default;
-              const authStore = (await import('../../stores/authStore.js')).useAuthStore.getState();
-              
-              const res = await api.post('/auth/login', {
-                email: e.target.email.value,
-                password: e.target.password.value
-              });
-              
-              if (res.data.success) {
-                const { accessToken, refreshToken, user } = res.data.data;
-                authStore.setTokens(accessToken, refreshToken);
-                authStore.setUser(user);
-                navigate('/dashboard');
-              }
-            } catch (err) {
-              alert(err.response?.data?.message || 'Error al iniciar sesión');
-            }
-          }}
-          style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}
-        >
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: 'var(--text-sm)' }}>Email</label>
-            <input 
-              name="email" 
-              type="email" 
-              required 
-              style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} 
-            />
+          <div className="input-group">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="input-label">Contraseña</label>
+              <a href="#" style={{ fontSize: '0.75rem', color: 'var(--clr-primary-500)', fontWeight: 500 }}>¿Olvidaste tu contraseña?</a>
+            </div>
+            <div style={{ position: 'relative' }}>
+              <Lock size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input 
+                type={showPassword ? 'text' : 'password'} 
+                className="input" 
+                placeholder="••••••••"
+                style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem' }}
+                required
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: 'var(--text-sm)' }}>Contraseña</label>
-            <input 
-              name="password" 
-              type="password" 
-              required 
-              style={{ width: '100%', padding: '0.5rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }} 
-            />
-          </div>
-          <button type="submit" style={{ padding: '0.75rem', borderRadius: 'var(--radius-md)', background: 'var(--primary-color)', color: 'white', fontWeight: 600, border: 'none', cursor: 'pointer' }}>
-            Ingresar
+
+          <button 
+            type="submit" 
+            className="btn btn--primary" 
+            style={{ width: '100%', padding: '0.875rem', marginTop: '0.5rem', fontSize: '1rem', fontWeight: 600 }}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                <div className="spinner" style={{ width: '1rem', height: '1rem', borderWidth: '2px' }} />
+                <span>Iniciando sesión...</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                <LogIn size={18} />
+                <span>Entrar al sistema</span>
+              </div>
+            )}
           </button>
         </form>
 
-        {/* OAuth buttons */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '0.5rem 0' }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--border-color)' }} />
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, margin: 0 }}>
-              O iniciar sesión con
-            </p>
-            <div style={{ flex: 1, height: 1, background: 'var(--border-color)' }} />
-          </div>
-
-          <a href={`${apiBase}/auth/google`} style={{ textDecoration: 'none' }}>
-            <button className="oauth-btn" type="button">
-              {GOOGLE_ICON}
-              Continuar con Google
-            </button>
-          </a>
-
-          <a href={`${apiBase}/auth/microsoft`} style={{ textDecoration: 'none' }}>
-            <button className="oauth-btn" type="button">
-              {MICROSOFT_ICON}
-              Continuar con Microsoft
-            </button>
-          </a>
-        </div>
-
-        <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: 'var(--text-sm)' }}>
-          <p style={{ color: 'var(--text-secondary)' }}>
-            ¿No tienes cuenta? <Link to="/register" style={{ color: 'var(--primary-color)', textDecoration: 'none', fontWeight: 600 }}>Regístrate aquí</Link>
-          </p>
+        <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+          <p>© {new Date().getFullYear()} CARGAR SAS. Todos los derechos reservados.</p>
         </div>
       </div>
     </div>

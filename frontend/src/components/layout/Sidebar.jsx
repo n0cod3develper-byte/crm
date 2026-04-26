@@ -11,49 +11,64 @@ import { useAuthStore } from '../../stores/authStore';
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
   { section: 'Comercial' },
-  { label: 'Empresas', icon: Building2, to: '/companies' },
-  { label: 'Contactos', icon: Users, to: '/contacts' },
-  { label: 'Pipeline', icon: TrendingUp, to: '/pipeline' },
-  { label: 'Tareas', icon: CheckSquare, to: '/tasks' },
-  { label: 'Cotizaciones', icon: FileText, to: '/quotes' },
+  { label: 'Empresas', icon: Building2, to: '/companies', modulo: 'empresas' },
+  { label: 'Contactos', icon: Users, to: '/contacts', modulo: 'contactos' },
+  { label: 'Pipeline', icon: TrendingUp, to: '/pipeline', modulo: 'pipeline' },
+  { label: 'Tareas', icon: CheckSquare, to: '/tasks', modulo: 'tareas' },
+  { label: 'Cotizaciones', icon: FileText, to: '/quotes', modulo: 'cotizaciones' },
   { section: 'Marketing' },
-  { label: 'Leads', icon: Megaphone, to: '/leads' },
-  { label: 'Campañas', icon: Zap, to: '/campaigns' },
+  { label: 'Leads', icon: Megaphone, to: '/leads', modulo: 'leads' },
+  { label: 'Campañas', icon: Zap, to: '/campaigns', modulo: 'campanas' },
   { section: 'Operaciones' },
-  { label: 'Inventario', icon: Box, to: '/inventory' },
-  { label: 'Soporte', icon: LifeBuoy, to: '/support' },
-  { label: 'Empleados', icon: Users, to: '/employees' },
-  { label: 'Equipos', icon: Truck, to: '/equipos' },
-  { label: 'Mantenimiento', icon: Wrench, to: '/mantenimiento' },
-  { label: 'Plantillas PM', icon: Settings, to: '/mantenimiento/configuracion' },
+  { label: 'Inventario', icon: Box, to: '/inventory', modulo: 'inventario' },
+  { label: 'Soporte', icon: LifeBuoy, to: '/support', modulo: 'soporte' },
+  { label: 'Empleados', icon: Users, to: '/employees', modulo: 'empleados' },
+  { label: 'Equipos', icon: Truck, to: '/equipos', modulo: 'equipos' },
+  { label: 'Mantenimiento', icon: Wrench, to: '/mantenimiento', modulo: 'ordenes_trabajo' },
+  { label: 'Plantillas PM', icon: Settings, to: '/mantenimiento/configuracion', modulo: 'ordenes_trabajo' },
   { section: 'Logística' },
-  { label: 'Proveedores', icon: ShoppingBag, to: '/proveedores' },
-  { label: 'Compras', icon: ShoppingCart, to: '/compras' },
-  { section: 'Herramientas' },
-  { label: 'Comunicaciones', icon: MessageSquare, to: '/communications' },
-  { label: 'Biométrico', icon: Phone, to: '/telephony' },
-  { label: 'IA Sugerencias', icon: BrainCircuit, to: '/ai' },
-  { label: 'Reportes', icon: BarChart3, to: '/reports' },
-  { label: 'Automatizaciones', icon: Zap, to: '/automations' },
-  { label: 'Configuración', icon: Settings, to: '/settings' },
+  { label: 'Proveedores', icon: ShoppingBag, to: '/proveedores', modulo: 'proveedores' },
+  { label: 'Compras', icon: ShoppingCart, to: '/compras', modulo: 'ordenes_compra' },
+  { label: 'Solicitudes', icon: FileText, to: '/compras/solicitudes', modulo: 'ordenes_compra', indent: true },
+  { label: 'Órdenes de Compra', icon: ShoppingCart, to: '/compras/oc', modulo: 'ordenes_compra', indent: true },
+  { section: 'Administración' },
+  { label: 'Roles y Permisos', icon: Shield, to: '/admin/roles', adminOnly: true },
+  { label: 'Usuarios', icon: Users, to: '/admin/usuarios', adminOnly: true },
 ];
 
 import { useThemeStore } from '../../stores/themeStore';
-import { Sun, Moon, Monitor } from 'lucide-react';
+import { Sun, Moon, Monitor, Shield } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { usePermissions } from '../../contexts/PermissionsContext';
 
 export function Sidebar() {
-  const { user, logout } = useAuthStore();
+  const { user, logout } = useAuth();
   const { theme, setTheme } = useThemeStore();
+  const { puede, esAdmin, rolActual, loading: loadingPermisos } = usePermissions();
   const navigate = useNavigate();
 
   async function handleLogout() {
-    try {
-      await api.post('/auth/logout').catch(() => { });
-    } finally {
-      logout();
-      navigate('/login');
-    }
+    logout();
   }
+
+  const filteredNavItems = navItems.filter(item => {
+    if (item.section) return true; // Mantener etiquetas de sección por ahora (se limpiarán si quedan vacías)
+    if (item.adminOnly) return esAdmin();
+    if (item.modulo) return puede(item.modulo, 'ver');
+    return true; // Dashboard etc
+  });
+
+  // Limpiar secciones vacías
+  const finalItems = [];
+  filteredNavItems.forEach((item, i) => {
+    if (item.section) {
+      const hasContent = filteredNavItems.slice(i + 1).some(next => !next.section);
+      // Nota: Esta lógica es simplificada, pero sirve para el ejemplo
+      if (hasContent) finalItems.push(item);
+    } else {
+      finalItems.push(item);
+    }
+  });
 
   return (
     <aside className="sidebar">
@@ -79,7 +94,7 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="sidebar__nav">
-        {navItems.map((item, i) => {
+        {finalItems.map((item, i) => {
           if (item.section) {
             return <div key={i} className="nav-section-label">{item.section}</div>;
           }
@@ -88,11 +103,13 @@ export function Sidebar() {
             <NavLink
               key={item.to}
               to={item.to}
+              end={!item.indent}
               className={({ isActive }) =>
                 `nav-item ${isActive ? 'nav-item--active' : ''}`
               }
+              style={item.indent ? { paddingLeft: '2rem', fontSize: 'var(--text-xs)', opacity: 0.85 } : undefined}
             >
-              <Icon size={16} />
+              <Icon size={item.indent ? 14 : 16} />
               {item.label}
             </NavLink>
           );
@@ -107,7 +124,7 @@ export function Sidebar() {
           {user?.avatar_url ? (
             <img
               src={user.avatar_url}
-              alt={user.full_name}
+              alt={user.nombre}
               style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }}
             />
           ) : (
@@ -118,15 +135,15 @@ export function Sidebar() {
               fontSize: 'var(--text-sm)', fontWeight: 700, color: 'white',
               flexShrink: 0,
             }}>
-              {user?.full_name?.[0]?.toUpperCase() || '?'}
+              {user?.nombre?.[0]?.toUpperCase() || '?'}
             </div>
           )}
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {user?.full_name || 'Usuario'}
+              {user?.nombre} {user?.apellido}
             </div>
             <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {user?.role || 'agent'}
+              {user?.rol_nombre || 'Sin Rol'}
             </div>
           </div>
         </div>

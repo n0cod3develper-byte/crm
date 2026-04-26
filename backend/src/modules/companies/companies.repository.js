@@ -29,7 +29,7 @@ export class CompaniesRepository {
 
     const sql = `
       SELECT c.*,
-        u.full_name AS assigned_to_name,
+        (u.nombre || ' ' || u.apellido) AS assigned_to_name,
         COUNT(DISTINCT ct.id)::INT AS contacts_count,
         COUNT(DISTINCT o.id) FILTER (WHERE o.stage_id NOT IN (
           SELECT id FROM pipeline_stages WHERE is_closed_won OR is_closed_lost
@@ -40,7 +40,7 @@ export class CompaniesRepository {
       LEFT JOIN contacts ct ON ct.company_id = c.id AND ct.deleted_at IS NULL
       LEFT JOIN opportunities o ON o.company_id = c.id
       WHERE ${conditions.join(' AND ')}
-      GROUP BY c.id, u.full_name
+      GROUP BY c.id, (u.nombre || ' ' || u.apellido)
       ORDER BY c.id DESC
       LIMIT $${i}
     `;
@@ -60,7 +60,7 @@ export class CompaniesRepository {
 
   async findById(id) {
     const result = await query(
-      `SELECT c.*, u.full_name AS assigned_to_name
+      `SELECT c.*, (u.nombre || ' ' || u.apellido) AS assigned_to_name
        FROM companies c
        LEFT JOIN users u ON u.id = c.assigned_to
        WHERE c.id = $1 AND c.deleted_at IS NULL`,
@@ -120,7 +120,7 @@ export class CompaniesRepository {
       `SELECT
         'communication' AS item_type,
         c.id, c.type, c.subject, c.body, c.direction, c.occurred_at AS date,
-        u.full_name AS created_by_name
+        (u.nombre || ' ' || u.apellido) AS created_by_name
        FROM communications c
        LEFT JOIN users u ON u.id = c.created_by
        WHERE c.company_id = $1
@@ -129,7 +129,7 @@ export class CompaniesRepository {
         'task' AS item_type,
         t.id, t.type, t.title AS subject, t.description AS body,
         NULL AS direction, t.created_at AS date,
-        u.full_name AS created_by_name
+        (u.nombre || ' ' || u.apellido) AS created_by_name
        FROM tasks t
        LEFT JOIN users u ON u.id = t.created_by
        WHERE t.related_type = 'company' AND t.related_id = $1

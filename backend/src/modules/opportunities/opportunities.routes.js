@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { opportunitiesController } from './opportunities.controller.js';
-import { authenticate, authorize } from '../../utils/jwt.js';
+import { authenticate, authorize } from '../../middleware/auth.js';
 
 const router = Router();
 router.use(authenticate);

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { equiposController } from './equipos.controller.js';
-import { authenticate } from '../../utils/jwt.js';
+import { authenticate } from '../../middleware/auth.js';
 
 const router = Router();
 

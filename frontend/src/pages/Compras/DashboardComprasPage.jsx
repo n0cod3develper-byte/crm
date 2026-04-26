@@ -146,15 +146,16 @@ export const DashboardComprasPage = () => {
 
             <Topbar 
         title="Módulo de Compras" 
-        subtitle="null"
-        rightContent={<h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--text-primary)' }}>Módulo de Compras</h1>
-        </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <NavLink to="/compras/solicitudes/nueva" className="btn btn--primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Plus size={18} />
-            Nueva Solicitud
-          </NavLink>
-        </div>} 
+        subtitle="Gestión de solicitudes, cotizaciones y órdenes de compra"
+        rightContent={<>
+          <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--text-primary)' }}>Módulo de Compras</h1>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <NavLink to="/compras/solicitudes/nueva" className="btn btn--primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Plus size={18} />
+              Nueva Solicitud
+            </NavLink>
+          </div>
+        </>} 
       />
 
       <main className="main-content">

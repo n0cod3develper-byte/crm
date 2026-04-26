@@ -31,9 +31,12 @@ import equiposRoutes from './modules/equipos/equipos.routes.js';
 import mantenimientoRoutes from './modules/mantenimiento/mantenimiento.routes.js';
 import proveedoresRoutes from './modules/proveedores/proveedores.routes.js';
 import comprasRoutes from './modules/compras/compras.routes.js';
+import documentosRoutes from './modules/documentos/documentos.routes.js';
+import webhooksRoutes from './modules/webhooks/webhooks.routes.js';
+import adminRoutes from './modules/admin/admin.routes.js';
+
 const app = express();
 const httpServer = createServer(app);
-
 // ─── Seguridad ───────────────────────────────────────────────
 app.use(helmet());
 app.use(cors({
@@ -63,6 +66,9 @@ app.get('/health', (_req, res) => {
 
 // ─── API v1 ──────────────────────────────────────────────────
 const API = '/api/v1';
+app.use(`${API}/webhooks`,      webhooksRoutes);
+app.use(`${API}/admin`,         adminRoutes);
+app.use(`${API}/me`,            adminRoutes); // Reutilizamos el router para /me
 app.use(`${API}/auth`,          authRoutes);
 app.use(`${API}/companies`,     companiesRoutes);
 app.use(`${API}/contacts`,      contactsRoutes);
@@ -81,6 +87,7 @@ app.use(`${API}/equipos`,     equiposRoutes);
 app.use(`${API}/mantenimiento`, mantenimientoRoutes);
 app.use(`${API}/proveedores`, proveedoresRoutes);
 app.use(`${API}/compras`, comprasRoutes);
+app.use(`${API}/documentos`, documentosRoutes);
 // Atendiendo solicitud específica de ruta por empresa
 app.get(`${API}/empresas/:id/equipos`, (req, res, next) => {
   req.url = `/by-company/${req.params.id}`;

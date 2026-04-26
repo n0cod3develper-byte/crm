@@ -35,8 +35,8 @@ export class TasksRepository {
 
     const sql = `
       SELECT t.*,
-        u.full_name AS assigned_to_name,
-        cr.full_name AS created_by_name
+        (u.nombre || ' ' || u.apellido) AS assigned_to_name,
+        (cr.nombre || ' ' || cr.apellido) AS created_by_name
       FROM tasks t
       LEFT JOIN users u  ON u.id  = t.assigned_to
       LEFT JOIN users cr ON cr.id = t.created_by
@@ -65,7 +65,7 @@ export class TasksRepository {
 
   async findById(id) {
     const result = await query(
-      `SELECT t.*, u.full_name AS assigned_to_name, cr.full_name AS created_by_name
+      `SELECT t.*, (u.nombre || ' ' || u.apellido) AS assigned_to_name, (cr.nombre || ' ' || cr.apellido) AS created_by_name
        FROM tasks t
        LEFT JOIN users u  ON u.id  = t.assigned_to
        LEFT JOIN users cr ON cr.id = t.created_by

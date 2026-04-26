@@ -27,7 +27,7 @@ export class ContactsRepository {
 
     const sql = `
       SELECT c.*,
-        u.full_name AS assigned_to_name,
+        (u.nombre || ' ' || u.apellido) AS assigned_to_name,
         comp.name AS company_name
       FROM contacts c
       LEFT JOIN users u ON u.id = c.assigned_to
@@ -53,7 +53,7 @@ export class ContactsRepository {
   async findById(id) {
     const result = await query(
       `SELECT c.*, 
-        u.full_name AS assigned_to_name,
+        (u.nombre || ' ' || u.apellido) AS assigned_to_name,
         comp.name AS company_name
        FROM contacts c
        LEFT JOIN users u ON u.id = c.assigned_to

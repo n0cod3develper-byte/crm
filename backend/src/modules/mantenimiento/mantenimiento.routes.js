@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../../utils/jwt.js';
+import { authenticate } from '../../middleware/auth.js';
 import * as ctrl from './mantenimiento.controller.js';
 import * as pmCtrl from './pm.controller.js';
 
