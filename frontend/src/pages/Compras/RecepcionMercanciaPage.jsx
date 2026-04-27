@@ -484,7 +484,7 @@ export const RecepcionMercanciaPage = () => {
                     {itemsSinVinculo.length} ítem{itemsSinVinculo.length > 1 ? 's' : ''} sin ficha de inventario
                   </div>
                   <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-                    Al confirmar la recepción, podrás darlos de alta en el catálogo de inventario con SKU, categoría y stock mínimo. Así quedarán disponibles para futuras requisiciones.
+                    Al confirmar la recepción, podrás darlos de alta en el catálogo de inventario con SKU, familia y stock mínimo. Así quedarán disponibles para futuras requisiciones.
                   </div>
                 </div>
               </div>

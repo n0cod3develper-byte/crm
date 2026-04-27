@@ -35,11 +35,16 @@ import documentosRoutes from './modules/documentos/documentos.routes.js';
 import webhooksRoutes from './modules/webhooks/webhooks.routes.js';
 import adminRoutes from './modules/admin/admin.routes.js';
 import facturacionRoutes from './modules/facturacion/facturacion.routes.js';
+import catalogRoutes from './modules/inventory/catalog.routes.js';
+import ubicacionesRoutes from './modules/inventory/ubicaciones.routes.js';
+import movementsRoutes from './modules/inventory/movements.routes.js';
 
 const app = express();
 const httpServer = createServer(app);
 // ─── Seguridad ───────────────────────────────────────────────
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(cors({
   origin: env.FRONTEND_URL,
   credentials: true,
@@ -79,6 +84,9 @@ app.use(`${API}/tasks`,         tasksRoutes);
 app.use(`${API}/quotes`,        quotesRoutes);
 app.use(`${API}/leads`,         leadsRoutes);
 app.use(`${API}/inventory`,     inventoryRoutes);
+app.use(`${API}/catalogo`,      catalogRoutes);
+app.use(`${API}/ubicaciones`,   ubicacionesRoutes);
+app.use(`${API}/movements`,     movementsRoutes);
 
 // Módulos adicionales — se irán agregando por sprint
 app.use(`${API}/campaigns`,     campaignsRoutes);
@@ -90,6 +98,8 @@ app.use(`${API}/proveedores`, proveedoresRoutes);
 app.use(`${API}/compras`, comprasRoutes);
 app.use(`${API}/documentos`, documentosRoutes);
 app.use(`${API}/facturacion`, facturacionRoutes);
+app.use('/uploads', express.static('uploads'));
+
 // Atendiendo solicitud específica de ruta por empresa
 app.get(`${API}/empresas/:id/equipos`, (req, res, next) => {
   req.url = `/by-company/${req.params.id}`;

@@ -3,14 +3,17 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'react-hot-toast';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
+import { catalogApi } from '../../services/catalogApi';
 
 const inventorySchema = z.object({
   sku: z.string().optional(),
   name: z.string().min(2, 'Nombre obligatorio'),
   description: z.string().optional(),
-  category: z.string().optional(),
+  categoria_id: z.string().optional(),
+  ubicacion_id: z.string().optional(),
+  marca: z.string().optional(),
   unit: z.string().default('unidad'),
   unit_cost: z.coerce.number().min(0).default(0),
   unit_price: z.coerce.number().min(0).default(0),
@@ -23,9 +26,19 @@ export function InventoryForm({ item, onSuccess, onCancel }) {
   const queryClient = useQueryClient();
   const isEditing = !!item;
 
+  const { data: familias } = useQuery({
+    queryKey: ['catalog-categories'],
+    queryFn: () => catalogApi.getCategorias()
+  });
+
+  const { data: ubicaciones } = useQuery({
+    queryKey: ['ubicaciones'],
+    queryFn: () => catalogApi.getUbicaciones()
+  });
+
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(inventorySchema),
-    defaultValues: item || { unit: 'unidad', is_active: true, unit_cost: 0, unit_price: 0, stock_current: 0, stock_minimum: 0 },
+    defaultValues: item || { unit: 'unidad', is_active: true, unit_cost: 0, unit_price: 0, stock_current: 0, stock_minimum: 0, marca: '' },
   });
 
   const mutation = useMutation({
@@ -65,22 +78,51 @@ export function InventoryForm({ item, onSuccess, onCancel }) {
 
       <div className="flex gap-4">
         <div className="input-group w-full">
-          <label className="input-label">Categoría</label>
-          <select {...register('category')} className="input">
-            <option value="">Selecciona una categoría</option>
-            <option value="Equipo">Equipo</option>
-            <option value="Equipo/Operario">Equipo/Operario</option>
-            <option value="Operario">Operario</option>
-            <option value="Equipo/combustible">Equipo/combustible</option>
-            <option value="EquipoNoCombustible">EquipoNoCombustible</option>
-            <option value="Herramienta">Herramienta</option>
-            <option value="Repuesto">Repuesto</option>
-            <option value="Lubricante">Lubricante</option>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+            <label className="input-label" style={{ margin: 0 }}>Familia</label>
+            <a 
+              href="/catalogo/familias"
+              style={{ fontSize: '10px', color: 'var(--clr-primary-500)', textDecoration: 'none', fontWeight: 600 }}
+              onClick={(e) => { e.preventDefault(); window.location.href='/catalogo/familias'; }}
+            >
+              + Gestionar
+            </a>
+          </div>
+          <select {...register('categoria_id')} className="input">
+            <option value="">Selecciona una familia</option>
+            {familias?.data?.map(f => (
+              <option key={f.id} value={f.id}>{f.nombre}</option>
+            ))}
           </select>
         </div>
         <div className="input-group w-full">
           <label className="input-label">Unidad de Medida</label>
           <input {...register('unit')} className="input" placeholder="Ej: Unidad, Hora, Viaje, Km" />
+        </div>
+      </div>
+
+      <div className="flex gap-4">
+        <div className="input-group w-full">
+          <label className="input-label">Ubicación Física</label>
+          <select {...register('ubicacion_id')} className="input">
+            <option value="">Selecciona ubicación</option>
+            {ubicaciones?.data?.map(u => (
+              <option key={u.id} value={u.id}>{u.codigo_ubicacion} - {u.bodega} ({u.zona})</option>
+            ))}
+          </select>
+        </div>
+        <div className="input-group w-full" style={{ visibility: 'hidden' }}>
+          {/* Spacer */}
+        </div>
+      </div>
+
+      <div className="flex gap-4">
+        <div className="input-group w-full">
+          <label className="input-label">Marca</label>
+          <input {...register('marca')} className="input" placeholder="Ej: CAT, Komatsu..." />
+        </div>
+        <div className="input-group w-full" style={{ visibility: 'hidden' }}>
+          {/* Spacer */}
         </div>
       </div>
 
@@ -125,3 +167,4 @@ export function InventoryForm({ item, onSuccess, onCancel }) {
     </form>
   );
 }
+

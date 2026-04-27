@@ -98,9 +98,11 @@ export function InventoryPage() {
                 <tr>
                   <th>SKU</th>
                   <th>Artículo / Servicio</th>
-                  <th>Categoría</th>
-                  <th>Precio Venta</th>
+                  <th>Marca</th>
+                  <th>Familia</th>
                   <th>Stock</th>
+                  <th>Ubicación Física</th>
+                  <th>Precio Venta</th>
                   <th>Estado</th>
                   <th style={{ textAlign: 'right' }}>Acciones</th>
                 </tr>
@@ -110,13 +112,19 @@ export function InventoryPage() {
                   <tr key={item.id} style={{ opacity: item.is_active ? 1 : 0.5 }}>
                     <td style={{ color: 'var(--text-secondary)' }}>{item.sku || '—'}</td>
                     <td style={{ fontWeight: 600 }}>{item.name}</td>
-                    <td>{item.category || 'General'}</td>
-                    <td>{formatCurrency(item.unit_price)}</td>
+                    <td>{item.marca || '—'}</td>
+                    <td>{item.familia_nombre || item.category || 'General'}</td>
                     <td>
                       <span style={{ color: item.stock_current <= item.stock_minimum ? 'var(--clr-danger)' : 'inherit', fontWeight: item.stock_current <= item.stock_minimum ? 600 : 400 }}>
-                        {item.stock_current} {item.unit}
+                        {item.stock_current} {item.unit || 'und'}
                       </span>
                     </td>
+                    <td>
+                      <div className="flex items-center gap-1" style={{ color: 'var(--clr-primary-500)', fontSize: '0.85rem', fontWeight: 600 }}>
+                        {item.ubicacion_fisica || '---'}
+                      </div>
+                    </td>
+                    <td>{formatCurrency(item.unit_price)}</td>
                     <td>
                        <span style={{
                           padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600,

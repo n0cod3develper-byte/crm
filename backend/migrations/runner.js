@@ -42,6 +42,12 @@ const MIGRATION_FILES = [
   '010_add_password_to_users.sql',
   '011_clerk_rbac.sql',
   '012_facturacion_module.sql',
+  '013_unified_catalog.sql',
+  '014_bodegas_and_seeds.sql',
+  '015_add_marca_to_inventory.sql',
+  '016_update_catalog_view.sql',
+  '017_optimization_indexes.sql',
+  '018_add_image_to_catalog_view.sql',
 ];
 
 async function ensureMigrationsTable(client) {

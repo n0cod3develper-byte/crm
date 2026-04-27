@@ -24,7 +24,14 @@ const EquiposPage = lazy(() => import('./pages/Equipos/EquiposPage').then(m => (
 const MantenimientoPage = lazy(() => import('./pages/Mantenimiento/MantenimientoPage').then(m => ({ default: m.MantenimientoPage })));
 const OTFormPage = lazy(() => import('./pages/Mantenimiento/OTFormPage').then(m => ({ default: m.OTFormPage })));
 const OTDetailPage = lazy(() => import('./pages/Mantenimiento/OTDetailPage').then(m => ({ default: m.OTDetailPage })));
+const CatalogDashboardPage = lazy(() => import('./pages/Inventory/CatalogDashboardPage').then(m => ({ default: m.CatalogDashboardPage })));
+const CatalogListPage = lazy(() => import('./pages/Inventory/CatalogListPage').then(m => ({ default: m.CatalogListPage })));
+const CatalogFormPage = lazy(() => import('./pages/Inventory/CatalogFormPage').then(m => ({ default: m.CatalogFormPage })));
+const CatalogItemDetailPage = lazy(() => import('./pages/Inventory/CatalogItemDetailPage').then(m => ({ default: m.CatalogItemDetailPage })));
+const MovementsPage = lazy(() => import('./pages/Inventory/MovementsPage').then(m => ({ default: m.MovementsPage })));
 const PMAdminPage = lazy(() => import('./pages/Mantenimiento/PMAdminPage').then(m => ({ default: m.PMAdminPage })));
+const UbicacionesPage = lazy(() => import('./pages/Inventory/UbicacionesPage').then(m => ({ default: m.UbicacionesPage })));
+const FamiliesPage = lazy(() => import('./pages/Inventory/FamiliesPage').then(m => ({ default: m.FamiliesPage })));
 
 const ProveedoresListPage = lazy(() => import('./pages/Proveedores/ProveedoresListPage').then(m => ({ default: m.ProveedoresListPage })));
 const ProveedorFormPage = lazy(() => import('./pages/Proveedores/ProveedorFormPage').then(m => ({ default: m.ProveedorFormPage })));
@@ -94,6 +101,30 @@ function App() {
             } />
             <Route path="/inventory" element={
               <ProtectedRoute modulo="inventario" accion="ver"><InventoryPage /></ProtectedRoute>
+            } />
+            <Route path="/inventory/ubicaciones" element={
+              <ProtectedRoute modulo="inventario" accion="ver"><UbicacionesPage /></ProtectedRoute>
+            } />
+            <Route path="/catalogo" element={
+              <ProtectedRoute modulo="catalogo" accion="ver"><CatalogDashboardPage /></ProtectedRoute>
+            } />
+            <Route path="/catalogo/familias" element={
+              <ProtectedRoute modulo="catalogo" accion="ver"><FamiliesPage /></ProtectedRoute>
+            } />
+            <Route path="/catalogo/items" element={
+              <ProtectedRoute modulo="catalogo" accion="ver"><CatalogListPage /></ProtectedRoute>
+            } />
+            <Route path="/inventario/movimientos" element={
+              <ProtectedRoute modulo="inventario" accion="ver"><MovementsPage /></ProtectedRoute>
+            } />
+            <Route path="/catalogo/:id" element={
+              <ProtectedRoute modulo="catalogo" accion="ver"><CatalogItemDetailPage /></ProtectedRoute>
+            } />
+            <Route path="/catalogo/nuevo" element={
+              <ProtectedRoute modulo="catalogo" accion="crear"><CatalogFormPage /></ProtectedRoute>
+            } />
+            <Route path="/catalogo/:id/editar" element={
+              <ProtectedRoute modulo="catalogo" accion="editar"><CatalogFormPage /></ProtectedRoute>
             } />
             <Route path="/mantenimiento" element={
               <ProtectedRoute modulo="ordenes_trabajo" accion="ver"><MantenimientoPage /></ProtectedRoute>
