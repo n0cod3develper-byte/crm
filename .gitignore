@@ -36,4 +36,6 @@ docker-volumes/
 
 # Archivos temporales de PDF
 *.pdf.tmp
-uploads/tmp/
+uploads/
+test_pdf.js
+test_ot.pdf

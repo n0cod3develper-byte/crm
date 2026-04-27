@@ -128,14 +128,20 @@ export const downloadPDF = async (req, res, next) => {
     const ot = await repo.findOTById(req.params.id);
     if (!ot) throw new NotFoundError('Orden de trabajo');
 
+    console.log(`[PDF] Generando OT ${ot.consecutivo}...`);
     const pdfBuffer = await generateOTPdf(ot);
+    
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${ot.consecutivo}.pdf"`,
       'Content-Length': pdfBuffer.length,
     });
     res.send(pdfBuffer);
-  } catch (err) { next(err); }
+    console.log(`[PDF] OT ${ot.consecutivo} enviada con éxito.`);
+  } catch (err) { 
+    console.error(`[PDF] Error en OT ${req.params.id}:`, err);
+    next(err); 
+  }
 };
 
 // ─── Inventario search (para el formulario) ────────────

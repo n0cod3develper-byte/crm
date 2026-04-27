@@ -14,8 +14,10 @@ function getLogoBase64() {
   try {
     const logoPath = join(__dirname, '..', 'assets', 'logo.png');
     const buffer = readFileSync(logoPath);
+    logger.debug('Logo loaded successfully');
     return `data:image/png;base64,${buffer.toString('base64')}`;
-  } catch {
+  } catch (err) {
+    logger.warn('Could not load logo for PDF', { error: err.message });
     return null;
   }
 }
@@ -175,6 +177,7 @@ function buildOTHtml(ot) {
     'ABIERTA': '#3b82f6',
     'EN_PROCESO': '#f59e0b',
     'LIQUIDADA': '#22c55e',
+    'FACTURADA': '#22c55e',
     'CERRADA': '#64748b',
   };
 
@@ -533,36 +536,233 @@ function buildOTHtml(ot) {
  * @param {Object} ot - Objeto OT completo (con técnicos, repuestos, liquidación).
  * @returns {Buffer} Buffer del PDF generado.
  */
+import { logger } from './logger.js';
+
 export async function generateOTPdf(ot) {
-  const html = buildOTHtml(ot);
-
-  const launchOptions = {
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  };
-
-  // Usar la ruta específica de Linux si estamos en ese entorno (ej. Docker)
-  // o si está configurada en las variables de entorno.
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-    launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-  } else if (process.platform === 'linux') {
-    launchOptions.executablePath = '/usr/bin/chromium-browser';
-  }
-
-  const browser = await puppeteer.launch(launchOptions);
-
   try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    const html = buildOTHtml(ot);
+    
+    const launchOptions = {
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    };
 
-    const pdfBuffer = await page.pdf({
-      format: 'Letter',
-      printBackground: true,
-      margin: { top: '20px', bottom: '50px', left: '0', right: '0' },
-    });
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+      launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    } else if (process.platform === 'linux') {
+      launchOptions.executablePath = '/usr/bin/chromium-browser';
+    }
 
-    return Buffer.from(pdfBuffer);
-  } finally {
-    await browser.close();
+    logger.debug('Launching puppeteer for OT PDF', { consecutivo: ot.consecutivo });
+    const browser = await puppeteer.launch(launchOptions);
+
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'domcontentloaded' });
+
+      logger.debug('Generating PDF buffer');
+      const pdfBuffer = await page.pdf({
+        format: 'Letter',
+        printBackground: true,
+        margin: { top: '20px', bottom: '50px', left: '0', right: '0' },
+      });
+
+      return Buffer.from(pdfBuffer);
+    } finally {
+      await browser.close();
+    }
+  } catch (err) {
+    logger.error('Error generating OT PDF', { error: err.message, stack: err.stack });
+    throw err;
+  }
+}
+/**
+ * Genera el HTML completo para la PREFACTURA / REMISIÓN
+ */
+function buildPrefacturaHtml(factura) {
+  const logo = getLogoBase64();
+  const logoHtml = logo
+    ? `<img src="${logo}" style="height:60px;" alt="Logo" />`
+    : `<div style="font-size:24px;font-weight:800;color:#4338ca;">CARGAR S.A.S.</div>`;
+
+  const isPrefactura = factura.estado === 'PREFACTURA';
+  const colorEstado = isPrefactura ? '#f59e0b' : '#22c55e';
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 11px;
+      color: #1e293b;
+      line-height: 1.5;
+      padding: 30px 40px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 3px solid #4338ca;
+      padding-bottom: 15px;
+      margin-bottom: 20px;
+    }
+    .header-left { display: flex; align-items: center; gap: 15px; }
+    .header-right { text-align: right; }
+    .doc-number {
+      font-size: 22px;
+      font-weight: 800;
+      color: #4338ca;
+      letter-spacing: 1px;
+    }
+    .doc-label {
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .watermark {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      font-size: 80px;
+      color: rgba(0,0,0,0.05);
+      font-weight: 900;
+      white-space: nowrap;
+      z-index: -1;
+      pointer-events: none;
+    }
+    .section { margin-bottom: 18px; }
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #4338ca;
+      text-transform: uppercase;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 4px;
+      margin-bottom: 10px;
+    }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; }
+    .field label { font-size: 9px; font-weight: 600; color: #94a3b8; text-transform: uppercase; }
+    .field .value { font-size: 11px; font-weight: 500; }
+    table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    th { padding: 6px 8px; text-align: left; font-weight: 700; background: #f1f5f9; border-bottom: 2px solid #e2e8f0; }
+    td { padding: 5px 8px; border-bottom: 1px solid #f1f5f9; }
+    .text-right { text-align: right; }
+    .totals-box { margin-top: 20px; display: flex; justify-content: flex-end; }
+    .totals-grid { display: grid; grid-template-columns: 1fr auto; gap: 4px 20px; min-width: 250px; }
+    .total-val { font-size: 16px; font-weight: 800; color: #4338ca; }
+    .footer-msg { margin-top: 40px; text-align: center; font-size: 10px; color: #64748b; font-style: italic; }
+  </style>
+</head>
+<body>
+  ${isPrefactura ? '<div class="watermark">PREFACTURA - NO VÁLIDA</div>' : ''}
+  
+  <div class="header">
+    <div class="header-left">
+      ${logoHtml}
+    </div>
+    <div class="header-right">
+      <div class="doc-label">${isPrefactura ? 'Prefactura de Servicios' : 'Relación de Facturación'}</div>
+      <div class="doc-number">${factura.consecutivo_interno}</div>
+      ${factura.numero_factura ? `<div style="font-weight:700;color:#22c55e">Ref: ${factura.numero_factura}</div>` : ''}
+      <div style="font-size:10px;color:#64748b">Fecha: ${formatDate(factura.fecha_prefactura)}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Datos del Cliente</div>
+    <div class="grid2">
+      <div class="field"><label>Cliente</label><div class="value">${factura.empresa_nombre}</div></div>
+      <div class="field"><label>NIT</label><div class="value">${factura.empresa_nit}</div></div>
+      <div class="field"><label>Dirección</label><div class="value">${factura.empresa_direccion || '—'}</div></div>
+      <div class="field"><label>Teléfono</label><div class="value">${factura.empresa_telefono || '—'}</div></div>
+      <div class="field"><label>Condición Pago</label><div class="value">${factura.condicion_pago || '—'}</div></div>
+      <div class="field"><label>Vencimiento</label><div class="value">${formatDate(factura.fecha_vencimiento)}</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Detalle de Servicios / OTs</div>
+    <table>
+      <thead>
+        <tr>
+          <th>OT</th>
+          <th>Fecha OT</th>
+          <th>Descripción</th>
+          <th class="text-right">Subtotal</th>
+          <th class="text-right">IVA</th>
+          <th class="text-right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${factura.ots.map(ot => `
+          <tr>
+            <td>${ot.ot_consecutivo}</td>
+            <td>${formatDate(ot.ot_fecha)}</td>
+            <td>Servicio de mantenimiento ${ot.tipo_mantenimiento}</td>
+            <td class="text-right">${formatCOP(ot.subtotal_ot)}</td>
+            <td class="text-right">${formatCOP(ot.iva_ot)}</td>
+            <td class="text-right">${formatCOP(ot.total_ot)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="totals-box">
+    <div class="totals-grid">
+      <div style="color:#64748b">Subtotal:</div><div class="text-right">${formatCOP(factura.subtotal)}</div>
+      <div style="color:#64748b">IVA (${factura.iva_pct}%):</div><div class="text-right">${formatCOP(factura.iva_valor)}</div>
+      <div class="total-val">TOTAL:</div><div class="text-right total-val">${formatCOP(factura.total)}</div>
+    </div>
+  </div>
+
+  ${factura.notas ? `
+  <div class="section" style="margin-top:20px;">
+    <div class="section-title">Observaciones</div>
+    <div style="font-size:10px;white-space:pre-wrap;">${factura.notas}</div>
+  </div>` : ''}
+
+  <div class="footer-msg">
+    Este documento es un soporte administrativo de los servicios prestados.<br>
+    ${isPrefactura ? 'NO es una factura de venta legal.' : 'Corresponde a la factura oficial registrada en el sistema contable.'}
+  </div>
+
+</body>
+</html>`;
+}
+
+export async function generatePrefacturaPdf(factura) {
+  try {
+    const html = buildPrefacturaHtml(factura);
+    const launchOptions = {
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
+    };
+
+    logger.debug('Launching puppeteer for Prefactura PDF', { consecutivo: factura.consecutivo_interno });
+    const browser = await puppeteer.launch(launchOptions);
+
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'domcontentloaded' });
+      
+      const pdfBuffer = await page.pdf({
+        format: 'Letter',
+        printBackground: true,
+        margin: { top: '20px', bottom: '20px', left: '0', right: '0' },
+      });
+      return Buffer.from(pdfBuffer);
+    } finally {
+      await browser.close();
+    }
+  } catch (err) {
+    logger.error('Error generating Prefactura PDF', { error: err.message, stack: err.stack });
+    throw err;
   }
 }

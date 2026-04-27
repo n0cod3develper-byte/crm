@@ -1,11 +1,13 @@
 import React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
   Building2, Phone, Globe, MapPin, Calendar, 
   Users, TrendingUp, History, ArrowLeft, 
-  Edit2, Plus, Mail, MessageSquare, Truck, FileText
+  Edit2, Plus, Mail, MessageSquare, Truck, FileText, Receipt
 } from 'lucide-react';
+import { facturacionApi } from '../../services/facturacionApi';
+import { formatCurrency } from '../../utils/formatters';
 import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
@@ -79,6 +81,7 @@ export function CompanyDetailPage() {
     { id: 'timeline', label: 'Actividad', icon: History },
     { id: 'contacts', label: 'Contactos', icon: Users },
     { id: 'equipos', label: 'Equipos', icon: Truck },
+    { id: 'facturacion', label: 'Facturación', icon: Receipt },
     { id: 'documentos', label: 'Documentos', icon: FileText },
     { id: 'opportunities', label: 'Oportunidades', icon: TrendingUp },
     { id: 'info', label: 'Información General', icon: Building2 },
@@ -301,6 +304,10 @@ export function CompanyDetailPage() {
               </div>
             )}
 
+            {activeTab === 'facturacion' && (
+              <CompanyFacturacionSection companyId={id} />
+            )}
+
             {activeTab === 'info' && (
               <div className="grid grid-cols-2 gap-6">
                 <div>
@@ -425,6 +432,77 @@ export function CompanyDetailPage() {
           />
         </Modal>
       )}
+    </div>
+  );
+}
+function CompanyFacturacionSection({ companyId }) {
+  const navigate = useNavigate();
+  const { data: facturas, isLoading: isFacturasLoading } = useQuery({
+    queryKey: ['company-facturas', companyId],
+    queryFn: () => facturacionApi.getFacturas({ empresa_id: companyId })
+  });
+
+  const { data: otsPendientes, isLoading: isOtsLoading } = useQuery({
+    queryKey: ['company-ots-pendientes', companyId],
+    queryFn: () => facturacionApi.getOtsPendientes({ empresa_id: companyId })
+  });
+
+  if (isFacturasLoading || isOtsLoading) return <div className="spinner" />;
+
+  return (
+    <div className="space-y-8">
+      <div className="grid grid-cols-2 gap-6">
+        <div className="p-4 bg-orange-500/10 rounded-2xl border border-orange-500/20">
+          <p className="text-xs font-bold uppercase text-orange-500 mb-1">OTs Pendientes</p>
+          <p className="text-2xl font-black">{otsPendientes?.data?.length || 0}</p>
+          <button 
+            onClick={() => navigate(`/facturacion/pendientes?empresa_id=${companyId}`)}
+            className="text-xs font-bold mt-2 text-orange-600 hover:underline flex items-center gap-1"
+          >
+            Ir a facturar <Plus size={12} />
+          </button>
+        </div>
+        <div className="p-4 bg-accent/10 rounded-2xl border border-accent/20">
+          <p className="text-xs font-bold uppercase text-accent mb-1">Total Facturado</p>
+          <p className="text-2xl font-black">
+            {formatCurrency(facturas?.data?.reduce((acc, curr) => acc + (curr.estado === 'FACTURADA' ? parseFloat(curr.total) : 0), 0) || 0)}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <h3 className="font-bold border-b border-color pb-2">Historial de Facturas</h3>
+        {facturas?.data?.length === 0 ? (
+          <p className="text-center py-8 text-muted italic">No hay facturas registradas.</p>
+        ) : (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Consecutivo</th>
+                  <th>Fecha</th>
+                  <th>Estado</th>
+                  <th className="text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {facturas.data.map(f => (
+                  <tr key={f.id} className="cursor-pointer hover:bg-subtle/30" onClick={() => navigate(`/facturacion/facturas/${f.id}`)}>
+                    <td className="font-bold">{f.consecutivo_interno}</td>
+                    <td>{new Date(f.fecha_prefactura).toLocaleDateString()}</td>
+                    <td>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${f.estado === 'FACTURADA' ? 'bg-green-500/10 text-green-500' : 'bg-orange-500/10 text-orange-500'}`}>
+                        {f.estado}
+                      </span>
+                    </td>
+                    <td className="text-right font-bold">{formatCurrency(f.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

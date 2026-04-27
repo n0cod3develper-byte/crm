@@ -39,6 +39,10 @@ const OrdenCompraFormPage = lazy(() => import('./pages/Compras/OrdenCompraFormPa
 const AprobacionesPage = lazy(() => import('./pages/Compras/AprobacionesPage').then(m => ({ default: m.AprobacionesPage })));
 const RecepcionMercanciaPage = lazy(() => import('./pages/Compras/RecepcionMercanciaPage').then(m => ({ default: m.RecepcionMercanciaPage })));
 const Error403Page = lazy(() => import('./pages/Auth/Error403Page').then(m => ({ default: m.Error403Page })));
+const FacturacionDashboard = lazy(() => import('./pages/Facturacion/DashboardFacturacionPage').then(m => ({ default: m.DashboardFacturacionPage })));
+const OtsPendientesPage = lazy(() => import('./pages/Facturacion/OtsPendientesPage').then(m => ({ default: m.OtsPendientesPage })));
+const FacturasListPage = lazy(() => import('./pages/Facturacion/FacturasListPage').then(m => ({ default: m.FacturasListPage })));
+const FacturaDetailPage = lazy(() => import('./pages/Facturacion/FacturaDetailPage').then(m => ({ default: m.FacturaDetailPage })));
 const RolesPage = lazy(() => import('./pages/Admin/RolesPage').then(m => ({ default: m.RolesPage })));
 const UsersPage = lazy(() => import('./pages/Admin/UsersPage').then(m => ({ default: m.UsersPage })));
 const queryClient = new QueryClient({
@@ -146,6 +150,12 @@ function App() {
             <Route path="/support" element={<ProtectedRoute modulo="soporte" accion="ver"><SupportPage /></ProtectedRoute>} />
             <Route path="/employees" element={<ProtectedRoute modulo="empleados" accion="ver"><EmployeesPage /></ProtectedRoute>} />
             <Route path="/equipos" element={<ProtectedRoute modulo="equipos" accion="ver"><EquiposPage /></ProtectedRoute>} />
+
+            {/* Facturación */}
+            <Route path="/facturacion" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturacionDashboard /></ProtectedRoute>} />
+            <Route path="/facturacion/pendientes" element={<ProtectedRoute modulo="facturacion" accion="ver"><OtsPendientesPage /></ProtectedRoute>} />
+            <Route path="/facturacion/facturas" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturasListPage /></ProtectedRoute>} />
+            <Route path="/facturacion/facturas/:id" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturaDetailPage /></ProtectedRoute>} />
 
             {/* Logística */}
             <Route path="/proveedores" element={<ProtectedRoute modulo="proveedores" accion="ver"><ProveedoresListPage /></ProtectedRoute>} />

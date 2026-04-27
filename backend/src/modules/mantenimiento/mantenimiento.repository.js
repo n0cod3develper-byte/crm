@@ -75,11 +75,13 @@ export class MantenimientoRepository {
       SELECT ot.*, 
              c.name AS empresa_nombre, c.nit AS empresa_nit, c.phone as empresa_telefono, c.address as empresa_direccion,
              e.marca AS equipo_marca, e.modelo AS equipo_modelo, e.serial AS equipo_serial,
-             f.nombre AS frecuencia_nombre, f.horas AS frecuencia_horas, f.version AS frecuencia_version
+             f.nombre AS frecuencia_nombre, f.horas AS frecuencia_horas, f.version AS frecuencia_version,
+             fac.consecutivo_interno AS factura_consecutivo, fac.numero_factura AS factura_numero_externo
       FROM ordenes_trabajo ot
       JOIN companies c ON c.id = ot.empresa_id
       JOIN equipos e ON e.id = ot.equipo_id
       LEFT JOIN pm_frecuencias f ON f.id = ot.pm_frecuencia_id
+      LEFT JOIN facturas fac ON fac.id = ot.factura_id
       WHERE ot.id = $1 AND ot.deleted_at IS NULL
     `, [id]);
 

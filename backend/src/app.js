@@ -34,6 +34,7 @@ import comprasRoutes from './modules/compras/compras.routes.js';
 import documentosRoutes from './modules/documentos/documentos.routes.js';
 import webhooksRoutes from './modules/webhooks/webhooks.routes.js';
 import adminRoutes from './modules/admin/admin.routes.js';
+import facturacionRoutes from './modules/facturacion/facturacion.routes.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -88,6 +89,7 @@ app.use(`${API}/mantenimiento`, mantenimientoRoutes);
 app.use(`${API}/proveedores`, proveedoresRoutes);
 app.use(`${API}/compras`, comprasRoutes);
 app.use(`${API}/documentos`, documentosRoutes);
+app.use(`${API}/facturacion`, facturacionRoutes);
 // Atendiendo solicitud específica de ruta por empresa
 app.get(`${API}/empresas/:id/equipos`, (req, res, next) => {
   req.url = `/by-company/${req.params.id}`;

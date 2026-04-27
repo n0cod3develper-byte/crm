@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Building2, Users, TrendingUp, CheckSquare,
   MessageSquare, FileText, Megaphone, Package, LifeBuoy,
   Zap, BrainCircuit, Phone, BarChart3, Settings, LogOut, Truck, Box, Wrench,
-  ShoppingCart, ShoppingBag
+  ShoppingCart, ShoppingBag, Receipt, Clock
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -28,6 +28,9 @@ const navItems = [
   { label: 'Plantillas PM', icon: Settings, to: '/mantenimiento/configuracion', modulo: 'ordenes_trabajo' },
   { section: 'Logística' },
   { label: 'Proveedores', icon: ShoppingBag, to: '/proveedores', modulo: 'proveedores' },
+  { label: 'Facturación', icon: Receipt, to: '/facturacion', modulo: 'facturacion' },
+  { label: 'Pendientes', icon: Clock, to: '/facturacion/pendientes', modulo: 'facturacion', indent: true },
+  { label: 'Historial Facturas', icon: FileText, to: '/facturacion/facturas', modulo: 'facturacion', indent: true },
   { label: 'Compras', icon: ShoppingCart, to: '/compras', modulo: 'ordenes_compra' },
   { label: 'Solicitudes', icon: FileText, to: '/compras/solicitudes', modulo: 'ordenes_compra', indent: true },
   { label: 'Órdenes de Compra', icon: ShoppingCart, to: '/compras/oc', modulo: 'ordenes_compra', indent: true },

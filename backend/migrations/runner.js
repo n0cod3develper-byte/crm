@@ -41,6 +41,7 @@ const MIGRATION_FILES = [
   '009_fix_horometro_frecuencia.sql',
   '010_add_password_to_users.sql',
   '011_clerk_rbac.sql',
+  '012_facturacion_module.sql',
 ];
 
 async function ensureMigrationsTable(client) {
