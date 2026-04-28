@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { catalogApi } from '../../services/catalogApi';
+import api from '../../lib/api';
 import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { 
@@ -10,6 +11,9 @@ import {
   CheckCircle2, AlertCircle, History, ZoomIn, X
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
+
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export function CatalogItemDetailPage() {
   const { id } = useParams();
@@ -20,6 +24,16 @@ export function CatalogItemDetailPage() {
     queryKey: ['catalog-item', id],
     queryFn: () => catalogApi.getItem(id)
   });
+
+  const { data: movementsData, isLoading: movementsLoading } = useQuery({
+    queryKey: ['item-movements', id],
+    queryFn: async () => {
+      const { data } = await api.get('/movements', { params: { inventario_id: id, limit: 100 } });
+      return data;
+    }
+  });
+
+  const movements = movementsData?.data || [];
 
   if (isLoading) return <div className="p-12 text-center">Cargando detalles del item...</div>;
   if (error || !itemData?.data) return (
@@ -191,6 +205,67 @@ export function CatalogItemDetailPage() {
                   </div>
                 </div>
               </div>
+              {/* Historial de Movimientos */}
+              <div className="card" id="movimientos">
+                <div style={{ borderBottom: '1px solid var(--border-color)', marginBottom: '1.5rem', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h2 style={{ fontSize: '1.125rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <History size={18} color="var(--clr-primary-500)" /> Historial de Movimientos
+                  </h2>
+                </div>
+
+                <div className="table-container">
+                  <table className="table table--sm">
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Documento</th>
+                        <th style={{ textAlign: 'right' }}>Cant.</th>
+                        <th style={{ textAlign: 'right' }}>Stock Final</th>
+                        <th style={{ textAlign: 'right' }}>Costo Final</th>
+                        <th>Notas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {movementsLoading ? (
+                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}><div className="spinner" /></td></tr>
+                      ) : movements?.length === 0 ? (
+                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No hay movimientos registrados para este item.</td></tr>
+                      ) : movements?.map(m => {
+                        const isPositive = m.tipo_movimiento?.startsWith('ENTRADA');
+                        return (
+                          <tr key={m.id}>
+                            <td style={{ fontSize: 'var(--text-xs)' }}>
+                              {format(new Date(m.created_at), 'dd/MM/yyyy HH:mm', { locale: es })}
+                            </td>
+                            <td>
+                              <div style={{ fontSize: '0.625rem', padding: '0.125rem 0.375rem' }} className={`badge ${m.tipo_movimiento?.startsWith('ENTRADA') ? 'badge--success' : 'badge--danger'}`}>
+                                {m.tipo_movimiento?.split('_')[0]}
+                              </div>
+                            </td>
+                            <td style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>
+                              {m.tipo_documento}: {m.numero_documento || 'S/N'}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 700, color: isPositive ? 'var(--clr-success)' : 'var(--clr-danger)' }}>
+                              {isPositive ? '+' : '-'}{m.cantidad}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                              {m.stock_despues}
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              {formatCurrency(m.costo_promedio_despues || 0)}
+                            </td>
+                            <td style={{ fontSize: '0.75rem', maxWidth: '150px' }} className="truncate">
+                              {m.notas || '---'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
             </div>
 
             {/* Columna Lateral (KPIs y Acciones Rápidas) */}

@@ -287,7 +287,7 @@ export function OTFormPage() {
   const handleSelectItem = (item) => {
     addRepMut.mutate({
       item_inventario_id: item.id,
-      descripcion: item.name,
+      descripcion: item.nombre_comercial || item.name,
       cantidad: 1,
       unidad: item.unit || 'unidad',
       precio_unitario: item.unit_price || 0,
@@ -709,11 +709,16 @@ export function OTFormPage() {
                         }}
                         onMouseDown={() => handleSelectItem(item)}
                       >
-                        <div>
-                          <div style={{ fontWeight: 600 }}>{item.name}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{item.sku || 'Sin SKU'} | Stock: {item.stock_current}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: '14px' }}>{item.nombre_comercial || item.name}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', gap: '0.75rem', marginTop: '0.25rem' }}>
+                            <span><strong>CÓD:</strong> {item.codigo_interno || item.sku}</span>
+                            <span><strong>STOCK:</strong> <span style={{ color: (item.stock_actual || 0) <= 0 ? 'var(--clr-danger)' : 'var(--clr-success)', fontWeight: 700 }}>{item.stock_actual || 0}</span></span>
+                          </div>
                         </div>
-                        <span style={{ fontWeight: 600, color: 'var(--clr-primary-400)' }}>{fmt(item.unit_price)}</span>
+                        <div style={{ textAlign: 'right', marginLeft: '1rem' }}>
+                          <div style={{ fontWeight: 800, color: 'var(--clr-primary-500)', fontSize: '14px' }}>{fmt(item.unit_price)}</div>
+                        </div>
                       </div>
                     ))}
                   </div>

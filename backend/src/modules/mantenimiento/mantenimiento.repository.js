@@ -1,6 +1,7 @@
 import { query, withTransaction } from '../../config/database.js';
 import { env } from '../../config/env.js';
 import { PMRepository } from './pm.repository.js';
+import { registrarMovimiento } from '../../services/inventoryMovements.service.js';
 
 const pmRepo = new PMRepository();
 
@@ -289,10 +290,19 @@ export class MantenimientoRepository {
   // ==========================================
   async searchInventario(q) {
       const result = await query(
-          `SELECT id, sku, name, description, unit, unit_price, stock_current 
-           FROM inventory_items 
-           WHERE (name ILIKE $1 OR sku ILIKE $1) AND is_active = true
-           LIMIT 20`,
+          `SELECT 
+            id, 
+            referencia_sistema as sku, 
+            codigo_interno, 
+            nombre_interno as name, 
+            nombre_comercial, 
+            unidad_medida as unit, 
+            precio_venta as unit_price, 
+            stock_actual 
+           FROM catalogo_completo 
+           WHERE (nombre_comercial ILIKE $1 OR nombre_interno ILIKE $1 OR referencia_sistema ILIKE $1 OR codigo_interno ILIKE $1)
+             AND activo_catalogo = true
+           LIMIT 25`,
           [`%${q}%`]
       );
       return result.rows;
@@ -374,10 +384,10 @@ export class MantenimientoRepository {
               total_repuestos += parseFloat(rep.total);
 
               // Consultar el stock actual
-              const invRes = await client.query(`SELECT stock_current FROM inventory_items WHERE id = $1 FOR UPDATE`, [rep.item_inventario_id]);
+              const invRes = await client.query(`SELECT stock_actual FROM inventario WHERE id = $1 FOR UPDATE`, [rep.item_inventario_id]);
               if(invRes.rows.length === 0) throw new Error(`Item ${rep.descripcion} no existe en inventario.`);
               
-              const currentStock = parseFloat(invRes.rows[0].stock_current);
+              const currentStock = parseFloat(invRes.rows[0].stock_actual);
               const requested = parseFloat(rep.cantidad);
 
               if(currentStock < requested) {
@@ -392,13 +402,16 @@ export class MantenimientoRepository {
           // 4. Descargar de Inventario
           for(const rep of repsReq.rows) {
               const requested = parseFloat(rep.cantidad);
-              await client.query(`UPDATE inventory_items SET stock_current = stock_current - $1 WHERE id = $2`, [requested, rep.item_inventario_id]);
               
-              const desc = `Descargo OT: ${consecutivo}`;
-              await client.query(`
-                  INSERT INTO inventory_movements (item_id, type, quantity, reference, notes, created_by)
-                  VALUES ($1, 'out', $2, $3, $4, $5)
-              `, [rep.item_inventario_id, requested, consecutivo, desc, user_id]);
+              await registrarMovimiento({
+                  inventario_id: rep.item_inventario_id,
+                  tipo_movimiento: 'SALIDA_OT',
+                  cantidad: requested,
+                  numero_documento: consecutivo,
+                  ot_id: ot_id,
+                  notas: `Descargo automático por liquidación de OT ${consecutivo}`,
+                  registrado_por: user_id
+              }, client);
 
               await client.query(`UPDATE ot_repuestos_insumos SET descargado = TRUE, fecha_descargo = NOW() WHERE id = $1`, [rep.id]);
           }

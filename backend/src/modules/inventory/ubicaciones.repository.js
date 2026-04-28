@@ -19,7 +19,7 @@ export class UbicacionesRepository {
 
     const sql = `
       SELECT u.*, 
-             (SELECT count(*) FROM inventory_items i WHERE i.ubicacion_id = u.id) as total_items
+             (SELECT count(*) FROM inventario i WHERE i.ubicacion_id = u.id) as total_items
       FROM ubicaciones_bodega u
       WHERE ${conditions.join(' AND ')}
       ORDER BY bodega, zona, estante, nivel, posicion
@@ -71,7 +71,7 @@ export class UbicacionesRepository {
 
   async delete(id) {
     // Check if there are items assigned to this location
-    const check = await query(`SELECT count(*) FROM inventory_items WHERE ubicacion_id = $1`, [id]);
+    const check = await query(`SELECT count(*) FROM inventario WHERE ubicacion_id = $1`, [id]);
     if (parseInt(check.rows[0].count) > 0) {
       throw new Error('No se puede eliminar una ubicación con productos asignados');
     }
@@ -81,13 +81,13 @@ export class UbicacionesRepository {
   }
 
   async getStats() {
-    const sinUbicacion = await query(`SELECT count(*) FROM inventory_items WHERE tipo = 'PRODUCTO' AND (ubicacion_id IS NULL)`);
-    const ubicacionesVacias = await query(`SELECT count(*) FROM ubicaciones_bodega WHERE id NOT IN (SELECT DISTINCT ubicacion_id FROM inventory_items WHERE ubicacion_id IS NOT NULL)`);
+    const sinUbicacion = await query(`SELECT count(*) FROM inventario WHERE tipo = 'PRODUCTO' AND (ubicacion_id IS NULL)`);
+    const ubicacionesVacias = await query(`SELECT count(*) FROM ubicaciones_bodega WHERE id NOT IN (SELECT DISTINCT ubicacion_id FROM inventario WHERE ubicacion_id IS NOT NULL)`);
     const porZona = await query(`SELECT zona, count(*) as total FROM ubicaciones_bodega GROUP BY zona`);
     const topUbicaciones = await query(`
       SELECT u.codigo_ubicacion, count(i.id) as total_items
       FROM ubicaciones_bodega u
-      LEFT JOIN inventory_items i ON u.id = i.ubicacion_id
+      LEFT JOIN inventario i ON u.id = i.ubicacion_id
       GROUP BY u.id, u.codigo_ubicacion
       HAVING count(i.id) > 0
       ORDER BY total_items DESC

@@ -99,22 +99,22 @@ export class CatalogRepository {
         i.id,
         i.codigo_interno,
         COALESCE(i.nombre_comercial, i.name) AS nombre_comercial,
-        i.stock_current AS stock_actual,
+        i.stock_actual AS stock_actual,
         i.stock_minimum AS stock_minimo,
-        (i.stock_minimum - i.stock_current) AS deficit,
+        (i.stock_minimum - i.stock_actual) AS deficit,
         c.nombre AS categoria,
         c.color_hex AS categoria_color,
         u.abreviatura AS unidad,
         CASE
-          WHEN i.stock_current <= 0 THEN 'AGOTADO'
+          WHEN i.stock_actual <= 0 THEN 'AGOTADO'
           ELSE 'STOCK BAJO'
         END AS tipo_alerta
-      FROM inventory_items i
+      FROM inventario i
       LEFT JOIN catalogo_categorias c ON c.id = i.categoria_id
       LEFT JOIN unidades_medida u ON u.id = i.unidad_medida_id
       WHERE i.tipo = 'PRODUCTO'
         AND i.is_active = TRUE
-        AND i.stock_current <= i.stock_minimum
+        AND i.stock_actual <= i.stock_minimum
       ORDER BY deficit DESC
       LIMIT 50
     `);
@@ -124,8 +124,8 @@ export class CatalogRepository {
   async getCategorias() {
     const res = await query(`
       SELECT c.*,
-             (SELECT COUNT(*) FROM inventory_items WHERE categoria_id = c.id AND tipo = 'PRODUCTO' AND activo_catalogo = TRUE) AS total_productos,
-             (SELECT COUNT(*) FROM inventory_items WHERE categoria_id = c.id AND tipo = 'SERVICIO' AND activo_catalogo = TRUE) AS total_servicios
+             (SELECT COUNT(*) FROM inventario WHERE categoria_id = c.id AND tipo = 'PRODUCTO' AND activo_catalogo = TRUE) AS total_productos,
+             (SELECT COUNT(*) FROM inventario WHERE categoria_id = c.id AND tipo = 'SERVICIO' AND activo_catalogo = TRUE) AS total_servicios
       FROM catalogo_categorias c
       WHERE activo = TRUE
       ORDER BY orden ASC
@@ -192,7 +192,7 @@ export class CatalogRepository {
       // Fallback: generate code in-app
       const prefix = tipo === 'SERVICIO' ? 'SRV' : 'PRD';
       const seqRes = await query(`
-        SELECT COUNT(*) AS total FROM inventory_items WHERE tipo = $1
+        SELECT COUNT(*) AS total FROM inventario WHERE tipo = $1
       `, [tipo]);
       const next = parseInt(seqRes.rows[0].total) + 1;
       return `${prefix}-${String(next).padStart(5, '0')}`;
@@ -202,7 +202,7 @@ export class CatalogRepository {
   async create(data, userId) {
     const {
       tipo, codigo_interno, name, nombre_comercial, categoria_id, unidad_medida_id,
-      unit_cost, unit_price, stock_current, stock_minimum,
+      costo_reposicion, unit_price, stock_actual, stock_minimum,
       precio_servicio, precio_servicio_minimo, unidad_cobro,
       aplica_iva, iva_pct, es_destacado, marca, ubicacion_id
     } = data;
@@ -210,9 +210,9 @@ export class CatalogRepository {
     const codigo = codigo_interno || await this._generarCodigo(tipo);
 
     const sql = `
-      INSERT INTO inventory_items (
+      INSERT INTO inventario (
         tipo, codigo_interno, name, nombre_comercial, categoria_id, unidad_medida_id,
-        unit_cost, unit_price, stock_current, stock_minimum,
+        costo_reposicion, unit_price, stock_actual, stock_minimum,
         precio_servicio, precio_servicio_minimo, unidad_cobro,
         aplica_iva, iva_pct, es_destacado, marca, ubicacion_id,
         created_by
@@ -226,9 +226,9 @@ export class CatalogRepository {
       nombre_comercial || name || codigo,
       categoria_id || null,
       unidad_medida_id || null,
-      unit_cost    ?? 0,
+      costo_reposicion    ?? 0,
       unit_price   ?? 0,
-      stock_current ?? 0,
+      stock_actual ?? 0,
       stock_minimum ?? 0,
       precio_servicio         ?? 0,
       precio_servicio_minimo  ?? 0,
@@ -250,7 +250,7 @@ export class CatalogRepository {
 
     const allowed = [
       'codigo_interno', 'name', 'nombre_comercial', 'descripcion_corta', 'descripcion_larga',
-      'categoria_id', 'unidad_medida_id', 'unit_cost', 'unit_price',
+      'categoria_id', 'unidad_medida_id', 'costo_reposicion', 'unit_price',
       'stock_minimum', 'stock_maximo', 'ubicacion_bodega', 'ubicacion_id', 'marca',
       'precio_servicio', 'precio_servicio_minimo', 'unidad_cobro',
       'activo_catalogo', 'activo_compras', 'es_destacado', 'aplica_iva', 'iva_pct',
@@ -264,7 +264,7 @@ export class CatalogRepository {
       }
     }
 
-    const sql = `UPDATE inventory_items SET ${fields.join(', ')} WHERE id = $2 RETURNING *`;
+    const sql = `UPDATE inventario SET ${fields.join(', ')} WHERE id = $2 RETURNING *`;
     const res = await query(sql, params);
     return res.rows[0];
   }
@@ -272,7 +272,7 @@ export class CatalogRepository {
   async delete(id) {
     // Soft delete
     const res = await query(
-      'UPDATE inventory_items SET activo_catalogo = FALSE, is_active = FALSE WHERE id = $1 RETURNING *',
+      'UPDATE inventario SET activo_catalogo = FALSE, is_active = FALSE WHERE id = $1 RETURNING *',
       [id],
     );
     return res.rows[0];
