@@ -74,12 +74,17 @@ deploy_backend() {
     # Subir archivos del backend (excluyendo node_modules y .env)
     log "Subiendo archivos del backend..."
     scp -r "${BACKEND_LOCAL}/src" "${SERVER}:${BACKEND_REMOTE}/"
+    scp -r "${BACKEND_LOCAL}/migrations" "${SERVER}:${BACKEND_REMOTE}/"
     scp "${BACKEND_LOCAL}/package.json" "${SERVER}:${BACKEND_REMOTE}/"
     scp "${BACKEND_LOCAL}/package-lock.json" "${SERVER}:${BACKEND_REMOTE}/" 2>/dev/null || true
 
     # Instalar dependencias en el servidor
     log "Instalando dependencias en el servidor..."
     ssh "$SERVER" "cd ${BACKEND_REMOTE} && npm install --omit=dev"
+
+    # Ejecutar migraciones
+    log "Ejecutando migraciones en el servidor..."
+    ssh "$SERVER" "cd ${BACKEND_REMOTE} && node migrations/runner.js"
 
     # Reiniciar con PM2
     log "Reiniciando el servicio con PM2..."
