@@ -1,0 +1,1 @@
+ALTER TABLE catalogo_servicios ADD COLUMN tipo VARCHAR(50) DEFAULT 'Servicio';

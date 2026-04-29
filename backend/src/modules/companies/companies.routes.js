@@ -7,6 +7,7 @@ const router = Router();
 router.use(authenticate);   // Todas las rutas requieren autenticación
 
 router.get('/',              companiesController.list);
+router.post('/bulk',         companiesController.bulkCreate);
 router.post('/',             companiesController.create);
 router.get('/:id',           companiesController.get);
 router.patch('/:id',         companiesController.update);

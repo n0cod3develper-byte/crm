@@ -33,6 +33,7 @@ const MIGRATION_FILES = [
   '001_initial_schema.sql',
   '002_support_module.sql',
   '003_employees_module.sql',
+  '004_add_identification.sql',
   '004_fix_support_assignment.sql',
   '005_equipos_module.sql',
   '006_mantenimiento_module.sql',
@@ -40,6 +41,14 @@ const MIGRATION_FILES = [
   '008_preventivo_module.sql',
   '009_fix_horometro_frecuencia.sql',
   '010_add_password_to_users.sql',
+  '011_add_company_to_employees.sql',
+  '012_add_custom_fields_to_companies.sql',
+  '013_catalogo_servicios.sql',
+  '014_servicios_remision.sql',
+  '015_add_remision_fields.sql',
+  '016_add_numero_equipo.sql',
+  '017_add_tipo_to_catalogo.sql',
+  '018_add_cantidad_to_catalogo.sql',
 ];
 
 async function ensureMigrationsTable(client) {

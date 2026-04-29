@@ -100,7 +100,7 @@ export function EquiposPage() {
                   <tr>
                     <th>Empresa</th>
                     <th>Marca / Modelo</th>
-                    <th>Serial</th>
+                    <th>Serial / No. Equipo</th>
                     <th>Motor</th>
                     <th>Combustible</th>
                     <th>Capacidad</th>
@@ -121,7 +121,10 @@ export function EquiposPage() {
                         <div style={{ fontWeight: 600 }}>{eq.marca}</div>
                         <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{eq.modelo}</div>
                       </td>
-                      <td><code>{eq.serial}</code></td>
+                      <td>
+                        <code>{eq.serial}</code>
+                        {eq.numero_equipo && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No: {eq.numero_equipo}</div>}
+                      </td>
                       <td>{eq.motor}</td>
                       <td><span className="badge badge--gray">{eq.combustible}</span></td>
                       <td style={{ fontWeight: 700 }}>{eq.capacidad_carga} T</td>

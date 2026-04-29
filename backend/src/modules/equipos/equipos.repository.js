@@ -73,11 +73,11 @@ export class EquiposRepository {
   }
 
   async create(data) {
-    const { marca, modelo, serial, motor, combustible, capacidad_carga, color, empresa_id } = data;
+    const { marca, modelo, serial, motor, combustible, capacidad_carga, color, empresa_id, numero_equipo } = data;
     const result = await query(
-      `INSERT INTO equipos (marca, modelo, serial, motor, combustible, capacidad_carga, color, empresa_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [marca, modelo, serial, motor, combustible, capacidad_carga, color, empresa_id]
+      `INSERT INTO equipos (marca, modelo, serial, motor, combustible, capacidad_carga, color, empresa_id, numero_equipo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [marca, modelo, serial, motor, combustible, capacidad_carga, color, empresa_id, numero_equipo]
     );
     return result.rows[0];
   }
@@ -86,7 +86,7 @@ export class EquiposRepository {
     const fields = [];
     const values = [];
     let i = 1;
-    const allowed = ['marca', 'modelo', 'serial', 'motor', 'combustible', 'capacidad_carga', 'color', 'empresa_id'];
+    const allowed = ['marca', 'modelo', 'serial', 'motor', 'combustible', 'capacidad_carga', 'color', 'empresa_id', 'numero_equipo'];
     
     for (const key of allowed) {
       if (key in data) {

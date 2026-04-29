@@ -31,6 +31,8 @@ import equiposRoutes from './modules/equipos/equipos.routes.js';
 import mantenimientoRoutes from './modules/mantenimiento/mantenimiento.routes.js';
 import proveedoresRoutes from './modules/proveedores/proveedores.routes.js';
 import comprasRoutes from './modules/compras/compras.routes.js';
+import catalogoServiciosRoutes from './modules/catalogo_servicios/catalogo_servicios.routes.js';
+import serviciosRoutes from './modules/servicios/servicios.routes.js';
 const app = express();
 const httpServer = createServer(app);
 
@@ -44,8 +46,8 @@ app.use(cors({
 app.use(generalLimiter);
 
 // ─── Parsers ─────────────────────────────────────────────────
-app.use(express.json({ limit: '5mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ limit: '20mb', extended: true }));
 
 // ─── Logging HTTP ────────────────────────────────────────────
 app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev', {
@@ -63,6 +65,14 @@ app.get('/health', (_req, res) => {
 
 // ─── API v1 ──────────────────────────────────────────────────
 const API = '/api/v1';
+
+app.get(API, (req, res) => {
+  res.json({
+    message: 'CARGAR CRM API v1',
+    status: 'operational',
+    version: '1.0.0'
+  });
+});
 app.use(`${API}/auth`,          authRoutes);
 app.use(`${API}/companies`,     companiesRoutes);
 app.use(`${API}/contacts`,      contactsRoutes);
@@ -81,6 +91,8 @@ app.use(`${API}/equipos`,     equiposRoutes);
 app.use(`${API}/mantenimiento`, mantenimientoRoutes);
 app.use(`${API}/proveedores`, proveedoresRoutes);
 app.use(`${API}/compras`, comprasRoutes);
+app.use(`${API}/catalogo-servicios`, catalogoServiciosRoutes);
+app.use(`${API}/servicios`, serviciosRoutes);
 // Atendiendo solicitud específica de ruta por empresa
 app.get(`${API}/empresas/:id/equipos`, (req, res, next) => {
   req.url = `/by-company/${req.params.id}`;

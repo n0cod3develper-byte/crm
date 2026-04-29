@@ -41,35 +41,18 @@ export function ProveedorFichaPage() {
       <Sidebar />
             <Topbar 
         title={proveedor.razon_social} 
-        subtitle="null"
-        rightContent={<div className="flex items-center gap-3">
-          <button className="btn btn--ghost btn--sm" onClick={() => navigate('/proveedores')}>
-            <ArrowLeft size={18} />
-          </button>
-          <div className="flex items-center gap-4">
-             <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--clr-primary-500)', display: 'grid', placeItems: 'center', color: 'white', fontWeight: 800, fontSize: '1.25rem' }}>
-                {proveedor.razon_social.charAt(0)}
-             </div>
-             
-                <div className="flex items-center gap-3 text-sm text-muted">
-                   <span>NIT: {proveedor.numero_documento}-{proveedor.digito_verificacion || '0'}</span>
-                   <span>·</span>
-                   <div className="flex items-center gap-1">
-                     {renderStars(proveedor.calificacion_promedio || 0)}
-                     <span style={{ fontWeight: 600, color: 'var(--text-primary)', marginLeft: '0.25rem' }}>{(proveedor.calificacion_promedio || 0).toFixed(1)}</span>
-                   </div>
-                </div>
-             </div>
+        rightContent={
+          <div className="flex items-center gap-3">
+            <div className="flex gap-2">
+              <button className="btn btn--secondary" onClick={() => navigate(`/proveedores/${id}/editar`)}>
+                <Edit size={16} /> Editar Perfil
+              </button>
+              <button className="btn btn--primary" onClick={() => navigate(`/compras/solicitudes/nueva?proveedorId=${id}`)}>
+                <Plus size={16} /> Crear Solicitud
+              </button>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <button className="btn btn--secondary" onClick={() => navigate(`/proveedores/${id}/editar`)}>
-            <Edit size={16} /> Editar Perfil
-          </button>
-          <button className="btn btn--primary" onClick={() => navigate(`/compras/solicitudes/nueva?proveedorId=${id}`)}>
-            <Plus size={16} /> Crear Solicitud
-          </button>
-        </div>} 
+        } 
       />
 
       <main className="main-content">

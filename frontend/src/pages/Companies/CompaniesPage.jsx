@@ -9,23 +9,38 @@ import { toast } from 'react-hot-toast';
 
 import { Modal } from '../../components/common/Modal';
 import { CompanyForm } from '../../components/Companies/CompanyForm';
+import { ImportCompaniesModal } from '../../components/Companies/ImportCompaniesModal';
+import Papa from 'papaparse';
 
 export function CompaniesPage() {
   const [search, setSearch] = React.useState('');
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = React.useState(false);
   const [editingCompany, setEditingCompany] = React.useState(null);
   const [deletingId, setDeletingId] = React.useState(null);
+
+  const [cursorHistory, setCursorHistory] = React.useState([]);
+  const [currentCursor, setCurrentCursor] = React.useState(null);
 
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['companies', search],
+    queryKey: ['companies', search, currentCursor],
     queryFn: async () => {
-      const { data } = await api.get('/companies', { params: { search, limit: 20 } });
+      const params = { limit: 100 };
+      if (search) params.search = search;
+      if (currentCursor) params.cursor = currentCursor;
+      const { data } = await api.get('/companies', { params });
       return data;
     },
     enabled: true,
   });
+
+  // Si cambia la búsqueda, resetear la paginación
+  React.useEffect(() => {
+    setCursorHistory([]);
+    setCurrentCursor(null);
+  }, [search]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => api.delete(`/companies/${id}`),
@@ -52,18 +67,56 @@ export function CompaniesPage() {
     setIsModalOpen(true);
   };
 
+  const handleExport = () => {
+    if (companies.length === 0) {
+      toast.error('No hay empresas para exportar');
+      return;
+    }
+    const exportData = companies.map(comp => ({
+      name: comp.name,
+      nit: comp.nit || '',
+      industry: comp.industry || '',
+      department: comp.department || '',
+      website: comp.website || '',
+      phone: comp.phone || '',
+      phone_2: comp.phone_2 || '',
+      city: comp.city || '',
+      address: comp.address || '',
+      notes: comp.notes || '',
+      assigned_to_name: comp.assigned_to_name || '',
+      created_at: comp.created_at ? new Date(comp.created_at).toLocaleString('es-CO') : '',
+      updated_at: comp.updated_at ? new Date(comp.updated_at).toLocaleString('es-CO') : ''
+    }));
+    
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'empresas.csv';
+    link.click();
+    toast.success('Lista de empresas exportada');
+  };
+
   return (
     <div className="app-layout">
       <Sidebar />
 
       <Topbar 
         title="Empresas" 
-        subtitle={data?.pagination ? `${companies.length} empresas` : 'Cargando...'} 
+        subtitle={data?.pagination ? `${data.pagination.totalCount} empresas registradas` : 'Cargando...'} 
         rightContent={
-          <button className="btn btn--primary" onClick={handleCreate}>
-            <Plus size={16} />
-            Nueva empresa
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="btn btn--outline" onClick={() => setIsImportModalOpen(true)}>
+              Importar
+            </button>
+            <button className="btn btn--outline" onClick={handleExport}>
+              Exportar
+            </button>
+            <button className="btn btn--primary" onClick={handleCreate}>
+              <Plus size={16} />
+              Nueva empresa
+            </button>
+          </div>
         }
       />
 
@@ -165,6 +218,40 @@ export function CompaniesPage() {
                 ))}
               </tbody>
             </table>
+            
+            {/* Controles de Paginación */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', borderTop: '1px solid var(--border-color)', background: 'var(--bg-secondary)' }}>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                Mostrando <strong>{companies.length}</strong> de <strong>{data?.pagination?.totalCount || 0}</strong> empresas {search && '(filtradas)'}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button 
+                  className="btn btn--outline btn--sm" 
+                  onClick={() => {
+                    const newHistory = [...cursorHistory];
+                    const prevCursor = newHistory.pop() || null;
+                    setCursorHistory(newHistory);
+                    setCurrentCursor(prevCursor);
+                  }}
+                  disabled={cursorHistory.length === 0}
+                >
+                  Anterior
+                </button>
+                <button 
+                  className="btn btn--outline btn--sm" 
+                  onClick={() => {
+                    if (data?.pagination?.hasMore) {
+                      setCursorHistory([...cursorHistory, currentCursor]);
+                      setCurrentCursor(data.pagination.nextCursor);
+                    }
+                  }}
+                  disabled={!data?.pagination?.hasMore}
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+
           </div>
         )}
       </main>
@@ -204,6 +291,16 @@ export function CompaniesPage() {
             </button>
           </div>
         </Modal>
+      )}
+
+      {isImportModalOpen && (
+        <ImportCompaniesModal 
+          onClose={() => setIsImportModalOpen(false)}
+          onSuccess={() => {
+            setIsImportModalOpen(false);
+            queryClient.invalidateQueries({ queryKey: ['companies'] });
+          }}
+        />
       )}
     </div>
   );

@@ -27,6 +27,16 @@ export const employeesController = {
     } catch (err) { next(err); }
   },
 
+  async bulkCreate(req, res, next) {
+    try {
+      if (!Array.isArray(req.body)) {
+        return res.status(400).json({ success: false, message: 'Se esperaba un arreglo de empleados' });
+      }
+      const employees = await repo.bulkCreate(req.body);
+      res.status(201).json({ success: true, count: employees.length, data: employees });
+    } catch (err) { next(err); }
+  },
+
   async update(req, res, next) {
     try {
       const employee = await repo.update(req.params.id, req.body);

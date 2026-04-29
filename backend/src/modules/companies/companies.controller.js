@@ -33,6 +33,16 @@ export const companiesController = {
     } catch (err) { next(err); }
   },
 
+  async bulkCreate(req, res, next) {
+    try {
+      if (!Array.isArray(req.body)) {
+        return res.status(400).json({ success: false, message: 'Se esperaba un arreglo de empresas' });
+      }
+      const companies = await repo.bulkCreate(req.body, req.user.id);
+      res.status(201).json({ success: true, count: companies.length, data: companies });
+    } catch (err) { next(err); }
+  },
+
   async update(req, res, next) {
     try {
       const company = await repo.update(req.params.id, req.body);

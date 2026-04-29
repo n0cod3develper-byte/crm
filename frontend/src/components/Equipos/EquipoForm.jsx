@@ -22,6 +22,7 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel }) {
     combustible: equipo?.combustible || 'GLP',
     capacidad_carga: equipo?.capacidad_carga || 2.5,
     color: equipo?.color || '',
+    numero_equipo: equipo?.numero_equipo || '',
   });
 
   // Cargar lista de empresas para el selector
@@ -129,9 +130,15 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel }) {
         </div>
       </div>
 
-      <div>
-        <label style={labelStyle}>Número de Serial *</label>
-        <input name="serial" className="input" style={{ width: '100%' }} value={form.serial} onChange={handleChange} required />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div>
+          <label style={labelStyle}>Número de Serial *</label>
+          <input name="serial" className="input" style={{ width: '100%' }} value={form.serial} onChange={handleChange} required />
+        </div>
+        <div>
+          <label style={labelStyle}>Número de Equipo</label>
+          <input name="numero_equipo" className="input" style={{ width: '100%' }} value={form.numero_equipo} onChange={handleChange} placeholder="Ej: MQ-001" />
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

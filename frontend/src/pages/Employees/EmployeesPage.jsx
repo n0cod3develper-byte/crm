@@ -1,11 +1,13 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, User, Phone, Mail, Filter, Trash2, Edit } from 'lucide-react';
+import { Plus, Search, User, Phone, Mail, Filter, Trash2, Edit, Download, Upload } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import Papa from 'papaparse';
 import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { EmployeeForm } from '../../components/Employees/EmployeeForm';
+import { ImportEmployeesModal } from '../../components/Employees/ImportEmployeesModal';
 import api from '../../lib/api';
 
 const STATUS_COLORS = {
@@ -19,6 +21,7 @@ export function EmployeesPage() {
   const [search, setSearch] = React.useState('');
   const [filterPos, setFilterPos] = React.useState('all');
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = React.useState(false);
   const [editingEmployee, setEditingEmployee] = React.useState(null);
 
   const { data, isLoading } = useQuery({
@@ -46,6 +49,33 @@ export function EmployeesPage() {
   const handleEdit = (em) => { setEditingEmployee(em); setIsModalOpen(true); };
   const handleClose = () => { setIsModalOpen(false); setEditingEmployee(null); };
 
+  const handleExport = () => {
+    if (employees.length === 0) {
+      toast.error('No hay empleados para exportar');
+      return;
+    }
+    const exportData = employees.map(emp => ({
+      full_name: emp.full_name,
+      email: emp.email,
+      identification: emp.identification || '',
+      phone: emp.phone || '',
+      company: emp.company || '',
+      position: emp.position,
+      status: emp.status,
+      hourly_rate: emp.hourly_rate || 0,
+      created_at: emp.created_at ? new Date(emp.created_at).toLocaleString('es-CO') : '',
+      updated_at: emp.updated_at ? new Date(emp.updated_at).toLocaleString('es-CO') : ''
+    }));
+    
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'empleados.csv';
+    link.click();
+    toast.success('Lista de empleados exportada');
+  };
+
   return (
     <div className="app-layout">
       <Sidebar />
@@ -53,9 +83,17 @@ export function EmployeesPage() {
         title="Empleados" 
         subtitle={`${employees.length} registrados`} 
         rightContent={
-          <button id="btn-new-employee" className="btn btn--primary" onClick={handleCreate}>
-            <Plus size={16} /> Nuevo Empleado
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="btn btn--outline" onClick={() => setIsImportModalOpen(true)}>
+              <Upload size={16} /> Importar
+            </button>
+            <button className="btn btn--outline" onClick={handleExport}>
+              <Download size={16} /> Exportar
+            </button>
+            <button id="btn-new-employee" className="btn btn--primary" onClick={handleCreate}>
+              <Plus size={16} /> Nuevo
+            </button>
+          </div>
         }
       />
 
@@ -156,6 +194,16 @@ export function EmployeesPage() {
             onCancel={handleClose}
           />
         </Modal>
+      )}
+
+      {isImportModalOpen && (
+        <ImportEmployeesModal 
+          onClose={() => setIsImportModalOpen(false)}
+          onSuccess={() => {
+            setIsImportModalOpen(false);
+            qc.invalidateQueries({ queryKey: ['employees'] });
+          }}
+        />
       )}
     </div>
   );

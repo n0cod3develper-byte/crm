@@ -38,6 +38,10 @@ const OrdenesCompraPage = lazy(() => import('./pages/Compras/OrdenesCompraPage')
 const OrdenCompraFormPage = lazy(() => import('./pages/Compras/OrdenCompraFormPage').then(m => ({ default: m.OrdenCompraFormPage })));
 const AprobacionesPage = lazy(() => import('./pages/Compras/AprobacionesPage').then(m => ({ default: m.AprobacionesPage })));
 const RecepcionMercanciaPage = lazy(() => import('./pages/Compras/RecepcionMercanciaPage').then(m => ({ default: m.RecepcionMercanciaPage })));
+const CatalogoServiciosPage = lazy(() => import('./pages/CatalogoServicios/CatalogoServiciosPage').then(m => ({ default: m.CatalogoServiciosPage })));
+const ServiciosPage = lazy(() => import('./pages/Servicios/ServiciosPage').then(m => ({ default: m.ServiciosPage })));
+const RemisionFormPage = lazy(() => import('./pages/Servicios/RemisionFormPage').then(m => ({ default: m.RemisionFormPage })));
+const RemisionDetailPage = lazy(() => import('./pages/Servicios/RemisionDetailPage').then(m => ({ default: m.RemisionDetailPage })));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -160,6 +164,15 @@ function App() {
             <Route path="/compras/oc/:id/editar" element={<ProtectedRoute><OrdenCompraFormPage /></ProtectedRoute>} />
             <Route path="/compras/aprobaciones" element={<ProtectedRoute><AprobacionesPage /></ProtectedRoute>} />
             <Route path="/compras/recepcion/:id" element={<ProtectedRoute><RecepcionMercanciaPage /></ProtectedRoute>} />
+
+            {/* Catálogo de Servicios */}
+            <Route path="/catalogo-servicios" element={<ProtectedRoute><CatalogoServiciosPage /></ProtectedRoute>} />
+
+            {/* Servicios / Remisiones */}
+            <Route path="/servicios" element={<ProtectedRoute><ServiciosPage /></ProtectedRoute>} />
+            <Route path="/servicios/nueva" element={<ProtectedRoute><RemisionFormPage /></ProtectedRoute>} />
+            <Route path="/servicios/:id" element={<ProtectedRoute><RemisionDetailPage /></ProtectedRoute>} />
+            <Route path="/servicios/:id/editar" element={<ProtectedRoute><RemisionFormPage /></ProtectedRoute>} />
 
 
             {/* Redirect raíz */}

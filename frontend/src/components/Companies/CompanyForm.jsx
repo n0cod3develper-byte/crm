@@ -10,12 +10,16 @@ const companySchema = z.object({
   name: z.string().min(2, 'El nombre es obligatorio (mín 2 caracteres)'),
   nit: z.string().optional(),
   industry: z.string().default('logistics'),
+  department: z.string().optional(),
   website: z.string().url('URL inválida').optional().or(z.literal('')),
   phone: z.string().optional(),
+  phone_2: z.string().optional(),
   city: z.string().optional(),
   address: z.string().optional(),
   notes: z.string().optional(),
 });
+
+const sectionTitle = { fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0.5rem 0 0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.4rem' };
 
 export function CompanyForm({ company, onSuccess, onCancel }) {
   const queryClient = useQueryClient();
@@ -52,6 +56,8 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
 
   return (
     <form id="company-form" onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+      
+      <p style={sectionTitle}>Información General</p>
       <div className="input-group">
         <label className="input-label">Nombre de la empresa *</label>
         <input 
@@ -79,7 +85,7 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
           </select>
         </div>
       </div>
-
+      
       <div className="flex gap-4">
         <div className="input-group w-full">
           <label className="input-label">Sitio Web</label>
@@ -87,8 +93,20 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
           {errors.website && <span className="input-error">{errors.website.message}</span>}
         </div>
         <div className="input-group w-full">
-          <label className="input-label">Teléfono</label>
+          <label className="input-label">Departamento</label>
+          <input {...register('department')} className="input" placeholder="Ej: Cundinamarca" />
+        </div>
+      </div>
+
+      <p style={sectionTitle}>Contacto y Ubicación</p>
+      <div className="flex gap-4">
+        <div className="input-group w-full">
+          <label className="input-label">Teléfono Principal</label>
           <input {...register('phone')} className="input" placeholder="+57 ..." />
+        </div>
+        <div className="input-group w-full">
+          <label className="input-label">Teléfono 2</label>
+          <input {...register('phone_2')} className="input" placeholder="+57 ..." />
         </div>
       </div>
 
@@ -109,9 +127,27 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
           {...register('notes')} 
           className="input" 
           placeholder="Información adicional sobre la empresa..."
-          rows="3"
+          rows="2"
         />
       </div>
+
+      {isEditing && (
+        <>
+          <p style={sectionTitle}>Auditoría</p>
+          <div className="flex gap-4">
+            <div className="input-group w-full">
+              <label className="input-label">Fecha de Creación</label>
+              <input className="input" style={{ color: 'var(--text-muted)' }} readOnly
+                value={company.created_at ? new Date(company.created_at).toLocaleString('es-CO') : '—'} />
+            </div>
+            <div className="input-group w-full">
+              <label className="input-label">Última Modificación</label>
+              <input className="input" style={{ color: 'var(--text-muted)' }} readOnly
+                value={company.updated_at ? new Date(company.updated_at).toLocaleString('es-CO') : '—'} />
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="modal__footer" style={{ padding: '1rem 0 0 0', border: 'none' }}>
         <button type="button" className="btn btn--secondary" onClick={onCancel}>

@@ -50,20 +50,54 @@ export class EmployeesRepository {
   }
 
   async create(data) {
-    const { full_name, phone, email, position, status, user_id, hourly_rate } = data;
+    const { full_name, phone, email, position, status, user_id, hourly_rate, identification, company } = data;
     const result = await query(
-      `INSERT INTO employees (full_name, phone, email, position, status, user_id, hourly_rate)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [full_name, phone, email, position, status || 'Activo', user_id || null, hourly_rate || 0]
+      `INSERT INTO employees (full_name, phone, email, position, status, user_id, hourly_rate, identification, company)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [full_name, phone, email, position, status || 'Activo', user_id || null, hourly_rate || 0, identification || null, company || null]
     );
     return result.rows[0];
+  }
+
+  async bulkCreate(dataArray) {
+    if (!dataArray || dataArray.length === 0) return [];
+    
+    const values = [];
+    const placeholders = [];
+    let i = 1;
+
+    for (const data of dataArray) {
+      const { full_name, phone, email, position, status, user_id, hourly_rate, identification, company } = data;
+      placeholders.push(`($${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++})`);
+      values.push(
+        full_name,
+        phone || null,
+        email,
+        position,
+        status || 'Activo',
+        user_id || null,
+        hourly_rate || 0,
+        identification || null,
+        company || null
+      );
+    }
+
+    const queryStr = `
+      INSERT INTO employees (full_name, phone, email, position, status, user_id, hourly_rate, identification, company)
+      VALUES ${placeholders.join(', ')}
+      ON CONFLICT (email) DO NOTHING
+      RETURNING *
+    `;
+
+    const result = await query(queryStr, values);
+    return result.rows;
   }
 
   async update(id, data) {
     const fields = [];
     const values = [];
     let i = 1;
-    const allowed = ['full_name', 'phone', 'email', 'position', 'status', 'user_id', 'hourly_rate'];
+    const allowed = ['full_name', 'phone', 'email', 'position', 'status', 'user_id', 'hourly_rate', 'identification', 'company'];
     
     for (const key of allowed) {
       if (key in data) {

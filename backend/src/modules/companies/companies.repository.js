@@ -20,6 +20,11 @@ export class CompaniesRepository {
       conditions.push(`c.tags && $${i++}`);
       params.push(tags);
     }
+
+    const countSql = `SELECT COUNT(*)::INT AS total FROM companies c WHERE ${conditions.join(' AND ')}`;
+    const countResult = await query(countSql, params);
+    const totalCount = countResult.rows[0].total;
+
     if (cursor) {
       conditions.push(`c.id < $${i++}`);
       params.push(cursor);
@@ -52,6 +57,7 @@ export class CompaniesRepository {
     return {
       data: rows,
       pagination: {
+        totalCount,
         hasMore,
         nextCursor: hasMore ? rows[rows.length - 1].id : null,
       },
@@ -70,13 +76,13 @@ export class CompaniesRepository {
   }
 
   async create(data, userId) {
-    const { name, nit, industry, website, phone, address, city, country, tags, notes, assigned_to } = data;
+    const { name, nit, industry, website, phone, phone_2, department, address, city, country, tags, notes, assigned_to } = data;
     const result = await query(
       `INSERT INTO companies
-         (name, nit, industry, website, phone, address, city, country, tags, notes, assigned_to)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         (name, nit, industry, website, phone, phone_2, department, address, city, country, tags, notes, assigned_to)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
-      [name, nit || null, industry || 'logistics', website || null, phone || null,
+      [name, nit || null, industry || 'logistics', website || null, phone || null, phone_2 || null, department || null,
        address || null, city || null, country || 'Colombia',
        tags || [], notes || null, assigned_to || userId]
     );
@@ -88,7 +94,7 @@ export class CompaniesRepository {
     const values = [];
     let i = 1;
 
-    const allowed = ['name','nit','industry','website','phone','address','city','country','tags','notes','assigned_to'];
+    const allowed = ['name','nit','industry','website','phone','phone_2','department','address','city','country','tags','notes','assigned_to'];
     for (const key of allowed) {
       if (key in data) {
         fields.push(`${key} = $${i++}`);
@@ -113,6 +119,51 @@ export class CompaniesRepository {
       [id]
     );
     return result.rows[0] || null;
+  }
+
+  async bulkCreate(dataArray, userId) {
+    if (!dataArray || dataArray.length === 0) return [];
+    
+    const BATCH_SIZE = 100;
+    const insertedRows = [];
+
+    for (let batchStart = 0; batchStart < dataArray.length; batchStart += BATCH_SIZE) {
+      const batch = dataArray.slice(batchStart, batchStart + BATCH_SIZE);
+      const values = [];
+      const placeholders = [];
+      let i = 1;
+
+      for (const data of batch) {
+        const { name, nit, industry, website, phone, phone_2, department, address, city, country, tags, notes, assigned_to } = data;
+        placeholders.push(`($${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++}, $${i++})`);
+        values.push(
+          name,
+          nit || null,
+          industry || 'logistics',
+          website || null,
+          phone || null,
+          phone_2 || null,
+          department || null,
+          address || null,
+          city || null,
+          country || 'Colombia',
+          tags || [],
+          notes || null,
+          assigned_to || userId || null
+        );
+      }
+
+      const queryStr = `
+        INSERT INTO companies (name, nit, industry, website, phone, phone_2, department, address, city, country, tags, notes, assigned_to)
+        VALUES ${placeholders.join(', ')}
+        ON CONFLICT (nit) DO NOTHING
+        RETURNING *
+      `;
+
+      const result = await query(queryStr, values);
+      insertedRows.push(...result.rows);
+    }
+    return insertedRows;
   }
 
   async getTimeline(companyId, limit = 30) {

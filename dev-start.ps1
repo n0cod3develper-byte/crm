@@ -58,14 +58,17 @@ Write-Host ""
 Write-Host "[2/4] Levantando servicios de infraestructura..." -ForegroundColor White
 
 # Detener contenedores de app si existen (evitar conflictos de puerto)
-docker stop cargar_crm_backend cargar_crm_frontend 2>$null | Out-Null
+try { docker stop cargar_crm_backend cargar_crm_frontend 2>$null | Out-Null } catch {}
 
 Set-Location $rootDir
+$oldErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 docker compose up -d postgres redis minio 2>&1 | ForEach-Object {
     if ($_ -notmatch "level=warning|obsolete") {
         Write-Host "  $_"
     }
 }
+$ErrorActionPreference = $oldErrorActionPreference
 
 # Esperar healthcheck de postgres
 Write-Host ""
