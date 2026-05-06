@@ -20,7 +20,10 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
     position: employee?.position || 'Administrativo',
     status: employee?.status || 'Activo',
     hourly_rate: employee?.hourly_rate || 0,
+    monthly_salary: employee?.monthly_salary || 0,
   });
+
+  const isOperarioTecnico = ['Operario', 'Técnico'].includes(form.position);
 
   const mutation = useMutation({
     mutationFn: async (payload) => {
@@ -96,8 +99,31 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
         </div>
         <div>
           <label style={labelStyle}>Tarifa por hora (Mantenimiento)</label>
-          <input name="hourly_rate" type="number" className="input" style={{ width: '100%' }} value={form.hourly_rate} onChange={handleChange} />
+          <input name="hourly_rate" type="number" min={0} className="input" style={{ width: '100%' }} value={form.hourly_rate} onChange={handleChange} />
         </div>
+        {isOperarioTecnico && (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={labelStyle}>
+              Salario Mensual (COP)
+              <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px', borderRadius: 20, background: 'rgba(99,102,241,0.12)', color: 'var(--clr-primary-400)', fontWeight: 600 }}>
+                Horas Laborales
+              </span>
+            </label>
+            <input
+              name="monthly_salary"
+              type="number"
+              min={0}
+              className="input"
+              style={{ width: '100%' }}
+              value={form.monthly_salary}
+              onChange={handleChange}
+              placeholder="Ej: 1500000"
+            />
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+              Se usa para calcular la liquidación de horas extras. Valor hora base = salario ÷ 220.
+            </div>
+          </div>
+        )}
       </div>
 
       {/* — Auditoría (solo edición) — */}

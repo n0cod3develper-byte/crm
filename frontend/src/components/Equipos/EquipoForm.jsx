@@ -29,10 +29,12 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel }) {
   const { data: companiesData } = useQuery({
     queryKey: ['companies-search', companySearch],
     queryFn: async () => {
-      const { data } = await api.get('/companies', { params: { search: companySearch, limit: 5 } });
+      const params = { limit: 20 };
+      if (companySearch.trim()) params.search = companySearch;
+      const { data } = await api.get('/companies', { params });
       return data.data;
     },
-    enabled: companySearch.length > 2,
+    enabled: showCompanyResults,
   });
 
   const mutation = useMutation({
@@ -79,7 +81,7 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel }) {
             <input
               className="input"
               style={{ width: '100%', paddingLeft: '2.5rem' }}
-              placeholder="Buscar empresa (mín 3 letras)..."
+              placeholder="Clic para ver empresas o buscar..."
               value={companySearch}
               onChange={(e) => {
                 setCompanySearch(e.target.value);

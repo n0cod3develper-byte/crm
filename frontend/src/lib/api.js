@@ -67,4 +67,16 @@ api.interceptors.response.use(
   }
 );
 
+// 🔧 Normalize error messages: backend returns { error: { message } } but
+// components read err.response.data.message — flatten so both paths work.
+api.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    if (error.response?.data?.error?.message && !error.response.data.message) {
+      error.response.data.message = error.response.data.error.message;
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

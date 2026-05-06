@@ -1,11 +1,12 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, FileText, Plus, Trash2, UserCheck, Edit } from 'lucide-react';
+import { ArrowLeft, FileText, Plus, Trash2, UserCheck, Edit, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
+import { LiquidacionHorasModal } from './LiquidacionHorasModal';
 
 const labelStyle = { fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 };
 const valueStyle = { fontWeight: 500, fontSize: '13px' };
@@ -28,10 +29,17 @@ export function RemisionDetailPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [selectedOperario, setSelectedOperario] = React.useState('');
+  const [showLiqModal, setShowLiqModal] = React.useState(false);
 
   const { data: remision, isLoading } = useQuery({
     queryKey: ['servicios', id],
     queryFn: async () => { const { data } = await api.get(`/servicios/${id}`); return data.data; },
+  });
+
+  const { data: horasLaborales = [] } = useQuery({
+    queryKey: ['horas-laborales', id],
+    queryFn: async () => { const { data } = await api.get(`/servicios/${id}/horas-laborales`); return data.data || []; },
+    enabled: !!id,
   });
 
   const { data: operariosDisp = [] } = useQuery({
@@ -57,6 +65,12 @@ export function RemisionDetailPage() {
     onError: (err) => toast.error(err.response?.data?.message || 'Error'),
   });
 
+  const deleteHorasMutation = useMutation({
+    mutationFn: (hid) => api.delete(`/servicios/${id}/horas-laborales/${hid}`),
+    onSuccess: () => { toast.success('Liquidación eliminada'); qc.invalidateQueries({ queryKey: ['horas-laborales', id] }); },
+    onError: (err) => toast.error(err.response?.data?.message || 'Error al eliminar liquidación'),
+  });
+
   const handleDownloadPDF = async () => {
     try {
       const res = await api.get(`/servicios/${id}/pdf`, { responseType: 'blob' });
@@ -70,6 +84,7 @@ export function RemisionDetailPage() {
   if (!remision) return <div className="app-layout"><Sidebar /><div className="empty-state"><p>Remisión no encontrada</p></div></div>;
 
   const operariosAsignados = remision.operarios || [];
+  const totalLiquidado = horasLaborales.reduce((s, h) => s + parseFloat(h.total_liquidado || 0), 0);
   const horarioRows = [
     { label: 'Diurno',           horas: remision.horas_diurnas,        valor: remision.valor_hora_diurna },
     { label: 'Nocturno',         horas: remision.horas_nocturnas,       valor: remision.valor_hora_nocturna },
@@ -86,6 +101,11 @@ export function RemisionDetailPage() {
         subtitle={remision.empresa_nombre}
         rightContent={
           <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {remision.estado !== 'ANULADO' && (
+              <button className="btn btn--outline" style={{ borderColor: 'rgba(34,197,94,0.5)', color: '#22c55e' }} onClick={() => setShowLiqModal(true)}>
+                <DollarSign size={16} /> Liquidar Horas
+              </button>
+            )}
             {(remision.estado === 'BORRADOR' || remision.estado === 'PENDIENTE' || remision.estado === 'REALIZADA') && (
               <button className="btn btn--ghost" onClick={() => navigate(`/servicios/${id}/editar`)}>
                 <Edit size={16} /> Editar
@@ -151,7 +171,7 @@ export function RemisionDetailPage() {
               <div><span style={labelStyle}>Valor Hora</span><span style={valueStyle}>{formatCOP(remision.valor_hora)}</span></div>
             </div>
 
-            <p style={sectionTitle}>Tiempos</p>
+            <p style={sectionTitle}>Tiempos — Operario Inicial</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem 1.5rem' }}>
               <div><span style={labelStyle}>Salida CARGAR</span><span style={valueStyle}>{formatTime(remision.hora_salida_cargar)}</span></div>
               <div><span style={labelStyle}>Llegada Cliente</span><span style={valueStyle}>{formatTime(remision.hora_llegada_cliente)}</span></div>
@@ -161,29 +181,124 @@ export function RemisionDetailPage() {
               <div><span style={labelStyle}>Horómetro Regreso</span><span style={valueStyle}>{remision.horometro_regreso ?? '—'}</span></div>
             </div>
 
-            <p style={sectionTitle}>Desglose por Horario</p>
-            <div className="table-wrapper" style={{ marginBottom: 0 }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Horario</th>
-                    <th style={{ textAlign: 'right' }}>Horas</th>
-                    <th style={{ textAlign: 'right' }}>Vr. Hora</th>
-                    <th style={{ textAlign: 'right' }}>Vr. Parcial</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {horarioRows.map(row => (
-                    <tr key={row.label}>
-                      <td>{row.label}</td>
-                      <td style={{ textAlign: 'right' }}>{parseFloat(row.horas) > 0 ? row.horas : '—'}</td>
-                      <td style={{ textAlign: 'right' }}>{parseFloat(row.valor) > 0 ? formatCOP(row.valor) : '—'}</td>
-                      <td style={{ textAlign: 'right' }}>{(parseFloat(row.horas) > 0 && parseFloat(row.valor) > 0) ? formatCOP(parseFloat(row.horas) * parseFloat(row.valor)) : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {operariosAsignados.length > 1 && (
+              <>
+                <p style={sectionTitle}>Tiempos — Segundo Operario</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem 1.5rem' }}>
+                  {remision.segundo_fecha_acordada && (
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <span style={labelStyle}>Fecha Acordada (Op. 2)</span>
+                      <span style={valueStyle}>{formatDate(remision.segundo_fecha_acordada)}</span>
+                    </div>
+                  )}
+                  <div><span style={labelStyle}>Salida CARGAR</span><span style={valueStyle}>{formatTime(remision.segundo_hora_salida_cargar)}</span></div>
+                  <div><span style={labelStyle}>Llegada Cliente</span><span style={valueStyle}>{formatTime(remision.segundo_hora_llegada_cliente)}</span></div>
+                  <div><span style={labelStyle}>Salida Cliente</span><span style={valueStyle}>{formatTime(remision.segundo_hora_salida_cliente)}</span></div>
+                  <div><span style={labelStyle}>Llegada CARGAR</span><span style={valueStyle}>{formatTime(remision.segundo_hora_llegada_cargar)}</span></div>
+                  <div><span style={labelStyle}>Horómetro Salida</span><span style={valueStyle}>{remision.segundo_horometro_salida ?? '—'}</span></div>
+                  <div><span style={labelStyle}>Horómetro Regreso</span><span style={valueStyle}>{remision.segundo_horometro_regreso ?? '—'}</span></div>
+                </div>
+              </>
+            )}
+
+            {horasLaborales.length > 0 && (() => {
+              const colKeys = [
+                { key: 'min_ord_diurna', label: 'Ord. Diurna' },
+                { key: 'min_extra_diurna', label: 'Extra Diurna' },
+                { key: 'min_ord_nocturna', label: 'Ord. Nocturna' },
+                { key: 'min_extra_nocturna', label: 'Extra Nocturna' },
+                { key: 'min_dom_diurna', label: 'Dom. Diurna' },
+                { key: 'min_dom_nocturna', label: 'Dom. Nocturna' },
+                { key: 'min_extra_dom_diurna', label: 'Extra Dom. Diurna' },
+                { key: 'min_extra_dom_nocturna', label: 'Extra Dom. Noct.' },
+              ];
+              const colsToShow = colKeys.filter(col => horasLaborales.some(h => parseFloat(h[col.key] || 0) > 0));
+
+              // Totales por columna
+              const totalesMin = {};
+              colsToShow.forEach(col => {
+                totalesMin[col.key] = horasLaborales.reduce((s, h) => s + parseFloat(h[col.key] || 0), 0);
+              });
+              const totalLiqGeneral = horasLaborales.reduce((s, h) => s + parseFloat(h.total_liquidado || 0), 0);
+
+              return (
+                <div style={{ marginTop: '1.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', margin: '1.5rem 0 0.75rem', paddingBottom: '0.4rem' }}>
+                    <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
+                      Liquidación de Horas Laborales
+                    </p>
+                    {remision.estado !== 'LIQUIDADA' && (
+                      <button 
+                        className="btn btn--primary btn--sm" 
+                        onClick={() => { if(window.confirm('¿Confirmar liquidación? La remisión pasará a estado LIQUIDADA.')) updateEstadoMutation.mutate('LIQUIDADA'); }}
+                        disabled={updateEstadoMutation.isPending}
+                      >
+                        Confirmar Liquidación
+                      </button>
+                    )}
+                  </div>
+                  <div className="table-wrapper" style={{ marginBottom: 0 }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Operario</th>
+                          <th>Fecha</th>
+                          <th style={{ textAlign: 'center' }}>Entrada</th>
+                          <th style={{ textAlign: 'center' }}>Salida</th>
+                          {colsToShow.map(col => (
+                            <th key={col.key} style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{col.label}</th>
+                          ))}
+                          <th style={{ textAlign: 'right' }}>Total a Liquidar</th>
+                          <th style={{ width: '40px' }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {horasLaborales.map(h => (
+                          <tr key={h.id}>
+                            <td style={{ fontWeight: 600 }}>{h.empleado_nombre}</td>
+                            <td style={{ fontSize: 12 }}>{formatDate(h.fecha_trabajo)}</td>
+                            <td style={{ fontSize: 12, textAlign: 'center' }}>{h.hora_entrada ? formatTime(h.hora_entrada) : '—'}</td>
+                            <td style={{ fontSize: 12, textAlign: 'center' }}>{h.hora_salida ? formatTime(h.hora_salida) : '—'}</td>
+                            {colsToShow.map(col => {
+                              const min = parseFloat(h[col.key] || 0);
+                              return (
+                                <td key={col.key} style={{ textAlign: 'right', fontSize: 12 }}>
+                                  {min > 0 ? `${Math.floor(min / 60)}h ${min % 60}m` : '—'}
+                                </td>
+                              );
+                            })}
+                            <td style={{ textAlign: 'right', fontWeight: 700, color: '#22c55e' }}>{formatCOP(h.total_liquidado)}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              {(remision.estado === 'BORRADOR' || remision.estado === 'PENDIENTE' || remision.estado === 'REALIZADA') && (
+                                <button className="btn btn--ghost btn--sm" style={{ color: 'var(--clr-danger)', padding: '0.25rem' }} onClick={() => { if(window.confirm('¿Eliminar esta liquidación?')) deleteHorasMutation.mutate(h.id); }}>
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      {/* Fila de totales */}
+                      <tfoot>
+                        <tr style={{ borderTop: '2px solid var(--border-color)', background: 'var(--bg-secondary)' }}>
+                          <td colSpan={4} style={{ fontWeight: 700, fontSize: 12, padding: '0.5rem 0.75rem' }}>TOTAL</td>
+                          {colsToShow.map(col => {
+                            const min = totalesMin[col.key] || 0;
+                            return (
+                              <td key={col.key} style={{ textAlign: 'right', fontWeight: 700, fontSize: 12, padding: '0.5rem 0.75rem' }}>
+                                {min > 0 ? `${Math.floor(min / 60)}h ${min % 60}m` : '—'}
+                              </td>
+                            );
+                          })}
+                          <td style={{ textAlign: 'right', fontWeight: 800, fontSize: 13, color: '#22c55e', padding: '0.5rem 0.75rem' }}>{formatCOP(totalLiqGeneral)}</td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
 
             {remision.observaciones && (
               <>
@@ -207,9 +322,16 @@ export function RemisionDetailPage() {
                   <span>{formatCOP(v)}</span>
                 </div>
               ))}
+              {totalLiquidado > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  <span>Total Liquidar Operarios</span>
+                  <span style={{ color: '#22c55e', fontWeight: 600 }}>{formatCOP(totalLiquidado)}</span>
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid var(--border-color)', paddingTop: '0.5rem', marginTop: '0.5rem', fontWeight: 700, fontSize: '14px' }}>
                 <span>TOTAL NETO</span>
-                <span style={{ color: 'var(--clr-primary-500)' }}>{formatCOP(remision.total_neto)}</span>
+                <span style={{ color: 'var(--clr-primary-500)' }}>{formatCOP(parseFloat(remision.total_neto || 0) + totalLiquidado)}</span>
               </div>
             </div>
 
@@ -233,27 +355,21 @@ export function RemisionDetailPage() {
               }
             </div>
 
-            {(remision.estado === 'BORRADOR' || remision.estado === 'PENDIENTE') && (
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <select className="input" style={{ flex: 1 }} value={selectedOperario} onChange={e => setSelectedOperario(e.target.value)}>
-                  <option value="">Seleccionar operario...</option>
-                  {operariosDisp
-                    .filter(o => !operariosAsignados.find(a => a.empleado_id === o.id))
-                    .map(o => <option key={o.id} value={o.id}>{o.full_name}</option>)
-                  }
-                </select>
-                <button
-                  className="btn btn--primary btn--sm"
-                  disabled={!selectedOperario || addOperarioMutation.isPending}
-                  onClick={() => selectedOperario && addOperarioMutation.mutate(selectedOperario)}
-                >
-                  <Plus size={14} />
-                </button>
-              </div>
-            )}
+            {/* Selector de operarios eliminado según solicitud del usuario */}
           </div>
         </div>
       </main>
+
+      {showLiqModal && remision && (
+        <LiquidacionHorasModal
+          remision={remision}
+          onClose={() => {
+            setShowLiqModal(false);
+            qc.invalidateQueries({ queryKey: ['servicios', id] });
+            qc.invalidateQueries({ queryKey: ['horas-laborales', id] });
+          }}
+        />
+      )}
     </div>
   );
 }

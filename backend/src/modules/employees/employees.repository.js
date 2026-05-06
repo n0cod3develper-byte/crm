@@ -50,11 +50,11 @@ export class EmployeesRepository {
   }
 
   async create(data) {
-    const { full_name, phone, email, position, status, user_id, hourly_rate, identification, company } = data;
+    const { full_name, phone, email, position, status, user_id, hourly_rate, monthly_salary, identification, company } = data;
     const result = await query(
-      `INSERT INTO employees (full_name, phone, email, position, status, user_id, hourly_rate, identification, company)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [full_name, phone, email, position, status || 'Activo', user_id || null, hourly_rate || 0, identification || null, company || null]
+      `INSERT INTO employees (full_name, phone, email, position, status, user_id, hourly_rate, monthly_salary, identification, company)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [full_name, phone, email, position, status || 'Activo', user_id || null, hourly_rate || 0, monthly_salary || 0, identification || null, company || null]
     );
     return result.rows[0];
   }
@@ -97,7 +97,7 @@ export class EmployeesRepository {
     const fields = [];
     const values = [];
     let i = 1;
-    const allowed = ['full_name', 'phone', 'email', 'position', 'status', 'user_id', 'hourly_rate', 'identification', 'company'];
+    const allowed = ['full_name', 'phone', 'email', 'position', 'status', 'user_id', 'hourly_rate', 'monthly_salary', 'identification', 'company'];
     
     for (const key of allowed) {
       if (key in data) {

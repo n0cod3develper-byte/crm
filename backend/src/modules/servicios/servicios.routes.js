@@ -19,7 +19,12 @@ router.delete('/:id', serviciosController.remove);
 router.get('/:id/pdf', serviciosController.downloadPDF);
 
 // Operarios de la remisión
-router.post('/:id/operarios',       serviciosController.addOperario);
+router.post('/:id/operarios',        serviciosController.addOperario);
 router.delete('/:id/operarios/:oid', serviciosController.removeOperario);
+
+// ─── Liquidación de Horas Laborales ─────────────────────────────
+router.get('/:id/horas-laborales',        serviciosController.getHorasLaborales);
+router.post('/:id/horas-laborales',       serviciosController.upsertHorasLaborales);
+router.delete('/:id/horas-laborales/:hid', serviciosController.deleteHorasLaborales);
 
 export default router;

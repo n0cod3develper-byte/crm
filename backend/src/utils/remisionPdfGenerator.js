@@ -46,7 +46,7 @@ const TERMINOS = `CARGAR S.A.S. en la prestación de servicio en montacargas ha 
 
 4. Si el servicio es después de las 5 PM se cobrará a la tarifa con el recargo correspondiente y los sábados después de las 12 M.`;
 
-function buildRemisionHtml(rem) {
+function buildRemisionHtml(rem, horasLaborales = []) {
   const logo = getLogoBase64();
   const logoHtml = logo
     ? `<img src="${logo}" style="height:55px;" alt="Logo" />`
@@ -54,28 +54,33 @@ function buildRemisionHtml(rem) {
 
   const operarios = rem.operarios || [];
 
-  // Calcular horas totales del desglose
-  const totalHorasDesglose =
-    (parseFloat(rem.horas_diurnas) || 0) +
-    (parseFloat(rem.horas_nocturnas) || 0) +
-    (parseFloat(rem.horas_fest_diurnas) || 0) +
-    (parseFloat(rem.horas_fest_nocturnas) || 0) +
-    (parseFloat(rem.horas_otras) || 0);
-
-  const totalParcialDesglose =
-    ((parseFloat(rem.horas_diurnas) || 0) * (parseFloat(rem.valor_hora_diurna) || 0)) +
-    ((parseFloat(rem.horas_nocturnas) || 0) * (parseFloat(rem.valor_hora_nocturna) || 0)) +
-    ((parseFloat(rem.horas_fest_diurnas) || 0) * (parseFloat(rem.valor_hora_fest_dia) || 0)) +
-    ((parseFloat(rem.horas_fest_nocturnas) || 0) * (parseFloat(rem.valor_hora_fest_noc) || 0)) +
-    ((parseFloat(rem.horas_otras) || 0) * (parseFloat(rem.valor_hora_otras) || 0));
-
+  // Se usan los campos principales del servicio en la fila DIURNO, según solicitud
   const horarioRows = [
-    { label: 'DIURNO',         horas: rem.horas_diurnas,        valor: rem.valor_hora_diurna },
+    { label: 'DIURNO',         horas: rem.cantidad_horas,        valor: rem.valor_hora },
     { label: 'NOCTURNO',       horas: rem.horas_nocturnas,       valor: rem.valor_hora_nocturna },
     { label: 'FESTIVO DIURNO', horas: rem.horas_fest_diurnas,    valor: rem.valor_hora_fest_dia },
     { label: 'FESTIVO NOCTURNO', horas: rem.horas_fest_nocturnas, valor: rem.valor_hora_fest_noc },
     { label: 'OTRO',           horas: rem.horas_otras,           valor: rem.valor_hora_otras },
   ];
+
+  // Recalcular el total parcial desglose usando la nueva fila diurno
+  const totalParcialDesglose =
+    ((parseFloat(rem.cantidad_horas) || 0) * (parseFloat(rem.valor_hora) || 0)) +
+    ((parseFloat(rem.horas_nocturnas) || 0) * (parseFloat(rem.valor_hora_nocturna) || 0)) +
+    ((parseFloat(rem.horas_fest_diurnas) || 0) * (parseFloat(rem.valor_hora_fest_dia) || 0)) +
+    ((parseFloat(rem.horas_fest_nocturnas) || 0) * (parseFloat(rem.valor_hora_fest_noc) || 0)) +
+    ((parseFloat(rem.horas_otras) || 0) * (parseFloat(rem.valor_hora_otras) || 0));
+
+  const totalHorasDesglose =
+    (parseFloat(rem.cantidad_horas) || 0) +
+    (parseFloat(rem.horas_nocturnas) || 0) +
+    (parseFloat(rem.horas_fest_diurnas) || 0) +
+    (parseFloat(rem.horas_fest_nocturnas) || 0) +
+    (parseFloat(rem.horas_otras) || 0);
+
+  const totalLiquidado = horasLaborales.reduce((sum, h) => sum + parseFloat(h.total_liquidado || 0), 0);
+  // El nuevo TOTAL NETO es el neto de la remisión + lo liquidado a operarios
+  const totalNetoFinal = parseFloat(rem.total_neto || 0) + totalLiquidado;
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -229,6 +234,23 @@ function buildRemisionHtml(rem) {
       </tr>
     </thead>
     <tbody>
+      ${operarios.length > 0 ? operarios.map((op, idx) => {
+        const h_sal_cargar = idx === 1 ? rem.segundo_hora_salida_cargar : rem.hora_salida_cargar;
+        const h_lleg_cliente = idx === 1 ? rem.segundo_hora_llegada_cliente : rem.hora_llegada_cliente;
+        const h_sal_cliente = idx === 1 ? rem.segundo_hora_salida_cliente : rem.hora_salida_cliente;
+        const h_lleg_cargar = idx === 1 ? rem.segundo_hora_llegada_cargar : rem.hora_llegada_cargar;
+        return `
+      <tr>
+        <td class="td-center" style="font-size: 8px;"><strong>${op.full_name}</strong><br/>Máq: ${rem.numero_maquina || ''}</td>
+        <td class="td-center">${formatTime(h_sal_cargar)}</td>
+        <td class="td-center">${formatTime(h_lleg_cliente)}</td>
+        <td class="td-center">${formatTime(h_sal_cliente)}</td>
+        <td class="td-center">${formatTime(h_lleg_cargar)}</td>
+        <td class="td-center">${idx === 0 && rem.descuentos ? formatCOP(rem.descuentos) : ''}</td>
+        <td class="td-center">${idx === 0 ? (rem.horometro_salida || '') : ''}</td>
+        <td class="td-center">${idx === 0 ? (rem.horometro_regreso || '') : ''}</td>
+      </tr>`;
+      }).join('') : `
       <tr>
         <td class="td-center">${rem.numero_maquina || ''}</td>
         <td class="td-center">${formatTime(rem.hora_salida_cargar)}</td>
@@ -238,49 +260,31 @@ function buildRemisionHtml(rem) {
         <td class="td-center">${rem.descuentos ? formatCOP(rem.descuentos) : ''}</td>
         <td class="td-center">${rem.horometro_salida || ''}</td>
         <td class="td-center">${rem.horometro_regreso || ''}</td>
-      </tr>
+      </tr>`}
     </tbody>
   </table>
 
   <!-- DESCRIPCIÓN SERVICIO -->
   <div style="font-weight: bold; margin-bottom: 2px;">DESCRIPCIÓN SERVICIO</div>
-  <table>
+  <table style="margin-bottom: 12px;">
     <thead>
       <tr>
         <th style="width:30px">ITEM</th>
         <th style="text-align:left">CÓDIGO / DESCRIPCION</th>
-        <th style="width:60px">CANTIDAD</th>
-        <th style="width:80px">VALOR HORA</th>
-        <th style="width:80px">TOTAL BRUTO</th>
       </tr>
     </thead>
     <tbody>
       <tr>
         <td class="td-center">1</td>
         <td><strong>${rem.servicio_codigo || ''}</strong><br>${rem.servicio_nombre || ''}</td>
-        <td class="td-center">${rem.cantidad_horas || 0}</td>
-        <td class="td-center">CO$ ${new Intl.NumberFormat('es-CO').format(rem.valor_hora || 0)}</td>
-        <td class="td-center">CO$ ${new Intl.NumberFormat('es-CO').format(rem.total_bruto || 0)}</td>
       </tr>
     </tbody>
   </table>
 
-  <!-- TOTALES -->
-  <div class="totals-grid">
-    <div class="totals-label">TOTAL BRUTO</div>
-    <div class="totals-value">CO$ ${new Intl.NumberFormat('es-CO').format(rem.total_bruto || 0)}</div>
-    <div class="totals-label">+IVA</div>
-    <div class="totals-value">CO$ ${new Intl.NumberFormat('es-CO').format(rem.iva_valor || 0)}</div>
-    <div class="totals-label">DESCUENTOS</div>
-    <div class="totals-value">CO$ ${new Intl.NumberFormat('es-CO').format(rem.descuentos || 0)}</div>
-    <div class="totals-label totals-final">TOTAL NETO</div>
-    <div class="totals-value totals-final">CO$ ${new Intl.NumberFormat('es-CO').format(rem.total_neto || 0)}</div>
-  </div>
-
-  ${rem.observaciones ? `<div style="margin-top:8px;font-size:9px;color:#333;"><strong>Observaciones:</strong> ${rem.observaciones}</div>` : ''}
+  ${rem.observaciones ? `<div style="margin-bottom:12px;font-size:9px;color:#333;"><strong>Observaciones:</strong> ${rem.observaciones}</div>` : ''}
 
   <!-- TABLA DE HORARIO -->
-  <table style="margin-top: 14px;">
+  <table>
     <thead>
       <tr>
         <th style="text-align:left; width:140px">HORARIO</th>
@@ -306,6 +310,22 @@ function buildRemisionHtml(rem) {
     </tbody>
   </table>
 
+  <!-- TOTALES -->
+  <div class="totals-grid">
+    <div class="totals-label">TOTAL BRUTO</div>
+    <div class="totals-value">CO$ ${new Intl.NumberFormat('es-CO').format(rem.total_bruto || 0)}</div>
+    ${totalLiquidado > 0 ? `
+    <div class="totals-label" style="color:#000;">TOTAL LIQUIDAR OPERARIOS</div>
+    <div class="totals-value" style="color:#000;">CO$ ${new Intl.NumberFormat('es-CO').format(totalLiquidado)}</div>
+    ` : ''}
+    <div class="totals-label">+IVA</div>
+    <div class="totals-value">CO$ ${new Intl.NumberFormat('es-CO').format(rem.iva_valor || 0)}</div>
+    <div class="totals-label">DESCUENTOS</div>
+    <div class="totals-value">CO$ ${new Intl.NumberFormat('es-CO').format(rem.descuentos || 0)}</div>
+    <div class="totals-label totals-final">TOTAL NETO</div>
+    <div class="totals-value totals-final">CO$ ${new Intl.NumberFormat('es-CO').format(totalNetoFinal)}</div>
+  </div>
+
   <!-- FIRMA -->
   <div class="firma-section">
     <div>
@@ -326,8 +346,8 @@ function buildRemisionHtml(rem) {
 </html>`;
 }
 
-export async function generateRemisionPdf(remision) {
-  const html = buildRemisionHtml(remision);
+export async function generateRemisionPdf(remision, horasLaborales = []) {
+  const html = buildRemisionHtml(remision, horasLaborales);
 
   const launchOptions = {
     headless: 'new',

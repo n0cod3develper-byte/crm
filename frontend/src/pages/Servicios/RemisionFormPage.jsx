@@ -16,11 +16,12 @@ const EMPTY = {
   fecha_servicio: new Date().toISOString().split('T')[0],
   hora_acordada: '',
   forma_pago: 'Contado',
-  company_id: '', catalogo_servicio_id: '', equipo_id: '', operario_id: '',
+  company_id: '', catalogo_servicio_id: '', equipo_id: '', operario_id: '', operario_2_id: '',
   solicitado_por: '', direccion_servicio: '', numero_maquina: '',
   hora_salida_cargar: '', hora_llegada_cliente: '', hora_salida_cliente: '', hora_llegada_cargar: '',
+  segundo_fecha_acordada: '', segundo_hora_salida_cargar: '', segundo_hora_llegada_cliente: '', segundo_hora_salida_cliente: '', segundo_hora_llegada_cargar: '', segundo_horometro_salida: '', segundo_horometro_regreso: '',
   horometro_salida: '', horometro_regreso: '',
-  cantidad_horas: 0, valor_hora: 0,
+  cantidad_horas: 1, valor_hora: 0,
   horas_diurnas: 0, valor_hora_diurna: 0,
   horas_nocturnas: 0, valor_hora_nocturna: 0,
   horas_fest_diurnas: 0, valor_hora_fest_dia: 0,
@@ -28,6 +29,7 @@ const EMPTY = {
   horas_otras: 0, valor_hora_otras: 0,
   total_bruto: 0, iva_pct: 19, iva_valor: 0, descuentos: 0, total_neto: 0,
   observaciones: '',
+  estado: 'BORRADOR',
 };
 
 /**
@@ -58,6 +60,9 @@ export function RemisionFormPage() {
   const [catalogoMap, setCatalogoMap] = React.useState({});
   const [horasManual, setHorasManual] = React.useState(false);
   const [currentEstado, setCurrentEstado] = React.useState(null);
+  const [estadoManual, setEstadoManual] = React.useState(false);
+
+  const isReadOnly = isEditing && READ_ONLY_ESTADOS.includes(currentEstado);
 
   // ─── Datos maestros ─────────────────────────────────────────
   const { data: empresas = [] } = useQuery({
@@ -90,20 +95,36 @@ export function RemisionFormPage() {
     enabled: isEditing,
   });
 
+  const { data: horasLaborales = [] } = useQuery({
+    queryKey: ['horas-laborales', id],
+    queryFn: async () => { const { data } = await api.get(`/servicios/${id}/horas-laborales`); return data.data || []; },
+    enabled: isEditing,
+  });
+  const totalLiquidacion = React.useMemo(() => horasLaborales.reduce((s, h) => s + parseFloat(h.total_liquidado || 0), 0), [horasLaborales]);
+
   React.useEffect(() => {
     if (existingData && isEditing) {
-      setCurrentEstado(existingData.estado);
+      const loadedEstado = existingData.estado;
+      setCurrentEstado(loadedEstado);
       const f = { ...EMPTY };
       Object.keys(EMPTY).forEach(k => {
         if (existingData[k] !== undefined && existingData[k] !== null) f[k] = existingData[k];
       });
       if (existingData.fecha_servicio) f.fecha_servicio = existingData.fecha_servicio.split('T')[0];
       if (existingData.hora_acordada) {
-        // Formato datetime-local: YYYY-MM-DDTHH:MM
         f.hora_acordada = new Date(existingData.hora_acordada).toISOString().slice(0, 16);
       }
+      if (existingData.operarios && existingData.operarios.length > 0) {
+        f.operario_id = existingData.operarios[0]?.empleado_id || '';
+        f.operario_2_id = existingData.operarios[1]?.empleado_id || '';
+      }
+      if (existingData.estado) f.estado = existingData.estado;
       setForm(f);
-      setHorasManual(true); // al cargar datos existentes, no recalcular automáticamente
+      setHorasManual(true);
+      // Si el estado ya está fijado (REALIZADA, LIQUIDADA), no dejar que el auto-calc lo cambie
+      if (['REALIZADA', 'LIQUIDADA', 'PENDIENTE'].includes(loadedEstado)) {
+        setEstadoManual(true);
+      }
     }
   }, [existingData, isEditing]);
 
@@ -123,7 +144,7 @@ export function RemisionFormPage() {
             setForm(prev => ({ ...prev, forma_pago: res.data.data }));
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [form.company_id]);
 
@@ -137,6 +158,29 @@ export function RemisionFormPage() {
     }
   }, [form.catalogo_servicio_id, catalogoMap]);
 
+  // ─── Auto-calcular Estado ──────────────────────────────────────
+  React.useEffect(() => {
+    if (estadoManual || isReadOnly) return;
+
+    // Obligatorios mínimos
+    const hasObligatorios = form.company_id && form.catalogo_servicio_id && form.equipo_id && form.fecha_servicio;
+    if (!hasObligatorios) return;
+
+    const hasSalida = !!(form.hora_salida_cargar);
+    const hasAll = hasSalida && form.hora_llegada_cliente && form.hora_salida_cliente && form.hora_llegada_cargar;
+
+    let newEstado = 'BORRADOR';
+    if (hasAll) newEstado = 'REALIZADA';
+    else if (hasSalida) newEstado = 'PENDIENTE';
+
+    setForm(prev => prev.estado === newEstado ? prev : { ...prev, estado: newEstado });
+  }, [
+    form.company_id, form.catalogo_servicio_id, form.equipo_id, form.fecha_servicio,
+    form.hora_salida_cargar, form.hora_llegada_cliente, form.hora_salida_cliente,
+    form.hora_llegada_cargar,
+    estadoManual, isReadOnly
+  ]);
+
   // ─── Al cambiar equipo: autocompletar numero_maquina ─────────
   React.useEffect(() => {
     if (form.equipo_id && equiposFiltrados.length) {
@@ -147,27 +191,40 @@ export function RemisionFormPage() {
     }
   }, [form.equipo_id, equiposFiltrados]);
 
-  // ─── Auto-calcular horas por horómetro ───────────────────────
+  // ─── Auto-calcular horas por tiempos (Llegada - Salida) ───────────────────────
   React.useEffect(() => {
     if (horasManual) return; // Si el usuario editó manualmente, no recalcular
-    const horas = calcularHoras(form.horometro_salida, form.horometro_regreso);
-    if (horas !== null) {
-      setForm(prev => ({ ...prev, cantidad_horas: horas }));
+    if (form.hora_salida_cargar && form.hora_llegada_cargar) {
+      const ts = (t) => t.length > 5 ? t.substring(0, 5) : t;
+      const salida = new Date(`1970-01-01T${ts(form.hora_salida_cargar)}:00`);
+      const llegada = new Date(`1970-01-01T${ts(form.hora_llegada_cargar)}:00`);
+      if (isNaN(salida.getTime()) || isNaN(llegada.getTime())) return;
+      if (llegada < salida) llegada.setDate(llegada.getDate() + 1); // Cruza la medianoche
+      const diffMs = llegada - salida;
+      let diffHrs = diffMs / (1000 * 60 * 60);
+      diffHrs = parseFloat(diffHrs.toFixed(2));
+      if (diffHrs < 1) diffHrs = 1;
+      setForm(prev => ({ ...prev, cantidad_horas: diffHrs }));
+    } else if (form.horometro_salida && form.horometro_regreso) {
+      const diff = parseFloat(form.horometro_regreso) - parseFloat(form.horometro_salida);
+      setForm(prev => ({ ...prev, cantidad_horas: diff > 1 ? diff : 1 }));
+    } else if (!form.cantidad_horas || form.cantidad_horas < 1) {
+      setForm(prev => ({ ...prev, cantidad_horas: 1 }));
     }
-  }, [form.horometro_salida, form.horometro_regreso, horasManual]);
+  }, [form.hora_salida_cargar, form.hora_llegada_cargar, form.horometro_salida, form.horometro_regreso, horasManual]);
 
   // ─── Auto-calcular totales ───────────────────────────────────
   React.useEffect(() => {
     const bruto = parseFloat(form.cantidad_horas || 0) * parseFloat(form.valor_hora || 0);
     const iva = bruto * (parseFloat(form.iva_pct || 19) / 100);
-    const neto = bruto + iva - parseFloat(form.descuentos || 0);
+    const neto = bruto + iva - parseFloat(form.descuentos || 0) + totalLiquidacion;
     setForm(prev => ({
       ...prev,
       total_bruto: Math.round(bruto),
       iva_valor: Math.round(iva),
       total_neto: Math.round(neto),
     }));
-  }, [form.cantidad_horas, form.valor_hora, form.iva_pct, form.descuentos]);
+  }, [form.cantidad_horas, form.valor_hora, form.iva_pct, form.descuentos, totalLiquidacion]);
 
   // ─── Mutation ────────────────────────────────────────────────
   const mutation = useMutation({
@@ -184,6 +241,22 @@ export function RemisionFormPage() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'estado') setEstadoManual(true);
+
+    // Validar operarios duplicados
+    if (name === 'operario_id' && value && value === form.operario_2_id) {
+      toast.error('El operario inicial no puede ser el mismo que el segundo operario.');
+      return;
+    }
+    if (name === 'operario_2_id' && value && value === form.operario_id) {
+      toast.error('El segundo operario no puede ser el mismo que el operario inicial.');
+      return;
+    }
+
+    if (['hora_salida_cargar', 'hora_llegada_cargar', 'horometro_salida', 'horometro_regreso'].includes(name)) {
+      setHorasManual(false);
+    }
+
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
@@ -200,15 +273,14 @@ export function RemisionFormPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.company_id || !form.catalogo_servicio_id || !form.equipo_id || !form.fecha_servicio) {
-      toast.error('Empresa, Fecha, Servicio y Equipo son obligatorios');
+    if (!form.company_id || !form.catalogo_servicio_id || !form.equipo_id || !form.fecha_servicio || (!isEditing && !form.operario_id)) {
+      toast.error('Faltan campos obligatorios');
       return;
     }
     mutation.mutate(form);
   };
 
   // ─── Modo solo lectura ───────────────────────────────────────
-  const isReadOnly = isEditing && READ_ONLY_ESTADOS.includes(currentEstado);
 
   if (isEditing && loadingExisting) {
     return (
@@ -230,11 +302,11 @@ export function RemisionFormPage() {
   });
 
   const horarioRows = [
-    { label: 'DIURNO',           nh: 'horas_diurnas',        nv: 'valor_hora_diurna' },
-    { label: 'NOCTURNO',         nh: 'horas_nocturnas',       nv: 'valor_hora_nocturna' },
-    { label: 'FESTIVO DIURNO',   nh: 'horas_fest_diurnas',   nv: 'valor_hora_fest_dia' },
+    { label: 'DIURNO', nh: 'horas_diurnas', nv: 'valor_hora_diurna' },
+    { label: 'NOCTURNO', nh: 'horas_nocturnas', nv: 'valor_hora_nocturna' },
+    { label: 'FESTIVO DIURNO', nh: 'horas_fest_diurnas', nv: 'valor_hora_fest_dia' },
     { label: 'FESTIVO NOCTURNO', nh: 'horas_fest_nocturnas', nv: 'valor_hora_fest_noc' },
-    { label: 'OTRO',             nh: 'horas_otras',           nv: 'valor_hora_otras' },
+    { label: 'OTRO', nh: 'horas_otras', nv: 'valor_hora_otras' },
   ];
 
   return (
@@ -280,7 +352,7 @@ export function RemisionFormPage() {
                 </select>
               )}
             </div>
-            <div style={{ gridColumn: '1 / -1' }}>
+            <div style={{ gridColumn: '1 / span 2' }}>
               <label style={label}>Empresa / Cliente *</label>
               {isReadOnly ? (
                 <input {...inputProps('company_id')} value={existingData?.empresa_nombre || form.company_id} />
@@ -290,6 +362,19 @@ export function RemisionFormPage() {
                   {empresas.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
               )}
+            </div>
+            <div>
+              <label style={label}>Estado (Auto / Manual)</label>
+              <select
+                {...inputProps('estado')}
+                style={{ width: '100%', fontWeight: 700, color: 'var(--clr-primary-600)' }}
+              >
+                <option value="BORRADOR">Borrador</option>
+                <option value="PENDIENTE">Pendiente</option>
+                <option value="REALIZADA">Realizada</option>
+                <option value="LIQUIDADA">Liquidada</option>
+                <option value="ANULADO">Anulada</option>
+              </select>
             </div>
             <div>
               <label style={label}>Solicitado Por</label>
@@ -330,25 +415,41 @@ export function RemisionFormPage() {
               <label style={label}>No. Máquina</label>
               <input placeholder="Ej: 73" {...inputProps('numero_maquina')} />
             </div>
-            {!isEditing && (
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={label}>Operario Asignado</label>
-                <select name="operario_id" className="input" style={{ width: '100%' }} value={form.operario_id} onChange={handleChange}>
-                  <option value="">Seleccionar operario (opcional)...</option>
-                  {operariosDisp.map(o => <option key={o.id} value={o.id}>{o.full_name}</option>)}
-                </select>
+
+            <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div>
+                <label style={label}>Operario Inicial *</label>
+                {isReadOnly ? (
+                  <input className="input" style={{ width: '100%' }} disabled value={existingData?.operarios?.[0]?.full_name || '—'} />
+                ) : (
+                  <select name="operario_id" className="input" style={{ width: '100%' }} value={form.operario_id} onChange={handleChange} required>
+                    <option value="">Seleccionar operario...</option>
+                    {operariosDisp.map(o => <option key={o.id} value={o.id}>{o.full_name}</option>)}
+                  </select>
+                )}
               </div>
-            )}
+              <div>
+                <label style={label}>Segundo Operario (Opcional)</label>
+                {isReadOnly ? (
+                  <input className="input" style={{ width: '100%' }} disabled value={existingData?.operarios?.[1]?.full_name || '—'} />
+                ) : (
+                  <select name="operario_2_id" className="input" style={{ width: '100%' }} value={form.operario_2_id || ''} onChange={handleChange}>
+                    <option value="">Seleccionar segundo operario...</option>
+                    {operariosDisp.map(o => <option key={o.id} value={o.id}>{o.full_name}</option>)}
+                  </select>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* — Tiempos del Servicio — */}
-          <p style={section}>Tiempos del Servicio</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>
+          {/* — Tiempos del Servicio (Primer Operario) — */}
+          <p style={section}>Tiempos del Servicio (Operario Inicial)</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             {[
-              { name: 'hora_salida_cargar',   label: 'Hora Salida CARGAR' },
-              { name: 'hora_llegada_cliente',  label: 'Hora Llegada Cliente' },
-              { name: 'hora_salida_cliente',   label: 'Hora Salida Cliente' },
-              { name: 'hora_llegada_cargar',   label: 'Hora Llegada CARGAR' },
+              { name: 'hora_salida_cargar', label: 'Hora Salida CARGAR' },
+              { name: 'hora_llegada_cliente', label: 'Hora Llegada Cliente' },
+              { name: 'hora_salida_cliente', label: 'Hora Salida Cliente' },
+              { name: 'hora_llegada_cargar', label: 'Hora Llegada CARGAR' },
             ].map(({ name, label: lbl }) => (
               <div key={name}>
                 <label style={label}>{lbl}</label>
@@ -356,7 +457,7 @@ export function RemisionFormPage() {
               </div>
             ))}
             <div>
-              <label style={label}>Horómetro Salida</label>
+              <label style={label}>Horómetro Salida {form.operario_2_id ? '(Op. 1)' : ''}</label>
               <input
                 type="number" step="0.01" name="horometro_salida" className="input" style={{ width: '100%' }}
                 value={form.horometro_salida}
@@ -366,7 +467,7 @@ export function RemisionFormPage() {
               />
             </div>
             <div>
-              <label style={label}>Horómetro Regreso</label>
+              <label style={label}>Horómetro Regreso {form.operario_2_id ? '(Op. 1)' : ''}</label>
               <input
                 type="number" step="0.01" name="horometro_regreso" className="input" style={{ width: '100%' }}
                 value={form.horometro_regreso}
@@ -377,13 +478,56 @@ export function RemisionFormPage() {
             </div>
           </div>
 
+          {form.operario_2_id && (
+            <>
+              <p style={section}>Tiempos del Servicio (Segundo Operario)</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <div>
+                  <label style={label}>Fecha Acordada (Op. 2)</label>
+                  <input type="date" {...inputProps('segundo_fecha_acordada')} />
+                </div>
+                {[
+                  { name: 'segundo_hora_salida_cargar', label: 'Hora Salida CARGAR' },
+                  { name: 'segundo_hora_llegada_cliente', label: 'Hora Llegada Cliente' },
+                  { name: 'segundo_hora_salida_cliente', label: 'Hora Salida Cliente' },
+                  { name: 'segundo_hora_llegada_cargar', label: 'Hora Llegada CARGAR' },
+                ].map(({ name, label: lbl }) => (
+                  <div key={name}>
+                    <label style={label}>{lbl}</label>
+                    <input type="time" {...inputProps(name)} />
+                  </div>
+                ))}
+                <div>
+                  <label style={label}>Horómetro Salida (Op. 2)</label>
+                  <input
+                    type="number" step="0.01" name="segundo_horometro_salida" className="input" style={{ width: '100%' }}
+                    value={form.segundo_horometro_salida}
+                    onChange={isReadOnly ? undefined : handleHorometroChange}
+                    readOnly={isReadOnly}
+                    placeholder="Ej: 1250.5"
+                  />
+                </div>
+                <div>
+                  <label style={label}>Horómetro Regreso (Op. 2)</label>
+                  <input
+                    type="number" step="0.01" name="segundo_horometro_regreso" className="input" style={{ width: '100%' }}
+                    value={form.segundo_horometro_regreso}
+                    onChange={isReadOnly ? undefined : handleHorometroChange}
+                    readOnly={isReadOnly}
+                    placeholder="Ej: 1252.42"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
           {/* — Descripción del Servicio — */}
           <p style={section}>Descripción del Servicio — Valores</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>
             <div>
               <label style={label}>
                 Cantidad / Horas
-                {!isReadOnly && !horasManual && form.horometro_salida && form.horometro_regreso && (
+                {!isReadOnly && !horasManual && ((form.hora_salida_cargar && form.hora_llegada_cargar) || (form.horometro_salida && form.horometro_regreso)) && (
                   <span style={{ color: 'var(--clr-primary-500)', marginLeft: 4, fontWeight: 400 }}>(auto)</span>
                 )}
               </label>
@@ -392,11 +536,11 @@ export function RemisionFormPage() {
                 value={form.cantidad_horas}
                 onChange={isReadOnly ? undefined : handleHorasChange}
                 readOnly={isReadOnly}
-                title="Se calcula automáticamente con los horómetros. Mínimo 1 hora."
+                title="Se calcula automáticamente. Mínimo 1 hora."
               />
               {!isReadOnly && (
                 <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: 2 }}>
-                  Regreso − Salida (mín. 1 h) — editable manualmente
+                  Llegada − Salida CARGAR (mín. 1 h) — editable manualmente
                 </div>
               )}
             </div>
@@ -425,20 +569,6 @@ export function RemisionFormPage() {
             <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>TOTAL NETO</span><span style={{ fontWeight: 800, color: 'var(--clr-primary-500)', fontSize: '16px' }}>{formatCOP(form.total_neto)}</span></div>
           </div>
 
-          {/* — Desglose por Horario — */}
-          <p style={section}>Desglose por Tipo de Horario</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '0.6rem', alignItems: 'center' }}>
-            <div style={{ fontWeight: 700, fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>HORARIO</div>
-            <div style={{ fontWeight: 700, fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>HORAS</div>
-            <div style={{ fontWeight: 700, fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>VR. HORA SERVICIO</div>
-            {horarioRows.map(({ label: lbl, nh, nv }) => (
-              <React.Fragment key={nh}>
-                <div style={{ display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: '12px', paddingLeft: '4px' }}>{lbl}</div>
-                <input type="number" step="0.5" min={0} {...inputProps(nh)} />
-                <input type="number" min={0} {...inputProps(nv)} />
-              </React.Fragment>
-            ))}
-          </div>
 
           {/* — Observaciones — */}
           <div style={{ marginTop: '1.5rem' }}>

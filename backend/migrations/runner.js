@@ -49,6 +49,11 @@ const MIGRATION_FILES = [
   '016_add_numero_equipo.sql',
   '017_add_tipo_to_catalogo.sql',
   '018_add_cantidad_to_catalogo.sql',
+  '019_liquidacion_horas_laborales.sql',
+  '020_fix_remision_estados.sql',
+  '021_segundo_operario_tiempos.sql',
+  '022_segundo_operario_horometros.sql',
+  '023_segundo_operario_fecha.sql',
 ];
 
 async function ensureMigrationsTable(client) {

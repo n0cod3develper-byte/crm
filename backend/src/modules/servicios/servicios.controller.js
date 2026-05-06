@@ -36,9 +36,24 @@ export const serviciosController = {
     try {
       const item = await repo.findById(req.params.id);
       if (!item) throw new NotFoundError('Remisión');
-      if (item.estado === 'REALIZADA' || item.estado === 'LIQUIDADA' || item.estado === 'ANULADO') {
-        throw new ForbiddenError('No se puede editar una remisión en estado REALIZADA, LIQUIDADA o ANULADO');
+
+      // Campos que el modal de liquidación puede actualizar incluso en estado LIQUIDADA
+      const liquidacionFields = new Set([
+        'hora_salida_cargar', 'hora_llegada_cargar', 'cantidad_horas',
+        'total_bruto', 'iva_valor', 'total_neto', 'estado'
+      ]);
+      const incomingKeys = Object.keys(req.body);
+      const isLiquidacionPatch = incomingKeys.every(k => liquidacionFields.has(k));
+
+      // Bloquear edición completa de remisiones ANULADAS o LIQUIDADAS
+      // (solo se permite el patch parcial de la liquidación)
+      if (item.estado === 'ANULADO') {
+        throw new ForbiddenError('No se puede editar una remisión ANULADA');
       }
+      if (item.estado === 'LIQUIDADA' && !isLiquidacionPatch) {
+        throw new ForbiddenError('No se puede editar una remisión LIQUIDADA. Solo se permiten actualizaciones de liquidación.');
+      }
+
       const updated = await repo.update(req.params.id, req.body);
       res.json({ success: true, data: updated });
     } catch (err) { next(err); }
@@ -86,7 +101,10 @@ export const serviciosController = {
     try {
       const remision = await repo.findById(req.params.id);
       if (!remision) throw new NotFoundError('Remisión');
-      const pdfBuffer = await generateRemisionPdf(remision);
+      
+      const horasLaborales = await repo.findHorasLaborales(req.params.id) || [];
+      const pdfBuffer = await generateRemisionPdf(remision, horasLaborales);
+
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="Remision-${remision.numero_remision}.pdf"`,
@@ -95,4 +113,32 @@ export const serviciosController = {
       res.send(pdfBuffer);
     } catch (err) { next(err); }
   },
+
+  // ─── Liquidación de Horas Laborales ────────────────────────────
+
+  async getHorasLaborales(req, res, next) {
+    try {
+      const data = await repo.findHorasLaborales(req.params.id);
+      res.json({ success: true, data });
+    } catch (err) { next(err); }
+  },
+
+  async upsertHorasLaborales(req, res, next) {
+    try {
+      const { empleado_id, fecha_trabajo, hora_entrada, hora_salida } = req.body;
+      if (!empleado_id || !fecha_trabajo || !hora_entrada || !hora_salida) {
+        throw new BadRequestError('empleado_id, fecha_trabajo, hora_entrada y hora_salida son requeridos');
+      }
+      const result = await repo.upsertHorasLaborales(req.params.id, req.body);
+      res.status(201).json({ success: true, data: result });
+    } catch (err) { next(err); }
+  },
+
+  async deleteHorasLaborales(req, res, next) {
+    try {
+      await repo.deleteHorasLaborales(req.params.id, req.params.hid);
+      res.json({ success: true, message: 'Liquidación eliminada' });
+    } catch (err) { next(err); }
+  },
 };
+
