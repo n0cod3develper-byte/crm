@@ -48,6 +48,9 @@ const MIGRATION_FILES = [
   '016_update_catalog_view.sql',
   '017_optimization_indexes.sql',
   '018_add_image_to_catalog_view.sql',
+  '019_inventory_movement_upgrade.sql',
+  '020_clerk_user_id_nullable.sql',
+  '021_inventory_upgrade.sql'
 ];
 
 async function ensureMigrationsTable(client) {

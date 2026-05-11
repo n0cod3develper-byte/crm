@@ -52,9 +52,14 @@ export const getUnidades = async (req, res, next) => {
 
 export const createItem = async (req, res, next) => {
   try {
+    console.log('[CatalogController] Creating item with body:', JSON.stringify(req.body, null, 2));
+    console.log('[CatalogController] User ID:', req.user.id);
     const item = await repo.create(req.body, req.user.id);
     res.status(201).json({ success: true, data: item });
-  } catch (err) { next(err); }
+  } catch (err) { 
+    console.error('[CatalogController] ERROR:', err.message);
+    next(err); 
+  }
 };
 
 export const updateItem = async (req, res, next) => {

@@ -109,6 +109,7 @@ export async function invitarUsuario(req, res) {
     const invitationLink = `${env.FRONTEND_URL}/register?token=${token}`;
     res.json({ success: true, invitationLink });
   } catch (err) {
+    console.error('Error en invitarUsuario:', err);
     res.status(500).json({ error: 'Error al generar invitación' });
   }
 }

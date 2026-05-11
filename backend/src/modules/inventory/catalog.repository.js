@@ -1,5 +1,11 @@
 import { query } from '../../config/database.js';
 
+/** Returns value if it's a valid UUID, otherwise null */
+const toUuid = (v) => {
+  if (!v || typeof v !== 'string') return null;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) ? v : null;
+};
+
 export class CatalogRepository {
   /**
    * List items from the unified catalog using the view.
@@ -19,8 +25,8 @@ export class CatalogRepository {
       i++;
     }
     if (search) {
-      conditions.push(`(nombre_comercial ILIKE $${i} OR codigo_interno ILIKE $${i} OR referencia_fabricante ILIKE $${i} OR marca ILIKE $${i})`);
-      params.push(`%${search}%`);
+      conditions.push(`search_vector @@ plainto_tsquery('spanish', $${i})`);
+      params.push(search);
       i++;
     }
     if (con_stock === 'true') {
@@ -75,8 +81,9 @@ export class CatalogRepository {
       params.push(tipo);
     }
     if (q) {
-      conditions.push(`(nombre_comercial ILIKE $${i} OR codigo_interno ILIKE $${i} OR referencia_fabricante ILIKE $${i} OR marca ILIKE $${i})`);
-      params.push(`%${q}%`);
+      conditions.push(`search_vector @@ plainto_tsquery('spanish', $${i})`);
+      params.push(q);
+      i++;
     }
 
     // Use only columns that exist in the catalogo_completo view
@@ -204,7 +211,8 @@ export class CatalogRepository {
       tipo, codigo_interno, name, nombre_comercial, categoria_id, unidad_medida_id,
       costo_reposicion, unit_price, stock_actual, stock_minimum,
       precio_servicio, precio_servicio_minimo, unidad_cobro,
-      aplica_iva, iva_pct, es_destacado, marca, ubicacion_id
+      aplica_iva, iva_pct, es_destacado, marca, ubicacion_id,
+      tipo_repuesto, responsable_id, referencia_cruzada, equipos_compatibles
     } = data;
 
     const codigo = codigo_interno || await this._generarCodigo(tipo);
@@ -215,8 +223,9 @@ export class CatalogRepository {
         costo_reposicion, unit_price, stock_actual, stock_minimum,
         precio_servicio, precio_servicio_minimo, unidad_cobro,
         aplica_iva, iva_pct, es_destacado, marca, ubicacion_id,
+        tipo_repuesto, responsable_id, referencia_cruzada, equipos_compatibles,
         created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
       RETURNING *
     `;
     const res = await query(sql, [
@@ -224,8 +233,8 @@ export class CatalogRepository {
       codigo,
       name || codigo,
       nombre_comercial || name || codigo,
-      categoria_id || null,
-      unidad_medida_id || null,
+      toUuid(categoria_id),
+      toUuid(unidad_medida_id),
       costo_reposicion    ?? 0,
       unit_price   ?? 0,
       stock_actual ?? 0,
@@ -237,7 +246,11 @@ export class CatalogRepository {
       iva_pct     ?? 19,
       es_destacado ?? false,
       marca || null,
-      ubicacion_id || null,
+      toUuid(ubicacion_id),
+      tipo_repuesto || 'N/A',
+      toUuid(responsable_id),
+      JSON.stringify(referencia_cruzada || []),
+      JSON.stringify(equipos_compatibles || []),
       userId,
     ]);
     return res.rows[0];
@@ -251,16 +264,25 @@ export class CatalogRepository {
     const allowed = [
       'codigo_interno', 'name', 'nombre_comercial', 'descripcion_corta', 'descripcion_larga',
       'categoria_id', 'unidad_medida_id', 'costo_reposicion', 'unit_price',
-      'stock_minimum', 'stock_maximo', 'ubicacion_bodega', 'ubicacion_id', 'marca',
+      'stock_minimum', 'stock_maximo', 'ubicacion_id', 'marca',
       'precio_servicio', 'precio_servicio_minimo', 'unidad_cobro',
       'activo_catalogo', 'activo_compras', 'es_destacado', 'aplica_iva', 'iva_pct',
-      'imagen_url', 'imagen_thumb_url'
+      'imagen_url', 'imagen_thumb_url',
+      'tipo_repuesto', 'responsable_id', 'referencia_cruzada', 'equipos_compatibles'
     ];
+
+    const uuidFields = ['categoria_id', 'unidad_medida_id', 'ubicacion_id', 'responsable_id'];
 
     for (const key of allowed) {
       if (key in data) {
         fields.push(`${key} = $${i++}`);
-        params.push(data[key]);
+        let value = data[key];
+        if (key === 'referencia_cruzada' || key === 'equipos_compatibles') {
+          value = JSON.stringify(value || []);
+        } else if (uuidFields.includes(key)) {
+          value = toUuid(value);
+        }
+        params.push(value);
       }
     }
 

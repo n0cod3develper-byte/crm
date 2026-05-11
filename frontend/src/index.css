@@ -429,7 +429,12 @@ tbody tr {
   transition: background var(--transition-fast);
 }
 tbody tr:hover { 
-  background: var(--clr-gray-50); 
+  background: var(--bg-elevated); 
+  box-shadow: inset 3px 0 0 var(--clr-primary-500);
+}
+
+[data-theme="dark"] tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 /* ─── KPI Cards ──────────────────────────────────────────── */

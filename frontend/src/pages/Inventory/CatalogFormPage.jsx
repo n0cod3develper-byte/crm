@@ -6,6 +6,8 @@ import { Package, Wrench, Save, ArrowLeft, Info, DollarSign, Database, Tag, MapP
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
+import { GeneradorCodigoUbicacion } from '../../components/Inventory/GeneradorCodigoUbicacion';
+import { JSONListEditor } from '../../components/Inventory/JSONListEditor';
 
 export function CatalogFormPage() {
   const { id } = useParams();
@@ -31,7 +33,11 @@ export function CatalogFormPage() {
     iva_pct: 19,
     ubicacion_id: '',
     marca: '',
-    imagen_url: ''
+    imagen_url: '',
+    tipo_repuesto: 'N/A',
+    responsable_id: '',
+    referencia_cruzada: [],
+    equipos_compatibles: []
   });
 
   const [selectedFile, setSelectedFile] = useState(null);
@@ -73,7 +79,11 @@ export function CatalogFormPage() {
         categoria_id: item.categoria_id?.toString() || '',
         unidad_medida_id: item.unidad_medida_id?.toString() || '',
         ubicacion_id: item.ubicacion_id?.toString() || '',
-        imagen_url: item.imagen_url || ''
+        imagen_url: item.imagen_url || '',
+        tipo_repuesto: item.tipo_repuesto || 'N/A',
+        responsable_id: item.responsable_id || '',
+        referencia_cruzada: Array.isArray(item.referencia_cruzada) ? item.referencia_cruzada : [],
+        equipos_compatibles: Array.isArray(item.equipos_compatibles) ? item.equipos_compatibles : []
       }));
       if (item.imagen_url) {
         const API_URL = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:4000';
@@ -117,9 +127,16 @@ export function CatalogFormPage() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    let finalValue = type === 'checkbox' ? checked : (type === 'number' ? parseFloat(value) : value);
+    
+    // Sanitize ID fields to avoid UUID validation errors in backend
+    if ((name.endsWith('_id') || name === 'responsable_id') && finalValue === '') {
+      finalValue = null;
+    }
+
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : (type === 'number' ? parseFloat(value) : value)
+      [name]: finalValue
     }));
   };
 
@@ -205,16 +222,64 @@ export function CatalogFormPage() {
                     name="nombre_comercial" value={formData.nombre_comercial} onChange={handleChange}
                     className="input" placeholder="Nombre que verá el cliente..."
                   />
-                </div>
-                {formData.tipo === 'PRODUCTO' && (
+                <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
                   <div className="input-group">
                     <label className="input-label">Marca</label>
-                    <input 
-                      name="marca" value={formData.marca} onChange={handleChange}
-                      className="input" placeholder="Ej: Caterpillar, Toyota, etc."
+                    <input type="text" name="marca" value={formData.marca} onChange={handleChange} className="input" placeholder="Ej: Caterpillar, SKF..." />
+                  </div>
+                  
+                  {formData.tipo === 'PRODUCTO' && (
+                    <>
+                      <div className="input-group">
+                        <label className="input-label">Clasificación Técnica</label>
+                        <select 
+                          name="tipo_repuesto" 
+                          value={formData.tipo_repuesto} 
+                          onChange={handleChange} 
+                          className="input"
+                        >
+                          <option value="N/A">Sin Clasificar</option>
+                          <option value="GENUINO_OE">Genuino OE</option>
+                          <option value="OEM">OEM</option>
+                          <option value="GENERICO">Genérico</option>
+                        </select>
+                      </div>
+
+                      <div className="input-group">
+                        <label className="input-label">Responsable / Especialista</label>
+                        <select 
+                          name="responsable_id" 
+                          value={formData.responsable_id || ''} 
+                          onChange={handleChange} 
+                          className="input"
+                        >
+                          <option value="">Seleccione responsable...</option>
+                          <option value="20ab5dea-8d8a-4439-8c12-728235dd265e">Robinson (Administrador)</option>
+                          <option value="cd87f065-25d7-40c3-bbdb-9db840e1bb70">Emily (Administrador)</option>
+                          <option value="3a1cedee-11da-4e1c-bb6b-591cf779c1ac">Alveiro (Especialista)</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {formData.tipo === 'PRODUCTO' && (
+                  <div className="card-body" style={{ borderTop: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                    <JSONListEditor 
+                      label="Referencias Cruzadas / Opciones"
+                      value={formData.referencia_cruzada}
+                      onChange={(val) => setFormData(prev => ({ ...prev, referencia_cruzada: val }))}
+                      placeholder="Ej: 1R-0749, BF7633..."
+                    />
+                    <JSONListEditor 
+                      label="Equipos Compatibles"
+                      value={formData.equipos_compatibles}
+                      onChange={(val) => setFormData(prev => ({ ...prev, equipos_compatibles: val }))}
+                      placeholder="Ej: Excavadora 320D, Motor C7..."
                     />
                   </div>
                 )}
+              </div>
                 <div className="input-group">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                     <label className="input-label" style={{ margin: 0 }}>Familia</label>
@@ -306,31 +371,11 @@ export function CatalogFormPage() {
                       <label className="input-label">Stock Mínimo (Alerta)</label>
                       <input type="number" name="stock_minimum" value={formData.stock_minimum} onChange={handleChange} className="input" />
                     </div>
-                    <div className="input-group">
-                      <label className="input-label">Ubicación Física</label>
-                      <div style={{ position: 'relative' }}>
-                        <MapPin size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                        <select 
-                          name="ubicacion_id" 
-                          value={formData.ubicacion_id} 
-                          onChange={handleChange} 
-                          className="input" 
-                          style={{ paddingLeft: '2.5rem', appearance: 'none' }}
-                        >
-                          <option value="">Seleccione ubicación...</option>
-                          {ubicacionesData?.data?.map(u => (
-                            <option key={u.id} value={u.id}>
-                              {u.codigo_ubicacion} - {u.bodega} ({u.zona})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      {formData.ubicacion_id && (
-                        <div style={{ marginTop: '0.5rem', fontSize: '10px', color: 'var(--clr-primary-500)', fontWeight: 600 }}>
-                          Código: {ubicacionesData?.data?.find(u => u.id === formData.ubicacion_id)?.codigo_ubicacion}
-                        </div>
-                      )}
-                    </div>
+                    
+                    <GeneradorCodigoUbicacion 
+                      value={formData.ubicacion_id} 
+                      onChange={handleChange} 
+                    />
                   </div>
                 </div>
               )}
