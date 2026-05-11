@@ -107,6 +107,14 @@ export const liquidar = async (req, res, next) => {
     const result = await repo.liquidarOT(req.params.id, notas_liquidacion, impuesto_pct, req.user.id);
     res.json({ success: true, ...result });
   } catch (err) {
+    if (err.codigo === 'OT_FIRMADA_REQUERIDA') {
+      return res.status(422).json({
+        error: err.message,
+        codigo: err.codigo,
+        mensaje: err.mensaje,
+        ot_consecutivo: err.ot_consecutivo
+      });
+    }
     if (err.message?.includes('Stock insuficiente') || err.message?.includes('ya está')) {
       return next(new BadRequestError(err.message));
     }
@@ -120,14 +128,20 @@ export const downloadPDF = async (req, res, next) => {
     const ot = await repo.findOTById(req.params.id);
     if (!ot) throw new NotFoundError('Orden de trabajo');
 
+    console.log(`[PDF] Generando OT ${ot.consecutivo}...`);
     const pdfBuffer = await generateOTPdf(ot);
+    
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${ot.consecutivo}.pdf"`,
       'Content-Length': pdfBuffer.length,
     });
     res.send(pdfBuffer);
-  } catch (err) { next(err); }
+    console.log(`[PDF] OT ${ot.consecutivo} enviada con éxito.`);
+  } catch (err) { 
+    console.error(`[PDF] Error en OT ${req.params.id}:`, err);
+    next(err); 
+  }
 };
 
 // ─── Inventario search (para el formulario) ────────────

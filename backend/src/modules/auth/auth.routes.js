@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import passport from 'passport';
 import { authController } from './auth.controller.js';
-import { authenticate } from '../../utils/jwt.js';
+import { requireAuth } from '../../middleware/auth.js';
 import { authLimiter } from '../../middleware/rateLimiter.js';
 import { env } from '../../config/env.js';
 
@@ -35,10 +35,10 @@ router.get('/microsoft/callback',
 
 // ─── Token management ────────────────────────────────────────
 router.post('/refresh', authLimiter, authController.refreshToken);
-router.post('/logout', authenticate, authController.logout);
+router.post('/logout', requireAuth, authController.logout);
 
 // ─── Perfil ──────────────────────────────────────────────────
-router.get('/me', authenticate, authController.me);
-router.patch('/me', authenticate, authController.updateProfile);
+router.get('/me', requireAuth, authController.me);
+router.patch('/me', requireAuth, authController.updateProfile);
 
 export default router;

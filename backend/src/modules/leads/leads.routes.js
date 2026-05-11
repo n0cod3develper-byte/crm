@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { leadsController } from './leads.controller.js';
-import { authenticate } from '../../utils/jwt.js';
+import { authenticate } from '../../middleware/auth.js';
 
 const router = Router();
 

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { companiesController } from './companies.controller.js';
-import { authenticate, authorize } from '../../utils/jwt.js';
+import { authenticate, authorize } from '../../middleware/auth.js';
 
 const router = Router();
 

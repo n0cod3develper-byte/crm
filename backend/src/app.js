@@ -31,13 +31,25 @@ import equiposRoutes from './modules/equipos/equipos.routes.js';
 import mantenimientoRoutes from './modules/mantenimiento/mantenimiento.routes.js';
 import proveedoresRoutes from './modules/proveedores/proveedores.routes.js';
 import comprasRoutes from './modules/compras/compras.routes.js';
+
 import catalogoServiciosRoutes from './modules/catalogo_servicios/catalogo_servicios.routes.js';
 import serviciosRoutes from './modules/servicios/servicios.routes.js';
+
+import documentosRoutes from './modules/documentos/documentos.routes.js';
+import webhooksRoutes from './modules/webhooks/webhooks.routes.js';
+import adminRoutes from './modules/admin/admin.routes.js';
+import facturacionRoutes from './modules/facturacion/facturacion.routes.js';
+import catalogRoutes from './modules/inventory/catalog.routes.js';
+import ubicacionesRoutes from './modules/inventory/ubicaciones.routes.js';
+import movementsRoutes from './modules/inventory/movements.routes.js';
+
+
 const app = express();
 const httpServer = createServer(app);
-
 // ─── Seguridad ───────────────────────────────────────────────
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(cors({
   origin: env.FRONTEND_URL,
   credentials: true,
@@ -66,6 +78,7 @@ app.get('/health', (_req, res) => {
 // ─── API v1 ──────────────────────────────────────────────────
 const API = '/api/v1';
 
+
 app.get(API, (req, res) => {
   res.json({
     message: 'CARGAR CRM API v1',
@@ -73,6 +86,11 @@ app.get(API, (req, res) => {
     version: '1.0.0'
   });
 });
+
+app.use(`${API}/webhooks`,      webhooksRoutes);
+app.use(`${API}/admin`,         adminRoutes);
+app.use(`${API}/me`,            adminRoutes); // Reutilizamos el router para /me
+
 app.use(`${API}/auth`,          authRoutes);
 app.use(`${API}/companies`,     companiesRoutes);
 app.use(`${API}/contacts`,      contactsRoutes);
@@ -82,6 +100,9 @@ app.use(`${API}/tasks`,         tasksRoutes);
 app.use(`${API}/quotes`,        quotesRoutes);
 app.use(`${API}/leads`,         leadsRoutes);
 app.use(`${API}/inventory`,     inventoryRoutes);
+app.use(`${API}/catalogo`,      catalogRoutes);
+app.use(`${API}/ubicaciones`,   ubicacionesRoutes);
+app.use(`${API}/movements`,     movementsRoutes);
 
 // Módulos adicionales — se irán agregando por sprint
 app.use(`${API}/campaigns`,     campaignsRoutes);
@@ -91,8 +112,15 @@ app.use(`${API}/equipos`,     equiposRoutes);
 app.use(`${API}/mantenimiento`, mantenimientoRoutes);
 app.use(`${API}/proveedores`, proveedoresRoutes);
 app.use(`${API}/compras`, comprasRoutes);
+
 app.use(`${API}/catalogo-servicios`, catalogoServiciosRoutes);
 app.use(`${API}/servicios`, serviciosRoutes);
+
+app.use(`${API}/documentos`, documentosRoutes);
+app.use(`${API}/facturacion`, facturacionRoutes);
+app.use('/uploads', express.static('uploads'));
+
+
 // Atendiendo solicitud específica de ruta por empresa
 app.get(`${API}/empresas/:id/equipos`, (req, res, next) => {
   req.url = `/by-company/${req.params.id}`;

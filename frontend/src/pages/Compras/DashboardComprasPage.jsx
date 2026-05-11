@@ -145,16 +145,21 @@ export const DashboardComprasPage = () => {
       <Sidebar />
 
             <Topbar 
-        title="Módulo de Compras" 
-        rightContent={
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <NavLink to="/compras/solicitudes/nueva" className="btn btn--primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Plus size={18} />
-              Nueva Solicitud
-            </NavLink>
-          </div>
-        } 
-      />
+  title="Módulo de Compras"
+  subtitle="Gestión de solicitudes, cotizaciones y órdenes de compra"
+  rightContent={
+    <div style={{ display: 'flex', gap: '0.75rem' }}>
+      <NavLink
+        to="/compras/solicitudes/nueva"
+        className="btn btn--primary"
+        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+      >
+        <Plus size={18} />
+        Nueva Solicitud
+      </NavLink>
+    </div>
+  }
+/>
 
       <main className="main-content">
         {/* KPI Grid */}

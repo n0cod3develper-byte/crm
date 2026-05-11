@@ -248,7 +248,7 @@ export function ProveedorFormPage() {
             </div>
 
             <div className="card">
-              <h3 className="font-bold text-sm mb-3">Categorías</h3>
+              <h3 className="font-bold text-sm mb-3">Familias de Suministro</h3>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                 {['SUMINISTROS', 'SERVICIOS', 'REPUESTOS', 'LOGISTICA'].map(cat => (
                   <label key={cat} className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-elevated" style={{ fontSize: 'var(--text-xs)' }}>

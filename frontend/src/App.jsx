@@ -24,7 +24,14 @@ const EquiposPage = lazy(() => import('./pages/Equipos/EquiposPage').then(m => (
 const MantenimientoPage = lazy(() => import('./pages/Mantenimiento/MantenimientoPage').then(m => ({ default: m.MantenimientoPage })));
 const OTFormPage = lazy(() => import('./pages/Mantenimiento/OTFormPage').then(m => ({ default: m.OTFormPage })));
 const OTDetailPage = lazy(() => import('./pages/Mantenimiento/OTDetailPage').then(m => ({ default: m.OTDetailPage })));
+const CatalogDashboardPage = lazy(() => import('./pages/Inventory/CatalogDashboardPage').then(m => ({ default: m.CatalogDashboardPage })));
+const CatalogListPage = lazy(() => import('./pages/Inventory/CatalogListPage').then(m => ({ default: m.CatalogListPage })));
+const CatalogFormPage = lazy(() => import('./pages/Inventory/CatalogFormPage').then(m => ({ default: m.CatalogFormPage })));
+const CatalogItemDetailPage = lazy(() => import('./pages/Inventory/CatalogItemDetailPage').then(m => ({ default: m.CatalogItemDetailPage })));
+const MovementsPage = lazy(() => import('./pages/Inventory/MovementsPage').then(m => ({ default: m.MovementsPage })));
 const PMAdminPage = lazy(() => import('./pages/Mantenimiento/PMAdminPage').then(m => ({ default: m.PMAdminPage })));
+const UbicacionesPage = lazy(() => import('./pages/Inventory/UbicacionesPage').then(m => ({ default: m.UbicacionesPage })));
+const FamiliesPage = lazy(() => import('./pages/Inventory/FamiliesPage').then(m => ({ default: m.FamiliesPage })));
 
 const ProveedoresListPage = lazy(() => import('./pages/Proveedores/ProveedoresListPage').then(m => ({ default: m.ProveedoresListPage })));
 const ProveedorFormPage = lazy(() => import('./pages/Proveedores/ProveedorFormPage').then(m => ({ default: m.ProveedorFormPage })));
@@ -38,10 +45,20 @@ const OrdenesCompraPage = lazy(() => import('./pages/Compras/OrdenesCompraPage')
 const OrdenCompraFormPage = lazy(() => import('./pages/Compras/OrdenCompraFormPage').then(m => ({ default: m.OrdenCompraFormPage })));
 const AprobacionesPage = lazy(() => import('./pages/Compras/AprobacionesPage').then(m => ({ default: m.AprobacionesPage })));
 const RecepcionMercanciaPage = lazy(() => import('./pages/Compras/RecepcionMercanciaPage').then(m => ({ default: m.RecepcionMercanciaPage })));
+
 const CatalogoServiciosPage = lazy(() => import('./pages/CatalogoServicios/CatalogoServiciosPage').then(m => ({ default: m.CatalogoServiciosPage })));
 const ServiciosPage = lazy(() => import('./pages/Servicios/ServiciosPage').then(m => ({ default: m.ServiciosPage })));
 const RemisionFormPage = lazy(() => import('./pages/Servicios/RemisionFormPage').then(m => ({ default: m.RemisionFormPage })));
 const RemisionDetailPage = lazy(() => import('./pages/Servicios/RemisionDetailPage').then(m => ({ default: m.RemisionDetailPage })));
+
+const Error403Page = lazy(() => import('./pages/Auth/Error403Page').then(m => ({ default: m.Error403Page })));
+const FacturacionDashboard = lazy(() => import('./pages/Facturacion/DashboardFacturacionPage').then(m => ({ default: m.DashboardFacturacionPage })));
+const OtsPendientesPage = lazy(() => import('./pages/Facturacion/OtsPendientesPage').then(m => ({ default: m.OtsPendientesPage })));
+const FacturasListPage = lazy(() => import('./pages/Facturacion/FacturasListPage').then(m => ({ default: m.FacturasListPage })));
+const FacturaDetailPage = lazy(() => import('./pages/Facturacion/FacturaDetailPage').then(m => ({ default: m.FacturaDetailPage })));
+const RolesPage = lazy(() => import('./pages/Admin/RolesPage').then(m => ({ default: m.RolesPage })));
+const UsersPage = lazy(() => import('./pages/Admin/UsersPage').then(m => ({ default: m.UsersPage })));
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -52,17 +69,9 @@ const queryClient = new QueryClient({
   },
 });
 
-function ProtectedRoute({ children }) {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
-}
-
-function PublicRoute({ children }) {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  return !isAuthenticated ? children : <Navigate to="/dashboard" replace />;
-}
-
 import { useThemeStore } from './stores/themeStore';
+import { PermissionsProvider } from './contexts/PermissionsContext';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 const PageLoader = () => (
   <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', background: 'var(--bg-app)' }}>
@@ -79,91 +88,120 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename={import.meta.env.PROD ? '/crm' : '/'}>
+      <PermissionsProvider>
+        <BrowserRouter basename={import.meta.env.PROD ? '/crm' : '/'}>
         <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* Rutas públicas */}
-            <Route path="/login" element={
-              <PublicRoute><LoginPage /></PublicRoute>
-            } />
-            <Route path="/register" element={
-              <PublicRoute><RegisterPage /></PublicRoute>
-            } />
-            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
 
             {/* Rutas protegidas */}
             <Route path="/dashboard" element={
               <ProtectedRoute><DashboardPage /></ProtectedRoute>
             } />
             <Route path="/companies" element={
-              <ProtectedRoute><CompaniesPage /></ProtectedRoute>
+              <ProtectedRoute modulo="empresas" accion="ver"><CompaniesPage /></ProtectedRoute>
             } />
             <Route path="/companies/:id" element={
-              <ProtectedRoute><CompanyDetailPage /></ProtectedRoute>
-            } />
-            <Route path="/contacts" element={
-              <ProtectedRoute><ContactsPage /></ProtectedRoute>
-            } />
-            <Route path="/pipeline" element={
-              <ProtectedRoute><PipelinePage /></ProtectedRoute>
-            } />
-            <Route path="/tasks" element={
-              <ProtectedRoute><TasksPage /></ProtectedRoute>
-            } />
-            <Route path="/quotes" element={
-              <ProtectedRoute><QuotesPage /></ProtectedRoute>
-            } />
-            <Route path="/leads" element={
-              <ProtectedRoute><LeadsPage /></ProtectedRoute>
+              <ProtectedRoute modulo="empresas" accion="ver"><CompanyDetailPage /></ProtectedRoute>
             } />
             <Route path="/inventory" element={
-              <ProtectedRoute><InventoryPage /></ProtectedRoute>
+              <ProtectedRoute modulo="inventario" accion="ver"><InventoryPage /></ProtectedRoute>
             } />
-            <Route path="/campaigns" element={
-              <ProtectedRoute><CampaignsPage /></ProtectedRoute>
+            <Route path="/inventory/ubicaciones" element={
+              <ProtectedRoute modulo="inventario" accion="ver"><UbicacionesPage /></ProtectedRoute>
             } />
-            <Route path="/support" element={
-              <ProtectedRoute><SupportPage /></ProtectedRoute>
+            <Route path="/catalogo" element={
+              <ProtectedRoute modulo="catalogo" accion="ver"><CatalogDashboardPage /></ProtectedRoute>
             } />
-            <Route path="/employees" element={
-              <ProtectedRoute><EmployeesPage /></ProtectedRoute>
+            <Route path="/catalogo/familias" element={
+              <ProtectedRoute modulo="catalogo" accion="ver"><FamiliesPage /></ProtectedRoute>
             } />
-            <Route path="/equipos" element={
-              <ProtectedRoute><EquiposPage /></ProtectedRoute>
+            <Route path="/catalogo/items" element={
+              <ProtectedRoute modulo="catalogo" accion="ver"><CatalogListPage /></ProtectedRoute>
+            } />
+            <Route path="/inventario/movimientos" element={
+              <ProtectedRoute modulo="inventario" accion="ver"><MovementsPage /></ProtectedRoute>
+            } />
+            <Route path="/catalogo/:id" element={
+              <ProtectedRoute modulo="catalogo" accion="ver"><CatalogItemDetailPage /></ProtectedRoute>
+            } />
+            <Route path="/catalogo/nuevo" element={
+              <ProtectedRoute modulo="catalogo" accion="crear"><CatalogFormPage /></ProtectedRoute>
+            } />
+            <Route path="/catalogo/:id/editar" element={
+              <ProtectedRoute modulo="catalogo" accion="editar"><CatalogFormPage /></ProtectedRoute>
             } />
             <Route path="/mantenimiento" element={
-              <ProtectedRoute><MantenimientoPage /></ProtectedRoute>
+              <ProtectedRoute modulo="ordenes_trabajo" accion="ver"><MantenimientoPage /></ProtectedRoute>
             } />
             <Route path="/mantenimiento/nueva" element={
-              <ProtectedRoute><OTFormPage /></ProtectedRoute>
-            } />
-            <Route path="/mantenimiento/:id" element={
-              <ProtectedRoute><OTDetailPage /></ProtectedRoute>
-            } />
-            <Route path="/mantenimiento/:id/editar" element={
-              <ProtectedRoute><OTFormPage /></ProtectedRoute>
+              <ProtectedRoute modulo="ordenes_trabajo" accion="crear"><OTFormPage /></ProtectedRoute>
             } />
             <Route path="/mantenimiento/configuracion" element={
-              <ProtectedRoute><PMAdminPage /></ProtectedRoute>
+              <ProtectedRoute adminOnly><PMAdminPage /></ProtectedRoute>
+            } />
+            <Route path="/mantenimiento/:id/editar" element={
+              <ProtectedRoute modulo="ordenes_trabajo" accion="editar"><OTFormPage /></ProtectedRoute>
+            } />
+            <Route path="/mantenimiento/:id" element={
+              <ProtectedRoute modulo="ordenes_trabajo" accion="ver"><OTDetailPage /></ProtectedRoute>
+            } />
+            <Route path="/admin/roles" element={
+              <ProtectedRoute adminOnly><RolesPage /></ProtectedRoute>
+            } />
+            <Route path="/admin/usuarios" element={
+              <ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>
             } />
 
-            {/* Submódulo Proveedores */}
-            <Route path="/proveedores" element={<ProtectedRoute><ProveedoresListPage /></ProtectedRoute>} />
-            <Route path="/proveedores/nuevo" element={<ProtectedRoute><ProveedorFormPage /></ProtectedRoute>} />
-            <Route path="/proveedores/:id/editar" element={<ProtectedRoute><ProveedorFormPage /></ProtectedRoute>} />
-            <Route path="/proveedores/:id" element={<ProtectedRoute><ProveedorFichaPage /></ProtectedRoute>} />
+            {/* Módulo Compras — Dashboard */}
+            <Route path="/compras" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><DashboardComprasPage /></ProtectedRoute>} />
+            <Route path="/compras/aprobaciones" element={<ProtectedRoute modulo="ordenes_compra" accion="aprobar"><AprobacionesPage /></ProtectedRoute>} />
 
-            {/* Módulo Órdenes de Compra */}
-            <Route path="/compras" element={<ProtectedRoute><DashboardComprasPage /></ProtectedRoute>} />
-            <Route path="/compras/solicitudes" element={<ProtectedRoute><SolicitudesListPage /></ProtectedRoute>} />
-            <Route path="/compras/solicitudes/nueva" element={<ProtectedRoute><SolicitudFormPage /></ProtectedRoute>} />
-            <Route path="/compras/solicitudes/:id/editar" element={<ProtectedRoute><SolicitudFormPage /></ProtectedRoute>} />
-            <Route path="/compras/cotizaciones/comparativa/:solicitudId" element={<ProtectedRoute><ComparacionCotizacionesPage /></ProtectedRoute>} />
-            <Route path="/compras/oc" element={<ProtectedRoute><OrdenesCompraPage /></ProtectedRoute>} />
-            <Route path="/compras/oc/nueva/:cotizacionId" element={<ProtectedRoute><OrdenCompraFormPage /></ProtectedRoute>} />
-            <Route path="/compras/oc/:id/editar" element={<ProtectedRoute><OrdenCompraFormPage /></ProtectedRoute>} />
-            <Route path="/compras/aprobaciones" element={<ProtectedRoute><AprobacionesPage /></ProtectedRoute>} />
-            <Route path="/compras/recepcion/:id" element={<ProtectedRoute><RecepcionMercanciaPage /></ProtectedRoute>} />
+            {/* Compras — Solicitudes */}
+            <Route path="/compras/solicitudes" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><SolicitudesListPage /></ProtectedRoute>} />
+            <Route path="/compras/solicitudes/nueva" element={<ProtectedRoute modulo="ordenes_compra" accion="crear"><SolicitudFormPage /></ProtectedRoute>} />
+            <Route path="/compras/solicitudes/:id/editar" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><SolicitudFormPage /></ProtectedRoute>} />
+
+            {/* Compras — Comparativa de Cotizaciones */}
+            <Route path="/compras/cotizaciones/comparativa/:solicitudId" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><ComparacionCotizacionesPage /></ProtectedRoute>} />
+
+            {/* Compras — Órdenes de Compra */}
+            <Route path="/compras/oc" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><OrdenesCompraPage /></ProtectedRoute>} />
+            <Route path="/compras/oc/:id/editar" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><OrdenCompraFormPage /></ProtectedRoute>} />
+
+            {/* Compras — Recepción de Mercancía */}
+            <Route path="/compras/recepcion/:id" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><RecepcionMercanciaPage /></ProtectedRoute>} />
+            
+            {/* Comercial */}
+            <Route path="/contacts" element={<ProtectedRoute modulo="contactos" accion="ver"><ContactsPage /></ProtectedRoute>} />
+            <Route path="/pipeline" element={<ProtectedRoute modulo="pipeline" accion="ver"><PipelinePage /></ProtectedRoute>} />
+            <Route path="/tasks" element={<ProtectedRoute modulo="tareas" accion="ver"><TasksPage /></ProtectedRoute>} />
+            <Route path="/quotes" element={<ProtectedRoute modulo="cotizaciones" accion="ver"><QuotesPage /></ProtectedRoute>} />
+
+            {/* Marketing */}
+            <Route path="/leads" element={<ProtectedRoute modulo="leads" accion="ver"><LeadsPage /></ProtectedRoute>} />
+            <Route path="/campaigns" element={<ProtectedRoute modulo="campanas" accion="ver"><CampaignsPage /></ProtectedRoute>} />
+
+            {/* Operaciones */}
+            <Route path="/support" element={<ProtectedRoute modulo="soporte" accion="ver"><SupportPage /></ProtectedRoute>} />
+            <Route path="/employees" element={<ProtectedRoute modulo="empleados" accion="ver"><EmployeesPage /></ProtectedRoute>} />
+            <Route path="/equipos" element={<ProtectedRoute modulo="equipos" accion="ver"><EquiposPage /></ProtectedRoute>} />
+
+            {/* Facturación */}
+            <Route path="/facturacion" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturacionDashboard /></ProtectedRoute>} />
+            <Route path="/facturacion/pendientes" element={<ProtectedRoute modulo="facturacion" accion="ver"><OtsPendientesPage /></ProtectedRoute>} />
+            <Route path="/facturacion/facturas" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturasListPage /></ProtectedRoute>} />
+            <Route path="/facturacion/facturas/:id" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturaDetailPage /></ProtectedRoute>} />
+
+            {/* Logística */}
+            <Route path="/proveedores" element={<ProtectedRoute modulo="proveedores" accion="ver"><ProveedoresListPage /></ProtectedRoute>} />
+            <Route path="/proveedores/nuevo" element={<ProtectedRoute modulo="proveedores" accion="crear"><ProveedorFormPage /></ProtectedRoute>} />
+            <Route path="/proveedores/:id" element={<ProtectedRoute modulo="proveedores" accion="ver"><ProveedorFichaPage /></ProtectedRoute>} />
+
+            {/* Admin Usuarios */}
+            <Route path="/admin/users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
 
             {/* Catálogo de Servicios */}
             <Route path="/catalogo-servicios" element={<ProtectedRoute><CatalogoServiciosPage /></ProtectedRoute>} />
@@ -176,11 +214,13 @@ function App() {
 
 
             {/* Redirect raíz */}
+            <Route path="/403" element={<Error403Page />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </Suspense>
       </BrowserRouter>
+      </PermissionsProvider>
 
       <Toaster
         position="top-right"

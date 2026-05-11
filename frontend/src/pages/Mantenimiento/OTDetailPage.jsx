@@ -55,6 +55,24 @@ export function OTDetailPage() {
     }
   };
 
+  const handleDownloadInvoicePDF = async () => {
+    try {
+      toast.loading('Descargando Factura...', { id: 'invoice-pdf' });
+      const response = await api.get(`/facturacion/facturas/${ot.factura_id}/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${ot.factura_consecutivo || 'factura'}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Factura descargada', { id: 'invoice-pdf' });
+    } catch {
+      toast.error('Error al descargar la factura', { id: 'invoice-pdf' });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="app-layout">
@@ -305,37 +323,72 @@ export function OTDetailPage() {
 
         {/* ─── Liquidación ─────────────────────────────── */}
         {liq && (
-          <div className="card" style={{
-            border: '2px solid rgba(34,197,94,0.3)',
-            background: 'linear-gradient(135deg, var(--bg-surface), rgba(34,197,94,0.03))',
-          }}>
-            <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <DollarSign size={18} color="#22c55e" /> Liquidación
-            </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: ot.factura_id ? '1fr 1fr' : '1fr', gap: '1.5rem' }}>
+            <div className="card" style={{
+              border: '2px solid rgba(34,197,94,0.3)',
+              background: 'linear-gradient(135deg, var(--bg-surface), rgba(34,197,94,0.03))',
+            }}>
+              <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <DollarSign size={18} color="#22c55e" /> Liquidación
+              </h2>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem 3rem', maxWidth: 400, fontSize: '14px' }}>
-              <span style={{ color: 'var(--text-secondary)' }}>Total Mano de Obra</span>
-              <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(liq.total_mano_obra)}</span>
-              <span style={{ color: 'var(--text-secondary)' }}>Total Repuestos</span>
-              <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(liq.total_repuestos)}</span>
-              <span style={{ color: 'var(--text-secondary)' }}>Subtotal</span>
-              <span style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(liq.subtotal)}</span>
-              <span style={{ color: 'var(--text-secondary)' }}>Impuesto ({liq.impuesto_pct}%)</span>
-              <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(liq.impuesto_valor)}</span>
-              <span style={{ fontSize: '20px', fontWeight: 800, color: '#22c55e' }}>TOTAL FINAL</span>
-              <span style={{ textAlign: 'right', fontSize: '20px', fontWeight: 800, color: '#22c55e' }}>{fmt(liq.total_final)}</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem 3rem', maxWidth: 400, fontSize: '14px' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Total Mano de Obra</span>
+                <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(liq.total_mano_obra)}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Total Repuestos</span>
+                <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(liq.total_repuestos)}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Subtotal</span>
+                <span style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(liq.subtotal)}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Impuesto ({liq.impuesto_pct}%)</span>
+                <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(liq.impuesto_valor)}</span>
+                <span style={{ fontSize: '20px', fontWeight: 800, color: '#22c55e' }}>TOTAL FINAL</span>
+                <span style={{ textAlign: 'right', fontSize: '20px', fontWeight: 800, color: '#22c55e' }}>{fmt(liq.total_final)}</span>
+              </div>
+
+              {liq.notas_liquidacion && (
+                <div style={{ marginTop: '1rem', fontSize: '13px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                  Notas: {liq.notas_liquidacion}
+                </div>
+              )}
+              <div style={{ marginTop: '0.75rem', fontSize: '12px', color: 'var(--text-muted)' }}>
+                Liquidado el {fmtDate(liq.fecha_liquidacion)}
+              </div>
             </div>
 
-            {liq.notas_liquidacion && (
-              <div style={{ marginTop: '1rem', fontSize: '13px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                Notas: {liq.notas_liquidacion}
+            {ot.factura_id && (
+              <div className="card" style={{
+                border: '2px solid var(--clr-primary-400)',
+                background: 'linear-gradient(135deg, var(--bg-surface), rgba(59,130,246,0.03))',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between'
+              }}>
+                <div>
+                  <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FileText size={18} color="var(--clr-primary-500)" /> Información de Facturación
+                  </h2>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <Field label="Consecutivo Interno" value={ot.factura_consecutivo} />
+                    <Field label="Número Factura (SaaS)" value={ot.factura_numero_externo || 'Pendiente'} />
+                    <Field label="Fecha Facturación" value={fmtDate(ot.fecha_facturada)} />
+                    <Field label="Estado OT" value={<span className="badge badge--success" style={{ background: '#22c55e', color: 'white' }}>FACTURADA</span>} />
+                  </div>
+                </div>
+                
+                <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                  <button 
+                    className="btn btn--primary w-full" 
+                    style={{ gap: '0.75rem', padding: '0.75rem' }}
+                    onClick={handleDownloadInvoicePDF}
+                  >
+                    <Download size={18} /> Descargar Soporte de Factura
+                  </button>
+                </div>
               </div>
             )}
-            <div style={{ marginTop: '0.75rem', fontSize: '12px', color: 'var(--text-muted)' }}>
-              Liquidado el {fmtDate(liq.fecha_liquidacion)}
-            </div>
           </div>
         )}
+
       </main>
     </div>
   );

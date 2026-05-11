@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../../utils/jwt.js';
+import { authenticate } from '../../middleware/auth.js';
 import {
   listTickets, getTicket, createTicket, updateTicket, deleteTicket, getStats,
   listMessages, addMessage, deleteMessage,

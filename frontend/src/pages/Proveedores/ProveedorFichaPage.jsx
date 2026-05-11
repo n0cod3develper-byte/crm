@@ -10,12 +10,16 @@ import {
 } from 'lucide-react';
 import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
+import { Modal } from '../../components/common/Modal';
+import { DocumentosList } from '../../components/documentos/DocumentosList';
+import { DocumentoUploader } from '../../components/documentos/DocumentoUploader';
 import api from '../../lib/api';
 
 export function ProveedorFichaPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = React.useState('info');
+  const [isDocumentoModalOpen, setIsDocumentoModalOpen] = React.useState(false);
 
   const { data: proveedor, isLoading } = useQuery({
     queryKey: ['proveedor', id],
@@ -41,18 +45,37 @@ export function ProveedorFichaPage() {
       <Sidebar />
             <Topbar 
         title={proveedor.razon_social} 
-        rightContent={
+        subtitle="null"
+        rightContent={<>
           <div className="flex items-center gap-3">
-            <div className="flex gap-2">
-              <button className="btn btn--secondary" onClick={() => navigate(`/proveedores/${id}/editar`)}>
-                <Edit size={16} /> Editar Perfil
-              </button>
-              <button className="btn btn--primary" onClick={() => navigate(`/compras/solicitudes/nueva?proveedorId=${id}`)}>
-                <Plus size={16} /> Crear Solicitud
-              </button>
+            <button className="btn btn--ghost btn--sm" onClick={() => navigate('/proveedores')}>
+              <ArrowLeft size={18} />
+            </button>
+            <div className="flex items-center gap-4">
+               <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--clr-primary-500)', display: 'grid', placeItems: 'center', color: 'white', fontWeight: 800, fontSize: '1.25rem' }}>
+                  {proveedor.razon_social.charAt(0)}
+               </div>
+               
+                  <div className="flex items-center gap-3 text-sm text-muted">
+                     <span>NIT: {proveedor.numero_documento}-{proveedor.digito_verificacion || '0'}</span>
+                     <span>·</span>
+                     <div className="flex items-center gap-1">
+                       {renderStars(proveedor.calificacion_promedio || 0)}
+                       <span style={{ fontWeight: 600, color: 'var(--text-primary)', marginLeft: '0.25rem' }}>{(proveedor.calificacion_promedio || 0).toFixed(1)}</span>
+                     </div>
+                  </div>
+               </div>
             </div>
+          <div className="flex gap-2">
+            <button className="btn btn--secondary" onClick={() => navigate(`/proveedores/${id}/editar`)}>
+              <Edit size={16} /> Editar Perfil
+            </button>
+            <button className="btn btn--primary" onClick={() => navigate(`/compras/solicitudes/nueva?proveedorId=${id}`)}>
+              <Plus size={16} /> Crear Solicitud
+            </button>
           </div>
-        } 
+        </>} 
+
       />
 
       <main className="main-content">
@@ -160,14 +183,14 @@ export function ProveedorFichaPage() {
                 )}
 
                 {activeTab === 'documentos' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
-                    {['RUT', 'Cámara de Comercio', 'Certificación Bancaria', 'Portafolio de Servicios'].map(doc => (
-                      <div key={doc} className="card flex flex-col items-center gap-3 p-4" style={{ background: 'var(--bg-elevated)', borderStyle: 'dashed' }}>
-                        <FileCheck size={32} className="text-muted" />
-                        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, textAlign: 'center' }}>{doc}</span>
-                        <button className="btn btn--sm btn--ghost" style={{ width: '100%' }}>Adjuntar</button>
-                      </div>
-                    ))}
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 style={{ fontWeight: 700 }}>Documentos del Proveedor</h3>
+                      <button className="btn btn--primary btn--sm" onClick={() => setIsDocumentoModalOpen(true)}>
+                        <Plus size={14} /> Subir documento
+                      </button>
+                    </div>
+                    <DocumentosList entidadTipo="PROVEEDOR" entidadId={id} />
                   </div>
                 )}
               </div>
@@ -219,6 +242,20 @@ export function ProveedorFichaPage() {
 
         </div>
       </main>
+
+      {isDocumentoModalOpen && (
+        <Modal 
+          title="Subir Documento" 
+          onClose={() => setIsDocumentoModalOpen(false)}
+        >
+          <DocumentoUploader 
+            entidadTipo="PROVEEDOR" 
+            entidadId={id} 
+            onClose={() => setIsDocumentoModalOpen(false)} 
+            onUploadSuccess={() => setIsDocumentoModalOpen(false)}
+          />
+        </Modal>
+      )}
     </div>
   );
 }

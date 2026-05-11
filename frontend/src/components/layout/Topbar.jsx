@@ -1,9 +1,9 @@
 import React from 'react';
 import { Search, Bell, Plus, ChevronDown } from 'lucide-react';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuth } from '../../contexts/AuthContext';
 
 export function Topbar({ title, subtitle, rightContent }) {
-  const { user } = useAuthStore();
+  const { user } = useAuth();
 
   return (
     <header className="header" style={{ padding: '0 1.5rem', height: 'var(--header-height)' }}>
@@ -35,16 +35,6 @@ export function Topbar({ title, subtitle, rightContent }) {
               outline: 'none',
               transition: 'all var(--transition-fast)'
             }}
-            onFocus={(e) => {
-              e.target.style.background = 'var(--bg-surface)';
-              e.target.style.borderColor = 'var(--clr-primary-400)';
-              e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.1)';
-            }}
-            onBlur={(e) => {
-              e.target.style.background = 'var(--bg-app)';
-              e.target.style.borderColor = 'var(--border-color)';
-              e.target.style.boxShadow = 'none';
-            }}
           />
         </div>
       </div>
@@ -62,16 +52,24 @@ export function Topbar({ title, subtitle, rightContent }) {
           <span style={{ position: 'absolute', top: 6, right: 8, width: 8, height: 8, background: 'var(--clr-danger)', borderRadius: '50%', border: '2px solid var(--bg-surface)' }}></span>
         </button>
 
-        {/* Avatar Profile */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', padding: '0.25rem', borderRadius: 'var(--radius-full)', transition: 'background var(--transition-fast)' }} className="hover-bg-elevated">
+        {/* Custom User Avatar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           {user?.avatar_url ? (
-            <img src={user.avatar_url} alt="Avatar" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)' }} />
+            <img 
+              src={user.avatar_url} 
+              alt={user.nombre} 
+              style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--border-color)', objectFit: 'cover' }} 
+            />
           ) : (
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--clr-primary-500)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 'var(--text-sm)', fontWeight: 600 }}>
-              {user?.full_name?.[0]?.toUpperCase() || 'U'}
+            <div style={{ 
+              width: 32, height: 32, borderRadius: '50%', 
+              background: 'var(--clr-primary-500)', color: 'white', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', 
+              fontSize: '12px', fontWeight: 700 
+            }}>
+              {user?.nombre?.[0]}{user?.apellido?.[0]}
             </div>
           )}
-          <ChevronDown size={14} color="var(--text-secondary)" />
         </div>
       </div>
     </header>

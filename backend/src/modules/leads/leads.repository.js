@@ -36,7 +36,7 @@ export class LeadsRepository {
 
     const sql = `
       SELECT l.*,
-        u.full_name AS assigned_to_name,
+        (u.nombre || ' ' || u.apellido) AS assigned_to_name,
         c.name AS campaign_name
       FROM leads l
       LEFT JOIN users u ON u.id = l.assigned_to
@@ -58,7 +58,7 @@ export class LeadsRepository {
 
   async findById(id) {
     const result = await query(
-      `SELECT l.*, u.full_name AS assigned_to_name, c.name AS campaign_name
+      `SELECT l.*, (u.nombre || ' ' || u.apellido) AS assigned_to_name, c.name AS campaign_name
        FROM leads l
        LEFT JOIN users u ON u.id = l.assigned_to
        LEFT JOIN campaigns c ON c.id = l.campaign_id

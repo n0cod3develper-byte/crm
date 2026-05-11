@@ -1,5 +1,6 @@
 import { db } from '../../config/database.js';
 import { comprasRepository } from './compras.repository.js';
+import { registrarMovimiento } from '../../services/inventoryMovements.service.js';
 
 export class ComprasService {
   async crearSolicitud(data, userId) {
@@ -194,38 +195,49 @@ export class ComprasService {
 
         await client.query('UPDATE oc_items SET cantidad_recibida = $1, estado_item = $2 WHERE id = $3', [newReceived, status, item.oc_item_id]);
 
-        // ================= INVENTARIO INTEGRATION =================
-        if (item.cantidad_recibida > 0) {
-          let itemInvId = currentItem.item_inventario_id;
+          // ================= INVENTARIO INTEGRATION =================
+          if (parseFloat(item.cantidad_recibida) > 0) {
+            let itemInvId = currentItem.item_inventario_id;
 
-          // If it was a new item, create it in inventory
-          if (!itemInvId) {
-            const resNewInv = await client.query(`
-              INSERT INTO inventory_items (name, description, unit, unit_cost, stock_current, stock_minimum)
-              VALUES ($1, $2, $3, $4, $5, 0)
-              RETURNING id
-            `, [currentItem.descripcion, currentItem.descripcion, currentItem.unidad, currentItem.precio_unitario, item.cantidad_recibida]);
-            itemInvId = resNewInv.rows[0].id;
-            
-            // update oc_item to link it
-            await client.query('UPDATE oc_items SET item_inventario_id = $1 WHERE id = $2', [itemInvId, item.oc_item_id]);
-          } else {
-             // update existing inventory stock AND cost
-             await client.query(`
-                UPDATE inventory_items 
-                SET stock_current = stock_current + $1, unit_cost = $2, updated_at = NOW() 
-                WHERE id = $3
-             `, [item.cantidad_recibida, currentItem.precio_unitario, itemInvId]);
+            // If it was a manual item with no inventory link, create it now
+            if (!itemInvId) {
+              const newInvData = item.new_inventory_data || {};
+              const resNewInv = await client.query(`
+                INSERT INTO inventario (sku, name, description, categoria_id, unit, costo_reposicion, unit_price, stock_actual, stock_minimum, is_active, tipo)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, true, 'PRODUCTO')
+                RETURNING id
+              `, [
+                newInvData.sku || null,
+                newInvData.name || currentItem.descripcion,
+                newInvData.description || currentItem.descripcion,
+                newInvData.categoria_id || null,
+                currentItem.unidad,
+                currentItem.precio_unitario,
+                newInvData.unit_price || currentItem.precio_unitario,
+                newInvData.stock_minimum || 0
+              ]);
+              itemInvId = resNewInv.rows[0].id;
+              
+              await client.query('UPDATE oc_items SET item_inventario_id = $1 WHERE id = $2', [itemInvId, item.oc_item_id]);
+            }
+
+            // Registrar movimiento de entrada (esto actualiza stock y costo promedio)
+            const ocRes = await client.query('SELECT consecutivo, proveedor_id FROM ordenes_compra WHERE id = $1', [ocId]);
+            const oc = ocRes.rows[0];
+
+            await registrarMovimiento({
+              inventario_id: itemInvId,
+              tipo_movimiento: 'ENTRADA_OC',
+              tipo_documento: 'ORDEN_COMPRA',
+              numero_documento: oc.consecutivo,
+              cantidad: parseFloat(item.cantidad_recibida),
+              precio_unitario: parseFloat(currentItem.precio_unitario),
+              proveedor_id: oc.proveedor_id,
+              oc_id: ocId,
+              notas: `Recepción de mercancía OC ${oc.consecutivo}`,
+              registrado_por: userId
+            }, client);
           }
-
-          // Insert movement
-          const ocRes = await client.query('SELECT consecutivo FROM ordenes_compra WHERE id = $1', [ocId]);
-          await client.query(`
-            INSERT INTO inventory_movements (item_id, type, quantity, reference, notes, created_by)
-            VALUES ($1, 'in', $2, $3, $4, $5)
-          `, [itemInvId, item.cantidad_recibida, `RECEPCIÓN OC ${ocRes.rows[0].consecutivo}`, `Precio unitario de OC: ${currentItem.precio_unitario}`, userId]);
-
-        }
       }
 
       if (anyReceived) {

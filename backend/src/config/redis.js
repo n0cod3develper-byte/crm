@@ -1,4 +1,3 @@
-import { createClient } from 'redis';
 import IORedis from 'ioredis';
 import { env } from './env.js';
 import { logger } from '../utils/logger.js';
@@ -20,16 +19,12 @@ export const redisConnection = new IORedis(env.REDIS_URL, {
 redisConnection.on('connect', () => logger.info('✅ Conectado a Redis (BullMQ)'));
 redisConnection.on('error', (err) => logger.warn('Redis BullMQ no disponible', { error: err.message }));
 
-// ─── Cliente general (node-redis) — para caché ───────────────
-export const redis = createClient({
-  url: env.REDIS_URL,
-  socket: {
-    reconnectStrategy: (retries) => {
-      if (retries > 3) return new Error('Redis connection failed');
-      return Math.min(retries * 100, 1000);
-    },
-    connectTimeout: 5000
-  }
+// ─── Cliente general (ioredis) — para caché ───────────────────
+export const redis = new IORedis(env.REDIS_URL, {
+  enableReadyCheck: true,
+  retryStrategy(times) {
+    return Math.min(times * 200, 5000);
+  },
 });
 
 redis.on('error', (err) => logger.warn('Redis general no disponible', { error: err.message }));
@@ -39,16 +34,27 @@ redis.on('error', (err) => logger.warn('Redis general no disponible', { error: e
  */
 export async function connectRedis() {
   try {
-    await redis.connect();
-    redisAvailable = true;
-    logger.info('✅ Conectado a Redis (caché general)');
+    // ioredis se conecta automáticamente, pero esperamos a que esté listo
+    if (redis.status === 'ready') {
+      redisAvailable = true;
+      logger.info('✅ Conectado a Redis (caché general)');
+      return;
+    }
+    await new Promise((resolve, reject) => {
+      redis.once('ready', () => {
+        redisAvailable = true;
+        logger.info('✅ Conectado a Redis (caché general)');
+        resolve();
+      });
+      redis.once('error', reject);
+    });
   } catch (err) {
     redisAvailable = false;
-    logger.warn('⚠️  Redis no disponible — el sistema funcionará sin caché. Inicia Redis para habilitar caché.', {
+    logger.warn('⚠️  Redis no disponible — el sistema funcionará sin caché.', {
       error: err.message,
     });
   }
-}
+} // ← cierre de connectRedis
 
 /**
  * Helpers de caché con TTL automático.
@@ -56,7 +62,7 @@ export async function connectRedis() {
  */
 export const cache = {
   async get(key) {
-    if (!redisAvailable || !redis.isOpen) return null;
+    if (!redisAvailable) return null;
     try {
       const val = await redis.get(key);
       return val ? JSON.parse(val) : null;
@@ -66,16 +72,16 @@ export const cache = {
   },
 
   async set(key, value, ttlSeconds = 3600) {
-    if (!redisAvailable || !redis.isOpen) return;
+    if (!redisAvailable) return;
     try {
-      await redis.setEx(key, ttlSeconds, JSON.stringify(value));
+      await redis.setex(key, ttlSeconds, JSON.stringify(value));
     } catch {
       // silencioso
     }
   },
 
   async del(key) {
-    if (!redisAvailable || !redis.isOpen) return;
+    if (!redisAvailable) return;
     try {
       await redis.del(key);
     } catch {
@@ -84,10 +90,10 @@ export const cache = {
   },
 
   async delPattern(pattern) {
-    if (!redisAvailable || !redis.isOpen) return;
+    if (!redisAvailable) return;
     try {
       const keys = await redis.keys(pattern);
-      if (keys.length > 0) await redis.del(keys);
+      if (keys.length > 0) await redis.del(...keys);
     } catch {
       // silencioso
     }

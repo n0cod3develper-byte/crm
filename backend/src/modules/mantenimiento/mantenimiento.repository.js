@@ -1,6 +1,7 @@
 import { query, withTransaction } from '../../config/database.js';
 import { env } from '../../config/env.js';
 import { PMRepository } from './pm.repository.js';
+import { registrarMovimiento } from '../../services/inventoryMovements.service.js';
 
 const pmRepo = new PMRepository();
 
@@ -75,11 +76,13 @@ export class MantenimientoRepository {
       SELECT ot.*, 
              c.name AS empresa_nombre, c.nit AS empresa_nit, c.phone as empresa_telefono, c.address as empresa_direccion,
              e.marca AS equipo_marca, e.modelo AS equipo_modelo, e.serial AS equipo_serial,
-             f.nombre AS frecuencia_nombre, f.horas AS frecuencia_horas, f.version AS frecuencia_version
+             f.nombre AS frecuencia_nombre, f.horas AS frecuencia_horas, f.version AS frecuencia_version,
+             fac.consecutivo_interno AS factura_consecutivo, fac.numero_factura AS factura_numero_externo
       FROM ordenes_trabajo ot
       JOIN companies c ON c.id = ot.empresa_id
       JOIN equipos e ON e.id = ot.equipo_id
       LEFT JOIN pm_frecuencias f ON f.id = ot.pm_frecuencia_id
+      LEFT JOIN facturas fac ON fac.id = ot.factura_id
       WHERE ot.id = $1 AND ot.deleted_at IS NULL
     `, [id]);
 
@@ -287,10 +290,19 @@ export class MantenimientoRepository {
   // ==========================================
   async searchInventario(q) {
       const result = await query(
-          `SELECT id, sku, name, description, unit, unit_price, stock_current 
-           FROM inventory_items 
-           WHERE (name ILIKE $1 OR sku ILIKE $1) AND is_active = true
-           LIMIT 20`,
+          `SELECT 
+            id, 
+            referencia_sistema as sku, 
+            codigo_interno, 
+            nombre_interno as name, 
+            nombre_comercial, 
+            unidad_medida as unit, 
+            precio_venta as unit_price, 
+            stock_actual 
+           FROM catalogo_completo 
+           WHERE (nombre_comercial ILIKE $1 OR nombre_interno ILIKE $1 OR referencia_sistema ILIKE $1 OR codigo_interno ILIKE $1)
+             AND activo_catalogo = true
+           LIMIT 25`,
           [`%${q}%`]
       );
       return result.rows;
@@ -347,6 +359,16 @@ export class MantenimientoRepository {
           }
           const consecutivo = otRes.rows[0].consecutivo;
 
+          // 1.5 Verificar completitud documental (OT Firmada)
+          const docCheckRes = await client.query(`SELECT puede_liquidar FROM ot_puede_liquidar WHERE id = $1`, [ot_id]);
+          if (docCheckRes.rows.length > 0 && !docCheckRes.rows[0].puede_liquidar) {
+              const err = new Error("No se puede liquidar la OT");
+              err.codigo = "OT_FIRMADA_REQUERIDA";
+              err.mensaje = "Debes subir la orden de trabajo firmada por el cliente antes de liquidar. Usa el botón 'Subir OT firmada' en la sección de documentos.";
+              err.ot_consecutivo = consecutivo;
+              throw err;
+          }
+
           // 2. Sumar Mano de Obra
           const moRes = await client.query(`SELECT SUM(total_mano_obra) as sum_mo FROM ot_tecnicos WHERE orden_trabajo_id = $1`, [ot_id]);
           const total_mano_obra = parseFloat(moRes.rows[0].sum_mo) || 0;
@@ -362,10 +384,10 @@ export class MantenimientoRepository {
               total_repuestos += parseFloat(rep.total);
 
               // Consultar el stock actual
-              const invRes = await client.query(`SELECT stock_current FROM inventory_items WHERE id = $1 FOR UPDATE`, [rep.item_inventario_id]);
+              const invRes = await client.query(`SELECT stock_actual FROM inventario WHERE id = $1 FOR UPDATE`, [rep.item_inventario_id]);
               if(invRes.rows.length === 0) throw new Error(`Item ${rep.descripcion} no existe en inventario.`);
               
-              const currentStock = parseFloat(invRes.rows[0].stock_current);
+              const currentStock = parseFloat(invRes.rows[0].stock_actual);
               const requested = parseFloat(rep.cantidad);
 
               if(currentStock < requested) {
@@ -380,13 +402,16 @@ export class MantenimientoRepository {
           // 4. Descargar de Inventario
           for(const rep of repsReq.rows) {
               const requested = parseFloat(rep.cantidad);
-              await client.query(`UPDATE inventory_items SET stock_current = stock_current - $1 WHERE id = $2`, [requested, rep.item_inventario_id]);
               
-              const desc = `Descargo OT: ${consecutivo}`;
-              await client.query(`
-                  INSERT INTO inventory_movements (item_id, type, quantity, reference, notes, created_by)
-                  VALUES ($1, 'out', $2, $3, $4, $5)
-              `, [rep.item_inventario_id, requested, consecutivo, desc, user_id]);
+              await registrarMovimiento({
+                  inventario_id: rep.item_inventario_id,
+                  tipo_movimiento: 'SALIDA_OT',
+                  cantidad: requested,
+                  numero_documento: consecutivo,
+                  ot_id: ot_id,
+                  notas: `Descargo automático por liquidación de OT ${consecutivo}`,
+                  registrado_por: user_id
+              }, client);
 
               await client.query(`UPDATE ot_repuestos_insumos SET descargado = TRUE, fecha_descargo = NOW() WHERE id = $1`, [rep.id]);
           }

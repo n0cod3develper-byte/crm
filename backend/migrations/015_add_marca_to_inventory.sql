@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE inventory_items 
+ADD COLUMN IF NOT EXISTS marca VARCHAR(100);
+
+COMMIT;

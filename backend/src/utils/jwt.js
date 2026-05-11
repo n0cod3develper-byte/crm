@@ -2,28 +2,41 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { query } from '../config/database.js';
 import { AppError } from './errors.js';
+import { logger } from './logger.js';
 
 /**
- * Genera un par de tokens: access (15min) + refresh (7d)
+ * Genera un par de tokens: access (1h) + refresh (7d)
  */
 export function generateTokenPair(userId) {
   const accessToken = jwt.sign(
     { sub: userId, type: 'access' },
     env.JWT_SECRET,
-    { expiresIn: env.JWT_EXPIRES_IN }
+    { expiresIn: '1h' }
   );
 
   const refreshToken = jwt.sign(
     { sub: userId, type: 'refresh' },
     env.JWT_REFRESH_SECRET,
-    { expiresIn: env.JWT_REFRESH_EXPIRES_IN }
+    { expiresIn: '7d' }
   );
 
   return { accessToken, refreshToken };
 }
 
 /**
- * Middleware: verifica el JWT de acceso en la cabecera Authorization
+ * Verifica un token de acceso
+ */
+export function verifyAccessToken(token) {
+  try {
+    return jwt.verify(token, env.JWT_SECRET);
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') throw new AppError('Token expirado', 401);
+    throw new AppError('Token inválido', 401);
+  }
+}
+
+/**
+ * Middleware: verifica la autenticación mediante JWT propio
  */
 export async function authenticate(req, res, next) {
   try {
@@ -33,25 +46,26 @@ export async function authenticate(req, res, next) {
     }
 
     const token = authHeader.slice(7);
-    let payload;
-    try {
-      payload = jwt.verify(token, env.JWT_SECRET);
-    } catch (err) {
-      if (err.name === 'TokenExpiredError') throw new AppError('Token expirado', 401);
-      throw new AppError('Token inválido', 401);
-    }
+    const payload = verifyAccessToken(token);
 
     if (payload.type !== 'access') throw new AppError('Tipo de token incorrecto', 401);
 
-    // Carga el usuario desde BD (valida que no esté desactivado)
-    const result = await query(
-      'SELECT id, email, full_name, role, is_active FROM users WHERE id = $1',
-      [payload.sub]
-    );
+    // Carga el usuario desde la tabla users
+    const sql = `
+      SELECT u.id, u.email, u.nombre, u.apellido, u.estado, r.slug as role 
+      FROM users u
+      LEFT JOIN roles r ON u.rol_id = r.id
+      WHERE u.id = $1
+    `;
+    const result = await query(sql, [payload.sub]);
     const user = result.rows[0];
 
     if (!user) throw new AppError('Usuario no encontrado', 401);
-    if (!user.is_active) throw new AppError('Cuenta desactivada', 403);
+    if (user.estado !== 'ACTIVO') throw new AppError('Cuenta desactivada', 403);
+
+    // Compatibilidad
+    user.full_name = `${user.nombre} ${user.apellido || ''}`.trim();
+    user.is_active = user.estado === 'ACTIVO';
 
     req.user = user;
     next();
@@ -61,8 +75,7 @@ export async function authenticate(req, res, next) {
 }
 
 /**
- * Middleware: verifica rol mínimo requerido.
- * Usar después de authenticate.
+ * Middleware: verifica rol mínimo requerido
  */
 export function authorize(...roles) {
   return (req, _res, next) => {
