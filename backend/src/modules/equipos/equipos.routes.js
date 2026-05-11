@@ -1,22 +1,31 @@
 import { Router } from 'express';
-import { equiposController } from './equipos.controller.js';
+
+
 import { authenticate } from '../../middleware/auth.js';
 
-const router = Router();
+import { equiposController, uploadMiddleware } from './equipos.controller.js';
 
-// Todas las rutas requieren autenticación
+
+
+const router = Router();
 router.use(authenticate);
 
-router.get('/',               equiposController.list);
-router.post('/',              equiposController.create);
-router.get('/:id',            equiposController.get);
-router.put('/:id',            equiposController.update); // PUT como pidió el usuario
-router.delete('/:id',         equiposController.remove);
+// ─── Ruta especial antes de /:id ──────────────────────────────
+router.get('/tecnicos-disponibles', equiposController.getTecnicosDisponibles);
+router.get('/by-company/:id',       equiposController.listByCompany);
 
-// Ruta adicional solicitada: Listar equipos de una empresa específica
-// El usuario pidió /api/empresas/:id/equipos, pero por consistencia con el prefijo /api/v1 
-// y el sistema modular, lo registraremos también en las rutas de empresas o aquí.
-// Lo pondré aquí por ahora y lo referenciaré en app.js si es necesario.
-router.get('/by-company/:id', equiposController.listByCompany);
+// ─── CRUD Equipos ─────────────────────────────────────────────
+router.get('/',     equiposController.list);
+router.post('/',    equiposController.create);
+router.get('/:id',  equiposController.get);
+router.put('/:id',  equiposController.update);
+router.delete('/:id', equiposController.remove);
+
+// ─── Historial del Equipo ─────────────────────────────────────
+router.get( '/:id/historial',                          equiposController.listHistorial);
+router.post('/:id/historial',   uploadMiddleware,      equiposController.createHistorial);
+router.get( '/:id/historial/:historialId',             equiposController.getHistorial);
+router.put( '/:id/historial/:historialId', uploadMiddleware, equiposController.updateHistorial);
+router.post('/:id/historial/:historialId/repuestos',   equiposController.addRepuestos);
 
 export default router;

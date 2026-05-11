@@ -39,11 +39,12 @@ export const serviciosController = {
 
       // Campos que el modal de liquidación puede actualizar incluso en estado LIQUIDADA
       const liquidacionFields = new Set([
-        'hora_salida_cargar', 'hora_llegada_cargar', 'cantidad_horas',
-        'total_bruto', 'iva_valor', 'total_neto', 'estado'
+        'hora_salida_cargar', 'hora_llegada_cargar',
+        'segundo_hora_salida_cargar', 'segundo_hora_llegada_cargar',
+        'cantidad_horas', 'total_bruto', 'iva_valor', 'total_neto', 'estado'
       ]);
       const incomingKeys = Object.keys(req.body);
-      const isLiquidacionPatch = incomingKeys.every(k => liquidacionFields.has(k));
+      const isLiquidacionPatch = incomingKeys.length > 0 && incomingKeys.every(k => liquidacionFields.has(k));
 
       // Bloquear edición completa de remisiones ANULADAS o LIQUIDADAS
       // (solo se permite el patch parcial de la liquidación)

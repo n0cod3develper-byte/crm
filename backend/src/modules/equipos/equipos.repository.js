@@ -1,5 +1,11 @@
 import { query } from '../../config/database.js';
 
+const NEW_EQUIPO_FIELDS = [
+  'tipo_equipo', 'estado_inicial', 'ubicacion',
+  'horometro_inicial', 'fecha_adquisicion',
+  'fecha_vencimiento_garantia', 'horas_operacion_diaria',
+];
+
 export class EquiposRepository {
   async findAll({ empresa_id, motor, combustible, capacidad_carga, search, limit = 50, cursor }) {
     const conditions = ['e.deleted_at IS NULL'];
@@ -73,11 +79,33 @@ export class EquiposRepository {
   }
 
   async create(data) {
-    const { marca, modelo, serial, motor, combustible, capacidad_carga, color, empresa_id, numero_equipo } = data;
+    const {
+      marca, modelo, serial, motor, combustible, capacidad_carga, color,
+      empresa_id, numero_equipo,
+      tipo_equipo, estado_inicial, ubicacion, horometro_inicial,
+      fecha_adquisicion, fecha_vencimiento_garantia, horas_operacion_diaria,
+    } = data;
+
     const result = await query(
-      `INSERT INTO equipos (marca, modelo, serial, motor, combustible, capacidad_carga, color, empresa_id, numero_equipo)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [marca, modelo, serial, motor, combustible, capacidad_carga, color, empresa_id, numero_equipo]
+      `INSERT INTO equipos (
+         marca, modelo, serial, motor, combustible, capacidad_carga, color,
+         empresa_id, numero_equipo,
+         tipo_equipo, estado_inicial, ubicacion, horometro_inicial,
+         fecha_adquisicion, fecha_vencimiento_garantia, horas_operacion_diaria
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       RETURNING *`,
+      [
+        marca, modelo, serial, motor, combustible, capacidad_carga, color,
+        empresa_id, numero_equipo || null,
+        tipo_equipo || 'Montacargas contrabalanceo',
+        estado_inicial || 'Operativo',
+        ubicacion || 'Taller',
+        horometro_inicial || 0,
+        fecha_adquisicion || null,
+        fecha_vencimiento_garantia || null,
+        horas_operacion_diaria || null,
+      ]
     );
     return result.rows[0];
   }
@@ -86,20 +114,24 @@ export class EquiposRepository {
     const fields = [];
     const values = [];
     let i = 1;
-    const allowed = ['marca', 'modelo', 'serial', 'motor', 'combustible', 'capacidad_carga', 'color', 'empresa_id', 'numero_equipo'];
-    
+    const allowed = [
+      'marca', 'modelo', 'serial', 'motor', 'combustible', 'capacidad_carga',
+      'color', 'empresa_id', 'numero_equipo',
+      ...NEW_EQUIPO_FIELDS,
+    ];
+
     for (const key of allowed) {
       if (key in data) {
         fields.push(`${key} = $${i++}`);
-        values.push(data[key]);
+        values.push(data[key] === '' ? null : data[key]);
       }
     }
-    
+
     if (fields.length === 0) return this.findById(id);
-    
+
     values.push(id);
     const result = await query(
-      `UPDATE equipos SET ${fields.join(', ')}, updated_at = NOW() 
+      `UPDATE equipos SET ${fields.join(', ')}, updated_at = NOW()
        WHERE id = $${i} AND deleted_at IS NULL RETURNING *`,
       values
     );

@@ -28,7 +28,7 @@ if (!DATABASE_URL) {
 const { Pool } = pg;
 const pool = new Pool({ connectionString: DATABASE_URL });
 
-// Archivos de migración en orden
+// Archivos de migración 
 const MIGRATION_FILES = [
   '001_initial_schema.sql',
   '002_support_module.sql',
@@ -52,7 +52,7 @@ const MIGRATION_FILES = [
   '017_optimization_indexes.sql',
   '018_add_image_to_catalog_view.sql',
 
-
+  
   '019_add_company_to_employees.sql',
   '020_add_custom_fields_to_companies.sql',
   '021_catalogo_servicios.sql',
@@ -66,8 +66,12 @@ const MIGRATION_FILES = [
   '029_segundo_operario_tiempos.sql',
   '030_segundo_operario_horometros.sql',
   '031_segundo_operario_fecha.sql',
-];
 
+  
+  '032_equipos_campos_ampliados.sql',
+  '033_historial_equipo.sql',
+  '034_trabajos_detalle_horometro_decimal.sql',
+];
 async function ensureMigrationsTable(client) {
   await client.query(`
     CREATE TABLE IF NOT EXISTS _migrations (

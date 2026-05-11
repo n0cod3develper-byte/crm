@@ -121,8 +121,9 @@ export function RemisionFormPage() {
       if (existingData.estado) f.estado = existingData.estado;
       setForm(f);
       setHorasManual(true);
-      // Si el estado ya está fijado (REALIZADA, LIQUIDADA), no dejar que el auto-calc lo cambie
-      if (['REALIZADA', 'LIQUIDADA', 'PENDIENTE'].includes(loadedEstado)) {
+      // Solo bloquear auto-cálculo si la remisión ya está LIQUIDADA o ANULADA (modo solo lectura)
+      // PENDIENTE y REALIZADA deben seguir respondiendo al auto-cálculo al editar los tiempos
+      if (['LIQUIDADA', 'ANULADO'].includes(loadedEstado)) {
         setEstadoManual(true);
       }
     }
@@ -253,8 +254,16 @@ export function RemisionFormPage() {
       return;
     }
 
+    // Al cambiar campos de hora de inicio/fin, resetear el flag manual
+    // para que el auto-cálculo de estado pueda actuar (BORRADOR → PENDIENTE → REALIZADA)
     if (['hora_salida_cargar', 'hora_llegada_cargar', 'horometro_salida', 'horometro_regreso'].includes(name)) {
       setHorasManual(false);
+    }
+    // Al cambiar CUALQUIER campo de tiempo (los 4 de tiempos del servicio),
+    // reactivar el auto-cálculo de estado si no estamos en un estado bloqueado
+    const timeFields = ['hora_salida_cargar', 'hora_llegada_cliente', 'hora_salida_cliente', 'hora_llegada_cargar'];
+    if (timeFields.includes(name) && !READ_ONLY_ESTADOS.includes(currentEstado)) {
+      setEstadoManual(false);
     }
 
     setForm(prev => ({ ...prev, [name]: value }));

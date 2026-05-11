@@ -5,6 +5,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import passport from 'passport';
 import { createServer } from 'http';
+import { fileURLToPath } from 'url';
+import path from 'path';
 
 import { env } from './config/env.js';
 import { checkConnection } from './config/database.js';
@@ -35,6 +37,7 @@ import comprasRoutes from './modules/compras/compras.routes.js';
 import catalogoServiciosRoutes from './modules/catalogo_servicios/catalogo_servicios.routes.js';
 import serviciosRoutes from './modules/servicios/servicios.routes.js';
 
+
 import documentosRoutes from './modules/documentos/documentos.routes.js';
 import webhooksRoutes from './modules/webhooks/webhooks.routes.js';
 import adminRoutes from './modules/admin/admin.routes.js';
@@ -44,18 +47,24 @@ import ubicacionesRoutes from './modules/inventory/ubicaciones.routes.js';
 import movementsRoutes from './modules/inventory/movements.routes.js';
 
 
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const app = express();
 const httpServer = createServer(app);
 // ─── Seguridad ───────────────────────────────────────────────
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
+
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+
 app.use(cors({
   origin: env.FRONTEND_URL,
   credentials: true,
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
 }));
 app.use(generalLimiter);
+
+// ─── Archivos estáticos (adjuntos historial) ─────────────────
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 // ─── Parsers ─────────────────────────────────────────────────
 app.use(express.json({ limit: '20mb' }));

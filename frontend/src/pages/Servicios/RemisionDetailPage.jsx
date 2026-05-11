@@ -324,14 +324,14 @@ export function RemisionDetailPage() {
               ))}
               {totalLiquidado > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  <span>Total Liquidar Operarios</span>
+                  <span>Recargos Operarios (incluido en neto)</span>
                   <span style={{ color: '#22c55e', fontWeight: 600 }}>{formatCOP(totalLiquidado)}</span>
                 </div>
               )}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid var(--border-color)', paddingTop: '0.5rem', marginTop: '0.5rem', fontWeight: 700, fontSize: '14px' }}>
                 <span>TOTAL NETO</span>
-                <span style={{ color: 'var(--clr-primary-500)' }}>{formatCOP(parseFloat(remision.total_neto || 0) + totalLiquidado)}</span>
+                <span style={{ color: 'var(--clr-primary-500)' }}>{formatCOP(remision.total_neto)}</span>
               </div>
             </div>
 

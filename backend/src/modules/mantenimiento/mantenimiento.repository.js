@@ -55,16 +55,16 @@ export class MantenimientoRepository {
       const tecnicosStr = otIds.map((_, index) => `$${index + 1}`).join(', ');
       
       const tecnicosRes = await query(`
-        SELECT t.orden_trabajo_id, em.full_name
+        SELECT t.orden_trabajo_id, t.empleado_id, em.full_name
         FROM ot_tecnicos t
         JOIN employees em ON em.id = t.empleado_id
         WHERE t.orden_trabajo_id IN (${tecnicosStr})
       `, otIds);
 
       rows.forEach(r => {
-        r.tecnicos = tecnicosRes.rows
-          .filter(t => t.orden_trabajo_id === r.id)
-          .map(t => t.full_name);
+        const tecs = tecnicosRes.rows.filter(t => t.orden_trabajo_id === r.id);
+        r.tecnicos = tecs.map(t => t.full_name);
+        r.tecnicos_asignados = tecs.map(t => ({ empleado_id: t.empleado_id, full_name: t.full_name }));
       });
     }
 

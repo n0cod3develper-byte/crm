@@ -62,6 +62,7 @@ function OperarioPanel({ operario, remision, onSaved, onDelete, existingLiq, onR
     .filter(([k]) => k !== 'min_ord_diurna')
     .reduce((s, [, v]) => s + v, 0);
 
+  // Solo tipos con recargo extra (las horas ordinarias diurnas van en nómina, no en remisión)
   const tiposConHoras = Object.entries(RECARGOS).filter(([k]) => (minutos[k] || 0) > 0 && k !== 'min_ord_diurna');
 
   // Notificar total y payload al modal padre
@@ -156,46 +157,43 @@ function OperarioPanel({ operario, remision, onSaved, onDelete, existingLiq, onR
 
       {minSinOrd > 0 && parseFloat(salario) > 0 && (
         <>
-
-          {/* Liquidación */}
-          {parseFloat(salario) > 0 && (
-            <div style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.04), rgba(99,102,241,0.04))', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '0.875rem', marginBottom: '1rem' }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.6rem' }}>
-                <Calculator size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Liquidación
-              </p>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '0.6rem' }}>
-                Valor hora base (salario ÷ 220): <strong>{fmt(liquidacion.valor_hora_base)}</strong>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.5fr 1fr 1fr 1fr', gap: '0.3rem 0.5rem', fontSize: 11 }}>
-                <span style={{ fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tipo de Hora</span>
-                <span style={{ fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center' }}>%</span>
-                <span style={{ fontWeight: 700, color: 'var(--text-muted)', textAlign: 'right' }}>Horas</span>
-                <span style={{ fontWeight: 700, color: 'var(--text-muted)', textAlign: 'right' }}>Vr/Hora</span>
-                <span style={{ fontWeight: 700, color: 'var(--text-muted)', textAlign: 'right' }}>Subtotal</span>
-                {tiposConHoras.map(([key, { label, pct }]) => {
-                  const min = minutos[key] || 0;
-                  const horas = minToH(min);
-                  const vrHora = liquidacion.valor_hora_base * (pct / 100);
-                  const subtotal = liquidacion[key.replace('min_', 'val_')] || 0;
-                  return (
-                    <React.Fragment key={key}>
-                      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                      <span style={{ textAlign: 'center', fontWeight: 600 }}>{pct}%</span>
-                      <span style={{ textAlign: 'right' }}>{horas}h</span>
-                      <span style={{ textAlign: 'right' }}>{fmt(vrHora)}</span>
-                      <span style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(subtotal)}</span>
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-              <div style={{ marginTop: '0.75rem', borderTop: '1px solid rgba(34,197,94,0.3)', paddingTop: '0.6rem', display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.25rem' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Total horas extras (sin ord. diurna)</span>
-                <span style={{ fontSize: 12, fontWeight: 600, textAlign: 'right' }}>{fmtH(minSinOrd)}</span>
-                <span style={{ fontSize: 14, fontWeight: 800 }}>TOTAL A LIQUIDAR</span>
-                <span style={{ fontSize: 14, fontWeight: 800, color: '#22c55e', textAlign: 'right' }}>{fmt(liquidacion.total_liquidado)}</span>
-              </div>
+          {/* Liquidación — solo horas con recargo extra */}
+          <div style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.04), rgba(99,102,241,0.04))', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, padding: '0.875rem', marginBottom: '1rem' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.6rem' }}>
+              <Calculator size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} /> Liquidación de Recargos
+            </p>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: '0.6rem' }}>
+              Valor hora base (salario ÷ 220): <strong>{fmt(liquidacion.valor_hora_base)}</strong>
             </div>
-          )}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.5fr 1fr 1fr 1fr', gap: '0.3rem 0.5rem', fontSize: 11 }}>
+              <span style={{ fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tipo de Hora</span>
+              <span style={{ fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center' }}>%</span>
+              <span style={{ fontWeight: 700, color: 'var(--text-muted)', textAlign: 'right' }}>Horas</span>
+              <span style={{ fontWeight: 700, color: 'var(--text-muted)', textAlign: 'right' }}>Vr/Hora</span>
+              <span style={{ fontWeight: 700, color: 'var(--text-muted)', textAlign: 'right' }}>Subtotal</span>
+              {tiposConHoras.map(([key, { label, pct }]) => {
+                const min = minutos[key] || 0;
+                const horas = minToH(min);
+                const vrHora = liquidacion.valor_hora_base * (pct / 100);
+                const subtotal = liquidacion[key.replace('min_', 'val_')] || 0;
+                return (
+                  <React.Fragment key={key}>
+                    <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                    <span style={{ textAlign: 'center', fontWeight: 600 }}>{pct}%</span>
+                    <span style={{ textAlign: 'right' }}>{horas}h</span>
+                    <span style={{ textAlign: 'right' }}>{fmt(vrHora)}</span>
+                    <span style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(subtotal)}</span>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: '0.75rem', borderTop: '1px solid rgba(34,197,94,0.3)', paddingTop: '0.6rem', display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.25rem' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Total horas con recargo (sin ord. diurna)</span>
+              <span style={{ fontSize: 12, fontWeight: 600, textAlign: 'right' }}>{fmtH(minSinOrd)}</span>
+              <span style={{ fontSize: 14, fontWeight: 800 }}>TOTAL A LIQUIDAR</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#22c55e', textAlign: 'right' }}>{fmt(liquidacion.total_liquidado)}</span>
+            </div>
+          </div>
         </>
       )}
 

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { useAuthStore } from '../stores/authStore';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api/v1',
@@ -6,12 +7,19 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// ─── Request interceptor: adjunta el JWT ──────────────────
+// ─── Request interceptor: adjunta el JWT y maneja FormData ─
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+
+  const token = useAuthStore.getState().accessToken;
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  // Si el body es FormData, eliminar Content-Type para que el navegador
+  // lo establezca automáticamente con el boundary multipart correcto.
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
   }
+
+
   return config;
 });
 
