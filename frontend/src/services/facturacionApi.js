@@ -9,6 +9,7 @@ export const facturacionApi = {
   
   // PDF
   getFacturaPdfUrl: (id) => `${import.meta.env.VITE_API_URL}/api/v1/facturacion/facturas/${id}/pdf`,
+  downloadFacturaPdf: (id) => api.get(`/facturacion/facturas/${id}/pdf`, { responseType: 'blob' }),
 
   // Acciones
   createPrefactura: (data) => api.post('/facturacion/prefacturas', data).then(res => res.data),

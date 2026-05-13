@@ -15,6 +15,7 @@ import {
 import { facturacionApi } from '../../services/facturacionApi';
 import { Layout } from '../../components/Layout';
 import { formatCurrency } from '../../utils/formatters';
+import { toast } from 'react-hot-toast';
 
 export const FacturasListPage = () => {
   const navigate = useNavigate();
@@ -25,6 +26,27 @@ export const FacturasListPage = () => {
     queryKey: ['facturas', tab, search],
     queryFn: () => facturacionApi.getFacturas({ estado: tab, search })
   });
+  
+  const handleDownloadPDF = async (factura) => {
+    try {
+      toast.loading('Generando PDF...', { id: 'download-pdf' });
+      const response = await facturacionApi.downloadFacturaPdf(factura.id);
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${factura.consecutivo_interno}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('PDF generado con éxito', { id: 'download-pdf' });
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast.error('No se pudo generar el PDF', { id: 'download-pdf' });
+    }
+  };
 
   const tabs = [
     { id: 'PREFACTURA', label: 'Prefacturas', count: 0 },
@@ -127,7 +149,7 @@ export const FacturasListPage = () => {
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          window.open(facturacionApi.getFacturaPdfUrl(factura.id), '_blank');
+                          handleDownloadPDF(factura);
                         }}
                         className="p-2 rounded-lg hover:bg-subtle text-muted hover:text-accent transition-all"
                         title="Descargar PDF"

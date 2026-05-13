@@ -266,6 +266,54 @@ img, video { max-width: 100%; display: block; }
   transition: all var(--transition-fast);
 }
 
+/* ─── Selectable Cards (Mimic Menu Style) ────────────────── */
+.selectable-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--text-primary);
+  user-select: none;
+}
+
+.selectable-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--clr-primary-400);
+}
+
+[data-theme="light"] .selectable-card:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.selectable-card--active {
+  background: var(--clr-primary-500) !important;
+  border-color: var(--clr-primary-500) !important;
+  color: #FFFFFF !important;
+  box-shadow: var(--shadow-glow);
+}
+
+.selectable-card--active .text-muted,
+.selectable-card--active span,
+.selectable-card--active div {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.selectable-card input[type="radio"] {
+  accent-color: var(--clr-primary-400);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.selectable-card--active input[type="radio"] {
+  accent-color: #FFFFFF;
+}
+
 /* ─── Botones ────────────────────────────────────────────── */
 .btn {
   display: inline-flex;

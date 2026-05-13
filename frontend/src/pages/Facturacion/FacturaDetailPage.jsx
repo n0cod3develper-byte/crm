@@ -66,6 +66,27 @@ export const FacturaDetailPage = () => {
     }
   };
 
+  const handleDownloadPDF = async () => {
+    try {
+      toast.loading('Generando PDF...', { id: 'download-pdf' });
+      const response = await facturacionApi.downloadFacturaPdf(id);
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${fact.consecutivo_interno}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('PDF generado con éxito', { id: 'download-pdf' });
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast.error('No se pudo generar el PDF', { id: 'download-pdf' });
+    }
+  };
+
   if (isLoading) return <Layout><div className="flex items-center justify-center min-h-[400px]"><div className="spinner" /></div></Layout>;
   if (!factura?.data) return <Layout><div className="text-center py-20">Factura no encontrada</div></Layout>;
 
@@ -93,7 +114,7 @@ export const FacturaDetailPage = () => {
               </button>
             )}
             <button 
-              onClick={() => window.open(facturacionApi.getFacturaPdfUrl(id), '_blank')}
+              onClick={handleDownloadPDF}
               className="btn-secondary flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5"
             >
               <Download size={18} /> Descargar PDF

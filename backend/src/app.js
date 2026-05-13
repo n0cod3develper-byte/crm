@@ -38,6 +38,8 @@ import facturacionRoutes from './modules/facturacion/facturacion.routes.js';
 import catalogRoutes from './modules/inventory/catalog.routes.js';
 import ubicacionesRoutes from './modules/inventory/ubicaciones.routes.js';
 import movementsRoutes from './modules/inventory/movements.routes.js';
+import catalogoServiciosRoutes from './modules/catalogo_servicios/catalogo_servicios.routes.js';
+import serviciosRoutes from './modules/servicios/servicios.routes.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -98,6 +100,8 @@ app.use(`${API}/proveedores`, proveedoresRoutes);
 app.use(`${API}/compras`, comprasRoutes);
 app.use(`${API}/documentos`, documentosRoutes);
 app.use(`${API}/facturacion`, facturacionRoutes);
+app.use(`${API}/catalogo-servicios`, catalogoServiciosRoutes);
+app.use(`${API}/servicios`, serviciosRoutes);
 app.use('/uploads', express.static('uploads'));
 
 // Atendiendo solicitud específica de ruta por empresa

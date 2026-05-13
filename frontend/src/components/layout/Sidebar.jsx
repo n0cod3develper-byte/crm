@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Building2, Users, TrendingUp, CheckSquare,
   MessageSquare, FileText, Megaphone, Package, LifeBuoy,
   Zap, BrainCircuit, Phone, BarChart3, Settings, LogOut, Truck, Box, Wrench,
-  ShoppingCart, ShoppingBag, Receipt, Clock, BookOpen, MapPin, History
+  ShoppingCart, ShoppingBag, Receipt, Clock, BookOpen, MapPin, History,
+  Bookmark, ClipboardList
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -29,6 +30,8 @@ const navItems = [
   { label: 'Equipos', icon: Truck, to: '/equipos', modulo: 'equipos' },
   { label: 'Mantenimiento', icon: Wrench, to: '/mantenimiento', modulo: 'ordenes_trabajo' },
   { label: 'Plantillas PM', icon: Settings, to: '/mantenimiento/configuracion', modulo: 'ordenes_trabajo' },
+  { label: 'Catálogo Serv.', icon: Bookmark, to: '/catalogo-servicios', modulo: 'servicios' },
+  { label: 'Servicios', icon: ClipboardList, to: '/servicios', modulo: 'servicios' },
   { section: 'Logística' },
   { label: 'Proveedores', icon: ShoppingBag, to: '/proveedores', modulo: 'proveedores' },
   { label: 'Facturación', icon: Receipt, to: '/facturacion', modulo: 'facturacion' },
