@@ -10,7 +10,10 @@ import {
   Building2,
   Calendar,
   X,
-  Plus
+  Plus,
+  FileText,
+  Receipt,
+  Layers
 } from 'lucide-react';
 import { facturacionApi } from '../../services/facturacionApi';
 import { Layout } from '../../components/Layout';
@@ -18,52 +21,73 @@ import { formatCurrency } from '../../utils/formatters';
 import { toast } from 'react-hot-toast';
 
 export const OtsPendientesPage = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
   const [search, setSearch] = useState('');
-  const [selectedOts, setSelectedOts] = useState([]);
+  const [selectedItems, setSelectedItems] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [notas, setNotas] = useState('');
   const [vencimiento, setVencimiento] = useState('');
   const [nroFactura, setNroFactura] = useState('');
 
+  const activeTab = searchParams.get('tab') || 'ots';
   const empresaIdParam = searchParams.get('empresa_id');
 
-  const { data: ots, isLoading } = useQuery({
-    queryKey: ['otsPendientes', empresaIdParam, search],
-    queryFn: () => facturacionApi.getOtsPendientes({ empresa_id: empresaIdParam, search })
+  const setTab = (tab) => {
+    const params = new URLSearchParams(searchParams);
+    params.set('tab', tab);
+    setSearchParams(params);
+    setSelectedItems([]);
+  };
+
+  const isRemisiones = activeTab === 'remisiones';
+
+  const { data: items, isLoading } = useQuery({
+    queryKey: [isRemisiones ? 'remisionesPendientes' : 'otsPendientes', empresaIdParam, search],
+    queryFn: () => {
+      if (isRemisiones) {
+        return facturacionApi.getRemisionesPendientes({ empresa_id: empresaIdParam, search });
+      }
+      return facturacionApi.getOtsPendientes({ empresa_id: empresaIdParam, search });
+    }
   });
 
-  const toggleSelect = (ot) => {
-    setSelectedOts(prev => {
-      const exists = prev.find(o => o.id === ot.id);
-      if (exists) return prev.filter(o => o.id !== ot.id);
+  const toggleSelect = (item) => {
+    setSelectedItems(prev => {
+      const exists = prev.find(o => o.id === item.id);
+      if (exists) return prev.filter(o => o.id !== item.id);
       
       // Validar misma empresa
-      if (prev.length > 0 && prev[0].empresa_id !== ot.empresa_id) {
-        toast.error(`Solo puedes agrupar OTs de la misma empresa. ${ot.consecutivo} pertenece a ${ot.empresa_nombre}.`);
+      if (prev.length > 0 && prev[0].empresa_id !== item.empresa_id) {
+        toast.error(`Solo puedes agrupar items de la misma empresa.`);
         return prev;
       }
       
-      return [...prev, ot];
+      return [...prev, item];
     });
   };
 
   const totals = useMemo(() => {
-    return selectedOts.reduce((acc, ot) => ({
-      subtotal: acc.subtotal + parseFloat(ot.subtotal),
-      iva: acc.iva + parseFloat(ot.iva_valor),
-      total: acc.total + parseFloat(ot.total)
+    return selectedItems.reduce((acc, item) => ({
+      subtotal: acc.subtotal + parseFloat(item.subtotal),
+      iva: acc.iva + parseFloat(item.iva_valor),
+      total: acc.total + parseFloat(item.total)
     }), { subtotal: 0, iva: 0, total: 0 });
-  }, [selectedOts]);
+  }, [selectedItems]);
 
   const createPrefacturaMutation = useMutation({
-    mutationFn: facturacionApi.createPrefactura,
+    mutationFn: (data) => {
+      if (isRemisiones) {
+        return facturacionApi.createPrefacturaFromRemisiones(data);
+      }
+      return facturacionApi.createPrefactura(data);
+    },
     onSuccess: (res) => {
       toast.success(res.data.estado === 'FACTURADA' ? 'Factura generada correctamente' : 'Prefactura creada correctamente');
       queryClient.invalidateQueries(['otsPendientes']);
+      queryClient.invalidateQueries(['remisionesPendientes']);
       navigate(`/facturacion/facturas/${res.data.id}`);
     },
     onError: (err) => {
@@ -72,23 +96,34 @@ export const OtsPendientesPage = () => {
   });
 
   const handleCreate = () => {
-    if (selectedOts.length === 0) return;
+    if (selectedItems.length === 0) return;
     setIsModalOpen(true);
   };
 
   const confirmCreate = () => {
-    createPrefacturaMutation.mutate({
-      empresa_id: selectedOts[0].empresa_id,
-      ot_ids: selectedOts.map(o => o.id),
-      condicion_pago: selectedOts[0].condicion_pago || '30_DIAS',
+    const baseData = {
+      empresa_id: selectedItems[0].empresa_id,
+      condicion_pago: selectedItems[0].condicion_pago || '30_DIAS',
       fecha_vencimiento: vencimiento,
       notas: notas,
       numero_factura: nroFactura
-    });
+    };
+
+    if (isRemisiones) {
+      createPrefacturaMutation.mutate({
+        ...baseData,
+        remision_ids: selectedItems.map(o => o.id),
+      });
+    } else {
+      createPrefacturaMutation.mutate({
+        ...baseData,
+        ot_ids: selectedItems.map(o => o.id),
+      });
+    }
   };
 
   if (isLoading) return (
-    <Layout title="Órdenes de Trabajo por Facturar">
+    <Layout title={isRemisiones ? 'Remisiones por Facturar' : 'Órdenes de Trabajo por Facturar'}>
       <div className="flex items-center justify-center py-20">
         <div className="spinner h-12 w-12" />
       </div>
@@ -96,7 +131,33 @@ export const OtsPendientesPage = () => {
   );
 
   return (
-    <Layout title="Órdenes de Trabajo por Facturar">
+    <Layout title={isRemisiones ? 'Remisiones por Facturar' : 'Órdenes de Trabajo por Facturar'}>
+      {/* ─── Tab Selector ─────────────────────────────────── */}
+      <div className="flex gap-1 mb-6 p-1 bg-subtle/50 rounded-2xl border border-color w-fit" role="tablist">
+        <button
+          role="tab"
+          aria-selected={!isRemisiones}
+          onClick={() => setTab('ots')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
+            !isRemisiones ? 'bg-white dark:bg-gray-800 shadow-sm text-accent' : 'text-muted hover:text-foreground'
+          }`}
+        >
+          <Layers size={16} />
+          OTs Pendientes
+        </button>
+        <button
+          role="tab"
+          aria-selected={isRemisiones}
+          onClick={() => setTab('remisiones')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
+            isRemisiones ? 'bg-white dark:bg-gray-800 shadow-sm text-accent' : 'text-muted hover:text-foreground'
+          }`}
+        >
+          <Receipt size={16} />
+          Remisiones Pendientes
+        </button>
+      </div>
+
       <div className="flex flex-col lg:flex-row gap-8">
         
         {/* Main Content - List */}
@@ -106,16 +167,11 @@ export const OtsPendientesPage = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={18} />
               <input 
                 type="text" 
-                placeholder="Buscar por OT o empresa..."
+                placeholder={isRemisiones ? 'Buscar por remisión o empresa...' : 'Buscar por OT o empresa...'}
                 className="input-premium pl-10 w-full"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
-            </div>
-            <div className="flex gap-2">
-              <button className="btn-secondary flex items-center gap-2">
-                <Filter size={18} /> Filtrar
-              </button>
             </div>
           </div>
 
@@ -124,50 +180,53 @@ export const OtsPendientesPage = () => {
               <thead className="bg-subtle text-xs uppercase tracking-wider text-muted">
                 <tr>
                   <th className="px-6 py-4 text-center w-12">Select</th>
-                  <th className="px-6 py-4 text-left">Orden</th>
+                  <th className="px-6 py-4 text-left">{isRemisiones ? 'Remisión' : 'Orden'}</th>
                   <th className="px-6 py-4 text-left">Empresa</th>
                   <th className="px-6 py-4 text-left">Liquidada</th>
                   <th className="px-6 py-4 text-right">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-color">
-                {ots?.data?.map((ot) => (
+                {items?.data?.map((item) => (
                   <tr 
-                    key={ot.id} 
-                    className={`hover:bg-subtle/30 transition-colors cursor-pointer ${selectedOts.find(o => o.id === ot.id) ? 'bg-accent/5' : ''}`}
-                    onClick={() => toggleSelect(ot)}
+                    key={item.id} 
+                    className={`hover:bg-subtle/30 transition-colors cursor-pointer ${selectedItems.find(o => o.id === item.id) ? 'bg-accent/5' : ''}`}
+                    onClick={() => toggleSelect(item)}
                   >
                     <td className="px-6 py-4 text-center">
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectedOts.find(o => o.id === ot.id) ? 'bg-accent border-accent text-white' : 'border-color'}`}>
-                        {selectedOts.find(o => o.id === ot.id) && <Plus size={14} strokeWidth={4} />}
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectedItems.find(o => o.id === item.id) ? 'bg-accent border-accent text-white' : 'border-color'}`}>
+                        {selectedItems.find(o => o.id === item.id) && <Plus size={14} strokeWidth={4} />}
                       </div>
                     </td>
-                    <td className="px-6 py-4 font-bold">{ot.consecutivo}</td>
+                    <td className="px-6 py-4 font-bold">{item.consecutivo}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <Building2 size={14} className="text-muted" />
-                        <span className="font-semibold">{ot.empresa_nombre}</span>
+                        <span className="font-semibold">{item.empresa_nombre}</span>
                       </div>
-                      <div className="text-[10px] text-muted uppercase tracking-tighter">NIT: {ot.empresa_nit}</div>
+                      <div className="text-[10px] text-muted uppercase tracking-tighter">NIT: {item.empresa_nit}</div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <Calendar size={14} className="text-muted" />
-                        <span>{new Date(ot.fecha_liquidacion).toLocaleDateString()}</span>
+                        <span>{new Date(item.fecha_liquidacion).toLocaleDateString()}</span>
                       </div>
-                      <div className={`text-[10px] font-bold ${ot.dias_desde_liquidacion > 30 ? 'text-red-500' : 'text-muted'}`}>
-                        Hace {ot.dias_desde_liquidacion} días
+                      <div className={`text-[10px] font-bold ${item.dias_desde_liquidacion > 30 ? 'text-red-500' : 'text-muted'}`}>
+                        Hace {item.dias_desde_liquidacion} días
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right font-bold text-accent">
-                      {formatCurrency(ot.total)}
+                      {formatCurrency(item.total)}
                     </td>
                   </tr>
                 ))}
-                {ots?.data?.length === 0 && (
+                {(!items?.data || items.data.length === 0) && (
                   <tr>
                     <td colSpan="5" className="px-6 py-20 text-center text-muted italic">
-                      No se encontraron órdenes de trabajo liquidadas pendientes de facturar.
+                      {isRemisiones
+                        ? 'No se encontraron remisiones liquidadas pendientes de facturar.'
+                        : 'No se encontraron órdenes de trabajo liquidadas pendientes de facturar.'
+                      }
                     </td>
                   </tr>
                 )}
@@ -187,13 +246,13 @@ export const OtsPendientesPage = () => {
             <div className="space-y-4">
               <div className="flex justify-between text-sm">
                 <span className="text-muted">Seleccionadas:</span>
-                <span className="font-bold">{selectedOts.length} OTs</span>
+                <span className="font-bold">{selectedItems.length} {isRemisiones ? 'Remisiones' : 'OTs'}</span>
               </div>
               
-              {selectedOts.length > 0 && (
+              {selectedItems.length > 0 && (
                 <div className="bg-subtle/50 p-3 rounded-xl border border-color animate-in zoom-in-95 duration-200">
                   <p className="text-[10px] uppercase font-bold text-muted mb-1">Empresa</p>
-                  <p className="text-sm font-bold truncate">{selectedOts[0].empresa_nombre}</p>
+                  <p className="text-sm font-bold truncate">{selectedItems[0].empresa_nombre}</p>
                 </div>
               )}
 
@@ -214,16 +273,19 @@ export const OtsPendientesPage = () => {
 
               <button 
                 className="btn-primary w-full py-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-accent/20 disabled:opacity-50 disabled:grayscale"
-                disabled={selectedOts.length === 0}
+                disabled={selectedItems.length === 0}
                 onClick={handleCreate}
               >
                 <CheckCircle2 size={20} /> Generar Factura
               </button>
 
-              {selectedOts.length === 0 && (
+              {selectedItems.length === 0 && (
                 <div className="flex items-start gap-2 p-3 bg-blue-500/10 text-blue-500 rounded-xl text-[11px]">
                   <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                  Selecciona una o varias órdenes de trabajo de la misma empresa para comenzar el proceso.
+                  {isRemisiones
+                    ? 'Selecciona una o varias remisiones de la misma empresa para comenzar el proceso.'
+                    : 'Selecciona una o varias órdenes de trabajo de la misma empresa para comenzar el proceso.'
+                  }
                 </div>
               )}
             </div>
@@ -243,7 +305,7 @@ export const OtsPendientesPage = () => {
             <div className="space-y-5">
               <div className="bg-subtle/50 p-4 rounded-2xl border border-color">
                 <div className="text-sm text-muted">Empresa</div>
-                <div className="font-bold text-lg">{selectedOts[0].empresa_nombre}</div>
+                <div className="font-bold text-lg">{selectedItems[0]?.empresa_nombre}</div>
                 <div className="text-sm font-bold text-accent mt-2">Total a facturar: {formatCurrency(totals.total)}</div>
               </div>
 

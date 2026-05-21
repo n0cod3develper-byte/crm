@@ -1,23 +1,25 @@
 import jwt from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
 import { env } from '../config/env.js';
 import { query } from '../config/database.js';
 import { AppError } from './errors.js';
 import { logger } from './logger.js';
 
 /**
- * Genera un par de tokens: access (1h) + refresh (7d)
+ * Genera un par de tokens: access + refresh
+ * Cada refresh token incluye un jti único para rotación (replay detection)
  */
 export function generateTokenPair(userId) {
   const accessToken = jwt.sign(
     { sub: userId, type: 'access' },
     env.JWT_SECRET,
-    { expiresIn: '1h' }
+    { expiresIn: env.JWT_EXPIRES_IN }
   );
 
   const refreshToken = jwt.sign(
-    { sub: userId, type: 'refresh' },
+    { sub: userId, type: 'refresh', jti: uuidv4() },
     env.JWT_REFRESH_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: env.JWT_REFRESH_EXPIRES_IN }
   );
 
   return { accessToken, refreshToken };

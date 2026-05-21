@@ -4,14 +4,23 @@ import { Strategy as MicrosoftStrategy } from 'passport-microsoft';
 import { env } from './env.js';
 import { query } from './database.js';
 import { logger } from '../utils/logger.js';
+import { encryptToken, decryptToken } from '../utils/oauthEncryption.js';
 
 /**
  * Busca un usuario por oauth provider+id o lo crea si no existe.
  * Retorna el objeto user de la BD.
  */
+/**
+ * Busca un usuario por oauth provider+id o lo crea si no existe.
+ * Los tokens OAuth se encriptan antes de almacenar en BD (AES-256-GCM).
+ */
 async function findOrCreateUser(profile, provider, tokens) {
   const email = profile.emails?.[0]?.value;
   if (!email) throw new Error('El proveedor OAuth no retornó email');
+
+  // Encriptar tokens antes de almacenar
+  const encryptedAccessToken = encryptToken(tokens.accessToken);
+  const encryptedRefreshToken = encryptToken(tokens.refreshToken);
 
   // 1. ¿El proveedor ya existe?
   const existingOAuth = await query(
@@ -19,10 +28,10 @@ async function findOrCreateUser(profile, provider, tokens) {
     [provider, profile.id]
   );
   if (existingOAuth.rows.length > 0) {
-    // Actualiza tokens
+    // Actualiza tokens (encriptados)
     await query(
       'UPDATE oauth_accounts SET access_token=$1, refresh_token=$2, token_expiry=$3 WHERE provider=$4 AND provider_id=$5',
-      [tokens.accessToken, tokens.refreshToken, tokens.tokenExpiry || null, provider, profile.id]
+      [encryptedAccessToken, encryptedRefreshToken, tokens.tokenExpiry || null, provider, profile.id]
     );
     return existingOAuth.rows[0];
   }
@@ -49,15 +58,33 @@ async function findOrCreateUser(profile, provider, tokens) {
     logger.info('Nuevo usuario creado via OAuth', { userId: user.id, email, provider });
   }
 
-  // 4. Vincula la cuenta OAuth
+  // 4. Vincula la cuenta OAuth (tokens encriptados)
   await query(
     `INSERT INTO oauth_accounts (user_id, provider, provider_id, access_token, refresh_token)
      VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (provider, provider_id) DO UPDATE SET access_token=$4, refresh_token=$5`,
-    [user.id, provider, profile.id, tokens.accessToken, tokens.refreshToken || null]
+    [user.id, provider, profile.id, encryptedAccessToken, encryptedRefreshToken]
   );
 
   return user;
+}
+
+export async function getDecryptedOAuthTokens(userId, provider) {
+  try {
+    const result = await query(
+      'SELECT access_token, refresh_token FROM oauth_accounts WHERE user_id = $1 AND provider = $2',
+      [userId, provider]
+    );
+    if (result.rows.length === 0) return null;
+    
+    return {
+      accessToken: decryptToken(result.rows[0].access_token),
+      refreshToken: decryptToken(result.rows[0].refresh_token),
+    };
+  } catch (err) {
+    logger.error('Error obteniendo tokens OAuth desencriptados', { userId, provider, error: err.message });
+    return null;
+  }
 }
 
 export function initializePassport() {

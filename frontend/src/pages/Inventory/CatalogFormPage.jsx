@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { catalogApi } from '../../services/catalogApi';
 import { Package, Wrench, Save, ArrowLeft, Info, DollarSign, Database, Tag, MapPin, Image as ImageIcon, Upload, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { GeneradorCodigoUbicacion } from '../../components/Inventory/GeneradorCodigoUbicacion';
 import { JSONListEditor } from '../../components/Inventory/JSONListEditor';
@@ -144,7 +143,6 @@ export function CatalogFormPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title={isEdit ? 'Editar Item' : 'Nuevo Item al Catálogo'} 
         subtitle="Agrega productos físicos o servicios profesionales por Familia"

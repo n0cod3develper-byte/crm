@@ -12,6 +12,7 @@ router.put('/roles/:id/permisos', requireAuth, soloAdmin, adminController.actual
 router.get('/usuarios', requireAuth, soloAdmin, adminController.listarUsuarios);
 router.post('/usuarios/invitar', requireAuth, soloAdmin, adminController.invitarUsuario);
 router.patch('/usuarios/:id/rol', requireAuth, soloAdmin, adminController.cambiarRolUsuario);
+router.patch('/usuarios/:id/password', requireAuth, soloAdmin, adminController.cambiarClaveUsuario);
 
 // Ruta para el usuario actual (usada al cargar la app)
 router.get('/permisos', requireAuth, adminController.miInformacion);

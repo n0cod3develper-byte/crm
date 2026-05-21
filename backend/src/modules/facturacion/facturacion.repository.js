@@ -27,6 +27,30 @@ export class FacturacionRepository {
   }
 
   /**
+   * Obtener remisiones pendientes de facturar
+   */
+  async getRemisionesPendientes({ empresa_id, search, limit = 50, offset = 0 }) {
+    let sql = `SELECT * FROM remisiones_pendientes_facturar WHERE 1=1`;
+    const params = [];
+
+    if (empresa_id) {
+      params.push(empresa_id);
+      sql += ` AND empresa_id = $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search}%`);
+      sql += ` AND (consecutivo ILIKE $${params.length} OR empresa_nombre ILIKE $${params.length})`;
+    }
+
+    sql += ` ORDER BY fecha_liquidacion ASC NULLS LAST LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const result = await query(sql, params);
+    return result.rows;
+  }
+
+  /**
    * Obtener resumen de cartera por empresa
    */
   async getResumenCartera() {
@@ -92,6 +116,16 @@ export class FacturacionRepository {
     `;
     const otsRes = await query(otsSql, [id]);
     factura.ots = otsRes.rows;
+
+    // Remisiones asociadas
+    const remSql = `
+      SELECT fr.*, r.numero_remision, r.fecha_servicio
+      FROM factura_remisiones fr
+      JOIN remisiones r ON fr.remision_id = r.id
+      WHERE fr.factura_id = $1
+    `;
+    const remRes = await query(remSql, [id]);
+    factura.remisiones = remRes.rows;
 
     return factura;
   }
@@ -187,6 +221,94 @@ export class FacturacionRepository {
   }
 
   /**
+   * Crear prefactura desde remisiones de Servicios
+   */
+  async createPrefacturaFromRemisiones(data, createdBy) {
+    const { empresa_id, remision_ids, condicion_pago, fecha_vencimiento, notas, numero_factura } = data;
+
+    return await withTransaction(async (client) => {
+      // 1. Validar remisiones
+      const remSql = `
+        SELECT r.id, r.numero_remision, r.company_id, r.estado, r.factura_id,
+               r.total_bruto AS subtotal, r.iva_valor, r.total_neto AS total
+        FROM remisiones r
+        WHERE r.id = ANY($1)
+      `;
+      const remRes = await client.query(remSql, [remision_ids]);
+      const rems = remRes.rows;
+
+      if (rems.length !== remision_ids.length) {
+        throw new BadRequestError('Una o más remisiones no existen');
+      }
+
+      for (const rem of rems) {
+        if (rem.company_id !== empresa_id) {
+          throw new BadRequestError(`La remisión ${rem.numero_remision} no pertenece a la empresa seleccionada`);
+        }
+        if (rem.estado !== 'LIQUIDADA' || rem.factura_id !== null) {
+          throw new BadRequestError(`La remisión ${rem.numero_remision} no está disponible para facturar`);
+        }
+      }
+
+      // 2. Generar consecutivo interno
+      const consRes = await client.query(`
+        UPDATE consecutivos SET ultimo_valor = ultimo_valor + 1 WHERE id = 'FAC' RETURNING ultimo_valor
+      `);
+      const nro = consRes.rows[0].ultimo_valor;
+      const consecutivo_interno = `FAC-${String(nro).padStart(5, '0')}`;
+
+      // 3. Calcular totales
+      const subtotal = rems.reduce((sum, r) => sum + parseFloat(r.subtotal), 0);
+      const iva_valor = rems.reduce((sum, r) => sum + parseFloat(r.iva_valor), 0);
+      const total = rems.reduce((sum, r) => sum + parseFloat(r.total), 0);
+
+      // 4. Insertar factura
+      const estado = numero_factura ? 'FACTURADA' : 'PREFACTURA';
+      const insFactSql = `
+        INSERT INTO facturas (
+          consecutivo_interno, numero_factura, fecha_factura, empresa_id, estado,
+          subtotal, iva_valor, total, condicion_pago, fecha_vencimiento, notas,
+          creada_por, facturada_por
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        RETURNING *
+      `;
+      const factRes = await client.query(insFactSql, [
+        consecutivo_interno,
+        numero_factura || null,
+        numero_factura ? new Date() : null,
+        empresa_id,
+        estado,
+        subtotal, iva_valor, total,
+        condicion_pago, fecha_vencimiento, notas,
+        createdBy,
+        numero_factura ? createdBy : null
+      ]);
+      const factura = factRes.rows[0];
+
+      // 5. Relacionar remisiones
+      for (const rem of rems) {
+        await client.query(`
+          INSERT INTO factura_remisiones (factura_id, remision_id, remision_numero, subtotal_rem, iva_rem, total_rem)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [factura.id, rem.id, rem.numero_remision, rem.subtotal, rem.iva_valor, rem.total]);
+
+        const remEstado = numero_factura ? 'FACTURADA' : 'LIQUIDADA';
+        const fechaFacturada = numero_factura ? 'NOW()' : 'NULL';
+
+        await client.query(`
+          UPDATE remisiones SET
+            factura_id = $1,
+            estado = $2,
+            fecha_facturada = ${fechaFacturada}
+          WHERE id = $3
+        `, [factura.id, remEstado, rem.id]);
+      }
+
+      return factura;
+    });
+  }
+
+  /**
    * Confirmar factura con número externo
    */
   async confirmarFactura(id, data, confirmedBy) {
@@ -227,6 +349,14 @@ export class FacturacionRepository {
         WHERE factura_id = $1
       `, [id]);
 
+      // 5. Actualizar remisiones
+      await client.query(`
+        UPDATE remisiones SET
+          estado = 'FACTURADA',
+          fecha_facturada = NOW()
+        WHERE factura_id = $1
+      `, [id]);
+
       return updFactRes.rows[0];
     });
   }
@@ -254,6 +384,15 @@ export class FacturacionRepository {
       // 3. Revertir OTs
       await client.query(`
         UPDATE ordenes_trabajo SET
+          estado = 'LIQUIDADA',
+          factura_id = NULL,
+          fecha_facturada = NULL
+        WHERE factura_id = $1
+      `, [id]);
+
+      // 4. Revertir remisiones
+      await client.query(`
+        UPDATE remisiones SET
           estado = 'LIQUIDADA',
           factura_id = NULL,
           fecha_facturada = NULL

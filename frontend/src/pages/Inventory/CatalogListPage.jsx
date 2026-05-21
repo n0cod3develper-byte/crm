@@ -4,7 +4,6 @@ import { catalogApi } from '../../services/catalogApi';
 import { Search, Filter, Plus, Package, Wrench, MoreHorizontal, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '../../utils/formatters';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 
 export function CatalogListPage() {
@@ -25,7 +24,6 @@ export function CatalogListPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title="Explorar Catálogo" 
         subtitle="Listado unificado de familias de productos y servicios profesionales"
@@ -39,7 +37,7 @@ export function CatalogListPage() {
         <div className="animate-in fade-in duration-500">
           
           <div className="card mb-6" style={{ padding: '1rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+            <div className="catalog-filters-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
               {/* Tabs de Tipo */}
               <div style={{ display: 'flex', background: 'var(--bg-app)', padding: '0.25rem', borderRadius: 'var(--radius-md)' }}>
                 <button 

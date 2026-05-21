@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 import passport from 'passport';
 import { createServer } from 'http';
 
@@ -11,7 +12,8 @@ import { checkConnection } from './config/database.js';
 import { connectRedis } from './config/redis.js';
 import { initializePassport } from './config/passport.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
-import { generalLimiter } from './middleware/rateLimiter.js';
+import { generalLimiter, uploadLimiter } from './middleware/rateLimiter.js';
+import { requireAuth } from './middleware/auth.js';
 import { logger } from './utils/logger.js';
 
 // ─── Rutas ───────────────────────────────────────────────────
@@ -40,6 +42,10 @@ import ubicacionesRoutes from './modules/inventory/ubicaciones.routes.js';
 import movementsRoutes from './modules/inventory/movements.routes.js';
 import catalogoServiciosRoutes from './modules/catalogo_servicios/catalogo_servicios.routes.js';
 import serviciosRoutes from './modules/servicios/servicios.routes.js';
+import turnosRoutes from './modules/turnos/turnos.routes.js';
+import reportsRoutes from './modules/reports/reports.routes.js';
+import { iniciarJobCierreAutomatico } from './jobs/turnosCierreAutomatico.job.js';
+import { inicializarFestivos } from './services/calendarioService.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -53,6 +59,9 @@ app.use(cors({
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
 }));
 app.use(generalLimiter);
+
+// ─── Cookies ─────────────────────────────────────────────────
+app.use(cookieParser());
 
 // ─── Parsers ─────────────────────────────────────────────────
 app.use(express.json({ limit: '5mb' }));
@@ -102,7 +111,14 @@ app.use(`${API}/documentos`, documentosRoutes);
 app.use(`${API}/facturacion`, facturacionRoutes);
 app.use(`${API}/catalogo-servicios`, catalogoServiciosRoutes);
 app.use(`${API}/servicios`, serviciosRoutes);
-app.use('/uploads', express.static('uploads'));
+app.use(`${API}/turnos`,   turnosRoutes);
+// ─── Archivos estáticos públicos (avatares) ───────────────────
+// Los avatares se sirven sin autenticación para que <img> tags funcionen
+app.use('/uploads/avatars', express.static('uploads/avatars'));
+
+// ─── Archivos estáticos protegidos ───────────────────────────
+// Los demás uploads requieren autenticación JWT (vía cookie o header)
+app.use('/uploads', requireAuth, express.static('uploads'));
 
 // Atendiendo solicitud específica de ruta por empresa
 app.get(`${API}/empresas/:id/equipos`, (req, res, next) => {
@@ -112,7 +128,7 @@ app.get(`${API}/empresas/:id/equipos`, (req, res, next) => {
 // app.use(`${API}/automations`, automationsRoutes);
 // app.use(`${API}/ai`,          aiRoutes);
 // app.use(`${API}/telephony`,   telephonyRoutes);
-// app.use(`${API}/reports`,     reportsRoutes);
+app.use(`${API}/reports`,     reportsRoutes);
 
 // ─── 404 y manejo de errores ─────────────────────────────────
 app.use(notFoundHandler);
@@ -127,6 +143,14 @@ async function bootstrap() {
   }
 
   await connectRedis();
+
+  // Iniciar job de cierre automático de turnos (23:59 America/Bogota)
+  iniciarJobCierreAutomatico();
+
+  // Inicializar festivos colombianos para año actual y siguiente
+  inicializarFestivos().catch((err) =>
+    logger.warn('[Festivos] No se pudieron inicializar los festivos', { error: err.message })
+  );
 
   httpServer.listen(env.PORT, () => {
     logger.info(`🚀  CARGAR CRM API iniciada`, {

@@ -3,7 +3,6 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { catalogApi } from '../../services/catalogApi';
 import api from '../../lib/api';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { 
   ArrowLeft, Edit2, Package, Wrench, MapPin, 
@@ -49,7 +48,6 @@ export function CatalogItemDetailPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title={item.nombre_comercial || item.name} 
         subtitle={`${item.tipo} | Código: ${item.codigo_interno || 'N/A'}`}
@@ -67,7 +65,7 @@ export function CatalogItemDetailPage() {
       <main className="main-content">
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '2rem' }}>
+          <div className="page-grid-2cols" style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '2rem' }}>
             
             {/* Columna Principal */}
             <div className="flex flex-col gap-6">
@@ -142,7 +140,7 @@ export function CatalogItemDetailPage() {
                       {item.marca && <div className="mt-1"><strong>Marca:</strong> <span style={{ color: 'var(--clr-primary-500)', fontWeight: 600 }}>{item.marca}</span></div>}
                     </div>
                     
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="grid-2cols-inner" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                       <div style={{ padding: '1rem', borderRadius: 'var(--radius-md)', background: 'var(--bg-elevated)', border: '1px solid var(--border-color)' }}>
                         <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Familia</div>
                         <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -185,7 +183,7 @@ export function CatalogItemDetailPage() {
                     </div>
                   )}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                  <div className="grid-2cols-inner" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                     <div>
                       <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Impuestos</h3>
                       <div className="flex items-center gap-2">

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { catalogApi } from '../../services/catalogApi';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Layers, Plus, Edit2, Trash2, Save, X, Palette, Type, Hash } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -65,7 +64,6 @@ export function FamiliesPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title="Gestión de Familias" 
         subtitle="Organiza tus productos y servicios por categorías comerciales"

@@ -47,14 +47,14 @@ export class CatalogoServiciosRepository {
 
   async create(data) {
     const codigo = await this.generarCodigo();
-    const { nombre, descripcion, precio_base, cantidad, unidad, tipo } = data;
+    const { nombre, descripcion, precio_base, cantidad, unidad, tipo, tipo_servicio } = data;
     const finalTipo = tipo || 'Servicio';
 
     return await withTransaction(async (client) => {
       const result = await client.query(
-        `INSERT INTO catalogo_servicios (codigo, nombre, descripcion, precio_base, cantidad, unidad, tipo)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [codigo, nombre, descripcion || null, precio_base || 0, cantidad || 1, unidad || (finalTipo === 'Servicio' ? 'hora' : 'unidad'), finalTipo]
+        `INSERT INTO catalogo_servicios (codigo, nombre, descripcion, precio_base, cantidad, unidad, tipo, tipo_servicio)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [codigo, nombre, descripcion || null, precio_base || 0, cantidad || 1, unidad || (finalTipo === 'Servicio' ? 'hora' : 'unidad'), finalTipo, tipo_servicio || 'Fijo']
       );
 
       if (finalTipo === 'Producto') {
@@ -73,7 +73,7 @@ export class CatalogoServiciosRepository {
     const fields = [];
     const values = [];
     let i = 1;
-    const allowed = ['codigo', 'nombre', 'descripcion', 'precio_base', 'cantidad', 'unidad', 'is_active', 'tipo'];
+    const allowed = ['codigo', 'nombre', 'descripcion', 'precio_base', 'cantidad', 'unidad', 'is_active', 'tipo', 'tipo_servicio'];
     for (const key of allowed) {
       if (key in data) {
         fields.push(`${key} = $${i++}`);

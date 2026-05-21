@@ -50,7 +50,25 @@ const MIGRATION_FILES = [
   '018_add_image_to_catalog_view.sql',
   '019_inventory_movement_upgrade.sql',
   '020_clerk_user_id_nullable.sql',
-  '021_inventory_upgrade.sql'
+  '021_inventory_upgrade.sql',
+  '022_catalogo_servicios.sql',
+  '023_servicios_remision.sql',
+  '024_add_remision_fields.sql',
+  '025_liquidacion_horas_laborales.sql',
+  '026_fix_remision_estados.sql',
+  '027_segundo_operario_tiempos.sql',
+  '028_segundo_operario_horometros.sql',
+  '029_segundo_operario_fecha.sql',
+  '030_turnos_module.sql',
+  '031_fix_view_id.sql',
+  '032_desglose_recargos_cst.sql',
+  '033_update_view_cst_desglose.sql',
+  '034_add_phone2_to_companies.sql',
+  '035_servicios_to_facturacion.sql',
+  '036_fix_remision_estado_facturada.sql',
+  '037_company_new_fields_and_tipo_servicio.sql',
+  '038_add_cantidad_tipo_catalogo_servicios.sql',
+  '039_fix_tipo_servicio_check_encoding.sql'
 ];
 
 async function ensureMigrationsTable(client) {

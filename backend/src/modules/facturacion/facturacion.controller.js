@@ -12,6 +12,14 @@ export const getOtsPendientes = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+export const getRemisionesPendientes = async (req, res, next) => {
+  try {
+    const { empresa_id, search, limit, offset } = req.query;
+    const remisiones = await repo.getRemisionesPendientes({ empresa_id, search, limit, offset });
+    res.json({ success: true, data: remisiones });
+  } catch (err) { next(err); }
+};
+
 export const getResumenCartera = async (req, res, next) => {
   try {
     const resumen = await repo.getResumenCartera();
@@ -38,6 +46,13 @@ export const getFactura = async (req, res, next) => {
 export const createPrefactura = async (req, res, next) => {
   try {
     const factura = await repo.createPrefactura(req.body, req.user.id);
+    res.status(201).json({ success: true, data: factura });
+  } catch (err) { next(err); }
+};
+
+export const createPrefacturaFromRemisiones = async (req, res, next) => {
+  try {
+    const factura = await repo.createPrefacturaFromRemisiones(req.body, req.user.id);
     res.status(201).json({ success: true, data: factura });
   } catch (err) { next(err); }
 };

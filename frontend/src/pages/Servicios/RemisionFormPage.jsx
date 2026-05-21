@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Save, Lock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
@@ -285,7 +284,6 @@ export function RemisionFormPage() {
   if (isEditing && loadingExisting) {
     return (
       <div className="app-layout">
-        <Sidebar />
         <div className="empty-state"><div className="spinner" /></div>
       </div>
     );
@@ -311,7 +309,6 @@ export function RemisionFormPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar
         title={isEditing ? `Editar Remisión${form.numero_remision ? ` No. ${form.numero_remision}` : ''}` : 'Nueva Remisión'}
         subtitle={isReadOnly ? 'Remisión en solo lectura' : (isEditing ? 'Editando datos de la remisión' : 'Registrar un nuevo servicio prestado')}
@@ -332,7 +329,7 @@ export function RemisionFormPage() {
 
           {/* — Información General — */}
           <p style={section}>Información General</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+          <div className="fields-grid-3cols" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
             <div>
               <label style={label}>Fecha del Servicio *</label>
               <input type="date" {...inputProps('fecha_servicio')} required />
@@ -388,7 +385,7 @@ export function RemisionFormPage() {
 
           {/* — Servicio y Equipo — */}
           <p style={section}>Servicio y Equipo</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem' }}>
+          <div className="fields-grid-2-1-1" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem' }}>
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={label}>Tipo de Servicio (Catálogo) *</label>
               {isReadOnly ? (
@@ -416,7 +413,7 @@ export function RemisionFormPage() {
               <input placeholder="Ej: 73" {...inputProps('numero_maquina')} />
             </div>
 
-            <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="form-grid-2cols" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
                 <label style={label}>Operario Inicial *</label>
                 {isReadOnly ? (
@@ -444,7 +441,7 @@ export function RemisionFormPage() {
 
           {/* — Tiempos del Servicio (Primer Operario) — */}
           <p style={section}>Tiempos del Servicio (Operario Inicial)</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+          <div className="fields-grid-4cols" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             {[
               { name: 'hora_salida_cargar', label: 'Hora Salida CARGAR' },
               { name: 'hora_llegada_cliente', label: 'Hora Llegada Cliente' },
@@ -481,7 +478,7 @@ export function RemisionFormPage() {
           {form.operario_2_id && (
             <>
               <p style={section}>Tiempos del Servicio (Segundo Operario)</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div className="fields-grid-4cols" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div>
                   <label style={label}>Fecha Acordada (Op. 2)</label>
                   <input type="date" {...inputProps('segundo_fecha_acordada')} />
@@ -523,7 +520,7 @@ export function RemisionFormPage() {
 
           {/* — Descripción del Servicio — */}
           <p style={section}>Descripción del Servicio — Valores</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>
+          <div className="fields-grid-4cols" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>
             <div>
               <label style={label}>
                 Cantidad / Horas
@@ -562,7 +559,7 @@ export function RemisionFormPage() {
               <input type="number" min={0} {...inputProps('descuentos')} />
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', background: 'var(--bg-secondary)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+          <div className="flex-stack:mobile" style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', background: 'var(--bg-secondary)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
             <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>Total Bruto</span><span style={{ fontWeight: 700 }}>{formatCOP(form.total_bruto)}</span></div>
             <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>IVA</span><span style={{ fontWeight: 700 }}>{formatCOP(form.iva_valor)}</span></div>
             <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>Descuentos</span><span style={{ fontWeight: 700 }}>{formatCOP(form.descuentos)}</span></div>

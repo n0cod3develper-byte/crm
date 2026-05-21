@@ -6,7 +6,6 @@ import {
   MapPin, Star, MoreVertical, Filter,
   Building2, Globe, ShieldCheck, AlertCircle
 } from 'lucide-react';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
@@ -61,7 +60,6 @@ export function ProveedoresListPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title="Catálogo de Proveedores" 
         subtitle="Directorio centralizado de suministros y servicios" 

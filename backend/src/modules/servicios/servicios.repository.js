@@ -53,7 +53,7 @@ export class ServiciosRepository {
         e.serial AS equipo_serial, e.capacidad_carga AS equipo_capacidad,
         cs.nombre AS servicio_nombre, cs.codigo AS servicio_codigo,
         cs.descripcion AS servicio_descripcion, cs.precio_base AS servicio_precio_base,
-        u.full_name AS creado_por_nombre
+        (u.nombre || ' ' || COALESCE(u.apellido, '')) AS creado_por_nombre
       FROM remisiones r
       JOIN companies c ON c.id = r.company_id
       JOIN equipos e ON e.id = r.equipo_id
@@ -67,7 +67,7 @@ export class ServiciosRepository {
 
     const opRes = await query(`
       SELECT ro.id AS asignacion_id, ro.empleado_id,
-             em.full_name, em.identification, em.phone,
+             em.full_name, em.phone,
              em.position, em.monthly_salary
       FROM remision_operarios ro
       JOIN employees em ON em.id = ro.empleado_id
@@ -209,7 +209,7 @@ export class ServiciosRepository {
       'horas_fest_diurnas', 'valor_hora_fest_dia', 'horas_fest_nocturnas', 'valor_hora_fest_noc',
       'horas_otras', 'valor_hora_otras',
       'total_bruto', 'iva_pct', 'iva_valor', 'descuentos', 'total_neto',
-      'estado', 'observaciones'
+      'factura_id', 'estado', 'observaciones'
     ];
     for (const key of allowed) {
       if (key in data) {
@@ -267,9 +267,9 @@ export class ServiciosRepository {
 
   async findOperariosDisponibles() {
     const res = await query(
-      `SELECT id, full_name, identification, phone, position, monthly_salary
+      `SELECT id, full_name, phone, position, monthly_salary
        FROM employees
-       WHERE LOWER(position) IN ('operario', 'técnico', 'tecnico') AND LOWER(status) = 'activo'
+       WHERE position = 'Operario' AND status = 'Activo'
        ORDER BY full_name ASC`
     );
     return res.rows;

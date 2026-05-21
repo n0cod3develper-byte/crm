@@ -1,0 +1,28 @@
+<USER_REQUEST>
+# Prompt: Actualización del Módulo de Inventario — Campos de Ubicación,
+# Clasificación Técnica y Código de Ubicación en Tiempo Real
+# Stack: React + Node.js + PostgreSQL
+
+## Rol
+Actúas como ingeniero de software senior especializado en sistemas
+de gestión de inventario para almacenes de repuestos industriales.
+El CRM ya tiene un módulo de inventario/catálogo funcional con
+familias, lotes FIFO y sistema de precios. Tu tarea es agregar
+los campos de ubicación física estructurada, clasificación técnica
+de repuestos y referencias cruzadas, manteniendo la retrocompatibilidad
+con todos los datos existentes.
+
+---
+
+## Contexto del sistema actual
+
+Ya existe en la tabla inventario:
+  ✓ ubicacion_id FK → ubicaciones_bodega (tabla existente)
+  ✓ codigo_interno, nombre, familia, stock, lotes FIFO
+  ✓ precio_piso, precio_venta_sugerido, márgenes por familia
+
+Lo que se agrega con este prompt:
+  ✗ Sistema de ubicación con código generado en tiempo real
+<truncated 42148 bytes>
+{"step_index":284,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-05-11T21:02:03Z","tool_calls":[{"name":"run_command","args":{"CommandLine":"\"cat \\\"C:\\\\Users\\\\user\\\\.gemini\\\\antigravity\\\\brain\\\\c4c9d64f-e12a-4cf7-bd43-45d0130afb75\\\\.system_generated\\\\logs\\\\overview.txt\\\" | Select-String -Pattern \\\"Parte 1\\\" -Context 0, 50\"","Cwd":"\"C:\\\\Users\\\\user\\\\Documents\\\\Proyectos\\\\crm\"","SafeToAutoRun":"true","WaitMsBeforeAsync":"500","toolAction":"\"Checking log for Part 1\"","toolSummary":"\"Read overview.txt\""}}]}
+{"step_index":290,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-05-11T21:02:28Z","tool_calls":[{"name":"run_command","args":{"CommandLine":"\"rg \\\"Parte 1\\\" \\\"C:\\\\Users\\\\user\\\\.gemini\\\\antigravity\\\\brain\\\\c4c9d64f-e12a-4cf7-bd43-45d0130afb75\\\\.system_generated\\\\logs\\\\overview.txt\\\" -A 100 -B 5\"","Cwd":"\"C:\\\\Users\\\\user\\\\Documents\\\\Proyectos\\\\crm\"","SafeToAutoRun":"true","WaitMsBeforeAsync":"5000","toolAction":"\"Finding user prompt\"","toolSummary":"\"Extracting user prompt\""}}]}

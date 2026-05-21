@@ -1,8 +1,24 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
+import cubejs from '@cubejs-client/core';
+import { CubeProvider } from '@cubejs-client/react';
+
+// Stores & Contexts
 import { useAuthStore } from './stores/authStore';
+import { useThemeStore } from './stores/themeStore';
+import { useAuth } from './contexts/AuthContext';
+import { PermissionsProvider } from './contexts/PermissionsContext';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { ErrorBoundary, SafeModule } from './components/ErrorBoundary';
+import { Sidebar } from './components/layout/Sidebar';
+
+// --- Configuración Global de Cube.js ---
+const cubejsApi = cubejs(
+  'd780c33e1d4c2c85bd4ccf36cea8d82779ffded6e5430df2e10e427e053aa6faa17c82a0e7f4b99ef91f317cf6478e146db708dbf3b377a790ed737bebf04f03',
+  { apiUrl: 'http://localhost:4000/cubejs-api/v1' }
+);
 
 // Lazy loaded pages
 const LoginPage = lazy(() => import('./pages/Auth/LoginPage').then(m => ({ default: m.LoginPage })));
@@ -57,19 +73,22 @@ const CatalogoServiciosPage = lazy(() => import('./pages/CatalogoServicios/Catal
 const ServiciosPage = lazy(() => import('./pages/Servicios/ServiciosPage').then(m => ({ default: m.ServiciosPage })));
 const RemisionFormPage = lazy(() => import('./pages/Servicios/RemisionFormPage').then(m => ({ default: m.RemisionFormPage })));
 const RemisionDetailPage = lazy(() => import('./pages/Servicios/RemisionDetailPage').then(m => ({ default: m.RemisionDetailPage })));
+const ReportBuilderPage = lazy(() => import('./pages/Reportes/ReportBuilderPage').then(m => ({ default: m.ReportBuilderPage })));
+const SalesReportServicios = lazy(() => import('./pages/Reportes/SalesReportServicios').then(m => ({ default: m.SalesReportServicios })));
+const SalesReportMantenimiento = lazy(() => import('./pages/Reportes/SalesReportMantenimiento').then(m => ({ default: m.SalesReportMantenimiento })));
+const TurnoPage = lazy(() => import('./pages/Turnos/TurnoPage').then(m => ({ default: m.TurnoPage })));
+const TurnoSupervisorPage = lazy(() => import('./pages/Turnos/TurnoSupervisorPage').then(m => ({ default: m.TurnoSupervisorPage })));
+const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage').then(m => ({ default: m.ProfilePage })));
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000,   // datos frescos por 5 minutos
+      staleTime: 5 * 60 * 1000,
       retry: 1,
       refetchOnWindowFocus: false,
     },
   },
 });
-
-import { useThemeStore } from './stores/themeStore';
-import { PermissionsProvider } from './contexts/PermissionsContext';
-import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 const PageLoader = () => (
   <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', background: 'var(--bg-app)' }}>
@@ -78,161 +97,134 @@ const PageLoader = () => (
 );
 
 function App() {
+  const { user } = useAuth();
   const applyTheme = useThemeStore(s => s.applyTheme);
 
-  React.useEffect(() => {
+  useEffect(() => {
     applyTheme();
   }, [applyTheme]);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <PermissionsProvider>
-        <BrowserRouter basename={import.meta.env.PROD ? '/crm' : '/'}>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            {/* Rutas públicas */}
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
+    <CubeProvider cubeApi={cubejsApi}>
+      <QueryClientProvider client={queryClient}>
+        <PermissionsProvider>
+          <BrowserRouter basename={import.meta.env.PROD ? '/crm' : '/'}>
+            <ErrorBoundary>
+            <div className="app-root">
+              {user && <Sidebar />}
+              <div className="app-main">
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                {/* Rutas públicas */}
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
 
-            {/* Rutas protegidas */}
-            <Route path="/dashboard" element={
-              <ProtectedRoute><DashboardPage /></ProtectedRoute>
-            } />
-            <Route path="/companies" element={
-              <ProtectedRoute modulo="empresas" accion="ver"><CompaniesPage /></ProtectedRoute>
-            } />
-            <Route path="/companies/:id" element={
-              <ProtectedRoute modulo="empresas" accion="ver"><CompanyDetailPage /></ProtectedRoute>
-            } />
-            <Route path="/inventory" element={
-              <ProtectedRoute modulo="inventario" accion="ver"><InventoryPage /></ProtectedRoute>
-            } />
-            <Route path="/inventory/ubicaciones" element={
-              <ProtectedRoute modulo="inventario" accion="ver"><UbicacionesPage /></ProtectedRoute>
-            } />
-            <Route path="/catalogo" element={
-              <ProtectedRoute modulo="catalogo" accion="ver"><CatalogDashboardPage /></ProtectedRoute>
-            } />
-            <Route path="/catalogo/familias" element={
-              <ProtectedRoute modulo="catalogo" accion="ver"><FamiliesPage /></ProtectedRoute>
-            } />
-            <Route path="/catalogo/items" element={
-              <ProtectedRoute modulo="catalogo" accion="ver"><CatalogListPage /></ProtectedRoute>
-            } />
-            <Route path="/inventario/movimientos" element={
-              <ProtectedRoute modulo="inventario" accion="ver"><MovementsPage /></ProtectedRoute>
-            } />
-            <Route path="/catalogo/:id" element={
-              <ProtectedRoute modulo="catalogo" accion="ver"><CatalogItemDetailPage /></ProtectedRoute>
-            } />
-            <Route path="/catalogo/nuevo" element={
-              <ProtectedRoute modulo="catalogo" accion="crear"><CatalogFormPage /></ProtectedRoute>
-            } />
-            <Route path="/catalogo/:id/editar" element={
-              <ProtectedRoute modulo="catalogo" accion="editar"><CatalogFormPage /></ProtectedRoute>
-            } />
-            <Route path="/mantenimiento" element={
-              <ProtectedRoute modulo="ordenes_trabajo" accion="ver"><MantenimientoPage /></ProtectedRoute>
-            } />
-            <Route path="/mantenimiento/nueva" element={
-              <ProtectedRoute modulo="ordenes_trabajo" accion="crear"><OTFormPage /></ProtectedRoute>
-            } />
-            <Route path="/mantenimiento/configuracion" element={
-              <ProtectedRoute adminOnly><PMAdminPage /></ProtectedRoute>
-            } />
-            <Route path="/mantenimiento/:id/editar" element={
-              <ProtectedRoute modulo="ordenes_trabajo" accion="editar"><OTFormPage /></ProtectedRoute>
-            } />
-            <Route path="/mantenimiento/:id" element={
-              <ProtectedRoute modulo="ordenes_trabajo" accion="ver"><OTDetailPage /></ProtectedRoute>
-            } />
-            <Route path="/admin/roles" element={
-              <ProtectedRoute adminOnly><RolesPage /></ProtectedRoute>
-            } />
-            <Route path="/admin/usuarios" element={
-              <ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>
-            } />
+                {/* Rutas protegidas */}
+                <Route path="/dashboard" element={<SafeModule context="dashboard"><DashboardPage /></SafeModule>} />
+                <Route path="/companies" element={<ProtectedRoute modulo="empresas" accion="ver"><CompaniesPage /></ProtectedRoute>} />
+                <Route path="/companies/:id" element={<ProtectedRoute modulo="empresas" accion="ver"><CompanyDetailPage /></ProtectedRoute>} />
+                <Route path="/inventory" element={<SafeModule context="inventario" modulo="inventario" accion="ver"><InventoryPage /></SafeModule>} />
+                <Route path="/inventory/ubicaciones" element={<SafeModule context="inventario" modulo="inventario" accion="ver"><UbicacionesPage /></SafeModule>} />
+                <Route path="/catalogo" element={<SafeModule context="inventario" modulo="catalogo" accion="ver"><CatalogDashboardPage /></SafeModule>} />
+                <Route path="/catalogo/familias" element={<SafeModule context="inventario" modulo="catalogo" accion="ver"><FamiliesPage /></SafeModule>} />
+                <Route path="/catalogo/items" element={<SafeModule context="inventario" modulo="catalogo" accion="ver"><CatalogListPage /></SafeModule>} />
+                <Route path="/inventario/movimientos" element={<SafeModule context="inventario" modulo="inventario" accion="ver"><MovementsPage /></SafeModule>} />
+                <Route path="/catalogo/:id" element={<SafeModule context="inventario" modulo="catalogo" accion="ver"><CatalogItemDetailPage /></SafeModule>} />
+                <Route path="/catalogo/nuevo" element={<SafeModule context="inventario" modulo="catalogo" accion="crear"><CatalogFormPage /></SafeModule>} />
+                <Route path="/catalogo/:id/editar" element={<SafeModule context="inventario" modulo="catalogo" accion="editar"><CatalogFormPage /></SafeModule>} />
+                <Route path="/mantenimiento" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="ver"><MantenimientoPage /></SafeModule>} />
+                <Route path="/mantenimiento/nueva" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="crear"><OTFormPage /></SafeModule>} />
+                <Route path="/mantenimiento/configuracion" element={<SafeModule context="mantenimiento" adminOnly><PMAdminPage /></SafeModule>} />
+                <Route path="/mantenimiento/:id/editar" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="editar"><OTFormPage /></SafeModule>} />
+                <Route path="/mantenimiento/:id" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="ver"><OTDetailPage /></SafeModule>} />
+                <Route path="/admin/roles" element={<ProtectedRoute adminOnly><RolesPage /></ProtectedRoute>} />
+                <Route path="/admin/usuarios" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
 
-            {/* Módulo Compras — Dashboard */}
-            <Route path="/compras" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><DashboardComprasPage /></ProtectedRoute>} />
-            <Route path="/compras/aprobaciones" element={<ProtectedRoute modulo="ordenes_compra" accion="aprobar"><AprobacionesPage /></ProtectedRoute>} />
+                {/* Compras */}
+                <Route path="/compras" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><DashboardComprasPage /></ProtectedRoute>} />
+                <Route path="/compras/aprobaciones" element={<ProtectedRoute modulo="ordenes_compra" accion="aprobar"><AprobacionesPage /></ProtectedRoute>} />
+                <Route path="/compras/solicitudes" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><SolicitudesListPage /></ProtectedRoute>} />
+                <Route path="/compras/solicitudes/nueva" element={<ProtectedRoute modulo="ordenes_compra" accion="crear"><SolicitudFormPage /></ProtectedRoute>} />
+                <Route path="/compras/solicitudes/:id/editar" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><SolicitudFormPage /></ProtectedRoute>} />
+                <Route path="/compras/cotizaciones/comparativa/:solicitudId" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><ComparacionCotizacionesPage /></ProtectedRoute>} />
+                <Route path="/compras/oc" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><OrdenesCompraPage /></ProtectedRoute>} />
+                <Route path="/compras/oc/:id/editar" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><OrdenCompraFormPage /></ProtectedRoute>} />
+                <Route path="/compras/recepcion/:id" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><RecepcionMercanciaPage /></ProtectedRoute>} />
+                
+                {/* Comercial */}
+                <Route path="/contacts" element={<ProtectedRoute modulo="contactos" accion="ver"><ContactsPage /></ProtectedRoute>} />
+                <Route path="/pipeline" element={<ProtectedRoute modulo="pipeline" accion="ver"><PipelinePage /></ProtectedRoute>} />
+                <Route path="/tasks" element={<ProtectedRoute modulo="tareas" accion="ver"><TasksPage /></ProtectedRoute>} />
+                <Route path="/quotes" element={<ProtectedRoute modulo="cotizaciones" accion="ver"><QuotesPage /></ProtectedRoute>} />
 
-            {/* Compras — Solicitudes */}
-            <Route path="/compras/solicitudes" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><SolicitudesListPage /></ProtectedRoute>} />
-            <Route path="/compras/solicitudes/nueva" element={<ProtectedRoute modulo="ordenes_compra" accion="crear"><SolicitudFormPage /></ProtectedRoute>} />
-            <Route path="/compras/solicitudes/:id/editar" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><SolicitudFormPage /></ProtectedRoute>} />
+                {/* Marketing */}
+                <Route path="/leads" element={<ProtectedRoute modulo="leads" accion="ver"><LeadsPage /></ProtectedRoute>} />
+                <Route path="/campaigns" element={<ProtectedRoute modulo="campanas" accion="ver"><CampaignsPage /></ProtectedRoute>} />
 
-            {/* Compras — Comparativa de Cotizaciones */}
-            <Route path="/compras/cotizaciones/comparativa/:solicitudId" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><ComparacionCotizacionesPage /></ProtectedRoute>} />
+                {/* Operaciones */}
+                <Route path="/support" element={<ProtectedRoute modulo="soporte" accion="ver"><SupportPage /></ProtectedRoute>} />
+                <Route path="/employees" element={<ProtectedRoute modulo="empleados" accion="ver"><EmployeesPage /></ProtectedRoute>} />
+                <Route path="/equipos" element={<ProtectedRoute modulo="equipos" accion="ver"><EquiposPage /></ProtectedRoute>} />
+                <Route path="/turnos" element={<ProtectedRoute modulo="turnos" accion="ver"><TurnoPage /></ProtectedRoute>} />
+                <Route path="/turnos/supervisor" element={<ProtectedRoute modulo="turnos" accion="ver"><TurnoSupervisorPage /></ProtectedRoute>} />
 
-            {/* Compras — Órdenes de Compra */}
-            <Route path="/compras/oc" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><OrdenesCompraPage /></ProtectedRoute>} />
-            <Route path="/compras/oc/:id/editar" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><OrdenCompraFormPage /></ProtectedRoute>} />
+                {/* Servicios / Remisiones */}
+                <Route path="/catalogo-servicios" element={<ProtectedRoute><CatalogoServiciosPage /></ProtectedRoute>} />
+                <Route path="/servicios" element={<ProtectedRoute><ServiciosPage /></ProtectedRoute>} />
+                <Route path="/servicios/nueva" element={<ProtectedRoute><RemisionFormPage /></ProtectedRoute>} />
+                <Route path="/servicios/:id" element={<ProtectedRoute><RemisionDetailPage /></ProtectedRoute>} />
+                <Route path="/servicios/:id/editar" element={<ProtectedRoute><RemisionFormPage /></ProtectedRoute>} />
 
-            {/* Compras — Recepción de Mercancía */}
-            <Route path="/compras/recepcion/:id" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><RecepcionMercanciaPage /></ProtectedRoute>} />
-            
-            {/* Comercial */}
-            <Route path="/contacts" element={<ProtectedRoute modulo="contactos" accion="ver"><ContactsPage /></ProtectedRoute>} />
-            <Route path="/pipeline" element={<ProtectedRoute modulo="pipeline" accion="ver"><PipelinePage /></ProtectedRoute>} />
-            <Route path="/tasks" element={<ProtectedRoute modulo="tareas" accion="ver"><TasksPage /></ProtectedRoute>} />
-            <Route path="/quotes" element={<ProtectedRoute modulo="cotizaciones" accion="ver"><QuotesPage /></ProtectedRoute>} />
+                {/* Facturación */}
+                <Route path="/facturacion" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturacionDashboard /></ProtectedRoute>} />
+                <Route path="/facturacion/pendientes" element={<ProtectedRoute modulo="facturacion" accion="ver"><OtsPendientesPage /></ProtectedRoute>} />
+                <Route path="/facturacion/facturas" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturasListPage /></ProtectedRoute>} />
+                <Route path="/facturacion/facturas/:id" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturaDetailPage /></ProtectedRoute>} />
 
-            {/* Marketing */}
-            <Route path="/leads" element={<ProtectedRoute modulo="leads" accion="ver"><LeadsPage /></ProtectedRoute>} />
-            <Route path="/campaigns" element={<ProtectedRoute modulo="campanas" accion="ver"><CampaignsPage /></ProtectedRoute>} />
+                {/* Logística */}
+                <Route path="/proveedores" element={<ProtectedRoute modulo="proveedores" accion="ver"><ProveedoresListPage /></ProtectedRoute>} />
+                <Route path="/proveedores/nuevo" element={<ProtectedRoute modulo="proveedores" accion="crear"><ProveedorFormPage /></ProtectedRoute>} />
+                <Route path="/proveedores/:id" element={<ProtectedRoute modulo="proveedores" accion="ver"><ProveedorFichaPage /></ProtectedRoute>} />
 
-            {/* Operaciones */}
-            <Route path="/support" element={<ProtectedRoute modulo="soporte" accion="ver"><SupportPage /></ProtectedRoute>} />
-            <Route path="/employees" element={<ProtectedRoute modulo="empleados" accion="ver"><EmployeesPage /></ProtectedRoute>} />
-            <Route path="/equipos" element={<ProtectedRoute modulo="equipos" accion="ver"><EquiposPage /></ProtectedRoute>} />
+                {/* Analítica / BI */}
+                <Route path="/reportes" element={<ProtectedRoute><ReportBuilderPage /></ProtectedRoute>} />
+                <Route path="/reportes/servicios" element={<ProtectedRoute><SalesReportServicios /></ProtectedRoute>} />
+                <Route path="/reportes/mantenimiento" element={<ProtectedRoute><SalesReportMantenimiento /></ProtectedRoute>} />
 
-            {/* Servicios / Remisiones */}
-            <Route path="/catalogo-servicios" element={<ProtectedRoute><CatalogoServiciosPage /></ProtectedRoute>} />
-            <Route path="/servicios" element={<ProtectedRoute><ServiciosPage /></ProtectedRoute>} />
-            <Route path="/servicios/nueva" element={<ProtectedRoute><RemisionFormPage /></ProtectedRoute>} />
-            <Route path="/servicios/:id" element={<ProtectedRoute><RemisionDetailPage /></ProtectedRoute>} />
-            <Route path="/servicios/:id/editar" element={<ProtectedRoute><RemisionFormPage /></ProtectedRoute>} />
+                {/* Perfil */}
+                <Route path="/perfil" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
 
-            {/* Facturación */}
-            <Route path="/facturacion" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturacionDashboard /></ProtectedRoute>} />
-            <Route path="/facturacion/pendientes" element={<ProtectedRoute modulo="facturacion" accion="ver"><OtsPendientesPage /></ProtectedRoute>} />
-            <Route path="/facturacion/facturas" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturasListPage /></ProtectedRoute>} />
-            <Route path="/facturacion/facturas/:id" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturaDetailPage /></ProtectedRoute>} />
+                {/* Admin Usuarios */}
+                <Route path="/admin/users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
 
-            {/* Logística */}
-            <Route path="/proveedores" element={<ProtectedRoute modulo="proveedores" accion="ver"><ProveedoresListPage /></ProtectedRoute>} />
-            <Route path="/proveedores/nuevo" element={<ProtectedRoute modulo="proveedores" accion="crear"><ProveedorFormPage /></ProtectedRoute>} />
-            <Route path="/proveedores/:id" element={<ProtectedRoute modulo="proveedores" accion="ver"><ProveedorFichaPage /></ProtectedRoute>} />
+                {/* Redirect raíz */}
+                <Route path="/403" element={<Error403Page />} />
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </Suspense>
+              </div>
+            </div>
+            </ErrorBoundary>
+          </BrowserRouter>
+        </PermissionsProvider>
 
-            {/* Admin Usuarios */}
-            <Route path="/admin/users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
-
-
-            {/* Redirect raíz */}
-            <Route path="/403" element={<Error403Page />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </Suspense>
-      </BrowserRouter>
-      </PermissionsProvider>
-
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          style: {
-            background: 'var(--bg-elevated)',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border-color)',
-            fontFamily: 'var(--font-sans)',
-            fontSize: '14px',
-          },
-          success: { iconTheme: { primary: '#22c55e', secondary: 'white' } },
-          error: { iconTheme: { primary: '#ef4444', secondary: 'white' } },
-        }}
-      />
-    </QueryClientProvider>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: {
+              background: 'var(--bg-elevated)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-color)',
+              fontFamily: 'var(--font-sans)',
+              fontSize: '14px',
+            },
+            success: { iconTheme: { primary: '#22c55e', secondary: 'white' } },
+            error: { iconTheme: { primary: '#ef4444', secondary: 'white' } },
+          }}
+        />
+      </QueryClientProvider>
+    </CubeProvider>
   );
 }
 

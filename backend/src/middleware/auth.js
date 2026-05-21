@@ -3,6 +3,7 @@ import { query } from '../config/database.js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { verifyAccessToken } from '../utils/jwt.js';
+import { getAccessToken } from '../utils/cookies.js';
 
 const permissionsCache = new NodeCache({ stdTTL: env.PERMISSIONS_CACHE_TTL_SECONDS || 300 });
 
@@ -12,12 +13,11 @@ const permissionsCache = new NodeCache({ stdTTL: env.PERMISSIONS_CACHE_TTL_SECON
  */
 export const requireAuth = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
+    const token = getAccessToken(req);
+    if (!token) {
       return res.status(401).json({ error: 'No autorizado - Token no encontrado' });
     }
 
-    const token = authHeader.slice(7);
     const payload = verifyAccessToken(token);
     
     // Buscar usuario en BD

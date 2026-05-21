@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext';
 const PermissionsContext = createContext(null);
 
 export function PermissionsProvider({ children }) {
-  const { user, token, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState({ rol: null, permisos: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,7 +13,7 @@ export function PermissionsProvider({ children }) {
     async function loadPermissions() {
       if (authLoading) return;
       
-      if (!token || !user) {
+      if (!user) {
         setData({ rol: null, permisos: {} });
         setLoading(false);
         return;
@@ -23,9 +23,7 @@ export function PermissionsProvider({ children }) {
         setLoading(true);
         const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
         const response = await fetch(`${API_URL}/me/permisos`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          credentials: 'include'
         });
 
         if (response.ok) {
@@ -43,7 +41,7 @@ export function PermissionsProvider({ children }) {
     }
 
     loadPermissions();
-  }, [authLoading, token, user]);
+  }, [authLoading, user]);
 
   const puede = (modulo, accion) => {
     if (data.rol?.slug === 'admin') return true;

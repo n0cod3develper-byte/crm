@@ -7,6 +7,7 @@ const labelStyle = { fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--
 const sectionTitle = { fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0.25rem 0 0.75rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.4rem' };
 
 const UNIDADES = ['hora', 'día', 'semana', 'mes', 'servicio', 'km', 'COP'];
+const TIPOS_SERVICIO = ['Fijo', 'Esporádico', 'Otras Ventas'];
 
 
 export function CatalogoServicioForm({ item, onSuccess, onCancel }) {
@@ -18,6 +19,7 @@ export function CatalogoServicioForm({ item, onSuccess, onCancel }) {
     cantidad: item?.cantidad || 1,
     unidad: item?.unidad || 'hora',
     tipo: item?.tipo || 'Servicio',
+    tipo_servicio: item?.tipo_servicio || 'Fijo',
   });
 
   const mutation = useMutation({
@@ -67,6 +69,13 @@ export function CatalogoServicioForm({ item, onSuccess, onCancel }) {
             Este producto se agregará automáticamente al Inventario General.
           </div>
         )}
+      </div>
+
+      <div>
+        <label style={labelStyle}>Tipo de Servicio *</label>
+        <select name="tipo_servicio" className="input" style={{ width: '100%' }} value={form.tipo_servicio} onChange={handleChange}>
+          {TIPOS_SERVICIO.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
       </div>
 
       <div>

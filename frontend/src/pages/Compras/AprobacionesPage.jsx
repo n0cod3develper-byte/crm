@@ -5,7 +5,6 @@ import {
   CheckCircle2, XCircle, Clock, Search, ShieldCheck,
   FileText, ArrowRight, UserCheck
 } from 'lucide-react';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
@@ -49,7 +48,6 @@ export const AprobacionesPage = () => {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title="Centro de Aprobaciones" 
         subtitle="Valida y autoriza solicitudes de gasto y órdenes de compra" 

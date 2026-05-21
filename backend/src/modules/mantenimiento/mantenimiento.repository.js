@@ -288,6 +288,139 @@ export class MantenimientoRepository {
   // ==========================================
   // REPUESTOS E INSUMOS
   // ==========================================
+  // ==========================================
+  // KPIs (Dashboard)
+  // ==========================================
+
+  async getKpis(meses = 12, fecha_desde = null, fecha_hasta = null) {
+    // Helper para construir filtro de fecha por created_at
+    const dateFilter = (alias = 'ot') => {
+      const clauses = [];
+      const params = [];
+      if (fecha_desde) { clauses.push(`${alias}.created_at >= $${params.length + 1}`); params.push(fecha_desde); }
+      if (fecha_hasta) { clauses.push(`${alias}.created_at <= $${params.length + 1}::date + interval '1 day'`); params.push(fecha_hasta); }
+      return { sql: clauses.length ? ' AND ' + clauses.join(' AND ') : '', params };
+    };
+
+    const dateFilterLiq = () => {
+      const clauses = [];
+      const params = [];
+      if (fecha_desde) { clauses.push(`l.fecha_liquidacion >= $${params.length + 1}`); params.push(fecha_desde); }
+      if (fecha_hasta) { clauses.push(`l.fecha_liquidacion <= $${params.length + 1}::date + interval '1 day'`); params.push(fecha_hasta); }
+      return { sql: clauses.length ? ' AND ' + clauses.join(' AND ') : '', params };
+    };
+
+    const df = dateFilter();
+    const dfLiq = dateFilterLiq();
+
+    const totalOT = await query(`SELECT COUNT(*)::int AS total FROM ordenes_trabajo ot WHERE ot.deleted_at IS NULL${df.sql}`, df.params);
+
+    const porEstado = await query(`
+      SELECT ot.estado, COUNT(*)::int AS count
+      FROM ordenes_trabajo ot
+      WHERE ot.deleted_at IS NULL${df.sql}
+      GROUP BY ot.estado
+    `, df.params);
+
+    const porTipo = await query(`
+      SELECT ot.tipo_mantenimiento, COUNT(*)::int AS count
+      FROM ordenes_trabajo ot
+      WHERE ot.deleted_at IS NULL${df.sql}
+      GROUP BY ot.tipo_mantenimiento
+    `, df.params);
+
+    const esteMes = await query(`
+      SELECT COUNT(*)::int AS count
+      FROM ordenes_trabajo
+      WHERE deleted_at IS NULL
+        AND created_at >= date_trunc('month', NOW())
+    `);
+
+    const liquidadoLiqTotal = await query(`
+      SELECT COALESCE(SUM(l.total_final), 0)::numeric(12,2) AS total
+      FROM ot_liquidacion l
+      JOIN ordenes_trabajo ot ON ot.id = l.orden_trabajo_id
+      WHERE ot.deleted_at IS NULL${dfLiq.sql}
+    `, dfLiq.params);
+
+    const equiposConOT = await query(`
+      SELECT COUNT(DISTINCT ot.equipo_id)::int AS total
+      FROM ordenes_trabajo ot
+      WHERE ot.deleted_at IS NULL${df.sql}
+    `, df.params);
+
+    const tecnicosActivos = await query(`
+      SELECT COUNT(DISTINCT t.empleado_id)::int AS total
+      FROM ot_tecnicos t
+      JOIN ordenes_trabajo ot ON ot.id = t.orden_trabajo_id
+      WHERE ot.deleted_at IS NULL
+        AND ot.estado IN ('ABIERTA', 'EN_PROCESO')
+    `);
+
+    const proxPreventivos = await query(`
+      SELECT COUNT(*)::int AS total
+      FROM ordenes_trabajo
+      WHERE deleted_at IS NULL
+        AND tipo_mantenimiento = 'PREVENTIVO'
+        AND estado IN ('ABIERTA', 'EN_PROCESO')
+    `);
+
+    // ─── Tendencias mensuales ────────────────────────────────
+    const intervalMonths = meses - 1;
+    const tendenciasCreadas = await query(`
+      SELECT
+        to_char(date_trunc('month', created_at), 'YYYY-MM') AS mes,
+        COUNT(*)::int AS creadas
+      FROM ordenes_trabajo
+      WHERE deleted_at IS NULL
+        AND created_at >= date_trunc('month', NOW()) - $1::INTERVAL
+      GROUP BY date_trunc('month', created_at)
+      ORDER BY mes
+    `, [`${intervalMonths} months`]);
+
+    const tendenciasLiquidadas = await query(`
+      SELECT
+        to_char(date_trunc('month', l.fecha_liquidacion), 'YYYY-MM') AS mes,
+        COUNT(*)::int AS liquidadas
+      FROM ot_liquidacion l
+      JOIN ordenes_trabajo ot ON ot.id = l.orden_trabajo_id
+      WHERE ot.deleted_at IS NULL
+        AND l.fecha_liquidacion >= date_trunc('month', NOW()) - $1::INTERVAL
+      GROUP BY date_trunc('month', l.fecha_liquidacion)
+      ORDER BY mes
+    `, [`${intervalMonths} months`]);
+
+    // Combinar en un array de `meses` meses (completando con 0 los que falten)
+    const trendMap = new Map();
+    const lastIndex = meses - 1;
+    for (let i = lastIndex; i >= 0; i--) {
+      const m = new Date();
+      m.setMonth(m.getMonth() - i);
+      const key = m.toISOString().slice(0, 7); // 'YYYY-MM'
+      const label = m.toLocaleDateString('es-CO', { month: 'short', year: '2-digit' });
+      trendMap.set(key, { mes: key, label, creadas: 0, liquidadas: 0 });
+    }
+
+    for (const row of tendenciasCreadas.rows) {
+      if (trendMap.has(row.mes)) trendMap.get(row.mes).creadas = row.creadas;
+    }
+    for (const row of tendenciasLiquidadas.rows) {
+      if (trendMap.has(row.mes)) trendMap.get(row.mes).liquidadas = row.liquidadas;
+    }
+
+    return {
+      total: totalOT.rows[0].total,
+      por_estado: porEstado.rows,
+      por_tipo: porTipo.rows,
+      este_mes: esteMes.rows[0].count,
+      liquidado_total: liquidadoLiqTotal.rows[0].total,
+      equipos_con_ot: equiposConOT.rows[0].total,
+      tecnicos_activos: tecnicosActivos.rows[0].total,
+      preventivos_pendientes: proxPreventivos.rows[0].total,
+      tendencias: Array.from(trendMap.values()),
+    };
+  }
+
   async searchInventario(q) {
       const result = await query(
           `SELECT 

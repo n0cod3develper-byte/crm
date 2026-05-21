@@ -1,9 +1,8 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, FileText, Plus, Trash2, UserCheck, Edit, DollarSign } from 'lucide-react';
+import { ArrowLeft, FileText, Plus, Trash2, UserCheck, Edit, DollarSign, Receipt } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 import { LiquidacionHorasModal } from './LiquidacionHorasModal';
@@ -22,7 +21,7 @@ function formatCOP(v) {
 }
 function formatTime(t) { return t ? String(t).substring(0, 5) : '—'; }
 
-const ESTADO_BADGE = { BORRADOR: 'gray', PENDIENTE: 'warning', REALIZADA: 'primary', LIQUIDADA: 'green', ANULADO: 'danger' };
+const ESTADO_BADGE = { BORRADOR: 'gray', PENDIENTE: 'warning', REALIZADA: 'primary', LIQUIDADA: 'green', FACTURADA: 'success', ANULADO: 'danger' };
 
 export function RemisionDetailPage() {
   const { id } = useParams();
@@ -80,8 +79,8 @@ export function RemisionDetailPage() {
     } catch { toast.error('Error generando PDF'); }
   };
 
-  if (isLoading) return <div className="app-layout"><Sidebar /><div className="empty-state"><div className="spinner" /></div></div>;
-  if (!remision) return <div className="app-layout"><Sidebar /><div className="empty-state"><p>Remisión no encontrada</p></div></div>;
+  if (isLoading) return <div className="app-layout"><div className="empty-state"><div className="spinner" /></div></div>;
+  if (!remision) return <div className="app-layout"><div className="empty-state"><p>Remisión no encontrada</p></div></div>;
 
   const operariosAsignados = remision.operarios || [];
   const totalLiquidado = horasLaborales.reduce((s, h) => s + parseFloat(h.total_liquidado || 0), 0);
@@ -95,7 +94,6 @@ export function RemisionDetailPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar
         title={`Remisión No. ${remision.numero_remision}`}
         subtitle={remision.empresa_nombre}
@@ -119,6 +117,16 @@ export function RemisionDetailPage() {
             )}
             {remision.estado === 'REALIZADA' && (
               <button className="btn btn--outline" onClick={() => updateEstadoMutation.mutate('LIQUIDADA')}>Marcar como Liquidada</button>
+            )}
+            {remision.estado === 'LIQUIDADA' && (
+              <button className="btn btn--primary" style={{ background: '#059669', borderColor: '#059669' }} onClick={() => navigate(`/facturacion/ots-pendientes?empresa_id=${remision.company_id}&tab=remisiones`)}>
+                <Receipt size={16} /> Convertir a Factura
+              </button>
+            )}
+            {remision.estado === 'FACTURADA' && (
+              <span className="badge badge--success" style={{ fontSize: '12px', padding: '6px 14px', background: '#059669', color: 'white' }}>
+                Facturada
+              </span>
             )}
             <button className="btn btn--primary" onClick={handleDownloadPDF}>
               <FileText size={16} /> Descargar PDF

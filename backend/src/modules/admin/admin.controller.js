@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { query, withTransaction } from '../../config/database.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
@@ -218,5 +219,39 @@ export async function miInformacion(req, res) {
     });
   } catch (err) {
     res.status(500).json({ error: 'Error obteniendo perfil' });
+  }
+}
+
+export async function cambiarClaveUsuario(req, res) {
+  const { id } = req.params;
+  const { password, ejecutado_por } = req.body;
+
+  if (!password || password.trim().length < 6) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+  }
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    await withTransaction(async (client) => {
+      const sql = `UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1 RETURNING id`;
+      const result = await client.query(sql, [id, passwordHash]);
+
+      if (result.rows.length === 0) {
+        throw new Error('Usuario no encontrado');
+      }
+
+      const auditSql = `
+        INSERT INTO auditoria_permisos (accion, ejecutado_por, entidad_tipo, entidad_id, detalle)
+        VALUES ('CHANGE_USER_PASSWORD', $1, 'USUARIO', $2, $3)
+      `;
+      await client.query(auditSql, [ejecutado_por, id, JSON.stringify({ note: 'Contraseña cambiada por administrador' })]);
+    });
+
+    res.json({ success: true, message: 'Contraseña actualizada correctamente' });
+  } catch (err) {
+    console.error('Error en cambiarClaveUsuario:', err);
+    res.status(500).json({ error: err.message || 'Error al cambiar la contraseña del usuario' });
   }
 }

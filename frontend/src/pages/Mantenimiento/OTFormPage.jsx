@@ -6,7 +6,6 @@ import {
   User, Package, AlertCircle, CheckCircle2, Clock, Download
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { OTFirmadaUploader } from '../../components/documentos/OTFirmadaUploader';
 import api from '../../lib/api';
@@ -338,7 +337,6 @@ export function OTFormPage() {
   // ─── Render ────────────────────────────────────────────
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title={isEditing ? `Editar OT ${otData?.consecutivo || ''}` : 'Nueva Orden de Trabajo'} 
         subtitle={isEditing ? 'Modifica los datos de la orden' : 'Completa los datos para crear una nueva OT'} 
@@ -368,7 +366,7 @@ export function OTFormPage() {
             <Wrench size={18} color="var(--clr-primary-400)" /> Datos Generales
           </h2>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div className="form-grid-2cols" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             {/* Tipo */}
             <div className="input-group">
               <label className="input-label">Tipo de mantenimiento</label>

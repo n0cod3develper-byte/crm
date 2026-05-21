@@ -6,6 +6,9 @@ import * as pmCtrl from './pm.controller.js';
 const router = Router();
 router.use(authenticate);
 
+// ─── KPIs (Dashboard) ────────────────────────────────────────
+router.get('/kpis',     ctrl.getKpis);
+
 // ─── Órdenes de trabajo ─────────────────────────────────────
 router.get('/ot',       ctrl.getAllOTs);
 router.get('/ot/:id',   ctrl.getOT);

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Shield, Save, RotateCcw, Info, Users, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 
 const ACCIONES = [
@@ -16,7 +15,7 @@ const ACCIONES = [
 ];
 
 export function RolesPage() {
-  const { token, user } = useAuth();
+  const { user } = useAuth();
   const [roles, setRoles] = useState([]);
   const [rolSeleccionado, setRolSeleccionado] = useState(null);
   const [matriz, setMatriz] = useState([]); // Matriz de permisos del rol seleccionado
@@ -27,15 +26,13 @@ export function RolesPage() {
   const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
   useEffect(() => {
-    if (token) {
-      fetchRoles();
-    }
-  }, [token]);
+    fetchRoles();
+  }, []);
 
   async function fetchRoles() {
     try {
       const res = await fetch(`${API_URL}/admin/roles`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
       const data = await res.json();
       setRoles(data);
@@ -53,7 +50,7 @@ export function RolesPage() {
     setRolSeleccionado(rol);
     try {
       const res = await fetch(`${API_URL}/admin/roles/${rol.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
       const data = await res.json();
       setMatriz(data.permisos);
@@ -89,10 +86,8 @@ export function RolesPage() {
     try {
       const res = await fetch(`${API_URL}/admin/roles/${rolSeleccionado.id}/permisos`, {
         method: 'PUT',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ 
           permisos: matriz,
           ejecutado_por: user.id
@@ -114,14 +109,12 @@ export function RolesPage() {
 
   if (loading) return (
     <div className="app-layout">
-      <Sidebar />
       <div className="main-content flex items-center justify-center">Cargando...</div>
     </div>
   );
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title="Gestión de Roles y Permisos" 
         subtitle="Administra qué puede hacer cada perfil en el sistema"

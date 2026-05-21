@@ -1,8 +1,7 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, User, Phone, Mail, Filter, Trash2, Edit } from 'lucide-react';
+import { Plus, Search, User, Phone, Mail, Filter, Trash2, Edit, Link, Unlink } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { EmployeeForm } from '../../components/Employees/EmployeeForm';
@@ -48,7 +47,6 @@ export function EmployeesPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title="Empleados" 
         subtitle={`${employees.length} registrados`} 
@@ -128,6 +126,35 @@ export function EmployeesPage() {
                   {Number(emp.hourly_rate) > 0 && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
                       <strong>Tarifa/h:</strong> ${Number(emp.hourly_rate).toLocaleString('es-CO')}
+                    </div>
+                  )}
+                  {emp.user_id ? (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.375rem',
+                      fontSize: 'var(--text-xs)',
+                      color: 'var(--clr-primary-500)',
+                      marginTop: '0.25rem',
+                      padding: '0.25rem 0.5rem',
+                      background: 'rgba(37, 99, 235, 0.05)',
+                      borderRadius: 'var(--radius-md)',
+                      width: 'fit-content',
+                    }}>
+                      <Link size={12} />
+                      <span><strong>Usuario:</strong> {emp.user_nombre} {emp.user_apellido}</span>
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.375rem',
+                      fontSize: 'var(--text-xs)',
+                      color: 'var(--text-muted)',
+                      marginTop: '0.25rem',
+                    }}>
+                      <Unlink size={12} />
+                      <span>Sin usuario vinculado</span>
                     </div>
                   )}
                 </div>

@@ -2,6 +2,7 @@ import { CatalogRepository } from './catalog.repository.js';
 import { NotFoundError } from '../../utils/errors.js';
 import { uploadSingle, buildUploadPath } from '../../config/storage.js';
 import { guardarArchivo } from '../../services/fileStorageService.js';
+import { logger } from '../../utils/logger.js';
 
 const repo = new CatalogRepository();
 
@@ -52,12 +53,11 @@ export const getUnidades = async (req, res, next) => {
 
 export const createItem = async (req, res, next) => {
   try {
-    console.log('[CatalogController] Creating item with body:', JSON.stringify(req.body, null, 2));
-    console.log('[CatalogController] User ID:', req.user.id);
+    logger.debug('[CatalogController] Creating item', { userId: req.user?.id });
     const item = await repo.create(req.body, req.user.id);
     res.status(201).json({ success: true, data: item });
   } catch (err) { 
-    console.error('[CatalogController] ERROR:', err.message);
+    logger.error('[CatalogController] Error creating item', { error: err.message });
     next(err); 
   }
 };
@@ -82,14 +82,10 @@ export const uploadImagen = async (req, res, next) => {
     const { id } = req.params;
     
     if (!req.file) {
-      console.error('Error: No se recibió archivo en req.file (Middleware)');
+      logger.warn('uploadImagen: No se recibió archivo en req.file', { id });
       return res.status(400).json({ 
         success: false, 
-        message: 'No se recibió el archivo en el campo "documento". Verifique el FormData del frontend.',
-        debug: {
-          headers: req.headers['content-type'],
-          body: req.body
-        }
+        message: 'No se recibió el archivo en el campo "documento". Verifique el FormData del frontend.'
       });
     }
 
@@ -107,7 +103,7 @@ export const uploadImagen = async (req, res, next) => {
 
     res.json({ success: true, data: item });
   } catch (error) {
-    console.error('Error en uploadImagen:', error);
+    logger.error('Error en uploadImagen', { error: error.message, id });
     next(error);
   }
 };

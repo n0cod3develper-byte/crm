@@ -8,7 +8,6 @@ import {
   Briefcase, CheckCircle2, AlertTriangle, Plus,
   Info, User
 } from 'lucide-react';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { DocumentosList } from '../../components/documentos/DocumentosList';
@@ -29,8 +28,8 @@ export function ProveedorFichaPage() {
     },
   });
 
-  if (isLoading) return <div className="app-layout"><Sidebar /><div className="main-content flex justify-center items-center"><div className="spinner" /></div></div>;
-  if (!proveedor) return <div className="app-layout"><Sidebar /><div className="main-content">Proveedor no encontrado</div></div>;
+  if (isLoading) return <div className="app-layout"><div className="main-content flex justify-center items-center"><div className="spinner" /></div></div>;
+  if (!proveedor) return <div className="app-layout"><div className="main-content">Proveedor no encontrado</div></div>;
 
   const renderStars = (rating) => (
     <div className="flex gap-0.5">
@@ -42,7 +41,6 @@ export function ProveedorFichaPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
             <Topbar 
         title={proveedor.razon_social} 
         subtitle="null"

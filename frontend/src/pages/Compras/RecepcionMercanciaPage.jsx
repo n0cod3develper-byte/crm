@@ -7,7 +7,6 @@ import {
   ChevronRight, ChevronLeft, Layers, Tag, DollarSign,
   BarChart2, CheckCircle2
 } from 'lucide-react';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
@@ -394,7 +393,6 @@ export const RecepcionMercanciaPage = () => {
   // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) return (
     <div className="app-layout">
-      <Sidebar />
       <div className="main-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="spinner" style={{ width: '2rem', height: '2rem' }} />
       </div>
@@ -403,7 +401,6 @@ export const RecepcionMercanciaPage = () => {
 
   if (!oc) return (
     <div className="app-layout">
-      <Sidebar />
       <div className="main-content">
         <div className="card empty-state">
           <AlertTriangle size={48} className="empty-state__icon" />
@@ -418,7 +415,6 @@ export const RecepcionMercanciaPage = () => {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar
         title="Recepción de Mercancía"
         subtitle="Registro de ingreso al almacén y actualización de inventario"

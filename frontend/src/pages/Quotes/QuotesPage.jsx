@@ -2,7 +2,6 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, FileText, Download, Target, Trash2, Edit2, Calendar } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { QuoteForm } from '../../components/Quotes/QuoteForm';
@@ -76,7 +75,6 @@ export function QuotesPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
 
       <Topbar 
         title="Cotizaciones" 

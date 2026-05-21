@@ -1,6 +1,7 @@
 import React from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
+import { User, Link, Unlink } from 'lucide-react';
 import api from '../../lib/api';
 
 const POSITIONS = ['Administrativo', 'Operario', 'Técnico'];
@@ -15,16 +16,36 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
     position: employee?.position || 'Administrativo',
     status: employee?.status || 'Activo',
     hourly_rate: employee?.hourly_rate || 0,
+    user_id: employee?.user_id || '',
   });
+
+  // Obtener usuarios disponibles para vincular
+  const usuariosQuery = useQuery({
+    queryKey: ['usuarios-disponibles', employee?.id],
+    queryFn: async () => {
+      const params = employee?.id ? { empleado_id: employee.id } : {};
+      const { data } = await api.get('/employees/usuarios-disponibles', { params });
+      return data.data || [];
+    },
+    enabled: true,
+  });
+
+  const usuarios = usuariosQuery.data || [];
 
   const mutation = useMutation({
     mutationFn: async (payload) => {
-      if (employee) return api.patch(`/employees/${employee.id}`, payload);
-      return api.post('/employees', payload);
+      // Limpiar user_id si es string vacío (desvincular)
+      const cleanPayload = { ...payload };
+      if (cleanPayload.user_id === '' || cleanPayload.user_id === 'ninguno') {
+        cleanPayload.user_id = null;
+      }
+      if (employee) return api.patch(`/employees/${employee.id}`, cleanPayload);
+      return api.post('/employees', cleanPayload);
     },
     onSuccess: () => {
       toast.success(employee ? 'Empleado actualizado' : 'Empleado creado');
       qc.invalidateQueries({ queryKey: ['employees'] });
+      qc.invalidateQueries({ queryKey: ['usuarios-disponibles'] });
       onSuccess();
     },
     onError: (err) => {
@@ -45,6 +66,8 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
+
+  const usuarioSeleccionado = usuarios.find(u => u.id === form.user_id);
 
   const labelStyle = { fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.375rem' };
 
@@ -108,6 +131,47 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
           onChange={handleChange}
         />
       </div>
+
+      {/* ─── Vinculación con usuario del sistema ──────────────── */}
+      <div style={{
+        borderTop: '1px solid var(--border-color)',
+        paddingTop: '1rem',
+        marginTop: '0.5rem',
+      }}>
+        <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+          <Link size={14} /> Vincular a usuario del sistema
+        </label>
+        {usuariosQuery.isLoading ? (
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', padding: '0.5rem 0' }}>
+            Cargando usuarios...
+          </div>
+        ) : (
+          <>
+            <select
+              name="user_id"
+              className="input"
+              style={{ width: '100%' }}
+              value={form.user_id || 'ninguno'}
+              onChange={handleChange}
+            >
+              <option value="ninguno">— Sin vincular —</option>
+              {usuarios.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.nombre} {u.apellido} ({u.email})
+                </option>
+              ))}
+            </select>
+            <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '0.375rem', lineHeight: 1.4 }}>
+              {form.user_id && form.user_id !== 'ninguno' ? (
+                <>El empleado podrá iniciar turno con la cuenta de <strong>{usuarioSeleccionado?.nombre} {usuarioSeleccionado?.apellido}</strong></>
+              ) : (
+                'Selecciona un usuario para que este empleado pueda usar el módulo de Turnos.'
+              )}
+            </p>
+          </>
+        )}
+      </div>
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
         <button type="button" className="btn btn--ghost" onClick={onCancel}>Cancelar</button>
         <button type="submit" className="btn btn--primary" disabled={mutation.isPending}>

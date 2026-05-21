@@ -6,7 +6,6 @@ import {
   ClipboardCheck, Clock, Building2, AlertTriangle
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
@@ -69,7 +68,6 @@ export function MantenimientoPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

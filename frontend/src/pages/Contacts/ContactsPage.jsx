@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Users, Mail, Phone, Building2, ExternalLink } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { ContactForm } from '../../components/Contacts/ContactForm';
@@ -51,7 +50,6 @@ export function ContactsPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
 
       <Topbar 
         title="Contactos" 

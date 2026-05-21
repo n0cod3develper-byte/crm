@@ -6,28 +6,23 @@ const AuthContext = createContext();
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
 
   const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
   useEffect(() => {
-    if (token) {
-      fetchUser();
-    } else {
-      setLoading(false);
-    }
-  }, [token]);
+    fetchUser();
+  }, []);
 
   async function fetchUser() {
     try {
       const res = await fetch(`${API_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
+        credentials: 'include'
       });
       if (res.ok) {
         const userData = await res.json();
         setUser(userData);
       } else {
-        logout();
+        setUser(null);
       }
     } catch (err) {
       console.error('Error fetching user:', err);
@@ -41,22 +36,22 @@ export function AuthProvider({ children }) {
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email, password })
       });
       const result = await res.json();
       if (res.ok) {
-        localStorage.setItem('token', result.data.accessToken);
-        setToken(result.data.accessToken);
         setUser(result.data.user);
         toast.success('Sesión iniciada');
-        return true;
+        return { success: true };
       } else {
-        toast.error(result.error || 'Credenciales inválidas');
-        return false;
+        const errorMsg = result.error?.message || result.error || 'Credenciales inválidas';
+        toast.error(errorMsg);
+        return { success: false, error: errorMsg };
       }
     } catch (err) {
       toast.error('Error de conexión');
-      return false;
+      return { success: false, error: 'Error de conexión' };
     }
   }
 
@@ -65,16 +60,17 @@ export function AuthProvider({ children }) {
       const res = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(data)
       });
       const result = await res.json();
       if (res.ok) {
-        localStorage.setItem('token', result.data.accessToken);
-        setToken(result.data.accessToken);
+        // Recargar datos del usuario
+        await fetchUser();
         toast.success('Cuenta creada correctamente');
         return true;
       } else {
-        toast.error(result.error || 'Error al registrarse');
+        toast.error(result.error?.message || result.error || 'Error al registrarse');
         return false;
       }
     } catch (err) {
@@ -83,15 +79,21 @@ export function AuthProvider({ children }) {
     }
   }
 
-  function logout() {
-    localStorage.removeItem('token');
-    setToken(null);
+  async function logout() {
+    try {
+      await fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (err) {
+      // Ignorar errores de logout
+    }
     setUser(null);
     window.location.href = '/login';
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register, token }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, register }}>
       {children}
     </AuthContext.Provider>
   );

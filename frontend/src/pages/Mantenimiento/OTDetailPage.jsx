@@ -6,7 +6,6 @@ import {
   DollarSign, Building2, Clock, Truck, FileText, CheckCircle2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
@@ -76,7 +75,6 @@ export function OTDetailPage() {
   if (isLoading) {
     return (
       <div className="app-layout">
-        <Sidebar />
       <Topbar 
         title={ot?.consecutivo || 'Cargando...'} 
         subtitle={ot ? `Creada ${fmtDate(ot.created_at)}` : 'Espere un momento'} 
@@ -91,7 +89,6 @@ export function OTDetailPage() {
   if (!ot) {
     return (
       <div className="app-layout">
-        <Sidebar />
         <header className="header" />
         <main className="main-content">
           <div className="empty-state">
@@ -116,7 +113,6 @@ export function OTDetailPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
@@ -161,7 +157,7 @@ export function OTDetailPage() {
           <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Wrench size={18} color="var(--clr-primary-400)" /> Datos Generales
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+          <div className="fields-grid-3cols" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
             <Field label="Empresa" icon={<Building2 size={14} />} value={ot.empresa_nombre} />
             <Field label="NIT" value={ot.empresa_nit || '—'} />
             <Field label="Responsable" value={ot.responsable || '—'} />
@@ -323,7 +319,7 @@ export function OTDetailPage() {
 
         {/* ─── Liquidación ─────────────────────────────── */}
         {liq && (
-          <div style={{ display: 'grid', gridTemplateColumns: ot.factura_id ? '1fr 1fr' : '1fr', gap: '1.5rem' }}>
+          <div className="liquid-grid-2cols" style={{ display: 'grid', gridTemplateColumns: ot.factura_id ? '1fr 1fr' : '1fr', gap: '1.5rem' }}>
             <div className="card" style={{
               border: '2px solid rgba(34,197,94,0.3)',
               background: 'linear-gradient(135deg, var(--bg-surface), rgba(34,197,94,0.03))',

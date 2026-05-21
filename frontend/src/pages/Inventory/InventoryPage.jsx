@@ -2,7 +2,6 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Box, Trash2, Edit2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { InventoryForm } from '../../components/Inventory/InventoryForm';
@@ -46,7 +45,6 @@ export function InventoryPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
 
       <Topbar 
         title="Inventario y Catálogo" 

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { catalogApi } from '../../services/catalogApi';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import {
   MapPin, Plus, Search, Trash2, Edit2, CheckCircle, XCircle,
@@ -193,7 +192,6 @@ export function UbicacionesPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar
         title="Ubicaciones de Bodega"
         subtitle="Gestión jerárquica de espacios físicos de almacenamiento"

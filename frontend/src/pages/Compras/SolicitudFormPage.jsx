@@ -6,7 +6,6 @@ import {
   ShoppingBag, Package, AlertCircle, Send
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
@@ -138,11 +137,10 @@ export function SolicitudFormPage() {
     saveMut.mutate({ ...form, items });
   };
 
-  if (loadingData) return <div className="app-layout"><Sidebar /><main className="main-content"><div className="spinner" /></main></div>;
+  if (loadingData) return <div className="app-layout"><main className="main-content"><div className="spinner" /></main></div>;
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title={isEditing ? `Solicitud ${solData?.consecutivo}` : 'Nueva Solicitud de Compra'} 
         subtitle="Añade los productos o servicios que necesitas adquirir" 
