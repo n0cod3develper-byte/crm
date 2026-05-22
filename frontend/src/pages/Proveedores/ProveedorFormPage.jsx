@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
-import { createProveedorSchema } from '../../../../backend/src/modules/proveedores/proveedores.schema'; // Error potential if path is wrong, I'll copy the schema if needed or use relative
 
 // Note: Importing from backend might fail in some build setups. I'll define a local version if needed.
 // But let's try to find where it's stored in frontend if it's shared.
