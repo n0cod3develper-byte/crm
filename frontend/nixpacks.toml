@@ -1,5 +1,8 @@
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = ["npm ci --ignore-scripts"]
 
 [start]
 cmd = "caddy run --config /assets/Caddyfile --adapter caddyfile"
