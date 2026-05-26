@@ -48,7 +48,7 @@ export function DocumentosList({ entidadTipo, entidadId, soloLectura = false }) 
     return <File size={18} className="text-secondary" />;
   };
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>

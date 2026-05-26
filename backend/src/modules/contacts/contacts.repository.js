@@ -1,4 +1,4 @@
-import { query } from '../../config/database.js';
+﻿import { query } from '../../config/database.js';
 
 export class ContactsRepository {
   async findAll({ companyId, search, limit = 50, cursor }) {
@@ -27,7 +27,7 @@ export class ContactsRepository {
 
     const sql = `
       SELECT c.*,
-        (u.nombre || ' ' || u.apellido) AS assigned_to_name,
+        u.full_name AS assigned_to_name,
         comp.name AS company_name
       FROM contacts c
       LEFT JOIN users u ON u.id = c.assigned_to
@@ -53,7 +53,7 @@ export class ContactsRepository {
   async findById(id) {
     const result = await query(
       `SELECT c.*, 
-        (u.nombre || ' ' || u.apellido) AS assigned_to_name,
+        u.full_name AS assigned_to_name,
         comp.name AS company_name
        FROM contacts c
        LEFT JOIN users u ON u.id = c.assigned_to
@@ -111,3 +111,4 @@ export class ContactsRepository {
     return result.rows[0] || null;
   }
 }
+

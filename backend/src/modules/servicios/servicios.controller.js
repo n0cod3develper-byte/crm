@@ -82,6 +82,13 @@ export const serviciosController = {
     } catch (err) { next(err); }
   },
 
+  async getLastHorometro(req, res, next) {
+    try {
+      const horometro = await repo.findLastHorometro(req.params.equipo_id);
+      res.json({ success: true, data: horometro });
+    } catch (err) { next(err); }
+  },
+
   async addOperario(req, res, next) {
     try {
       const { empleado_id } = req.body;

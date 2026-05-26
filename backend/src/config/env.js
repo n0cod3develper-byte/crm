@@ -11,9 +11,9 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   
-  CLERK_PUBLISHABLE_KEY: z.string(),
-  CLERK_SECRET_KEY: z.string(),
-  CLERK_WEBHOOK_SECRET: z.string(),
+  CLERK_PUBLISHABLE_KEY: z.string().optional(),
+  CLERK_SECRET_KEY: z.string().optional(),
+  CLERK_WEBHOOK_SECRET: z.string().optional(),
   PERMISSIONS_CACHE_TTL_SECONDS: z.string().default('300').transform(Number),
 
   GOOGLE_CLIENT_ID: z.string().optional(),

@@ -71,8 +71,12 @@ export function RemisionFormPage() {
   });
 
   const { data: catalogoItems = [] } = useQuery({
-    queryKey: ['catalogo-servicios-activos'],
-    queryFn: async () => { const { data } = await api.get('/catalogo-servicios', { params: { is_active: 'true', limit: 200 } }); return data.data || []; },
+    queryKey: ['catalogo-pro-servicios'],
+    queryFn: async () => {
+      const { data } = await api.get('/catalogo', { params: { tipo: 'SERVICIO', limit: 200 } });
+      // El catálogo PRO devuelve { items: [] }
+      return data.items || [];
+    },
   });
 
   const { data: operariosDisp = [] } = useQuery({
@@ -137,6 +141,12 @@ export function RemisionFormPage() {
       .then(res => setEquiposFiltrados(res.data?.data || res.data || []))
       .catch(() => setEquiposFiltrados([]));
 
+    // Auto‑rellenar la dirección del cliente con la dirección de la empresa
+    const empresa = empresas.find(e => e.id === form.company_id);
+    if (empresa && empresa.address && !form.direccion_servicio) {
+      setForm(prev => ({ ...prev, direccion_servicio: empresa.address }));
+    }
+
     // Traer la forma de pago de la última remisión FIRMADO para esta empresa
     if (!isEditing || !existingData) {
       api.get(`/servicios/last-forma-pago/${form.company_id}`)
@@ -147,17 +157,41 @@ export function RemisionFormPage() {
         })
         .catch(() => { });
     }
-  }, [form.company_id]);
+  }, [form.company_id, empresas]);
 
   // ─── Al cambiar servicio: autocompletar valor_hora ───────────
   React.useEffect(() => {
     if (form.catalogo_servicio_id && catalogoMap[form.catalogo_servicio_id]) {
-      const precio = parseFloat(catalogoMap[form.catalogo_servicio_id].precio_base || 0);
+      // catalogo_completo view expone precio_venta; fallbacks para compatibilidad
+      const item = catalogoMap[form.catalogo_servicio_id];
+      const precio = parseFloat(item.precio_venta || item.precio_servicio || item.precio_base || 0);
       if (precio > 0) {
         setForm(prev => ({ ...prev, valor_hora: precio }));
       }
+      // Determinar si el servicio está exento de IVA
+      // Servicios de MONTACARGAS CON OPERARIO, ALQUILER DE GRUA, GAS no tienen IVA
+      const tipo = (item.tipo || '').toString().toUpperCase();
+      const nombre = (item.nombre_comercial || item.nombre || item.name || '').toString().toUpperCase();
+      const esExentoIVA =
+        ['GRUA', 'GAS', 'MONTACARGAS'].includes(tipo) ||
+        nombre.includes('MONTACARGAS') ||
+        nombre.includes('GRUA') || nombre.includes('GRÚA') ||
+        nombre.includes('GAS');
+      if (esExentoIVA) {
+        setForm(prev => ({ ...prev, iva_pct: 0 }));
+      } else {
+        setForm(prev => ({ ...prev, iva_pct: prev.iva_pct || 19 }));
+      }
     }
-  }, [form.catalogo_servicio_id, catalogoMap]);
+  }, [form.catalogo_servicio_id, catalogoMap, form.operario_id, form.operario_2_id]);
+
+  // ─── Auto-calcular valor_hora_fest_dia al 125% del valor_hora ──
+  React.useEffect(() => {
+    const valorHora = parseFloat(form.valor_hora || 0);
+    const festDia = Math.round(valorHora * 1.25);
+    setForm(prev => ({ ...prev, valor_hora_fest_dia: festDia }));
+  }, [form.valor_hora]);
+
 
   // ─── Auto-calcular Estado ──────────────────────────────────────
   React.useEffect(() => {
@@ -189,30 +223,64 @@ export function RemisionFormPage() {
       if (eq) {
         setForm(prev => ({ ...prev, numero_maquina: eq.serial }));
       }
+      // Obtener el último horómetro de regreso de la última remisión de esta máquina
+      // Solo para nuevas remisiones (no al editar)
+      if (!isEditing) {
+        api.get(`/servicios/last-horometro/${form.equipo_id}`)
+          .then(res => {
+            if (res.data?.data) {
+              setForm(prev => ({ ...prev, horometro_salida: res.data.data }));
+            }
+          })
+          .catch(() => { });
+      }
     }
   }, [form.equipo_id, equiposFiltrados]);
 
-  // ─── Auto-calcular horas por tiempos (Llegada - Salida) ───────────────────────
+  // ─── Auto-calcular horas por tiempos (Ambos operarios) ─────────────────────
   React.useEffect(() => {
-    if (horasManual) return; // Si el usuario editó manualmente, no recalcular
-    if (form.hora_salida_cargar && form.hora_llegada_cargar) {
+    if (horasManual) return;
+
+    const calcHorasFromTimes = (salida, llegada) => {
+      if (!salida || !llegada) return 0;
       const ts = (t) => t.length > 5 ? t.substring(0, 5) : t;
-      const salida = new Date(`1970-01-01T${ts(form.hora_salida_cargar)}:00`);
-      const llegada = new Date(`1970-01-01T${ts(form.hora_llegada_cargar)}:00`);
-      if (isNaN(salida.getTime()) || isNaN(llegada.getTime())) return;
-      if (llegada < salida) llegada.setDate(llegada.getDate() + 1); // Cruza la medianoche
-      const diffMs = llegada - salida;
-      let diffHrs = diffMs / (1000 * 60 * 60);
-      diffHrs = parseFloat(diffHrs.toFixed(2));
-      if (diffHrs < 1) diffHrs = 1;
-      setForm(prev => ({ ...prev, cantidad_horas: diffHrs }));
+      const s = new Date(`1970-01-01T${ts(salida)}:00`);
+      const l = new Date(`1970-01-01T${ts(llegada)}:00`);
+      if (isNaN(s.getTime()) || isNaN(l.getTime())) return 0;
+      if (l < s) l.setDate(l.getDate() + 1); // cruza medianoche
+      return Math.max(0, (l - s) / (1000 * 60 * 60));
+    };
+
+    // Horas operario 1
+    let horas1 = 0;
+    if (form.hora_salida_cargar && form.hora_llegada_cargar) {
+      horas1 = calcHorasFromTimes(form.hora_salida_cargar, form.hora_llegada_cargar);
     } else if (form.horometro_salida && form.horometro_regreso) {
-      const diff = parseFloat(form.horometro_regreso) - parseFloat(form.horometro_salida);
-      setForm(prev => ({ ...prev, cantidad_horas: diff > 1 ? diff : 1 }));
+      horas1 = Math.max(0, parseFloat(form.horometro_regreso) - parseFloat(form.horometro_salida));
+    }
+
+    // Horas operario 2
+    let horas2 = 0;
+    if (form.operario_2_id && form.segundo_hora_salida_cargar && form.segundo_hora_llegada_cargar) {
+      horas2 = calcHorasFromTimes(form.segundo_hora_salida_cargar, form.segundo_hora_llegada_cargar);
+    } else if (form.operario_2_id && form.segundo_horometro_salida && form.segundo_horometro_regreso) {
+      horas2 = Math.max(0, parseFloat(form.segundo_horometro_regreso) - parseFloat(form.segundo_horometro_salida));
+    }
+
+    const totalHoras = parseFloat((horas1 + horas2).toFixed(2));
+
+    if (totalHoras > 0) {
+      setForm(prev => ({ ...prev, cantidad_horas: Math.max(1, totalHoras) }));
     } else if (!form.cantidad_horas || form.cantidad_horas < 1) {
       setForm(prev => ({ ...prev, cantidad_horas: 1 }));
     }
-  }, [form.hora_salida_cargar, form.hora_llegada_cargar, form.horometro_salida, form.horometro_regreso, horasManual]);
+  }, [
+    form.hora_salida_cargar, form.hora_llegada_cargar,
+    form.horometro_salida, form.horometro_regreso,
+    form.segundo_hora_salida_cargar, form.segundo_hora_llegada_cargar,
+    form.segundo_horometro_salida, form.segundo_horometro_regreso,
+    form.operario_2_id, horasManual
+  ]);
 
   // ─── Auto-calcular totales ───────────────────────────────────
   React.useEffect(() => {
@@ -256,7 +324,8 @@ export function RemisionFormPage() {
 
     // Al cambiar campos de hora de inicio/fin, resetear el flag manual
     // para que el auto-cálculo de estado pueda actuar (BORRADOR → PENDIENTE → REALIZADA)
-    if (['hora_salida_cargar', 'hora_llegada_cargar', 'horometro_salida', 'horometro_regreso'].includes(name)) {
+    if (['hora_salida_cargar', 'hora_llegada_cargar', 'horometro_salida', 'horometro_regreso',
+         'segundo_hora_salida_cargar', 'segundo_hora_llegada_cargar', 'segundo_horometro_salida', 'segundo_horometro_regreso'].includes(name)) {
       setHorasManual(false);
     }
     // Al cambiar CUALQUIER campo de tiempo (los 4 de tiempos del servicio),
@@ -404,8 +473,8 @@ export function RemisionFormPage() {
                 <input {...inputProps('catalogo_servicio_id')} value={`[${existingData?.servicio_codigo}] ${existingData?.servicio_nombre}`} />
               ) : (
                 <select name="catalogo_servicio_id" className="input" style={{ width: '100%' }} value={form.catalogo_servicio_id} onChange={handleChange} required>
-                  <option value="">Seleccionar servicio del catálogo...</option>
-                  {catalogoItems.map(s => <option key={s.id} value={s.id}>[{s.codigo}] {s.nombre}</option>)}
+                  <option value="">Seleccionar servicio del catálogo PRO...</option>
+                  {catalogoItems.map(s => <option key={s.id} value={s.id}>[{s.codigo_interno}] {s.nombre_comercial}</option>)}
                 </select>
               )}
             </div>
@@ -535,8 +604,11 @@ export function RemisionFormPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>
             <div>
               <label style={label}>
-                Cantidad / Horas
-                {!isReadOnly && !horasManual && ((form.hora_salida_cargar && form.hora_llegada_cargar) || (form.horometro_salida && form.horometro_regreso)) && (
+                Cantidad / Horas{form.operario_2_id ? ' (Op.1 + Op.2)' : ''}
+                {!isReadOnly && !horasManual && (
+                  (form.hora_salida_cargar && form.hora_llegada_cargar) ||
+                  (form.horometro_salida && form.horometro_regreso)
+                ) && (
                   <span style={{ color: 'var(--clr-primary-500)', marginLeft: 4, fontWeight: 400 }}>(auto)</span>
                 )}
               </label>
@@ -556,9 +628,12 @@ export function RemisionFormPage() {
             <div>
               <label style={label}>
                 Valor por Hora (COP)
-                {!isReadOnly && form.catalogo_servicio_id && catalogoMap[form.catalogo_servicio_id]?.precio_base > 0 && (
+                {!isReadOnly && form.catalogo_servicio_id && (
+                  (catalogoMap[form.catalogo_servicio_id]?.precio_venta > 0 ||
+                   catalogoMap[form.catalogo_servicio_id]?.precio_servicio > 0 ||
+                   catalogoMap[form.catalogo_servicio_id]?.precio_base > 0) && (
                   <span style={{ color: 'var(--clr-primary-500)', marginLeft: 4, fontWeight: 400 }}>(del catálogo)</span>
-                )}
+                ))}
               </label>
               <input type="number" min={0} {...inputProps('valor_hora')} />
             </div>

@@ -76,8 +76,8 @@ export function CatalogFormPage() {
         imagen_url: item.imagen_url || ''
       }));
       if (item.imagen_url) {
-        const API_URL = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:4000';
-        setPreviewUrl(`${API_URL}/uploads/${item.imagen_url}`);
+        const BASE_URL = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || '';
+        setPreviewUrl(`${BASE_URL}/uploads/${item.imagen_url}`);
       }
     }
   }, [isEdit, itemData]);

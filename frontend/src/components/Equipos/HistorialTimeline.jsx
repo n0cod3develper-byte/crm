@@ -45,20 +45,15 @@ function formatDate(dt) {
   return new Date(dt).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-export function HistorialTimeline({ registros = [], onVerDetalle, onNuevoRegistro }) {
+export function HistorialTimeline({ registros = [], onVerDetalle }) {
   if (registros.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
         <Wrench size={40} style={{ opacity: 0.35, marginBottom: '0.75rem' }} />
         <p style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Sin registros de historial</p>
-        <p style={{ fontSize: 'var(--text-sm)', marginBottom: '1.5rem' }}>
-          Cada vez que el equipo ingrese al taller, crea un registro aquí.
+        <p style={{ fontSize: 'var(--text-sm)' }}>
+          Los registros de mantenimiento se crean desde la <strong>Orden de Trabajo</strong> en el módulo de Mantenimiento.
         </p>
-        {onNuevoRegistro && (
-          <button className="btn btn--primary" onClick={onNuevoRegistro}>
-            + Nuevo Registro
-          </button>
-        )}
       </div>
     );
   }

@@ -1,4 +1,4 @@
-import { query } from '../../config/database.js';
+﻿import { query } from '../../config/database.js';
 
 // ─── Genera ticket_number único: TKT-YYYYMMDD-XXXX ───────────
 async function nextTicketNumber() {
@@ -176,7 +176,7 @@ export class SupportRepository {
   // ─── MENSAJES ─────────────────────────────────────────────
   async findMessages(ticketId) {
     const result = await query(`
-      SELECT tm.*, (u.nombre || ' ' || u.apellido) AS author_name, u.avatar_url AS author_avatar
+      SELECT tm.*, u.full_name AS author_name, u.avatar_url AS author_avatar
       FROM ticket_messages tm
       LEFT JOIN users u ON u.id = tm.created_by
       WHERE tm.ticket_id = $1
@@ -201,3 +201,4 @@ export class SupportRepository {
     return result.rows[0] || null;
   }
 }
+

@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { catalogoServiciosController } from './catalogo_servicios.controller.js';
-import { authenticate } from '../../utils/jwt.js';
+import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
-router.use(authenticate);
+router.use(requireAuth);
 
 router.get('/',    catalogoServiciosController.list);
 router.post('/',   catalogoServiciosController.create);

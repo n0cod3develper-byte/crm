@@ -17,6 +17,12 @@ export default defineConfig(({ mode }) => ({
       '/api': {
         target: 'http://localhost:4000',
         changeOrigin: true,
+        secure: false,
+      },
+      '/uploads': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+        secure: false,
       },
     },
   },

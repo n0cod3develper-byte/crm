@@ -1,6 +1,5 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 import { generateTokenPair } from '../../utils/jwt.js';
 import { query } from '../../config/database.js';
 import { AppError } from '../../utils/errors.js';
@@ -10,52 +9,35 @@ import { obtenerPermisosUsuario } from '../../middleware/auth.js';
 
 /**
  * Login de usuario
+ * Compatible con el esquema actual: users (full_name, role TEXT, is_active BOOLEAN)
  */
 async function login(req, res, next) {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      throw new AppError('Email y contraseña son requeridos', 400);
-    }
+    if (!email || !password) throw new AppError('Email y contraseña son requeridos', 400);
 
     const result = await query(
-      `SELECT u.id, u.email, u.nombre, u.apellido, u.password_hash, u.estado, r.slug as role 
-       FROM users u
-       LEFT JOIN roles r ON u.rol_id = r.id
-       WHERE u.email = $1`,
+      `SELECT id, email, full_name, role, is_active, password_hash, avatar_url
+       FROM users
+       WHERE LOWER(email) = LOWER($1)`,
       [email]
     );
 
     const user = result.rows[0];
-
-    if (!user || user.estado !== 'ACTIVO') {
-      throw new AppError('Credenciales inválidas o usuario inactivo', 401);
-    }
-
-    if (!user.password_hash) {
-      throw new AppError('Este usuario no tiene una contraseña configurada', 401);
-    }
+    if (!user || !user.is_active) throw new AppError('Credenciales inválidas o usuario inactivo', 401);
+    if (!user.password_hash) throw new AppError('Este usuario no tiene contraseña configurada', 401);
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) {
-      throw new AppError('Credenciales inválidas', 401);
-    }
+    if (!isMatch) throw new AppError('Credenciales inválidas', 401);
 
     const { accessToken, refreshToken } = generateTokenPair(user.id);
-
-    // Actualizar último acceso
     await query('UPDATE users SET updated_at = NOW() WHERE id = $1', [user.id]);
 
-    delete user.password_hash;
+    const { password_hash, ...safeUser } = user;
 
     res.json({
       success: true,
-      data: {
-        user,
-        accessToken,
-        refreshToken
-      }
+      data: { user: safeUser, accessToken, refreshToken },
     });
   } catch (err) {
     next(err);
@@ -63,82 +45,63 @@ async function login(req, res, next) {
 }
 
 /**
- * Registro de usuario (vía invitación)
+ * Registro por invitación
  */
 async function register(req, res, next) {
   try {
-    const { token, password, nombre, apellido } = req.body;
+    const { token, password, full_name } = req.body;
+    if (!token || !password) throw new AppError('Token y contraseña son requeridos', 400);
 
-    if (!token || !password) {
-      throw new AppError('Token y contraseña son requeridos', 400);
-    }
-
-    // Validar token
     const result = await query(
-      `SELECT id FROM users 
-       WHERE invitation_token = $1 AND invitation_expires > NOW() AND estado = 'ACTIVO'`,
+      `SELECT id FROM users
+       WHERE invitation_token = $1 AND invitation_expires > NOW() AND is_active = TRUE`,
       [token]
     );
-
-    if (result.rows.length === 0) {
-      throw new AppError('Token de invitación inválido o expirado', 400);
-    }
+    if (!result.rows[0]) throw new AppError('Token de invitación inválido o expirado', 400);
 
     const userId = result.rows[0].id;
-
-    // Encriptar password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // Actualizar usuario
     await query(
-      `UPDATE users SET 
-        password_hash = $1, 
-        nombre = COALESCE($2, nombre),
-        apellido = COALESCE($3, apellido),
+      `UPDATE users SET
+        password_hash = $1,
+        full_name = COALESCE($2, full_name),
         invitation_token = NULL,
         invitation_expires = NULL,
         updated_at = NOW()
-       WHERE id = $4`,
-      [passwordHash, nombre, apellido, userId]
+       WHERE id = $3`,
+      [passwordHash, full_name || null, userId]
     );
 
     const { accessToken, refreshToken } = generateTokenPair(userId);
-
-    res.json({
-      success: true,
-      message: 'Usuario registrado correctamente',
-      data: { accessToken, refreshToken }
-    });
+    res.json({ success: true, message: 'Usuario registrado correctamente', data: { accessToken, refreshToken } });
   } catch (err) {
     next(err);
   }
 }
 
 /**
- * Obtener perfil del usuario actual
+ * Perfil del usuario autenticado
  */
 async function me(req, res, next) {
   try {
     const userId = req.userId;
-    
     const userResult = await query(
-      `SELECT u.id, u.email, u.nombre, u.apellido, u.avatar_url, u.estado, r.slug as rol_slug, r.nombre as rol_nombre
-       FROM users u
-       LEFT JOIN roles r ON u.rol_id = r.id
-       WHERE u.id = $1`,
+      `SELECT id, email, full_name, role, avatar_url, is_active FROM users WHERE id = $1`,
       [userId]
     );
-
     const user = userResult.rows[0];
     if (!user) throw new AppError('Usuario no encontrado', 404);
 
-    const permisos = await obtenerPermisosUsuario(userId);
+    // Obtiene permisos RBAC si existen; si no, devuelve vacíos
+    let permisos = { rol: { slug: user.role, nombre: user.role }, permisos: {} };
+    try {
+      const rbac = await obtenerPermisosUsuario(userId);
+      if (rbac && rbac.rol) permisos = rbac;
+    } catch { /* RBAC no configurado — continúa sin permisos granulares */ }
 
-    res.json({
-      ...user,
-      ...permisos
-    });
+    res.json({ ...user, ...permisos });
   } catch (err) {
     next(err);
   }
@@ -161,7 +124,6 @@ async function refreshToken(req, res, next) {
     }
 
     if (payload.type !== 'refresh') throw new AppError('Tipo de token incorrecto', 401);
-
     const tokens = generateTokenPair(payload.sub);
     res.json({ success: true, data: tokens });
   } catch (err) {
@@ -171,16 +133,15 @@ async function refreshToken(req, res, next) {
 
 async function updateProfile(req, res, next) {
   try {
-    const { nombre, apellido, avatar_url } = req.body;
+    const { full_name, avatar_url } = req.body;
     const result = await query(
       `UPDATE users SET
-        nombre  = COALESCE($1, nombre),
-        apellido = COALESCE($2, apellido),
-        avatar_url = COALESCE($3, avatar_url),
+        full_name  = COALESCE($1, full_name),
+        avatar_url = COALESCE($2, avatar_url),
         updated_at = NOW()
-       WHERE id = $4
-       RETURNING id, email, nombre, apellido, avatar_url`,
-      [nombre || null, apellido || null, avatar_url || null, req.userId]
+       WHERE id = $3
+       RETURNING id, email, full_name, role, avatar_url`,
+      [full_name || null, avatar_url || null, req.userId]
     );
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
@@ -191,27 +152,13 @@ async function updateProfile(req, res, next) {
 async function oauthCallback(req, res) {
   const user = req.user;
   const { accessToken, refreshToken } = generateTokenPair(user.id);
-
-  // Persiste el refresh token en BD
-  await query(
-    `UPDATE users SET updated_at = NOW() WHERE id = $1`,
-    [user.id]
-  );
+  await query(`UPDATE users SET updated_at = NOW() WHERE id = $1`, [user.id]);
 
   const redirectUrl = new URL('/auth/callback', env.FRONTEND_URL);
   redirectUrl.searchParams.set('token', accessToken);
   redirectUrl.searchParams.set('refresh', refreshToken);
-
   logger.info('Usuario autenticado via OAuth', { userId: user.id, email: user.email });
   res.redirect(redirectUrl.toString());
 }
 
-export const authController = {
-  login,
-  register,
-  me,
-  logout,
-  refreshToken,
-  updateProfile,
-  oauthCallback
-};
+export const authController = { login, register, me, logout, refreshToken, updateProfile, oauthCallback };

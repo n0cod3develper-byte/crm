@@ -1,4 +1,4 @@
-import { query } from '../../config/database.js';
+﻿import { query } from '../../config/database.js';
 
 export class LeadsRepository {
   async findAll({ status, assignedTo, source, campaignId, search, limit = 50, cursor }) {
@@ -36,7 +36,7 @@ export class LeadsRepository {
 
     const sql = `
       SELECT l.*,
-        (u.nombre || ' ' || u.apellido) AS assigned_to_name,
+        u.full_name AS assigned_to_name,
         c.name AS campaign_name
       FROM leads l
       LEFT JOIN users u ON u.id = l.assigned_to
@@ -58,7 +58,7 @@ export class LeadsRepository {
 
   async findById(id) {
     const result = await query(
-      `SELECT l.*, (u.nombre || ' ' || u.apellido) AS assigned_to_name, c.name AS campaign_name
+      `SELECT l.*, u.full_name AS assigned_to_name, c.name AS campaign_name
        FROM leads l
        LEFT JOIN users u ON u.id = l.assigned_to
        LEFT JOIN campaigns c ON c.id = l.campaign_id
@@ -146,3 +146,4 @@ export class LeadsRepository {
     return result.rows[0] || null;
   }
 }
+

@@ -36,6 +36,7 @@ import comprasRoutes from './modules/compras/compras.routes.js';
 
 import catalogoServiciosRoutes from './modules/catalogo_servicios/catalogo_servicios.routes.js';
 import serviciosRoutes from './modules/servicios/servicios.routes.js';
+import informesRoutes from './modules/informes/informes.routes.js';
 
 
 import documentosRoutes from './modules/documentos/documentos.routes.js';
@@ -124,6 +125,7 @@ app.use(`${API}/compras`, comprasRoutes);
 
 app.use(`${API}/catalogo-servicios`, catalogoServiciosRoutes);
 app.use(`${API}/servicios`, serviciosRoutes);
+app.use(`${API}/informes`,  informesRoutes);
 
 app.use(`${API}/documentos`, documentosRoutes);
 app.use(`${API}/facturacion`, facturacionRoutes);

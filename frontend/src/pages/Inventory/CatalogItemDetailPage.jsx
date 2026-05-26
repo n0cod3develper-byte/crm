@@ -96,7 +96,7 @@ export function CatalogItemDetailPage() {
                     {item.imagen_url ? (
                       <>
                         <img 
-                          src={`${import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:4000'}/uploads/${item.imagen_url}`} 
+                          src={`${import.meta.env.VITE_API_URL?.replace('/api/v1', '') || ''}/uploads/${item.imagen_url}`} 
                           alt={item.name} 
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                         />

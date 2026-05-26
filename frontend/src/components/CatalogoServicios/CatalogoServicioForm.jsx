@@ -26,6 +26,7 @@ export function CatalogoServicioForm({ item, onSuccess, onCancel }) {
     onSuccess: () => {
       toast.success(item ? 'Ítem actualizado' : 'Ítem creado');
       qc.invalidateQueries({ queryKey: ['catalogo-servicios'] });
+      qc.invalidateQueries({ queryKey: ['catalogo-servicios-activos'] });
       onSuccess();
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Error al guardar'),

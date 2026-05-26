@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Save, Wrench, Plus, Trash2, Search, DollarSign,
-  User, Package, AlertCircle, CheckCircle2, Clock, Download
+  User, Package, AlertCircle, CheckCircle2, Clock, Download, ClipboardList,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Sidebar } from '../../components/layout/Sidebar';
@@ -30,11 +31,29 @@ export function OTFormPage() {
     telefono_contacto: '',
     detalle_servicio: '',
     observaciones: '',
+    // Campos de historial del equipo
+    fallas_encontradas: '',
+    nivel_criticidad: '',
+    causa_raiz: '',
+    observaciones_seguridad: '',
+    fecha_hora_ingreso_taller: '',
+    fecha_hora_salida_taller: '',
+    fecha_inicio_bodega: '',
+    fecha_fin_bodega: '',
+    estado_equipo_al_cierre: '',
+    proxima_fecha_mantenimiento: '',
+    costo_total_mantenimiento: '',
   });
 
   const [tecnicos, setTecnicos] = React.useState([]);
   const [repuestos, setRepuestos] = React.useState([]);
   const [actividadesPM, setActividadesPM] = React.useState([]);
+  const [trabajosDetalle, setTrabajosDetalle] = React.useState([]);
+  const [repuestosMant, setRepuestosMant] = React.useState([]);
+
+  // Secciones colapsables del historial
+  const [histSections, setHistSections] = React.useState({ fallas: false, trabajos: false, repMant: false, tiempos: false, cierre: false });
+  const toggleHistSec = (k) => setHistSections(p => ({ ...p, [k]: !p[k] }));
 
   // Búsqueda de inventario
   const [invSearch, setInvSearch] = React.useState('');
@@ -79,10 +98,24 @@ export function OTFormPage() {
         telefono_contacto: otData.telefono_contacto || '',
         detalle_servicio: otData.detalle_servicio || '',
         observaciones: otData.observaciones || '',
+        // Historial del equipo
+        fallas_encontradas: otData.fallas_encontradas || '',
+        nivel_criticidad: otData.nivel_criticidad || '',
+        causa_raiz: otData.causa_raiz || '',
+        observaciones_seguridad: otData.observaciones_seguridad || '',
+        fecha_hora_ingreso_taller: otData.fecha_hora_ingreso_taller?.slice(0,16) || '',
+        fecha_hora_salida_taller: otData.fecha_hora_salida_taller?.slice(0,16) || '',
+        fecha_inicio_bodega: otData.fecha_inicio_bodega?.slice(0,16) || '',
+        fecha_fin_bodega: otData.fecha_fin_bodega?.slice(0,16) || '',
+        estado_equipo_al_cierre: otData.estado_equipo_al_cierre || '',
+        proxima_fecha_mantenimiento: otData.proxima_fecha_mantenimiento?.slice(0,10) || '',
+        costo_total_mantenimiento: otData.costo_total_mantenimiento || '',
       });
       setTecnicos(otData.tecnicos_asignados || []);
       setRepuestos(otData.repuestos_insumos || []);
       setActividadesPM(otData.pm_actividades || []);
+      setTrabajosDetalle(Array.isArray(otData.trabajos_detalle) ? otData.trabajos_detalle : []);
+      setRepuestosMant(Array.isArray(otData.repuestos_mantenimiento) ? otData.repuestos_mantenimiento : []);
     }
   }, [otData]);
 
@@ -256,7 +289,13 @@ export function OTFormPage() {
     if (form.tipo_mantenimiento === 'PREVENTIVO' && !form.pm_frecuencia_id) {
       return toast.error('Debes seleccionar una frecuencia para el mantenimiento preventivo');
     }
-    saveMut.mutate(form);
+    // Incluir trabajos_detalle y repuestos_mantenimiento en el payload
+    const payload = {
+      ...form,
+      trabajos_detalle: trabajosDetalle,
+      repuestos_mantenimiento: repuestosMant,
+    };
+    saveMut.mutate(payload);
   };
 
   // Técnicos
@@ -850,6 +889,261 @@ export function OTFormPage() {
             </div>
           )
         )}
+
+        {/* ═══ SECCIONES DE HISTORIAL DEL EQUIPO ═══ */}
+        {form.equipo_id && (
+          <div className="card" style={{ marginBottom: '1.5rem', borderLeft: '4px solid var(--clr-primary-500)' }}>
+            <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ClipboardList size={18} color="var(--clr-primary-400)" /> Registro de Mantenimiento — Historial del Equipo
+            </h2>
+            <p style={{ margin: '0 0 1rem', fontSize: '13px', color: 'var(--text-muted)' }}>
+              Esta información se guardará con la OT y aparecerá en el historial del equipo (solo lectura).
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+
+              {/* ── 1. Fallas y Diagnóstico ── */}
+              <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                <div onClick={() => toggleHistSec('fallas')} style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', cursor: 'pointer', userSelect: 'none', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                  <span>1. Fallas y Diagnóstico</span>
+                  {histSections.fallas ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                </div>
+                {histSections.fallas && (
+                  <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                    <div>
+                      <label className="input-label">Fallas encontradas</label>
+                      <textarea className="input" rows={3} name="fallas_encontradas" value={form.fallas_encontradas} onChange={handleChange} style={{ width: '100%', resize: 'vertical' }} disabled={isLiqOrClosed} />
+                    </div>
+                    <div>
+                      <label className="input-label">Nivel de Criticidad</label>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {['leve', 'moderado', 'critico'].map(c => {
+                          const colors = { leve: '#4ade80', moderado: '#fbbf24', critico: '#f87171' };
+                          const sel = form.nivel_criticidad === c;
+                          return (
+                            <button type="button" key={c}
+                              onClick={() => !isLiqOrClosed && setForm(p => ({ ...p, nivel_criticidad: c }))}
+                              style={{ flex: 1, padding: '0.4rem 0', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-xs)', fontWeight: 700, cursor: isLiqOrClosed ? 'default' : 'pointer', border: `1px solid ${colors[c]}`, background: sel ? colors[c] : 'transparent', color: sel ? '#000' : colors[c] }}
+                            >
+                              {c.charAt(0).toUpperCase() + c.slice(1)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="input-label">Causa raíz</label>
+                      <textarea className="input" rows={2} name="causa_raiz" value={form.causa_raiz} onChange={handleChange} style={{ width: '100%', resize: 'vertical' }} disabled={isLiqOrClosed} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ── 2. Trabajos Realizados ── */}
+              <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                <div onClick={() => toggleHistSec('trabajos')} style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', cursor: 'pointer', userSelect: 'none', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                  <span>2. Trabajos Realizados ({trabajosDetalle.length})</span>
+                  {histSections.trabajos ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                </div>
+                {histSections.trabajos && (
+                  <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                    {trabajosDetalle.length === 0 && (
+                      <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textAlign: 'center', padding: '0.5rem' }}>
+                        Aún no hay trabajos registrados. Usa el botón para agregar.
+                      </p>
+                    )}
+                    {trabajosDetalle.map((t, i) => (
+                      <div key={i} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.875rem', position: 'relative' }}>
+                        {!isLiqOrClosed && (
+                          <button type="button" onClick={() => setTrabajosDetalle(p => p.filter((_, j) => j !== i))}
+                            style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--clr-danger)' }}>
+                            <Trash2 size={13}/>
+                          </button>
+                        )}
+                        <p style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.625rem' }}>Trabajo #{i + 1}</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '0.75rem' }}>
+                          <div>
+                            <label className="input-label">Fecha y hora</label>
+                            <input type="datetime-local" className="input" style={{ width: '100%' }} value={t.fecha_hora} onChange={e => setTrabajosDetalle(p => p.map((x, j) => j === i ? { ...x, fecha_hora: e.target.value } : x))} disabled={isLiqOrClosed} />
+                          </div>
+                          <div>
+                            <label className="input-label">Descripción del trabajo</label>
+                            <textarea className="input" rows={2} style={{ width: '100%', resize: 'vertical' }} placeholder="Ej: Cambio de filtros, ajuste de frenos..." value={t.descripcion} onChange={e => setTrabajosDetalle(p => p.map((x, j) => j === i ? { ...x, descripcion: e.target.value } : x))} disabled={isLiqOrClosed} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {!isLiqOrClosed && (
+                      <button type="button" className="btn btn--ghost btn--sm" style={{ alignSelf: 'flex-start' }}
+                        onClick={() => setTrabajosDetalle(p => [...p, { fecha_hora: new Date().toISOString().slice(0, 16), descripcion: '' }])}>
+                        <Plus size={13}/> Agregar Trabajo
+                      </button>
+                    )}
+                    <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.875rem', marginTop: '0.25rem' }}>
+                      <label className="input-label">Observaciones de seguridad</label>
+                      <textarea className="input" rows={2} name="observaciones_seguridad" value={form.observaciones_seguridad} onChange={handleChange} style={{ width: '100%', resize: 'vertical' }} disabled={isLiqOrClosed} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ── 3. Repuestos de Mantenimiento (Retirado / Instalado) ── */}
+              <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                <div onClick={() => toggleHistSec('repMant')} style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', cursor: 'pointer', userSelect: 'none', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                  <span>3. Repuestos Mantenimiento ({repuestosMant.length})</span>
+                  {histSections.repMant ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                </div>
+                {histSections.repMant && (
+                  <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                    {repuestosMant.map((rep, idx) => (
+                      <div key={idx} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.875rem', position: 'relative' }}>
+                        {!isLiqOrClosed && (
+                          <button type="button" onClick={() => setRepuestosMant(p => p.filter((_, j) => j !== idx))}
+                            style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--clr-danger)' }}>
+                            <Trash2 size={13}/>
+                          </button>
+                        )}
+                        <p style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Repuesto #{idx + 1}</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.875rem' }}>
+                          {/* Retirado */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <p style={{ fontSize: '10px', fontWeight: 600, color: '#f87171', textTransform: 'uppercase' }}>↑ Retirado</p>
+                            {['retirado_nombre', 'retirado_codigo', 'retirado_numero_serie', 'retirado_motivo'].map(f => (
+                              <div key={f}>
+                                <label className="input-label">{f.replace('retirado_', '').replace(/_/g, ' ')}</label>
+                                <input className="input" style={{ width: '100%' }} value={rep[f] || ''} onChange={e => setRepuestosMant(p => p.map((r, j) => j === idx ? { ...r, [f]: e.target.value } : r))} disabled={isLiqOrClosed} />
+                              </div>
+                            ))}
+                            <div>
+                              <label className="input-label">Estado al retirar</label>
+                              <select className="input" style={{ width: '100%' }} value={rep.retirado_estado || ''} onChange={e => setRepuestosMant(p => p.map((r, j) => j === idx ? { ...r, retirado_estado: e.target.value } : r))} disabled={isLiqOrClosed}>
+                                <option value="">— seleccionar —</option>
+                                {['desgastado', 'dañado', 'roto', 'funcional'].map(s => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          {/* Instalado */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <p style={{ fontSize: '10px', fontWeight: 600, color: '#4ade80', textTransform: 'uppercase' }}>↓ Instalado</p>
+                            {['instalado_nombre', 'instalado_codigo', 'instalado_numero_serie'].map(f => (
+                              <div key={f}>
+                                <label className="input-label">{f.replace('instalado_', '').replace(/_/g, ' ')}</label>
+                                <input className="input" style={{ width: '100%' }} value={rep[f] || ''} onChange={e => setRepuestosMant(p => p.map((r, j) => j === idx ? { ...r, [f]: e.target.value } : r))} disabled={isLiqOrClosed} />
+                              </div>
+                            ))}
+                            <div>
+                              <label className="input-label">Procedencia</label>
+                              <select className="input" style={{ width: '100%' }} value={rep.instalado_procedencia || ''} onChange={e => setRepuestosMant(p => p.map((r, j) => j === idx ? { ...r, instalado_procedencia: e.target.value } : r))} disabled={isLiqOrClosed}>
+                                <option value="">— seleccionar —</option>
+                                {['nuevo', 'reacondicionado', 'reutilizado'].map(p => <option key={p} value={p}>{p}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="input-label">Garantía hasta</label>
+                              <input type="date" className="input" style={{ width: '100%' }} value={rep.instalado_garantia_hasta || ''} onChange={e => setRepuestosMant(p => p.map((r, j) => j === idx ? { ...r, instalado_garantia_hasta: e.target.value } : r))} disabled={isLiqOrClosed} />
+                            </div>
+                            <div>
+                              <label className="input-label">Costo unitario</label>
+                              <input type="number" min="0" className="input" style={{ width: '100%' }} value={rep.instalado_costo_unitario || ''} onChange={e => setRepuestosMant(p => p.map((r, j) => j === idx ? { ...r, instalado_costo_unitario: e.target.value } : r))} disabled={isLiqOrClosed} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {!isLiqOrClosed && (
+                      <button type="button" className="btn btn--ghost btn--sm" style={{ alignSelf: 'flex-start' }}
+                        onClick={() => setRepuestosMant(p => [...p, { retirado_nombre: '', retirado_codigo: '', retirado_numero_serie: '', retirado_motivo: '', retirado_estado: '', instalado_nombre: '', instalado_codigo: '', instalado_numero_serie: '', instalado_procedencia: '', instalado_garantia_hasta: '', instalado_costo_unitario: '' }])}>
+                        <Plus size={13}/> Agregar Repuesto
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ── 4. Tiempos ── */}
+              <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                <div onClick={() => toggleHistSec('tiempos')} style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', cursor: 'pointer', userSelect: 'none', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                  <span>4. Tiempos</span>
+                  {histSections.tiempos ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                </div>
+                {histSections.tiempos && (
+                  <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.875rem' }}>
+                      <div>
+                        <label className="input-label">Ingreso al taller</label>
+                        <input type="datetime-local" name="fecha_hora_ingreso_taller" className="input" style={{ width: '100%' }} value={form.fecha_hora_ingreso_taller} onChange={handleChange} disabled={isLiqOrClosed} />
+                      </div>
+                      <div>
+                        <label className="input-label">Salida del taller</label>
+                        <input type="datetime-local" name="fecha_hora_salida_taller" className="input" style={{ width: '100%' }} value={form.fecha_hora_salida_taller} onChange={handleChange} disabled={isLiqOrClosed} />
+                      </div>
+                    </div>
+                    {form.fecha_hora_ingreso_taller && form.fecha_hora_salida_taller && (() => {
+                      const min = (new Date(form.fecha_hora_salida_taller) - new Date(form.fecha_hora_ingreso_taller)) / 60000;
+                      if (min < 0) return null;
+                      const h = Math.floor(min / 60); const m = Math.round(min % 60);
+                      return (
+                        <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 'var(--radius-md)', padding: '0.5rem 0.875rem', fontSize: 'var(--text-xs)', color: '#4ade80' }}>
+                          ⏱ Tiempo en taller: <strong>{h > 0 ? `${h}h ${m}min` : `${m}min`}</strong>
+                        </div>
+                      );
+                    })()}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.875rem' }}>
+                      <div>
+                        <label className="input-label">Inicio en bodega</label>
+                        <input type="datetime-local" name="fecha_inicio_bodega" className="input" style={{ width: '100%' }} value={form.fecha_inicio_bodega} onChange={handleChange} disabled={isLiqOrClosed} />
+                      </div>
+                      <div>
+                        <label className="input-label">Fin en bodega</label>
+                        <input type="datetime-local" name="fecha_fin_bodega" className="input" style={{ width: '100%' }} value={form.fecha_fin_bodega} onChange={handleChange} disabled={isLiqOrClosed} />
+                      </div>
+                    </div>
+                    {form.fecha_inicio_bodega && form.fecha_fin_bodega && (() => {
+                      const min = (new Date(form.fecha_fin_bodega) - new Date(form.fecha_inicio_bodega)) / 60000;
+                      if (min < 0) return null;
+                      const h = Math.floor(min / 60); const m = Math.round(min % 60);
+                      return (
+                        <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 'var(--radius-md)', padding: '0.5rem 0.875rem', fontSize: 'var(--text-xs)', color: '#60a5fa' }}>
+                          📦 Tiempo en bodega: <strong>{h > 0 ? `${h}h ${m}min` : `${m}min`}</strong>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              {/* ── 5. Cierre ── */}
+              <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                <div onClick={() => toggleHistSec('cierre')} style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', cursor: 'pointer', userSelect: 'none', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                  <span>5. Cierre</span>
+                  {histSections.cierre ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                </div>
+                {histSections.cierre && (
+                  <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.875rem' }}>
+                      <div>
+                        <label className="input-label">Estado del equipo al cierre</label>
+                        <select name="estado_equipo_al_cierre" className="input" style={{ width: '100%' }} value={form.estado_equipo_al_cierre} onChange={handleChange} disabled={isLiqOrClosed}>
+                          <option value="">— Seleccionar —</option>
+                          {['operativo', 'operativo_con_restricciones', 'en_espera_repuestos', 'fuera_de_servicio'].map(e => <option key={e} value={e}>{e.replace(/_/g, ' ')}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="input-label">Próximo mantenimiento</label>
+                        <input type="date" name="proxima_fecha_mantenimiento" className="input" style={{ width: '100%' }} value={form.proxima_fecha_mantenimiento} onChange={handleChange} disabled={isLiqOrClosed} />
+                      </div>
+                      <div>
+                        <label className="input-label">Costo total mantenimiento</label>
+                        <input type="number" min="0" step="0.01" name="costo_total_mantenimiento" className="input" style={{ width: '100%' }} value={form.costo_total_mantenimiento} onChange={handleChange} disabled={isLiqOrClosed} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
 
         {/* ═══ SECCIÓN D: Liquidación ═══ */}
         {isEditing && !isLiqOrClosed && (

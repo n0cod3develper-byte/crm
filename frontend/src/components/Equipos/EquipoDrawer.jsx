@@ -1,8 +1,7 @@
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, Building2, Truck, Wrench, Clock, Calendar, Gauge, MapPin, Plus, ArrowLeft, Edit } from 'lucide-react';
+import { X, Building2, Truck, Wrench, Clock, Calendar, Gauge, MapPin, ArrowLeft, Edit } from 'lucide-react';
 import { HistorialTimeline } from './HistorialTimeline';
-import { HistorialForm } from './HistorialForm';
 import { HistorialDetail } from './HistorialDetail';
 import { Modal } from '../common/Modal';
 import { EquipoForm } from './EquipoForm';
@@ -42,7 +41,7 @@ function InfoItem({ icon: Icon, label, value }) {
 
 export function EquipoDrawer({ equipoId, onClose }) {
   const [tab, setTab] = React.useState('info');           // 'info' | 'historial'
-  const [histView, setHistView] = React.useState('list'); // 'list' | 'form' | 'detail'
+  const [histView, setHistView] = React.useState('list'); // 'list' | 'detail'
   const [selectedRegistro, setSelectedRegistro] = React.useState(null);
   const [editingEquipo, setEditingEquipo] = React.useState(false);
   const qc = useQueryClient();
@@ -62,14 +61,9 @@ export function EquipoDrawer({ equipoId, onClose }) {
   });
 
   const handleVerDetalle = (r) => { setSelectedRegistro(r); setHistView('detail'); };
-  const handleNuevoRegistro = () => { setSelectedRegistro(null); setHistView('form'); };
-  const handleFormSuccess = () => { setHistView('list'); qc.invalidateQueries({ queryKey: ['equipo-historial', equipoId] }); };
-  const handleEditarRegistro = (r) => { setSelectedRegistro(r); setHistView('form'); };
 
   // Título dinámico del historial
-  const histTitle = histView === 'form'
-    ? (selectedRegistro ? 'Editar Registro' : 'Nuevo Registro')
-    : histView === 'detail' ? 'Detalle de Registro' : 'Historial del Equipo';
+  const histTitle = histView === 'detail' ? 'Detalle de Registro' : 'Historial del Equipo';
 
   const estadoColor = equipo ? ESTADO_COLORS[equipo.estado_inicial] || '#9ca3af' : '#9ca3af';
 
@@ -104,11 +98,6 @@ export function EquipoDrawer({ equipoId, onClose }) {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-            {tab === 'historial' && histView === 'list' && (
-              <button className="btn btn--primary btn--sm" onClick={handleNuevoRegistro}>
-                <Plus size={13} /> Nuevo
-              </button>
-            )}
             {tab === 'info' && equipo && (
               <button className="btn btn--ghost btn--sm" onClick={() => setEditingEquipo(true)}>
                 <Edit size={13} /> Editar
@@ -206,19 +195,10 @@ export function EquipoDrawer({ equipoId, onClose }) {
               <HistorialTimeline
                 registros={historialData || []}
                 onVerDetalle={handleVerDetalle}
-                onNuevoRegistro={handleNuevoRegistro}
-              />
-            ) : histView === 'form' ? (
-              <HistorialForm
-                equipoId={equipoId}
-                historial={selectedRegistro}
-                onSuccess={handleFormSuccess}
-                onCancel={() => { setHistView('list'); setSelectedRegistro(null); }}
               />
             ) : histView === 'detail' ? (
               <HistorialDetail
                 registro={selectedRegistro}
-                onEditar={handleEditarRegistro}
               />
             ) : null
           )}

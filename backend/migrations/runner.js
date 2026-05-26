@@ -28,7 +28,6 @@ if (!DATABASE_URL) {
 const { Pool } = pg;
 const pool = new Pool({ connectionString: DATABASE_URL });
 
-// Archivos de migración 
 const MIGRATION_FILES = [
   '001_initial_schema.sql',
   '002_support_module.sql',
@@ -42,36 +41,39 @@ const MIGRATION_FILES = [
   '009_fix_horometro_frecuencia.sql',
   '010_add_password_to_users.sql',
 
-
   '011_clerk_rbac.sql',
   '012_facturacion_module.sql',
-  '013_unified_catalog.sql',
-  '014_bodegas_and_seeds.sql',
+  '013_bodegas_and_seeds.sql',
+  '014_unified_catalog.sql',
   '015_add_marca_to_inventory.sql',
   '016_update_catalog_view.sql',
   '017_optimization_indexes.sql',
   '018_add_image_to_catalog_view.sql',
+  '019_inventory_movement_upgrade.sql',
 
-  
-  '019_add_company_to_employees.sql',
-  '020_add_custom_fields_to_companies.sql',
-  '021_catalogo_servicios.sql',
-  '022_servicios_remision.sql',
-  '023_add_remision_fields.sql',
-  '024_add_numero_equipo.sql',
-  '025_add_tipo_to_catalogo.sql',
-  '026_add_cantidad_to_catalogo.sql',
-  '027_liquidacion_horas_laborales.sql',
-  '028_fix_remision_estados.sql',
-  '029_segundo_operario_tiempos.sql',
-  '030_segundo_operario_horometros.sql',
-  '031_segundo_operario_fecha.sql',
+  '020_add_company_to_employees.sql',
+  '021_add_custom_fields_to_companies.sql',
+  '022_catalogo_servicios.sql',
+  '023_servicios_remision.sql',
+  '024_add_remision_fields.sql',
+  '025_add_numero_equipo.sql',
+  '026_add_tipo_to_catalogo.sql',
+  '027_add_cantidad_to_catalogo.sql',
+  '028_liquidacion_horas_laborales.sql',
+  '029_fix_remision_estados.sql',
+  '030_segundo_operario_tiempos.sql',
+  '031_segundo_operario_horometros.sql',
+  '032_segundo_operario_fecha.sql',
 
-  
-  '032_equipos_campos_ampliados.sql',
-  '033_historial_equipo.sql',
-  '034_trabajos_detalle_horometro_decimal.sql',
+  '033_equipos_campos_ampliados.sql',
+  '034_historial_equipo.sql',
+  '035_trabajos_detalle_horometro_decimal.sql',
+  '036_add_bonificacion_equipo.sql',
+  '037_informes_module.sql',
+  '038_remisiones_catalogo_pro.sql',
+  '039_ot_historial_fields.sql',
 ];
+
 async function ensureMigrationsTable(client) {
   await client.query(`
     CREATE TABLE IF NOT EXISTS _migrations (

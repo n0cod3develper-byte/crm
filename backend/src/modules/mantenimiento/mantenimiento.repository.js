@@ -153,10 +153,19 @@ export class MantenimientoRepository {
    * dentro de la misma transacción.
    */
   async createOT(data, userId) {
-    const { tipo_mantenimiento, empresa_id, equipo_id, responsable, contacto_empresa, telefono_contacto, detalle_servicio, pm_frecuencia_id } = data;
+    const {
+      tipo_mantenimiento, empresa_id, equipo_id, responsable, contacto_empresa,
+      telefono_contacto, detalle_servicio, pm_frecuencia_id,
+      // Campos de historial del equipo
+      fallas_encontradas, nivel_criticidad, causa_raiz,
+      trabajos_detalle, observaciones_seguridad, repuestos_mantenimiento,
+      fecha_hora_ingreso_taller, fecha_hora_salida_taller,
+      fecha_inicio_bodega, fecha_fin_bodega,
+      estado_equipo_al_cierre, proxima_fecha_mantenimiento, costo_total_mantenimiento
+    } = data;
     const horometro_inicial = data.horometro_inicial === '' ? null : data.horometro_inicial;
     
-    return await withTransaction(async (client) => {
+    const otCreado = await withTransaction(async (client) => {
         // Encontrar info de empresa para determinar la serie
         const empRes = await client.query(`SELECT name FROM companies WHERE id = $1`, [empresa_id]);
         if (!empRes.rows[0]) throw new Error('Empresa no encontrada');
@@ -174,8 +183,12 @@ export class MantenimientoRepository {
 
         const sqlInsert = `
             INSERT INTO ordenes_trabajo 
-            (consecutivo, tipo_mantenimiento, empresa_id, equipo_id, horometro_inicial, responsable, contacto_empresa, telefono_contacto, detalle_servicio, created_by, pm_frecuencia_id, horometro_frecuencia)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            (consecutivo, tipo_mantenimiento, empresa_id, equipo_id, horometro_inicial, responsable, contacto_empresa, telefono_contacto, detalle_servicio, created_by, pm_frecuencia_id, horometro_frecuencia,
+             fallas_encontradas, nivel_criticidad, causa_raiz, trabajos_detalle, observaciones_seguridad, repuestos_mantenimiento,
+             fecha_hora_ingreso_taller, fecha_hora_salida_taller, fecha_inicio_bodega, fecha_fin_bodega,
+             estado_equipo_al_cierre, proxima_fecha_mantenimiento, costo_total_mantenimiento)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                    $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
             RETURNING *
         `;
         const res = await client.query(sqlInsert, [
@@ -190,7 +203,20 @@ export class MantenimientoRepository {
           detalle_servicio ?? null,
           userId ?? null,
           (tipo_mantenimiento === 'PREVENTIVO' && pm_frecuencia_id) ? pm_frecuencia_id : null,
-          horometro_frecuencia ?? null
+          horometro_frecuencia ?? null,
+          fallas_encontradas || null,
+          nivel_criticidad || null,
+          causa_raiz || null,
+          trabajos_detalle ? JSON.stringify(trabajos_detalle) : '[]',
+          observaciones_seguridad || null,
+          repuestos_mantenimiento ? JSON.stringify(repuestos_mantenimiento) : '[]',
+          fecha_hora_ingreso_taller || null,
+          fecha_hora_salida_taller || null,
+          fecha_inicio_bodega || null,
+          fecha_fin_bodega || null,
+          estado_equipo_al_cierre || null,
+          proxima_fecha_mantenimiento || null,
+          costo_total_mantenimiento || null,
         ]);
         const ot = res.rows[0];
 
@@ -201,19 +227,42 @@ export class MantenimientoRepository {
 
         return ot;
     });
+    // Sync historial equipo después de que la transacción haya completado
+    setImmediate(() => this.syncHistorialFromOT(otCreado.id).catch(e => console.error('[OT] Error sync historial create:', e.message)));
+    return otCreado;
   }
 
   async updateOT(id, data) {
     const fields = [];
     const values = [];
     let i = 1;
-    const allowed = ['tipo_mantenimiento', 'horometro_inicial', 'horometro_final', 'responsable', 'contacto_empresa', 'telefono_contacto', 'detalle_servicio', 'observaciones', 'estado'];
+    const allowed = [
+      'tipo_mantenimiento', 'horometro_inicial', 'horometro_final', 'responsable', 'contacto_empresa', 'telefono_contacto', 'detalle_servicio', 'observaciones', 'estado',
+      'fallas_encontradas', 'nivel_criticidad', 'causa_raiz', 'observaciones_seguridad',
+      'trabajos_detalle', 'repuestos_mantenimiento',
+      'fecha_hora_ingreso_taller', 'fecha_hora_salida_taller', 'fecha_inicio_bodega', 'fecha_fin_bodega',
+      'estado_equipo_al_cierre', 'proxima_fecha_mantenimiento', 'costo_total_mantenimiento',
+    ];
+    
+    const jsonFields = ['trabajos_detalle', 'repuestos_mantenimiento'];
+    const emptyToNullFields = [
+      'horometro_inicial', 'horometro_final',
+      'fecha_hora_ingreso_taller', 'fecha_hora_salida_taller',
+      'fecha_inicio_bodega', 'fecha_fin_bodega',
+      'proxima_fecha_mantenimiento', 'costo_total_mantenimiento',
+      'estado_equipo_al_cierre', 'nivel_criticidad',
+    ];
     
     for (const key of allowed) {
       if (key in data && data[key] !== undefined) {
         let val = data[key];
-        if ((key === 'horometro_inicial' || key === 'horometro_final') && val === '') {
+        // Convertir string vacío a null para campos que no admiten ""
+        if (emptyToNullFields.includes(key) && val === '') {
           val = null;
+        }
+        // Serializar campos JSONB
+        if (jsonFields.includes(key) && typeof val !== 'string') {
+          val = JSON.stringify(val);
         }
         fields.push(`${key} = $${i++}`);
         values.push(val);
@@ -227,7 +276,165 @@ export class MantenimientoRepository {
       `UPDATE ordenes_trabajo SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${i} AND deleted_at IS NULL RETURNING *`,
       values
     );
-    return result.rows[0] || null;
+    const ot = result.rows[0] || null;
+    // Sincronizar con historial_equipo de forma no bloqueante
+    if (ot) {
+      setImmediate(() => this.syncHistorialFromOT(id).catch(e => console.error('[OT] Error sync historial update:', e.message)));
+    }
+    return ot;
+  }
+
+  /**
+   * Sincroniza automáticamente los datos de mantenimiento de la OT hacia historial_equipo.
+   * Hace UPSERT basado en orden_trabajo_id.
+   */
+  async syncHistorialFromOT(otId) {
+    // Obtener datos completos de la OT
+    const otRes = await query(`
+      SELECT ot.*, pf.horas AS pm_horas
+      FROM ordenes_trabajo ot
+      LEFT JOIN pm_frecuencias pf ON pf.id = ot.pm_frecuencia_id
+      WHERE ot.id = $1 AND ot.deleted_at IS NULL
+    `, [otId]);
+    if (!otRes.rows[0]) return;
+    const ot = otRes.rows[0];
+
+    // Mapear tipo de OT a tipo de historial
+    let tipoHistorial = 'correctivo';
+    if (ot.tipo_mantenimiento === 'PREVENTIVO') {
+      const h = parseFloat(ot.pm_horas) || 0;
+      if (h <= 250)       tipoHistorial = 'preventivo_250h';
+      else if (h <= 500)  tipoHistorial = 'preventivo_500h';
+      else if (h <= 1000) tipoHistorial = 'preventivo_1000h';
+      else                tipoHistorial = 'otro';
+    }
+
+    // Técnicos de la OT
+    const tecRes = await query(`SELECT empleado_id FROM ot_tecnicos WHERE orden_trabajo_id = $1`, [otId]);
+    const tecnicosIds = tecRes.rows.map(r => r.empleado_id);
+
+    // Repuestos de mantenimiento (JSONB)
+    const repuestosArr = Array.isArray(ot.repuestos_mantenimiento) ? ot.repuestos_mantenimiento : [];
+    const trabajosArr  = Array.isArray(ot.trabajos_detalle) ? ot.trabajos_detalle : [];
+
+    // Nivel criticidad — verificar que sea valor válido para el CHECK constraint
+    const criticidadValida = ['leve', 'moderado', 'critico'];
+    const nivelCriticidad = criticidadValida.includes(ot.nivel_criticidad) ? ot.nivel_criticidad : null;
+
+    // Estado equipo — verificar que sea valor válido
+    const estadosValidos = ['operativo', 'operativo_con_restricciones', 'en_espera_repuestos', 'fuera_de_servicio'];
+    const estadoEquipo = estadosValidos.includes(ot.estado_equipo_al_cierre) ? ot.estado_equipo_al_cierre : null;
+
+    // UPSERT en historial_equipo
+    const existsRes = await query(
+      `SELECT id, ot_cerrada FROM historial_equipo WHERE orden_trabajo_id = $1`,
+      [otId]
+    );
+
+    let historialId;
+    if (existsRes.rows[0]) {
+      if (existsRes.rows[0].ot_cerrada) return; // No modificar si está cerrado
+      historialId = existsRes.rows[0].id;
+      await query(`
+        UPDATE historial_equipo SET
+          tipo_mantenimiento          = $1,
+          horometro_al_ingreso        = $2,
+          fallas_encontradas          = $3,
+          nivel_criticidad            = $4,
+          causa_raiz                  = $5,
+          trabajos_detalle            = $6,
+          observaciones_seguridad     = $7,
+          fecha_hora_ingreso_taller   = $8,
+          fecha_hora_salida_taller    = $9,
+          fecha_inicio_bodega         = $10,
+          fecha_fin_bodega            = $11,
+          estado_equipo_al_cierre     = $12,
+          proxima_fecha_mantenimiento = $13,
+          costo_total_mantenimiento   = $14,
+          numero_ot                   = $15,
+          updated_at                  = NOW()
+        WHERE id = $16
+      `, [
+        tipoHistorial,
+        ot.horometro_inicial || 0,
+        ot.fallas_encontradas || null,
+        nivelCriticidad,
+        ot.causa_raiz || null,
+        JSON.stringify(trabajosArr),
+        ot.observaciones_seguridad || null,
+        ot.fecha_hora_ingreso_taller || null,
+        ot.fecha_hora_salida_taller || null,
+        ot.fecha_inicio_bodega || null,
+        ot.fecha_fin_bodega || null,
+        estadoEquipo,
+        ot.proxima_fecha_mantenimiento || null,
+        ot.costo_total_mantenimiento || 0,
+        ot.consecutivo || null,
+        historialId,
+      ]);
+    } else {
+      const insRes = await query(`
+        INSERT INTO historial_equipo (
+          equipo_id, orden_trabajo_id, numero_ot, tipo_mantenimiento, horometro_al_ingreso,
+          fallas_encontradas, nivel_criticidad, causa_raiz,
+          trabajos_detalle, observaciones_seguridad,
+          fecha_hora_ingreso_taller, fecha_hora_salida_taller,
+          fecha_inicio_bodega, fecha_fin_bodega,
+          estado_equipo_al_cierre, proxima_fecha_mantenimiento,
+          costo_total_mantenimiento
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+        RETURNING id
+      `, [
+        ot.equipo_id,
+        otId,
+        ot.consecutivo || null,
+        tipoHistorial,
+        ot.horometro_inicial || 0,
+        ot.fallas_encontradas || null,
+        nivelCriticidad,
+        ot.causa_raiz || null,
+        JSON.stringify(trabajosArr),
+        ot.observaciones_seguridad || null,
+        ot.fecha_hora_ingreso_taller || null,
+        ot.fecha_hora_salida_taller || null,
+        ot.fecha_inicio_bodega || null,
+        ot.fecha_fin_bodega || null,
+        estadoEquipo,
+        ot.proxima_fecha_mantenimiento || null,
+        ot.costo_total_mantenimiento || 0,
+      ]);
+      historialId = insRes.rows[0].id;
+    }
+
+    // Sincronizar técnicos
+    await query(`DELETE FROM historial_tecnicos WHERE historial_id = $1`, [historialId]);
+    for (const tecId of tecnicosIds) {
+      await query(
+        `INSERT INTO historial_tecnicos (historial_id, empleado_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [historialId, tecId]
+      );
+    }
+
+    // Sincronizar repuestos de mantenimiento
+    await query(`DELETE FROM historial_repuestos WHERE historial_id = $1`, [historialId]);
+    for (const rep of repuestosArr) {
+      await query(`
+        INSERT INTO historial_repuestos (
+          historial_id,
+          retirado_nombre, retirado_codigo, retirado_numero_serie, retirado_motivo, retirado_estado,
+          instalado_nombre, instalado_codigo, instalado_numero_serie,
+          instalado_procedencia, instalado_garantia_hasta, instalado_costo_unitario
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      `, [
+        historialId,
+        rep.retirado_nombre || null, rep.retirado_codigo || null, rep.retirado_numero_serie || null,
+        rep.retirado_motivo || null, rep.retirado_estado || null,
+        rep.instalado_nombre || null, rep.instalado_codigo || null, rep.instalado_numero_serie || null,
+        rep.instalado_procedencia || null,
+        rep.instalado_garantia_hasta || null,
+        parseFloat(rep.instalado_costo_unitario) || 0,
+      ]);
+    }
   }
 
   async softDeleteOT(id) {

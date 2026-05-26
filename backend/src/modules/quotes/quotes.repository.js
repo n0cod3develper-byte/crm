@@ -1,4 +1,4 @@
-import { query } from '../../config/database.js';
+﻿import { query } from '../../config/database.js';
 
 export class QuotesRepository {
   async findAll({ companyId, opportunityId, status, search, limit = 50, cursor }) {
@@ -35,7 +35,7 @@ export class QuotesRepository {
         comp.name AS company_name,
         ct.first_name || ' ' || COALESCE(ct.last_name,'') AS contact_name,
         o.title AS opportunity_title,
-        (u.nombre || ' ' || u.apellido) AS created_by_name
+        u.full_name AS created_by_name
       FROM quotes q
       LEFT JOIN companies comp     ON comp.id = q.company_id
       LEFT JOIN contacts ct        ON ct.id = q.contact_id
@@ -59,7 +59,7 @@ export class QuotesRepository {
         comp.name AS company_name,
         ct.first_name || ' ' || COALESCE(ct.last_name,'') AS contact_name,
         o.title AS opportunity_title,
-        (u.nombre || ' ' || u.apellido) AS created_by_name
+        u.full_name AS created_by_name
       FROM quotes q
       LEFT JOIN companies comp     ON comp.id = q.company_id
       LEFT JOIN contacts ct        ON ct.id = q.contact_id
@@ -147,3 +147,4 @@ export class QuotesRepository {
     return result.rows[0] || null;
   }
 }
+

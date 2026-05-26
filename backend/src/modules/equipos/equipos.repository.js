@@ -84,6 +84,7 @@ export class EquiposRepository {
       empresa_id, numero_equipo,
       tipo_equipo, estado_inicial, ubicacion, horometro_inicial,
       fecha_adquisicion, fecha_vencimiento_garantia, horas_operacion_diaria,
+      bonificacion_por_hora,
     } = data;
 
     const result = await query(
@@ -91,9 +92,10 @@ export class EquiposRepository {
          marca, modelo, serial, motor, combustible, capacidad_carga, color,
          empresa_id, numero_equipo,
          tipo_equipo, estado_inicial, ubicacion, horometro_inicial,
-         fecha_adquisicion, fecha_vencimiento_garantia, horas_operacion_diaria
+         fecha_adquisicion, fecha_vencimiento_garantia, horas_operacion_diaria,
+         bonificacion_por_hora
        )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        RETURNING *`,
       [
         marca, modelo, serial, motor, combustible, capacidad_carga, color,
@@ -105,6 +107,7 @@ export class EquiposRepository {
         fecha_adquisicion || null,
         fecha_vencimiento_garantia || null,
         horas_operacion_diaria || null,
+        bonificacion_por_hora || 0,
       ]
     );
     return result.rows[0];
@@ -117,6 +120,7 @@ export class EquiposRepository {
     const allowed = [
       'marca', 'modelo', 'serial', 'motor', 'combustible', 'capacidad_carga',
       'color', 'empresa_id', 'numero_equipo',
+      'bonificacion_por_hora',
       ...NEW_EQUIPO_FIELDS,
     ];
 

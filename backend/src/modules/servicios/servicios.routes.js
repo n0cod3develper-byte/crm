@@ -1,13 +1,14 @@
 import { Router } from 'express';
-import { authenticate } from '../../utils/jwt.js';
+import { requireAuth } from '../../middleware/auth.js';
 import { serviciosController } from './servicios.controller.js';
 
 const router = Router();
-router.use(authenticate);
+router.use(requireAuth);
 
 // Rutas especiales (antes de /:id para no colisionar)
 router.get('/operarios-disponibles', serviciosController.getOperariosDisponibles);
 router.get('/last-forma-pago/:company_id', serviciosController.getLastFormaPago);
+router.get('/last-horometro/:equipo_id', serviciosController.getLastHorometro);
 
 router.get('/',    serviciosController.list);
 router.post('/',   serviciosController.create);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock, Edit2, Clock, Package, User, AlertTriangle, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
+import { Lock, Clock, Package, User, AlertTriangle, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
 
 const TIPO_LABELS = {
   correctivo: 'Correctivo', preventivo_250h: 'Preventivo 250h',
@@ -75,11 +75,6 @@ export function HistorialDetail({ registro, onEditar }) {
             </span>
           )}
         </div>
-        {!registro.ot_cerrada && onEditar && (
-          <button className="btn btn--ghost btn--sm" onClick={() => onEditar(registro)}>
-            <Edit2 size={13}/> Editar
-          </button>
-        )}
       </div>
 
       {/* Datos generales */}

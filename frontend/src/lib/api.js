@@ -36,9 +36,15 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const originalRequest = error.config;
+    const url = originalRequest?.url || '';
 
-    // Si recibimos 401 y no es un reintento
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // No intentar refresh en rutas de auth (evitar loop en login fallido)
+    const isAuthRoute = url.includes('/auth/login')
+      || url.includes('/auth/register')
+      || url.includes('/auth/refresh');
+
+    // Si recibimos 401 y no es un reintento y no es ruta de auth
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -53,7 +59,6 @@ api.interceptors.response.use(
 
       const refreshToken = localStorage.getItem('refreshToken');
       if (!refreshToken) {
-        // Si no hay refresh token, forzar logout (limpiar localstorage y recargar)
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         window.location.href = '/login';

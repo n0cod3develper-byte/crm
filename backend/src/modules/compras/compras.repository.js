@@ -1,4 +1,4 @@
-import { db } from '../../config/database.js';
+﻿import { db } from '../../config/database.js';
 
 export class ComprasRepository {
   // === CONFIGURACIONES ===
@@ -18,7 +18,7 @@ export class ComprasRepository {
   }
 
   async getSolicitudes(filters = {}) {
-    let query = `SELECT s.*, (u.nombre || ' ' || u.apellido) as solicitante FROM solicitudes_compra s LEFT JOIN users u ON s.solicitante_id = u.id WHERE 1=1`;
+    let query = `SELECT s.*, u.full_name as solicitante FROM solicitudes_compra s LEFT JOIN users u ON s.solicitante_id = u.id WHERE 1=1`;
     const params = [];
     
     if (filters.estado) {
@@ -32,7 +32,7 @@ export class ComprasRepository {
 
   async getSolicitudById(id) {
     const res = await db.query(`
-      SELECT s.*, (u.nombre || ' ' || u.apellido) as solicitante 
+      SELECT s.*, u.full_name as solicitante 
       FROM solicitudes_compra s 
       LEFT JOIN users u ON s.solicitante_id = u.id 
       WHERE s.id = $1`, [id]);
@@ -124,7 +124,7 @@ export class ComprasRepository {
 
     const items = await db.query('SELECT * FROM oc_items WHERE orden_compra_id = $1', [id]);
     const aprobaciones = await db.query(`
-      SELECT a.*, (u.nombre || ' ' || u.apellido) as aprobador 
+      SELECT a.*, u.full_name as aprobador 
       FROM aprobaciones_oc a
       LEFT JOIN users u ON a.aprobador_id = u.id
       WHERE a.entidad_id = $1 AND a.entidad_tipo = 'ORDEN_COMPRA'
@@ -149,3 +149,4 @@ export class ComprasRepository {
 }
 
 export const comprasRepository = new ComprasRepository();
+

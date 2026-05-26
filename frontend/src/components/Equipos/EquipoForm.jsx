@@ -7,6 +7,14 @@ import api from '../../lib/api';
 const MOTORES = ['Mazda', 'Toyota', 'Hyster'];
 const COMBUSTIBLES = ['GLP', 'Gasolina', 'Eléctrico', 'Híbrido'];
 const CAPACIDADES = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0];
+
+// Bonificación por tonelaje: 1-4T → $3,232 | 5-7T → $4,848
+const calcBonificacion = (tons) => {
+  const t = parseFloat(tons || 0);
+  if (t >= 5) return 4848;
+  if (t >= 1) return 3232;
+  return 0;
+};
 const TIPOS_EQUIPO = [
   'Montacargas contrabalanceo',
   'Reach truck',
@@ -60,7 +68,16 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel }) {
     fecha_adquisicion:         equipo?.fecha_adquisicion?.slice(0, 10) || '',
     fecha_vencimiento_garantia: equipo?.fecha_vencimiento_garantia?.slice(0, 10) || '',
     horas_operacion_diaria:    equipo?.horas_operacion_diaria || '',
+    bonificacion_por_hora:     equipo?.bonificacion_por_hora ?? calcBonificacion(equipo?.capacidad_carga || 2.5),
   });
+
+  // Auto-calcular bonificación al cambiar tonelaje
+  React.useEffect(() => {
+    if (!equipo) {
+      // Solo auto-calcular en creación
+      setForm(prev => ({ ...prev, bonificacion_por_hora: calcBonificacion(prev.capacidad_carga) }));
+    }
+  }, [form.capacidad_carga]);
 
   const { data: companiesData } = useQuery({
     queryKey: ['companies-search', companySearch],
@@ -275,6 +292,36 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel }) {
               Para proyectar cuándo se alcanzarán las 250h
             </span>
           </div>
+        </div>
+        {/* Bonificación por hora */}
+        <div style={{ marginTop: '1rem', padding: '0.875rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+          <label style={labelStyle}>Bonificación Total por Horas (COP)</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <input
+              name="bonificacion_por_hora"
+              type="number"
+              min="0"
+              step="1"
+              className="input"
+              style={{ width: 160 }}
+              value={form.bonificacion_por_hora}
+              onChange={handleChange}
+              placeholder="0"
+            />
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button type="button" className="btn btn--ghost btn--sm"
+                onClick={() => setForm(prev => ({ ...prev, bonificacion_por_hora: 3232 }))}>
+                $3,232 (1–4T)
+              </button>
+              <button type="button" className="btn btn--ghost btn--sm"
+                onClick={() => setForm(prev => ({ ...prev, bonificacion_por_hora: 4848 }))}>
+                $4,848 (5–7T)
+              </button>
+            </div>
+          </div>
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '0.5rem', display: 'block' }}>
+            Se auto-asigna según la capacidad de carga. 1–4 Ton → $3,232 | 5–7 Ton → $4,848 — Editable manualmente.
+          </span>
         </div>
       </div>
 

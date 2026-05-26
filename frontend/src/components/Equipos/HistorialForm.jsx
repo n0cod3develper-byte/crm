@@ -114,7 +114,7 @@ function mapOTTipoToHistorial(otTipo, frecuenciaHoras) {
   return 'otro';
 }
 
-export function HistorialForm({ equipoId, historial, onSuccess, onCancel }) {
+export function HistorialForm({ equipoId, historial, initialOtId, onSuccess, onCancel }) {
   const qc = useQueryClient();
 
   const [open, setOpen] = React.useState({ general:true, fallas:true, trabajos:false, repuestos:false, tiempos:false, cierre:false });
@@ -132,8 +132,11 @@ export function HistorialForm({ equipoId, historial, onSuccess, onCancel }) {
     queryFn: async () => { const { data } = await api.get('/mantenimiento/ot', { params: { equipo_id: equipoId, limit: 100 } }); return data.data || []; },
   });
 
+  // initialOtId: cuando se invoca desde OTFormPage, pre-selecciona la OT actual
+  const defaultOtId = initialOtId || historial?.orden_trabajo_id || '';
+
   const [form, setForm] = React.useState({
-    orden_trabajo_id: historial?.orden_trabajo_id || '',
+    orden_trabajo_id: defaultOtId,
     tipo_mantenimiento: historial?.tipo_mantenimiento || 'correctivo',
     horometro_al_ingreso: historial?.horometro_al_ingreso || 0,
     tecnicos_ids: historial?.tecnicos?.map(t=>t.empleado_id) || [],
@@ -162,8 +165,8 @@ export function HistorialForm({ equipoId, historial, onSuccess, onCancel }) {
   );
   const [adjuntosFiles, setAdjuntosFiles] = React.useState([]);
   const [otAutoFilled, setOtAutoFilled] = React.useState(false);
-  // ID de la OT seleccionada como estado separado para disparar el useEffect limpiamente
-  const [selectedOtId, setSelectedOtId] = React.useState(historial?.orden_trabajo_id || '');
+  // ID de la OT seleccionada; si viene initialOtId, arranca ya pre-seleccionado
+  const [selectedOtId, setSelectedOtId] = React.useState(defaultOtId);
 
   // ─── Autocompletar desde OT cuando cambia selectedOtId ───
   React.useEffect(() => {

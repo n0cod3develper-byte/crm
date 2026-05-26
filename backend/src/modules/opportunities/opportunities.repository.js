@@ -1,4 +1,4 @@
-import { query } from '../../config/database.js';
+﻿import { query } from '../../config/database.js';
 
 export class OpportunitiesRepository {
   async findAll({ stageId, companyId, assignedTo, search, limit = 50, cursor }) {
@@ -37,7 +37,7 @@ export class OpportunitiesRepository {
         s.is_closed_lost,
         comp.name AS company_name,
         ct.first_name || ' ' || COALESCE(ct.last_name,'') AS contact_name,
-        (u.nombre || ' ' || u.apellido) AS assigned_to_name
+        u.full_name AS assigned_to_name
       FROM opportunities o
       LEFT JOIN pipeline_stages s  ON s.id  = o.stage_id
       LEFT JOIN companies comp     ON comp.id = o.company_id
@@ -65,7 +65,7 @@ export class OpportunitiesRepository {
         s.is_closed_won, s.is_closed_lost,
         comp.name AS company_name,
         ct.first_name || ' ' || COALESCE(ct.last_name,'') AS contact_name,
-        (u.nombre || ' ' || u.apellido) AS assigned_to_name
+        u.full_name AS assigned_to_name
       FROM opportunities o
       LEFT JOIN pipeline_stages s  ON s.id  = o.stage_id
       LEFT JOIN companies comp     ON comp.id = o.company_id
@@ -141,3 +141,4 @@ export class OpportunitiesRepository {
     return result.rows;
   }
 }
+

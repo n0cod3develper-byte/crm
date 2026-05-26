@@ -1,4 +1,4 @@
-import { query } from '../../config/database.js';
+﻿import { query } from '../../config/database.js';
 
 export class TasksRepository {
   async findAll({ assignedTo, status, relatedType, relatedId, search, limit = 50, cursor }) {
@@ -35,7 +35,7 @@ export class TasksRepository {
 
     const sql = `
       SELECT t.*,
-        (u.nombre || ' ' || u.apellido) AS assigned_to_name,
+        u.full_name AS assigned_to_name,
         (cr.nombre || ' ' || cr.apellido) AS created_by_name
       FROM tasks t
       LEFT JOIN users u  ON u.id  = t.assigned_to
@@ -65,7 +65,7 @@ export class TasksRepository {
 
   async findById(id) {
     const result = await query(
-      `SELECT t.*, (u.nombre || ' ' || u.apellido) AS assigned_to_name, (cr.nombre || ' ' || cr.apellido) AS created_by_name
+      `SELECT t.*, u.full_name AS assigned_to_name, (cr.nombre || ' ' || cr.apellido) AS created_by_name
        FROM tasks t
        LEFT JOIN users u  ON u.id  = t.assigned_to
        LEFT JOIN users cr ON cr.id = t.created_by
@@ -118,3 +118,4 @@ export class TasksRepository {
     return result.rows[0] || null;
   }
 }
+

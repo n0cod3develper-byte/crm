@@ -8,9 +8,21 @@ const __dirname = dirname(__filename);
 
 function getLogoBase64() {
   try {
-    const logoPath = join(__dirname, '..', 'assets', 'logo.png');
-    const buffer = readFileSync(logoPath);
-    return `data:image/png;base64,${buffer.toString('base64')}`;
+    const possibleNames = ['Logo_Cargar_sin_fondo.png', 'logo.png', 'cargar_logo.png'];
+    let buffer = null;
+    let mime = 'image/png';
+    for (const name of possibleNames) {
+      try {
+        const logoPath = join(__dirname, '..', 'assets', name);
+        buffer = readFileSync(logoPath);
+        // Detect mime by magic bytes
+        if (buffer[0] === 0xFF && buffer[1] === 0xD8) mime = 'image/jpeg';
+        else if (buffer[0] === 0x89 && buffer[1] === 0x50) mime = 'image/png';
+        break;
+      } catch {}
+    }
+    if (!buffer) return null;
+    return `data:${mime};base64,${buffer.toString('base64')}`;
   } catch {
     return null;
   }
@@ -44,39 +56,27 @@ const TERMINOS = `CARGAR S.A.S. en la prestación de servicio en montacargas ha 
 
 3. En caso de siniestro o daños, las partes interesadas se responsabilizaran de manera equitativa por los hechos ocurridos, evitando una reclamacion o demanda futura por perdida o daños quedando por consiguiente CARGAR S.A.S. a paz y salvo y libre de toda responsabilidad.
 
-4. Si el servicio es después de las 5 PM se cobrará a la tarifa con el recargo correspondiente y los sábados después de las 12 M.`;
+4. Si el servicio es o se alarga después de las 5 PM y los sábados después de las 12 PM se cobrará a la tarifa un recargo del 125%.`;
 
 function buildRemisionHtml(rem, horasLaborales = []) {
   const logo = getLogoBase64();
   const logoHtml = logo
-    ? `<img src="${logo}" style="height:55px;" alt="Logo" />`
+    ? `<img src="${logo}" style="height:150px;" alt="Logo_Cargar_sin_fondo" />`
     : `<div style="font-size:20px;font-weight:800;color:#333;">CARGAR S.A.S.</div>`;
 
   const operarios = rem.operarios || [];
 
-  // Se usan los campos principales del servicio en la fila DIURNO, según solicitud
-  const horarioRows = [
-    { label: 'DIURNO',         horas: rem.cantidad_horas,        valor: rem.valor_hora },
-    { label: 'NOCTURNO',       horas: rem.horas_nocturnas,       valor: rem.valor_hora_nocturna },
-    { label: 'FESTIVO DIURNO', horas: rem.horas_fest_diurnas,    valor: rem.valor_hora_fest_dia },
-    { label: 'FESTIVO NOCTURNO', horas: rem.horas_fest_nocturnas, valor: rem.valor_hora_fest_noc },
-    { label: 'OTRO',           horas: rem.horas_otras,           valor: rem.valor_hora_otras },
-  ];
+  // Se usan los campos principales del servicio
+    const horarioRows = [
+      { label: 'DIURNO',         horas: rem.cantidad_horas,        valor: rem.valor_hora },
+      { label: 'CON RECARGO',    horas: rem.horas_fest_diurnas,    valor: rem.valor_hora_fest_dia },
+      { label: 'OTRO',           horas: rem.horas_otras,           valor: rem.valor_hora_otras }
+    ];
 
-  // Recalcular el total parcial desglose usando la nueva fila diurno
-  const totalParcialDesglose =
-    ((parseFloat(rem.cantidad_horas) || 0) * (parseFloat(rem.valor_hora) || 0)) +
-    ((parseFloat(rem.horas_nocturnas) || 0) * (parseFloat(rem.valor_hora_nocturna) || 0)) +
-    ((parseFloat(rem.horas_fest_diurnas) || 0) * (parseFloat(rem.valor_hora_fest_dia) || 0)) +
-    ((parseFloat(rem.horas_fest_nocturnas) || 0) * (parseFloat(rem.valor_hora_fest_noc) || 0)) +
-    ((parseFloat(rem.horas_otras) || 0) * (parseFloat(rem.valor_hora_otras) || 0));
+  // Recalcular el total parcial desglose
+    const totalParcialDesglose = horarioRows.reduce((sum, row) => sum + ((parseFloat(row.horas) || 0) * (parseFloat(row.valor) || 0)), 0);
 
-  const totalHorasDesglose =
-    (parseFloat(rem.cantidad_horas) || 0) +
-    (parseFloat(rem.horas_nocturnas) || 0) +
-    (parseFloat(rem.horas_fest_diurnas) || 0) +
-    (parseFloat(rem.horas_fest_nocturnas) || 0) +
-    (parseFloat(rem.horas_otras) || 0);
+    const totalHorasDesglose = horarioRows.reduce((sum, row) => sum + (parseFloat(row.horas) || 0), 0);
 
   const totalLiquidado = horasLaborales.reduce((sum, h) => sum + parseFloat(h.total_liquidado || 0), 0);
   // El nuevo TOTAL NETO es el neto de la remisión + lo liquidado a operarios
@@ -188,10 +188,12 @@ function buildRemisionHtml(rem, horasLaborales = []) {
       www.cargar.co<br>
       mercadeo@cargar.com.co
     </div>
-    <div class="header-right">
-      Orden de Servicio<br>
-      <span class="order-number">No.: ${rem.numero_remision}</span>
-    </div>
+      <div class="header-right">
+        Orden de Servicio<br>
+        <span class="order-number">No.: ${rem.numero_remision}</span>
+        <br>PBX: (+57) 444 77 73<br>
+        Teléfono: 6044447773
+      </div>
   </div>
 
   <!-- DATOS CLIENTE -->
@@ -202,10 +204,9 @@ function buildRemisionHtml(rem, horasLaborales = []) {
         <div><span class="client-label">Nit:</span> ${rem.empresa_nit || '—'}</div>
         <div><span class="client-label">Dirección:</span> ${rem.empresa_direccion || '—'}</div>
       </div>
-      <div style="text-align: center; padding-top: 4px;">
-        <div><span class="client-label">Teléfono:</span> ${rem.empresa_telefono || '—'}</div>
-        ${operarios.length > 0 ? `<div class="operarios-list"><span class="client-label">Operario(s):</span> ${operarios.map(o => o.full_name).join(', ')}</div>` : ''}
-      </div>
+        <div style="text-align: center; margin: 0 auto;">
+          <div><span class="client-label">Teléfono:</span> ${rem.empresa_telefono || '—'}</div>
+        </div>
       <div style="text-align: right;">
         <div><span class="client-label">Fecha:</span> ${formatDate(rem.fecha_servicio)}</div>
         <div><span class="client-label">Solicitado Por:</span> ${rem.solicitado_por || '—'}</div>
@@ -223,14 +224,14 @@ function buildRemisionHtml(rem, horasLaborales = []) {
   <table style="margin-bottom: 8px;">
     <thead>
       <tr>
+        <th>OPERARIO/S</th>
         <th>MÁQUINA</th>
         <th>HORA SALIDA CARGAR</th>
         <th>HORA LLEGADA CLIENTE</th>
         <th>HORA SALIDA CLIENTE</th>
         <th>HORA LLEGADA CARGAR</th>
-        <th>DESCUENTO</th>
-        <th>HOROMETRO SALIDA</th>
-        <th>HOROMETRO REGRESO</th>
+        <th>HORÓMETRO SALIDA</th>
+        <th>HORÓMETRO REGRESO</th>
       </tr>
     </thead>
     <tbody>
@@ -239,25 +240,27 @@ function buildRemisionHtml(rem, horasLaborales = []) {
         const h_lleg_cliente = idx === 1 ? rem.segundo_hora_llegada_cliente : rem.hora_llegada_cliente;
         const h_sal_cliente = idx === 1 ? rem.segundo_hora_salida_cliente : rem.hora_salida_cliente;
         const h_lleg_cargar = idx === 1 ? rem.segundo_hora_llegada_cargar : rem.hora_llegada_cargar;
+        const h_horom_sal = idx === 1 ? rem.segundo_horometro_salida : rem.horometro_salida;
+        const h_horom_reg = idx === 1 ? rem.segundo_horometro_regreso : rem.horometro_regreso;
         return `
       <tr>
-        <td class="td-center" style="font-size: 8px;"><strong>${op.full_name}</strong><br/>Máq: ${rem.numero_maquina || ''}</td>
+        <td class="td-center" style="font-size: 8px;"><strong>${op.full_name}</strong></td>
+        <td class="td-center" style="font-size: 8px;">${rem.numero_maquina || ''}</td>
         <td class="td-center">${formatTime(h_sal_cargar)}</td>
         <td class="td-center">${formatTime(h_lleg_cliente)}</td>
         <td class="td-center">${formatTime(h_sal_cliente)}</td>
         <td class="td-center">${formatTime(h_lleg_cargar)}</td>
-        <td class="td-center">${idx === 0 && rem.descuentos ? formatCOP(rem.descuentos) : ''}</td>
-        <td class="td-center">${idx === 0 ? (rem.horometro_salida || '') : ''}</td>
-        <td class="td-center">${idx === 0 ? (rem.horometro_regreso || '') : ''}</td>
+        <td class="td-center">${h_horom_sal || ''}</td>
+        <td class="td-center">${h_horom_reg || ''}</td>
       </tr>`;
       }).join('') : `
       <tr>
+        <td class="td-center"></td>
         <td class="td-center">${rem.numero_maquina || ''}</td>
         <td class="td-center">${formatTime(rem.hora_salida_cargar)}</td>
         <td class="td-center">${formatTime(rem.hora_llegada_cliente)}</td>
         <td class="td-center">${formatTime(rem.hora_salida_cliente)}</td>
         <td class="td-center">${formatTime(rem.hora_llegada_cargar)}</td>
-        <td class="td-center">${rem.descuentos ? formatCOP(rem.descuentos) : ''}</td>
         <td class="td-center">${rem.horometro_salida || ''}</td>
         <td class="td-center">${rem.horometro_regreso || ''}</td>
       </tr>`}
@@ -297,9 +300,9 @@ function buildRemisionHtml(rem, horasLaborales = []) {
       ${horarioRows.map(row => `
       <tr>
         <td>${row.label}</td>
-        <td class="td-center">${parseFloat(row.horas) > 0 ? row.horas : ''}</td>
+        <td class="td-center">${(rem.estado === 'REALIZADA' || rem.estado === 'LIQUIDADA') && parseFloat(row.horas) > 0 ? row.horas : ''}</td>
         <td class="td-center">${parseFloat(row.valor) > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(row.valor) : ''}</td>
-        <td class="td-center">${(parseFloat(row.horas) > 0 && parseFloat(row.valor) > 0) ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(parseFloat(row.horas) * parseFloat(row.valor)) : ''}</td>
+        <td class="td-center">${(rem.estado === 'REALIZADA' || rem.estado === 'LIQUIDADA') && parseFloat(row.horas) > 0 && parseFloat(row.valor) > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(parseFloat(row.horas) * parseFloat(row.valor)) : ''}</td>
       </tr>`).join('')}
       <tr style="font-weight: bold; background: #f0f0f0;">
         <td>TOTAL</td>
@@ -309,22 +312,22 @@ function buildRemisionHtml(rem, horasLaborales = []) {
       </tr>
     </tbody>
   </table>
-
-  <!-- TOTALES -->
-  <div class="totals-grid">
-    <div class="totals-label">TOTAL BRUTO</div>
-    <div class="totals-value">CO$ ${new Intl.NumberFormat('es-CO').format(rem.total_bruto || 0)}</div>
-    ${totalLiquidado > 0 ? `
-    <div class="totals-label" style="color:#000;">TOTAL LIQUIDAR OPERARIOS</div>
-    <div class="totals-value" style="color:#000;">CO$ ${new Intl.NumberFormat('es-CO').format(totalLiquidado)}</div>
-    ` : ''}
-    <div class="totals-label">+IVA</div>
-    <div class="totals-value">CO$ ${new Intl.NumberFormat('es-CO').format(rem.iva_valor || 0)}</div>
-    <div class="totals-label">DESCUENTOS</div>
-    <div class="totals-value">CO$ ${new Intl.NumberFormat('es-CO').format(rem.descuentos || 0)}</div>
-    <div class="totals-label totals-final">TOTAL NETO</div>
-    <div class="totals-value totals-final">CO$ ${new Intl.NumberFormat('es-CO').format(totalNetoFinal)}</div>
+  <div style="margin-top:12px; font-size:9px; line-height:1.4;">
+    <strong>ESTIMADO USUARIO:</strong> La labor, solo comenzará cuando usted firme este documento,
+    mediante el cual usted como cliente, se compromete a aceptar y cumplir las cláusulas del contrato
+    de servicio de montacargas estipulado anteriormente y designa a una persona para la dirección y
+    supervisión de las operaciones.<br>
+    Atentamente, CARGAR S.A.S<br>
+    Elaborado por: ${rem.creado_por_nombre || '—'}
   </div>
+
+  <!-- TOTALES FINANCIEROS (solo valores cuando REALIZADA) -->
+   <div style="text-align: right; margin-top: 6px; font-size: 10px;">
+     ${(rem.estado === 'REALIZADA') && parseFloat(rem.iva_valor || 0) > 0 ? `<div style="margin-bottom: 2px;">IVA (${rem.iva_pct || 0}%): <strong>${formatCOP(rem.iva_valor)}</strong></div>` : ''}
+     ${(rem.estado === 'REALIZADA') && parseFloat(rem.descuentos || 0) > 0 ? `<div style="margin-bottom: 2px;">Descuentos: <strong>${formatCOP(rem.descuentos)}</strong></div>` : ''}
+     <div style="margin-top: 4px; font-weight: bold; font-size: 11px;">TOTAL: ${(rem.estado === 'REALIZADA') ? formatCOP(rem.total_neto) : ''}</div>
+   </div>
+
 
   <!-- FIRMA -->
   <div class="firma-section">

@@ -1,1 +1,1 @@
-ALTER TABLE catalogo_servicios ADD COLUMN tipo VARCHAR(50) DEFAULT 'Servicio';
+ALTER TABLE catalogo_servicios ADD COLUMN IF NOT EXISTS tipo VARCHAR(50) DEFAULT 'Servicio';
