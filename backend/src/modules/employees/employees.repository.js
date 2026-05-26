@@ -26,9 +26,14 @@ export class EmployeesRepository {
     params.push(limit + 1);
 
     const sql = `
-      SELECT * FROM employees
+      SELECT e.*,
+             u.nombre AS user_nombre,
+             u.apellido AS user_apellido,
+             u.email AS user_email
+      FROM employees e
+      LEFT JOIN users u ON u.id = e.user_id
       WHERE ${conditions.join(' AND ')}
-      ORDER BY created_at DESC
+      ORDER BY e.created_at DESC
       LIMIT $${i}
     `;
 
@@ -44,7 +49,13 @@ export class EmployeesRepository {
 
   async findById(id) {
     const result = await query(
-      `SELECT * FROM employees WHERE id = $1`, [id]
+      `SELECT e.*,
+              u.nombre AS user_nombre,
+              u.apellido AS user_apellido,
+              u.email AS user_email
+       FROM employees e
+       LEFT JOIN users u ON u.id = e.user_id
+       WHERE e.id = $1`, [id]
     );
     return result.rows[0] || null;
   }

@@ -53,11 +53,11 @@ export class PMRepository {
     const insRes = await query(
       `SELECT ip.id, ip.item_inventario_id, ip.descripcion_display,
               ip.cantidad_sugerida, ip.unidad, ip.es_obligatorio,
-              COALESCE(inv.stock_current, 0) AS stock_actual,
+              COALESCE(inv.stock_actual, 0) AS stock_actual,
               COALESCE(inv.unit_price, 0) AS precio_unitario,
               inv.name AS nombre_inventario
        FROM pm_insumos_plantilla ip
-       LEFT JOIN inventory_items inv ON inv.id = ip.item_inventario_id
+       LEFT JOIN inventario inv ON inv.id = ip.item_inventario_id
        WHERE ip.frecuencia_id = $1 AND ip.activo = TRUE
        ORDER BY ip.descripcion_display ASC`,
       [frecuenciaId]
@@ -216,7 +216,7 @@ export class PMRepository {
         'PLANTILLA_PM',
         ip.id
       FROM pm_insumos_plantilla ip
-      LEFT JOIN inventory_items inv ON inv.id = ip.item_inventario_id
+      LEFT JOIN inventario inv ON inv.id = ip.item_inventario_id
       WHERE ip.frecuencia_id = $2
         AND ip.activo = TRUE
         AND ip.item_inventario_id IS NOT NULL

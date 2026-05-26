@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { documentoService } from '../../services/documentoService.js';
 import { uploadSingle, uploadMultiple, buildUploadPath, rutaSegura, getUploadsBasePath } from '../../config/storage.js';
 import { authenticate } from '../../middleware/auth.js';
+import { uploadLimiter } from '../../middleware/rateLimiter.js';
 import { query } from '../../config/database.js';
 import path from 'path';
 import fs from 'fs';
@@ -100,7 +101,7 @@ router.get('/completitud/:tipo/:entidadId', async (req, res, next) => {
 });
 
 // POST /api/documentos/entidad/:tipo/:id
-router.post('/entidad/:tipo/:entidadId', (req, res, next) => {
+router.post('/entidad/:tipo/:entidadId', uploadLimiter, (req, res, next) => {
   const { tipo, entidadId } = req.params;
   const tipoSlug = req.query.tipo_slug || 'general';
 
@@ -144,7 +145,7 @@ router.post('/entidad/:tipo/:entidadId', (req, res, next) => {
 });
 
 // POST /api/documentos/entidad/:tipo/:id/single
-router.post('/entidad/:tipo/:entidadId/single', (req, res, next) => {
+router.post('/entidad/:tipo/:entidadId/single', uploadLimiter, (req, res, next) => {
   const { tipo, entidadId } = req.params;
   const tipoSlug = req.query.tipo_slug || 'general';
 
@@ -260,7 +261,7 @@ router.patch('/admin/tipos/:id/estado', async (req, res, next) => {
 // ─── OT Firmada ─────────────────────────────────────────────────────────────
 
 // POST /api/documentos/ot/:id/firmada
-router.post('/ot/:otId/firmada', (req, res, next) => {
+router.post('/ot/:otId/firmada', uploadLimiter, (req, res, next) => {
   const { otId } = req.params;
   req.uploadPath = buildUploadPath('OT', otId, 'firmadas');
 

@@ -2,7 +2,6 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, DollarSign, TrendingUp, Target } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { OpportunityForm } from '../../components/Opportunities/OpportunityForm';
@@ -85,7 +84,6 @@ export function PipelinePage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
 
       <Topbar 
         title="Pipeline" 

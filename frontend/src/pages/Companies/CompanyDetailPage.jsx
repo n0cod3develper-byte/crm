@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { facturacionApi } from '../../services/facturacionApi';
 import { formatCurrency } from '../../utils/formatters';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { ContactForm } from '../../components/Contacts/ContactForm';
@@ -58,7 +57,6 @@ export function CompanyDetailPage() {
 
   if (isLoading) return (
     <div className="app-layout">
-      <Sidebar />
       <div className="main-content flex items-center justify-center">
         <div className="spinner" />
       </div>
@@ -67,7 +65,6 @@ export function CompanyDetailPage() {
 
   if (!company) return (
     <div className="app-layout">
-      <Sidebar />
       <div className="main-content">
         <div className="empty-state">
           <h2>Empresa no encontrada</h2>
@@ -89,7 +86,6 @@ export function CompanyDetailPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
 
       <Topbar 
         title={company.name} 
@@ -317,6 +313,12 @@ export function CompanyDetailPage() {
                    <label className="input-label">Ciudad / País</label>
                    <p className="mb-4">{company.city || '—'} / {company.country || 'Colombia'}</p>
                    
+                   <label className="input-label">Modelo de Captación</label>
+                   <p className="mb-4">{company.modelo_captacion || 'No definido'}</p>
+                   
+                   <label className="input-label">Régimen</label>
+                   <p className="mb-4">{company.regimen || 'No definido'}</p>
+                   
                    <label className="input-label">Notas Internas</label>
                    <p style={{ fontSize: 'var(--text-sm)', whiteSpace: 'pre-wrap' }}>
                      {company.notes || 'No hay notas adicionales.'}
@@ -329,8 +331,11 @@ export function CompanyDetailPage() {
                      {!company.tags?.length && 'Sin etiquetas'}
                    </div>
                    
-                   <label className="input-label">Responsable</label>
-                   <p>{company.assigned_to_name || 'Sin asignar'}</p>
+                   <label className="input-label">Responsable de Cuenta</label>
+                   <p className="mb-4">{company.assigned_to_name || 'Sin asignar'}</p>
+                   
+                   <label className="input-label">Responsable de Captación</label>
+                   <p>{company.responsable_captacion_nombre || 'Sin asignar'}</p>
                 </div>
               </div>
             )}

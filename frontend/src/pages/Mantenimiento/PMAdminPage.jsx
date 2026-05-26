@@ -1,6 +1,5 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Settings, Plus, Edit2, CheckCircle, Package, Trash2, Save, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -124,7 +123,6 @@ export function PMAdminPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title={
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>

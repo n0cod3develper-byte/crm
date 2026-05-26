@@ -3,29 +3,54 @@
 Un CRM a medida para CARGAR SAS, empresa del sector logístico.
 
 ## Requisitos Previos
-- Docker y Docker Compose
+
 - Node.js >= 20.0
 - npm >= 10.0
+- PostgreSQL 16+ (corriendo localmente)
+- Redis 7+ (corriendo localmente)
+- MinIO o almacenamiento S3 compatible (opcional para desarrollo local)
 
 ## Inicio Rápido (Desarrollo)
 
 ### 1. Variables de entorno
-Duplicar el archivo `.env.example` como `.env`.
-\`\`\`bash
-cp .env.example .env
-\`\`\`
 
-### 2. Iniciar Infraestructura Base
-Arrancar PostgreSQL, Redis y MinIO junto con los servicios del backend y frontend empaquetados:
-\`\`\`bash
-docker-compose up -d --build
-\`\`\`
-*(La base de datos se inicializa automáticamente en el primer arranque mediante el archivo `backend/migrations/001_initial_schema.sql`)*
+Duplicar el archivo `.env.example` como `.env` dentro de `backend/`:
+```bash
+cp backend/.env.example backend/.env
+```
 
-### 3. Accesos
-- **Frontend App:** [http://localhost:3000](http://localhost:3000)
+### 2. Base de datos
+
+Asegúrate de tener PostgreSQL corriendo en `localhost:5432` y ejecuta las migraciones:
+
+```bash
+cd backend
+node migrations/runner.js
+```
+
+### 3. Iniciar servicios
+
+**Backend** (terminal 1):
+```bash
+cd backend
+npm run dev
+```
+
+**Frontend** (terminal 2):
+```bash
+cd frontend
+npm run dev
+```
+
+O usa el script de inicio (abre ambas terminales automáticamente):
+```powershell
+.\dev-start.ps1
+```
+
+### 4. Accesos
+
+- **Frontend App:** [http://localhost:3001](http://localhost:3001)
 - **Backend API:** [http://localhost:4000/api/v1](http://localhost:4000/api/v1)
-- **MinIO Console (S3):** [http://localhost:9001](http://localhost:9001) *(admin / minioadmin123)*
 
 ## Integraciones Clave
 
@@ -36,29 +61,13 @@ docker-compose up -d --build
 - **AI Sugerencias:** OpenAI GPT-4o
 
 ### Asterisk (Central Telefónica)
+
 El módulo de Asterisk está preparado pero desactivado por defecto (`ASTERISK_ENABLED=false` en el `.env`). Para usarlo, configura las credenciales de tu PBX y activa la variable.
 
-## Comandos Útiles
-
-**Ver logs de todos los servicios:**
-\`\`\`bash
-docker-compose logs -f
-\`\`\`
-
-**Reiniciar un servicio específico (ej: backend):**
-\`\`\`bash
-docker-compose restart backend
-\`\`\`
-
-**Reconstruir servicios si cambian las dependencias:**
-\`\`\`bash
-docker-compose up -d --build
-\`\`\`
-
 ## Estado Actual del Desarrollo
+
 Sprint 1 completado. El monorepo cuenta con:
-- Infraestructura Docker completa.
-- Base de datos modelada (Migración SQL `001_initial_schema`).
+- Base de datos modelada (Migraciones SQL secuenciales).
 - Servicios base y sistema de autenticación OAuth integrado (Google y Microsoft).
 - Frontend Vite + React montado con el Design System inicial.
 - Vista de Dashboard con KPIs y Pipeline.

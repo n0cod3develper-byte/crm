@@ -1,5 +1,6 @@
 import { MovementsRepository } from './movements.repository.js';
 import { InventoryRepository } from './inventory.repository.js';
+import { logger } from '../../utils/logger.js';
 
 const repo = new MovementsRepository();
 const inventoryRepo = new InventoryRepository();
@@ -30,7 +31,7 @@ export const createMovement = async (req, res) => {
  */
 export const registrarEntrada = async (req, res) => {
   try {
-    console.log('[MovementsController] Registro de entrada req.body:', req.body);
+    logger.debug('[MovementsController] Registro de entrada');
     const {
       inventario_id,
       cantidad,
@@ -47,21 +48,21 @@ export const registrarEntrada = async (req, res) => {
 
     // Validaciones
     if (!inventario_id) {
-      console.warn('[MovementsController] Falta inventario_id');
+      logger.warn('[MovementsController] Falta inventario_id');
       return res.status(400).json({ error: 'El producto es obligatorio' });
     }
     if (!cantidad || parseFloat(cantidad) <= 0) {
-      console.warn('[MovementsController] Cantidad inválida:', cantidad);
+      logger.warn('[MovementsController] Cantidad inválida');
       return res.status(400).json({ error: 'La cantidad debe ser mayor a cero' });
     }
     if (!precio_unitario || parseFloat(precio_unitario) <= 0) {
-      console.warn('[MovementsController] Precio unitario inválido:', precio_unitario);
+      logger.warn('[MovementsController] Precio unitario inválido');
       return res.status(400).json({ error: 'El precio unitario es obligatorio para registrar una compra' });
     }
 
     const producto = await inventoryRepo.findById(inventario_id);
     if (!producto) {
-      console.warn('[MovementsController] Producto no encontrado:', inventario_id);
+      logger.warn('[MovementsController] Producto no encontrado', { inventario_id });
       return res.status(404).json({ error: 'Producto no encontrado' });
     }
     if (producto.tipo === 'SERVICIO') {
@@ -92,11 +93,10 @@ export const registrarEntrada = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[MovementsController] Error en registrarEntrada:', err);
+    logger.error('[MovementsController] Error en registrarEntrada', { error: err.message });
     res.status(400).json({ 
       success: false, 
-      error: err.message,
-      detail: err.detail || null 
+      error: err.message
     });
   }
 };

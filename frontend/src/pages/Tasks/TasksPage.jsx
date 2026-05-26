@@ -2,7 +2,6 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, CheckCircle2, Circle, Clock, AlertTriangle, Phone, Mail, Users, RotateCcw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { TaskForm } from '../../components/Tasks/TaskForm';
@@ -67,7 +66,6 @@ export function TasksPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
 
       <Topbar 
         title="Tareas" 

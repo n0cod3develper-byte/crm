@@ -1,0 +1,57 @@
+# Implementación del Módulo Report Builder (Drag & Drop)
+
+El objetivo es construir un generador de reportes dinámico estilo *Business Intelligence* integrado directamente en el CRM. Utilizaremos **Cube.js** como motor analítico (capa semántica) y **React** con `@dnd-kit`, `Recharts` y `TanStack Table` para la interfaz de arrastrar y soltar.
+
+> [!IMPORTANT]
+> **Aprobación de Arquitectura:**
+> Este plan propone correr **Cube.js como un servicio separado** en el puerto 4000. Esto significa que cuando inicies tu entorno de desarrollo, tendrás que ejecutar 3 servicios: Frontend (React), Backend (Express) y Cube.js (Analítica). ¿Estás de acuerdo con este enfoque microservicio?
+
+## Cambios Propuestos
+
+### 1. Servicio Analítico (Cube.js)
+Crearemos una nueva carpeta `cube` en la raíz del proyecto para alojar el motor de Cube.js.
+- **Configuración:** Conexión directa a la base de datos PostgreSQL existente del CRM mediante variables de entorno en el puerto 4000.
+- **Schema Semántico:** Definiremos los cubos de datos (`schema/`) para las entidades principales:
+  - `OrdenesTrabajo` (Métricas: cantidad, tiempo_total, costos; Dimensiones: estado, tipo, fecha)
+  - `Companies` (Empresas)
+  - `Inventario` (Stock actual, costo)
+  - `Facturas` (Total facturado, IVA)
+
+### 2. Frontend: Dependencias
+Instalaremos las librerías necesarias en el directorio `frontend/`:
+- `@cubejs-client/core` y `@cubejs-client/react` para interactuar con la API del servicio Cube.js.
+- `@tanstack/react-table` para la tabla dinámica de resultados.
+- *(Nota: `@dnd-kit/core` y `recharts` ya se encuentran instalados en tu `package.json`)*.
+
+### 3. Frontend: Componentes y Vistas
+Crearemos una interfaz dividida en un panel lateral (catálogo de datos) y un lienzo principal (workspace).
+
+#### [NEW] `frontend/src/pages/Reportes/ReportBuilderPage.jsx`
+- Contendrá la vista principal del generador de reportes.
+- Implementará el contexto de Drag & Drop (`DndContext` de `@dnd-kit/core`) para arrastrar Dimensiones y Métricas.
+- Mantendrá el estado de la *Query* analítica generada dinámicamente.
+
+#### [NEW] Componentes Auxiliares (en `frontend/src/pages/Reportes/components/`)
+- `SidebarCatalog.jsx`: Listado colapsable de Cubos, Dimensiones y Métricas (draggable items).
+- `DropzoneWorkspace.jsx`: Área donde se sueltan las métricas y dimensiones para armar la query.
+- `ResultChart.jsx`: Visualizador de datos usando `Recharts` (Barras, Líneas, Pie).
+- `ResultTable.jsx`: Visualizador de datos tabulares usando `TanStack Table v8`.
+
+### 4. Navegación
+#### [MODIFY] `frontend/src/App.jsx`
+- Añadiremos las rutas principales del módulo: `/reportes`.
+
+#### [MODIFY] `frontend/src/components/layout/Sidebar.jsx`
+- Incluiremos un nuevo ítem en el menú lateral ("Report Builder" / "Analítica") con su respectivo ícono.
+
+## Plan de Verificación
+
+### Pruebas Automatizadas/Lógicas
+- Iniciar el servicio Cube.js y validar que se conecte a PostgreSQL correctamente (Playground disponible en puerto 4000).
+- Verificar que el schema generado exponga las métricas (ej. count de OTs) y dimensiones (ej. estado de la OT).
+
+### Verificación Manual
+- Acceder a `/reportes` en el frontend del CRM.
+- Arrastrar una métrica (Ej: "Total Órdenes") y una dimensión (Ej: "Estado de Orden") al área de trabajo.
+- Validar que Cube.js responda con los datos correctos y se renderice un gráfico de barras interactivo y una tabla con los resultados sin errores en la consola.
+- Cambiar entre visualización de Gráfico y Tabla.

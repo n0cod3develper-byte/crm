@@ -22,4 +22,14 @@ export const catalogApi = {
   createUbicacion: (data) => api.post('/ubicaciones', data).then(r => r.data),
   updateUbicacion: (id, data) => api.put(`/ubicaciones/${id}`, data).then(r => r.data),
   deleteUbicacion: (id) => api.delete(`/ubicaciones/${id}`).then(r => r.data),
+  // Prefijos
+  getUbicacionesPrefijos: () => api.get('/ubicaciones/prefijos').then(r => r.data),
+  createPrefijo: (data) => api.post('/ubicaciones/prefijos', data).then(r => r.data),
+  updatePrefijo: (id, data) => api.put(`/ubicaciones/prefijos/${id}`, data).then(r => r.data),
+  deletePrefijo: (id) => api.delete(`/ubicaciones/prefijos/${id}`).then(r => r.data),
+  // Niveles
+  getUbicacionesNiveles: () => api.get('/ubicaciones/niveles').then(r => r.data),
+  createNivel: (data) => api.post('/ubicaciones/niveles', data).then(r => r.data),
+  updateNivel: (id, data) => api.put(`/ubicaciones/niveles/${id}`, data).then(r => r.data),
+  deleteNivel: (id) => api.delete(`/ubicaciones/niveles/${id}`).then(r => r.data),
 };

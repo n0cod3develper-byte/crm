@@ -37,3 +37,16 @@ export const webhookLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+/**
+ * Rate limiter para subida de archivos — 10 archivos por minuto por IP
+ */
+export const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, _res, next) => {
+    next(new AppError('Demasiadas subidas. Intenta en 1 minuto.', 429));
+  },
+});

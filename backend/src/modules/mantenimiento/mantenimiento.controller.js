@@ -1,6 +1,7 @@
 import { MantenimientoRepository } from './mantenimiento.repository.js';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../../utils/errors.js';
 import { generateOTPdf } from '../../utils/pdfGenerator.js';
+import { logger } from '../../utils/logger.js';
 
 const repo = new MantenimientoRepository();
 
@@ -128,7 +129,7 @@ export const downloadPDF = async (req, res, next) => {
     const ot = await repo.findOTById(req.params.id);
     if (!ot) throw new NotFoundError('Orden de trabajo');
 
-    console.log(`[PDF] Generando OT ${ot.consecutivo}...`);
+    logger.info(`[PDF] Generando OT`, { consecutivo: ot.consecutivo });
     const pdfBuffer = await generateOTPdf(ot);
     
     res.set({
@@ -137,11 +138,22 @@ export const downloadPDF = async (req, res, next) => {
       'Content-Length': pdfBuffer.length,
     });
     res.send(pdfBuffer);
-    console.log(`[PDF] OT ${ot.consecutivo} enviada con éxito.`);
+    logger.info(`[PDF] OT generada con éxito`, { consecutivo: ot.consecutivo });
   } catch (err) { 
-    console.error(`[PDF] Error en OT ${req.params.id}:`, err);
+    logger.error(`[PDF] Error generando OT`, { otId: req.params.id, error: err.message });
     next(err); 
   }
+};
+
+// ─── KPIs (Dashboard) ─────────────────────────────────
+export const getKpis = async (req, res, next) => {
+  try {
+    const meses = Math.min(Math.max(parseInt(req.query.meses, 10) || 12, 3), 36);
+    const fecha_desde = req.query.fecha_desde || null;
+    const fecha_hasta = req.query.fecha_hasta || null;
+    const kpis = await repo.getKpis(meses, fecha_desde, fecha_hasta);
+    res.json({ success: true, data: kpis });
+  } catch (err) { next(err); }
 };
 
 // ─── Inventario search (para el formulario) ────────────

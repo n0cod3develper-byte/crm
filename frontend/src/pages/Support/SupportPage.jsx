@@ -5,7 +5,6 @@ import {
   MessageCircle, Building2, User, Filter,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { TicketForm } from '../../components/Support/TicketForm';
@@ -195,7 +194,6 @@ export function SupportPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
 
       <Topbar 
         title={

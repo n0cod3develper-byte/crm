@@ -5,7 +5,6 @@ import {
   Plus, Search, ShoppingCart, FileText, CheckCircle,
   AlertCircle, DollarSign, Package
 } from 'lucide-react';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
@@ -50,7 +49,6 @@ export function OrdenesCompraPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title="Órdenes de Compra" 
         subtitle="Aprobación, emisión y seguimiento de compras externalizadas" 

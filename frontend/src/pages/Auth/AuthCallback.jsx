@@ -1,35 +1,27 @@
 import React, { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuthStore } from '../../stores/authStore';
+import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 
 /**
- * Página callback: recibe los tokens del backend después del OAuth redirect
- * y los guarda en el store.
- *
- * URL: /auth/callback?token=xxx&refresh=yyy
+ * Página callback: después del OAuth redirect, las cookies ya están seteadas
+ * por el backend. Solo cargamos el perfil y redirigimos.
  */
 export function AuthCallbackPage() {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { setTokens, setUser } = useAuthStore();
 
   useEffect(() => {
-    const token   = searchParams.get('token');
-    const refresh = searchParams.get('refresh');
-    const error   = searchParams.get('error');
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get('error');
 
-    if (error || !token) {
+    if (error) {
       navigate('/login?error=auth_failed', { replace: true });
       return;
     }
 
-    setTokens(token, refresh);
-
-    // Carga el perfil del usuario
+    // Las cookies httpOnly ya están seteadas por el backend (oauthCallback)
+    // Solo cargamos el perfil del usuario
     api.get('/auth/me')
       .then(({ data }) => {
-        setUser(data.data);
         navigate('/dashboard', { replace: true });
       })
       .catch(() => {

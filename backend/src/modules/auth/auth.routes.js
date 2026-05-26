@@ -2,7 +2,8 @@ import { Router } from 'express';
 import passport from 'passport';
 import { authController } from './auth.controller.js';
 import { requireAuth } from '../../middleware/auth.js';
-import { authLimiter } from '../../middleware/rateLimiter.js';
+import { authLimiter, uploadLimiter } from '../../middleware/rateLimiter.js';
+import { uploadSingle } from '../../config/storage.js';
 import { env } from '../../config/env.js';
 
 const router = Router();
@@ -40,5 +41,7 @@ router.post('/logout', requireAuth, authController.logout);
 // ─── Perfil ──────────────────────────────────────────────────
 router.get('/me', requireAuth, authController.me);
 router.patch('/me', requireAuth, authController.updateProfile);
+router.post('/me/password', requireAuth, authLimiter, authController.changePassword);
+router.post('/me/foto', requireAuth, uploadLimiter, uploadSingle, authController.uploadProfilePhoto);
 
 export default router;

@@ -1,23 +1,21 @@
 import React from 'react';
-import { Sidebar } from './layout/Sidebar';
 import { Topbar } from './layout/Topbar';
 
 /**
- * Layout component that wraps the Sidebar, Topbar and main content.
+ * Layout principal que envuelve Topbar y contenido.
+ * El Sidebar ahora se renderiza en App.jsx fuera de <Routes>.
  */
 export const Layout = ({ title, subtitle, children, rightContent }) => {
   return (
     <div className="app-layout">
-      <Sidebar />
-      <Topbar 
-        title={title} 
-        subtitle={subtitle} 
+      <Topbar
+        title={title}
+        subtitle={subtitle}
         rightContent={rightContent}
       />
-      <main className="main-content">
+      <main className="main-content" role="main">
         {children}
       </main>
     </div>
   );
 };
-

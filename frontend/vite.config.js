@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 
 export default defineConfig(({ mode }) => ({
-  base: mode === 'production' ? '/crm/' : '/',
+ // base: mode === 'production' ? '/crm/' : '/',
+ base: '/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -15,7 +16,7 @@ export default defineConfig(({ mode }) => ({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:4000',
+        target: 'http://localhost:3005',
         changeOrigin: true,
         secure: false,
       },

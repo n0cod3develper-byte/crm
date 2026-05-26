@@ -1,53 +1,31 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { useAuthStore } from '../stores/authStore';
-import api from '../lib/api';
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  const [user, setUser]     = useState(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken]   = useState(
-    () => useAuthStore.getState().accessToken || localStorage.getItem('token')
-  );
 
-  // Sincroniza el token al authStore y localStorage
-  function _syncToken(accessToken, refreshToken) {
-    if (accessToken) {
-      localStorage.setItem('token', accessToken);
-      if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
-      useAuthStore.getState().setTokens(accessToken, refreshToken || '');
-    } else {
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      useAuthStore.getState().logout();
-    }
-    setToken(accessToken);
-  }
+  const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
   useEffect(() => {
-    if (token) {
-      fetchUser();
-    } else {
-      setLoading(false);
-    }
-  }, [token]);
+    fetchUser();
+  }, []);
 
   async function fetchUser() {
     try {
-      // Usamos la instancia de axios 'api' que ya maneja el baseURL y el token
-      const res = await api.get('/auth/me');
-      const userData = res.data;
-      setUser(userData);
-      useAuthStore.getState().setUser(userData);
-    } catch (err) {
-      console.error('Error fetching user:', err);
-      // Solo desincronizar si es un error de autenticación (401)
-      if (err.response?.status === 401) {
-        _syncToken(null);
+      const res = await fetch(`${API_URL}/auth/me`, {
+        credentials: 'include'
+      });
+      if (res.ok) {
+        const userData = await res.json();
+        setUser(userData);
+      } else {
         setUser(null);
       }
+    } catch (err) {
+      console.error('Error fetching user:', err);
     } finally {
       setLoading(false);
     }
@@ -55,52 +33,67 @@ export function AuthProvider({ children }) {
 
   async function login(email, password) {
     try {
-      const res = await api.post('/auth/login', { email, password });
-      const result = res.data;
-      
-      _syncToken(result.data.accessToken, result.data.refreshToken);
-      setUser(result.data.user);
-      useAuthStore.getState().setUser(result.data.user);
-      toast.success('Sesión iniciada');
-      return true;
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password })
+      });
+      const result = await res.json();
+      if (res.ok) {
+        setUser(result.data.user);
+        toast.success('Sesión iniciada');
+        return { success: true };
+      } else {
+        const errorMsg = result.error?.message || result.error || 'Credenciales inválidas';
+        toast.error(errorMsg);
+        return { success: false, error: errorMsg };
+      }
     } catch (err) {
-      const errorData = err.response?.data;
-      const errMsg = typeof errorData?.error === 'string'
-        ? errorData.error
-        : errorData?.error?.message || errorData?.message || 'Credenciales inválidas';
-      
-      toast.error(errMsg);
-      return false;
+      toast.error('Error de conexión');
+      return { success: false, error: 'Error de conexión' };
     }
   }
 
   async function register(data) {
     try {
-      const res = await api.post('/auth/register', data);
-      const result = res.data;
-      
-      _syncToken(result.data.accessToken, result.data.refreshToken);
-      toast.success('Cuenta creada correctamente');
-      return true;
+      const res = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+      });
+      const result = await res.json();
+      if (res.ok) {
+        // Recargar datos del usuario
+        await fetchUser();
+        toast.success('Cuenta creada correctamente');
+        return true;
+      } else {
+        toast.error(result.error?.message || result.error || 'Error al registrarse');
+        return false;
+      }
     } catch (err) {
-      const errorData = err.response?.data;
-      const errMsg = typeof errorData?.error === 'string'
-        ? errorData.error
-        : errorData?.error?.message || errorData?.message || 'Error al registrarse';
-      
-      toast.error(errMsg);
+      toast.error('Error de conexión');
       return false;
     }
   }
 
-  function logout() {
-    _syncToken(null);
+  async function logout() {
+    try {
+      await fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (err) {
+      // Ignorar errores de logout
+    }
     setUser(null);
     window.location.href = '/login';
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register, token }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, register }}>
       {children}
     </AuthContext.Provider>
   );

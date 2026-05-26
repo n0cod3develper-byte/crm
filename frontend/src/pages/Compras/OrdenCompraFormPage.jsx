@@ -7,7 +7,6 @@ import {
   DollarSign, MessageSquare, Package
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
@@ -82,8 +81,8 @@ export function OrdenCompraFormPage() {
     }
   };
 
-  if (isLoading) return <div className="app-layout"><Sidebar /><main className="main-content"><div className="spinner" /></main></div>;
-  if (!oc) return <div className="app-layout"><Sidebar /><main className="main-content"><div className="empty-state">OC no encontrada</div></main></div>;
+  if (isLoading) return <div className="app-layout"><main className="main-content"><div className="spinner" /></main></div>;
+  if (!oc) return <div className="app-layout"><main className="main-content"><div className="empty-state">OC no encontrada</div></main></div>;
 
   const fmt = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v || 0);
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-CO') : '—';
@@ -96,7 +95,6 @@ export function OrdenCompraFormPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title={`Orden de Compra ${oc.consecutivo}`} 
         subtitle="Gestión de detalle y autorizaciones" 

@@ -6,7 +6,6 @@ import {
   ShoppingCart, Building2, Tag, ChevronRight, Plus
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
@@ -107,12 +106,11 @@ export function ComparacionCotizacionesPage() {
 
   const fmt = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v || 0);
 
-  if (loadingSol || loadingCots) return <div className="app-layout"><Sidebar /><main className="main-content"><div className="spinner" /></main></div>;
-  if (!solicitud) return <div className="app-layout"><Sidebar /><main className="main-content">Solicitud no encontrada</main></div>;
+  if (loadingSol || loadingCots) return <div className="app-layout"><main className="main-content"><div className="spinner" /></main></div>;
+  if (!solicitud) return <div className="app-layout"><main className="main-content">Solicitud no encontrada</main></div>;
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title="Comparativa de Cotizaciones" 
         subtitle={`Solicitud ${solicitud.consecutivo} — ${solicitud.area_solicitante}`} 

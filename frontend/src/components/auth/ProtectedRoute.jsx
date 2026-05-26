@@ -1,38 +1,21 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { usePermissions } from '../../contexts/PermissionsContext';
 
-/**
- * Ruta protegida.
- * - Sin token → redirige a /login
- * - adminOnly → solo accesible si esAdmin()
- * - modulo + accion → verifica permiso granular
- * - Sin props → solo requiere estar autenticado
- */
-export function ProtectedRoute({ children, modulo, accion, adminOnly }) {
-  const { token, loading } = useAuth();
-  const { puede, esAdmin, loading: loadingPerms } = usePermissions();
+export function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
   const location = useLocation();
 
-  if (loading || loadingPerms) {
+  if (loading) {
     return (
-      <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', background: 'var(--bg-app)' }}>
-        <div className="spinner" style={{ width: '2rem', height: '2rem' }} />
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
 
-  if (!token) {
+  if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  if (adminOnly && !esAdmin()) {
-    return <Navigate to="/403" replace />;
-  }
-
-  if (modulo && accion && !puede(modulo, accion)) {
-    return <Navigate to="/403" replace />;
   }
 
   return children;

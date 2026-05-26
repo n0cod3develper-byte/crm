@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { catalogApi } from '../../services/catalogApi';
 import { Package, Wrench, AlertTriangle, List, Plus, Layers } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 
 export function CatalogDashboardPage() {
@@ -25,7 +24,6 @@ export function CatalogDashboardPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title="Catálogo Unificado" 
         subtitle="Gestión de Productos e Inventario + Servicios Profesionales"

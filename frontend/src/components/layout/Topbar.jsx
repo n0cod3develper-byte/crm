@@ -1,76 +1,96 @@
 import React from 'react';
-import { Search, Bell, Plus, ChevronDown } from 'lucide-react';
+import { Search, Bell } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSidebarStore } from '../../stores/sidebarStore';
+import { useViewportType } from '../../hooks/useMediaQuery';
 
 export function Topbar({ title, subtitle, rightContent }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { expanded, mobileOpen, toggleExpanded, toggleMobile } = useSidebarStore();
+  const { isMobile, isDrawerMode } = useViewportType();
+
+  const handleToggle = () => {
+    if (isDrawerMode) {
+      toggleMobile();      // drawer overlay
+    } else {
+      toggleExpanded();    // collapse/expand
+    }
+  };
+
+  // Visual: siempre tres líneas en desktop (nunca X)
+  const showHamburgerX = isDrawerMode ? mobileOpen : false;
+  // Accesibilidad: refleja el estado real del sidebar
+  const sidebarOpen = isDrawerMode ? mobileOpen : expanded;
 
   return (
-    <header className="header" style={{ padding: '0 1.5rem', height: 'var(--header-height)' }}>
-      {/* Left side: Page Title */}
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-        <h1 style={{ fontSize: '1.125rem', fontWeight: 700, lineHeight: 1.2, color: 'var(--text-primary)' }}>{title}</h1>
-        {subtitle && (
-          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
-            {subtitle}
-          </p>
-        )}
-      </div>
+    <header className="header">
+      {/* Left: Hamburguesa + título */}
+      <div className="header__left">
+        <button
+          className="header__hamburger"
+          onClick={handleToggle}
+          aria-label={sidebarOpen ? 'Cerrar menú' : 'Abrir menú'}
+          aria-expanded={sidebarOpen}
+          title={sidebarOpen ? 'Colapsar sidebar' : 'Expandir sidebar'}
+        >
+          <div className={`hamburger-icon ${showHamburgerX ? 'hamburger-icon--open' : ''}`}>
+            <span />
+            <span />
+            <span />
+          </div>
+        </button>
 
-      {/* Middle: Global Search */}
-      <div style={{ flex: 2, maxWidth: 480, margin: '0 2rem' }}>
-        <div style={{ position: 'relative' }}>
-          <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          <input
-            type="text"
-            placeholder="Buscar en todo el CRM (Ctrl+K)..."
-            style={{
-              width: '100%',
-              padding: '0.4rem 1rem 0.4rem 2.5rem',
-              borderRadius: 'var(--radius-full)',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-app)',
-              color: 'var(--text-primary)',
-              fontSize: 'var(--text-sm)',
-              outline: 'none',
-              transition: 'all var(--transition-fast)'
-            }}
-          />
+        <div className="header__title-group">
+          <h1 className="header__title">{title}</h1>
+          {subtitle && <p className="header__subtitle">{subtitle}</p>}
         </div>
       </div>
 
-      {/* Right side: Actions, Notifications, Avatar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, justifyContent: 'flex-end' }}>
-        
+      {/* Center: Búsqueda global (solo desktop y tablet) */}
+      {!isMobile && (
+        <div className="header__search">
+          <div className="header__search-wrapper">
+            <Search size={16} className="header__search-icon" />
+            <input
+              type="text"
+              placeholder="Buscar en todo el CRM (Ctrl+K)..."
+              className="header__search-input"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Right: Acciones */}
+      <div className="header__right">
         {rightContent}
 
-        <div style={{ width: 1, height: 24, background: 'var(--border-color)', margin: '0 0.5rem' }} />
+        <div className="header__divider" />
 
-        {/* Notifications */}
-        <button className="btn--ghost" style={{ position: 'relative', padding: '0.5rem', border: 'none', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Bell size={18} color="var(--text-secondary)" />
-          <span style={{ position: 'absolute', top: 6, right: 8, width: 8, height: 8, background: 'var(--clr-danger)', borderRadius: '50%', border: '2px solid var(--bg-surface)' }}></span>
+        <button className="header__icon-btn" aria-label="Notificaciones">
+          <Bell size={18} />
+          <span className="header__notif-dot" />
         </button>
 
-        {/* Custom User Avatar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <button
+          className="header__avatar"
+          onClick={() => navigate('/perfil')}
+          title="Mi Perfil"
+          style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+        >
           {user?.avatar_url ? (
-            <img 
-              src={user.avatar_url} 
-              alt={user.nombre} 
-              style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid var(--border-color)', objectFit: 'cover' }} 
+            <img
+              src={user.avatar_url}
+              alt={user.nombre}
+              className="header__avatar-img"
             />
           ) : (
-            <div style={{ 
-              width: 32, height: 32, borderRadius: '50%', 
-              background: 'var(--clr-primary-500)', color: 'white', 
-              display: 'flex', alignItems: 'center', justifyContent: 'center', 
-              fontSize: '12px', fontWeight: 700 
-            }}>
+            <div className="header__avatar-fallback">
               {user?.nombre?.[0]}{user?.apellido?.[0]}
             </div>
           )}
-        </div>
+        </button>
       </div>
     </header>
   );

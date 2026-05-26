@@ -1,0 +1,20 @@
+# Tareas: Implementación de Report Builder
+
+- [ ] **Fase 1: Configuración de Cube.js (Backend Analítico)**
+    - [ ] Inicializar proyecto Cube en carpeta `cube/`
+    - [ ] Configurar `.env` con conexión PostgreSQL
+    - [ ] Definir Schema: `OrdenesTrabajo.js`
+    - [ ] Definir Schema: `Companies.js`
+    - [ ] Definir Schema: `Equipos.js`
+    - [ ] Definir Schema: `Inventario.js`
+- [ ] **Fase 2: Preparación del Frontend**
+    - [ ] Instalar dependencias (`@cubejs-client/core`, `@cubejs-client/react`, `@tanstack/react-table`)
+- [ ] **Fase 3: Desarrollo de Interfaz de Reportes**
+    - [ ] Crear página base `ReportBuilderPage.jsx`
+    - [ ] Implementar Sidebar de catálogo (Dimensiones/Métricas)
+    - [ ] Implementar Workspace con Drag & Drop (`@dnd-kit`)
+    - [ ] Integrar visualización de Gráficos (`Recharts`)
+    - [ ] Integrar visualización de Tablas (`TanStack Table`)
+- [ ] **Fase 4: Integración Final**
+    - [ ] Registrar ruta en `App.jsx`
+    - [ ] Añadir acceso en `Sidebar.jsx`

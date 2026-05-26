@@ -1,3 +1,4 @@
+import XLSX from 'xlsx';
 import { CompaniesRepository } from './companies.repository.js';
 import { NotFoundError } from '../../utils/errors.js';
 
@@ -57,6 +58,74 @@ export const companiesController = {
       if (!result) throw new NotFoundError('Empresa');
       res.json({ success: true, message: 'Empresa eliminada correctamente' });
     } catch (err) { next(err); }
+  },
+
+  async importExcel(req, res, next) {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Debe enviar un archivo Excel (.xlsx)' }
+        });
+      }
+
+      // Leer y parsear el Excel
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'El archivo Excel no contiene hojas de trabajo' }
+        });
+      }
+
+      const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: null });
+
+      if (rawData.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'El archivo Excel no contiene datos (solo encabezados)' }
+        });
+      }
+
+      if (rawData.length > 500) {
+        return res.status(400).json({
+          success: false,
+          error: { message: `El archivo excede el límite de 500 filas (tiene ${rawData.length})` }
+        });
+      }
+
+      // Mapear columnas del Excel a los campos del sistema
+      const rows = rawData.map(row => ({
+        nombre: row.Nombre || row.nombre || null,
+        nit: row.NIT || row.nit || null,
+        telefono: row.Teléfono || row.Telefono || row.telefono || null,
+        direccion: row.Dirección || row.Direccion || row.direccion || null,
+        ciudad: row.Ciudad || row.ciudad || null,
+        pais: row.País || row.Pais || row.pais || null,
+        website: row['Sitio Web'] || row['Website'] || row.website || null,
+        industry: row.Industria || row.Sector || row.industry || null,
+        modelo_captacion: row['Modelo de Captación'] || row['Modelo Captacion'] || row.modelo_captacion || null,
+        regimen: row.Régimen || row.Regimen || row.regimen || null,
+        responsable_captacion_id: row['Responsable Captación ID'] || row['Responsable Captacion ID'] || row.responsable_captacion_id || null,
+        tags: row.Tags || row.tags || row.Etiquetas || null,
+        notas: row.Notas || row.notas || row['Notas Internas'] || null,
+      }));
+
+      const result = await repo.importCompanies(rows, req.user.id);
+
+      res.json({
+        success: true,
+        data: {
+          total: rows.length,
+          importadas: result.success,
+          errores: result.errors.length,
+          detalle_errores: result.errors,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
   },
 
   async timeline(req, res, next) {

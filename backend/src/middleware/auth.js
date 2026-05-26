@@ -2,6 +2,9 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { query } from '../config/database.js';
 import { AppError } from '../utils/errors.js';
+import { logger } from '../utils/logger.js';
+import { verifyAccessToken } from '../utils/jwt.js';
+import { getAccessToken } from '../utils/cookies.js';
 
 // ─── Caché simple en memoria (sin node-cache) ─────────────────
 const _cache = new Map();
@@ -19,30 +22,35 @@ function cacheFlush() { _cache.clear(); }
  */
 export async function authenticate(req, res, next) {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw new AppError('Token de acceso requerido', 401);
+    const token = getAccessToken(req) || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
+    if (!token) {
+      return res.status(401).json({ error: 'No autorizado - Token no encontrado' });
     }
 
-    const token = authHeader.slice(7);
     let payload;
     try {
-      payload = jwt.verify(token, env.JWT_SECRET);
+      payload = verifyAccessToken(token);
     } catch (err) {
-      if (err.name === 'TokenExpiredError') throw new AppError('Token expirado', 401);
-      throw new AppError('Token inválido', 401);
+      try {
+        payload = jwt.verify(token, env.JWT_SECRET);
+      } catch (err2) {
+        if (err2.name === 'TokenExpiredError') throw new AppError('Token expirado', 401);
+        throw new AppError('Token inválido', 401);
+      }
     }
-
-    if (payload.type !== 'access') throw new AppError('Tipo de token incorrecto', 401);
-
-    const result = await query(
-      'SELECT id, email, full_name, role, is_active FROM users WHERE id = $1',
-      [payload.sub]
-    );
+    
+    // Buscar usuario en BD
+    const userSql = `
+      SELECT u.id, u.email, u.nombre, u.apellido, u.full_name, u.estado, u.is_active, u.role as old_role, r.slug as role 
+      FROM users u
+      LEFT JOIN roles r ON u.rol_id = r.id
+      WHERE u.id = $1
+    `;
+    const result = await query(userSql, [payload.sub]);
     const user = result.rows[0];
 
     if (!user) throw new AppError('Usuario no encontrado', 401);
-    if (!user.is_active) throw new AppError('Cuenta desactivada', 403);
+    if (user.estado !== 'ACTIVO' && !user.is_active) throw new AppError('Cuenta desactivada', 403);
 
     req.user   = user;
     req.userId = user.id;

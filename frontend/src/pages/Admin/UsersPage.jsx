@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Users, Search, Filter, Shield, Copy, Check, AlertCircle } from 'lucide-react';
+import { Users, Search, Filter, Shield, Copy, Check, AlertCircle, Key, Eye, EyeOff, Link, Unlink, UserCheck, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 
 export function UsersPage() {
-  const { token, user: currentUser } = useAuth();
+  const { user: currentUser } = useAuth();
   const [usuarios, setUsuarios] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,6 +16,17 @@ export function UsersPage() {
   const [inviteData, setInviteData] = useState({ email: '', rol_id: '' });
   const [inviting, setInviting] = useState(false);
   const [generatedLink, setGeneratedLink] = useState('');
+  const [passwordChangeUser, setPasswordChangeUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  
+  // Vinculación empleado-usuario
+  const [employees, setEmployees] = useState([]);
+  const [linkModalUser, setLinkModalUser] = useState(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [linkingEmployee, setLinkingEmployee] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
@@ -26,20 +36,25 @@ export function UsersPage() {
 
   async function fetchData() {
     try {
-      const [usersRes, rolesRes] = await Promise.all([
+      const [usersRes, rolesRes, employeesRes] = await Promise.all([
         fetch(`${API_URL}/admin/usuarios?q=${searchTerm}&rol=${rolFilter}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include'
         }),
         fetch(`${API_URL}/admin/roles`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include'
+        }),
+        fetch(`${API_URL}/employees?limit=200`, {
+          credentials: 'include'
         })
       ]);
 
       const usersData = await usersRes.json();
       const rolesData = await rolesRes.json();
+      const employeesData = await employeesRes.json();
 
       setUsuarios(usersData.data);
       setRoles(rolesData);
+      setEmployees(employeesData.data || []);
     } catch (err) {
       toast.error('Error cargando datos');
     } finally {
@@ -47,14 +62,71 @@ export function UsersPage() {
     }
   }
 
+  // Encontrar empleado vinculado a un usuario
+  function getEmployeeForUser(userId) {
+    return employees.find(e => e.user_id === userId);
+  }
+
+  // Vincular un empleado a un usuario
+  async function handleLinkEmployee(userId) {
+    if (!selectedEmployeeId) {
+      toast.error('Selecciona un empleado para vincular');
+      return;
+    }
+    setLinkingEmployee(true);
+    try {
+      // Desvincular empleado anterior si lo hay
+      const currentEmp = getEmployeeForUser(userId);
+      if (currentEmp) {
+        await fetch(`${API_URL}/employees/${currentEmp.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ user_id: null })
+        });
+      }
+
+      await fetch(`${API_URL}/employees/${selectedEmployeeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ user_id: userId })
+      });
+
+      toast.success('Empleado vinculado correctamente');
+      setLinkModalUser(null);
+      setSelectedEmployeeId('');
+      fetchData();
+    } catch (err) {
+      toast.error('Error al vincular empleado');
+    } finally {
+      setLinkingEmployee(false);
+    }
+  }
+
+  // Desvincular empleado de un usuario
+  async function handleUnlinkEmployee(employeeId) {
+    if (!window.confirm('¿Desvincular este empleado del usuario?')) return;
+    try {
+      await fetch(`${API_URL}/employees/${employeeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ user_id: null })
+      });
+      toast.success('Empleado desvinculado');
+      fetchData();
+    } catch (err) {
+      toast.error('Error al desvincular');
+    }
+  }
+
   async function cambiarRol(targetUserId, rolId) {
     try {
       const res = await fetch(`${API_URL}/admin/usuarios/${targetUserId}/rol`, {
         method: 'PATCH',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ 
           rol_id: rolId,
           ejecutado_por: currentUser.id
@@ -81,10 +153,8 @@ export function UsersPage() {
     try {
       const res = await fetch(`${API_URL}/admin/usuarios/invitar`, {
         method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(inviteData)
       });
 
@@ -107,6 +177,43 @@ export function UsersPage() {
     toast.success('Enlace copiado al portapapeles');
   }
 
+  async function handlePasswordChange(e) {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      return toast.error('Las contraseñas no coinciden');
+    }
+    if (newPassword.length < 6) {
+      return toast.error('La contraseña debe tener al menos 6 caracteres');
+    }
+
+    setChangingPassword(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/usuarios/${passwordChangeUser.id}/password`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          password: newPassword,
+          ejecutado_por: currentUser.id
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('Contraseña actualizada correctamente');
+        setPasswordChangeUser(null);
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        toast.error(data.error?.message || data.error || 'Error al cambiar la contraseña');
+      }
+    } catch (err) {
+      toast.error('Error de conexión');
+    } finally {
+      setChangingPassword(false);
+    }
+  }
+
   const getRolBadgeColor = (slug) => {
     const config = {
       admin: 'badge--danger',
@@ -120,7 +227,6 @@ export function UsersPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title="Gestión de Usuarios" 
         subtitle="Asigna roles y gestiona el acceso de los empleados"
@@ -171,6 +277,7 @@ export function UsersPage() {
               <th>Usuario</th>
               <th>Email</th>
               <th>Rol</th>
+              <th>Empleado Vinculado</th>
               <th>Estado</th>
               <th>Último Acceso</th>
               <th style={{ textAlign: 'right' }}>Acciones</th>
@@ -178,44 +285,103 @@ export function UsersPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="6" style={{ textAlign: 'center', padding: '3rem' }}>Cargando usuarios...</td></tr>
+              <tr><td colSpan="7" style={{ textAlign: 'center', padding: '3rem' }}>Cargando usuarios...</td></tr>
             ) : usuarios.length === 0 ? (
-              <tr><td colSpan="6" style={{ textAlign: 'center', padding: '3rem' }}>No se encontraron usuarios</td></tr>
+              <tr><td colSpan="7" style={{ textAlign: 'center', padding: '3rem' }}>No se encontraron usuarios</td></tr>
             ) : (
-              usuarios.map(u => (
-                <tr key={u.id}>
-                  <td>
-                    <div className="flex items-center gap-3">
-                      <div style={{ 
-                        width: 32, height: 32, borderRadius: '50%', 
-                        background: 'var(--bg-elevated)', 
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '10px', fontWeight: 700
-                      }}>
-                        {u.nombre?.[0]}{u.apellido?.[0]}
+              usuarios.map(u => {
+                const emp = getEmployeeForUser(u.id);
+                return (
+                  <tr key={u.id}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div style={{ 
+                          width: 32, height: 32, borderRadius: '50%', 
+                          background: 'var(--bg-elevated)', 
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '10px', fontWeight: 700
+                        }}>
+                          {u.nombre?.[0]}{u.apellido?.[0]}
+                        </div>
+                        <span className="font-semibold">{u.nombre} {u.apellido}</span>
                       </div>
-                      <span className="font-semibold">{u.nombre} {u.apellido}</span>
-                    </div>
-                  </td>
-                  <td><span className="text-muted">{u.email}</span></td>
-                  <td>
-                    <span className={`badge ${getRolBadgeColor(u.rol_slug)}`}>
-                      {u.rol_nombre || 'Sin Rol'}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`badge ${u.estado === 'ACTIVO' ? 'badge--success' : 'badge--danger'}`}>
-                      {u.estado}
-                    </span>
-                  </td>
-                  <td><span className="text-xs text-muted">{u.updated_at ? new Date(u.updated_at).toLocaleDateString() : 'Nunca'}</span></td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button className="btn btn--ghost btn--sm" onClick={() => setSelectedUser(u)}>
-                      <Shield size={14} /> Gestionar Rol
-                    </button>
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    <td><span className="text-muted">{u.email}</span></td>
+                    <td>
+                      <span className={`badge ${getRolBadgeColor(u.rol_slug)}`}>
+                        {u.rol_nombre || 'Sin Rol'}
+                      </span>
+                    </td>
+                    <td>
+                      {emp ? (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.375rem',
+                          fontSize: 'var(--text-xs)',
+                        }}>
+                          <UserCheck size={14} style={{ color: 'var(--clr-success)', flexShrink: 0 }} />
+                          <span>
+                            {emp.full_name}
+                            <span style={{ color: 'var(--text-muted)' }}> — {emp.position}</span>
+                          </span>
+                          <button
+                            onClick={() => handleUnlinkEmployee(emp.id)}
+                            className="btn btn--ghost btn--sm"
+                            style={{
+                              color: 'var(--text-muted)',
+                              padding: '2px 6px',
+                              minHeight: 'unset',
+                              fontSize: '10px',
+                            }}
+                            title="Desvincular"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span style={{
+                          fontSize: 'var(--text-xs)',
+                          color: 'var(--text-muted)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.375rem',
+                        }}>
+                          <Unlink size={12} />
+                          Sin empleado
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`badge ${u.estado === 'ACTIVO' ? 'badge--success' : 'badge--danger'}`}>
+                        {u.estado}
+                      </span>
+                    </td>
+                    <td><span className="text-xs text-muted">{u.updated_at ? new Date(u.updated_at).toLocaleDateString() : 'Nunca'}</span></td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.375rem' }}>
+                        <button className="btn btn--ghost btn--sm" onClick={() => setSelectedUser(u)}>
+                          <Shield size={13} /> Rol
+                        </button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => {
+                          setLinkModalUser(u);
+                          setSelectedEmployeeId(emp?.id || '');
+                        }}>
+                          <Link size={13} /> {emp ? 'Cambiar' : 'Vincular'}
+                        </button>
+                        <button className="btn btn--ghost btn--sm" onClick={() => {
+                          setPasswordChangeUser(u);
+                          setNewPassword('');
+                          setConfirmPassword('');
+                          setShowNewPassword(false);
+                        }}>
+                          <Key size={13} /> Clave
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -255,6 +421,87 @@ export function UsersPage() {
             <div className="modal__footer">
               <button className="btn btn--secondary" onClick={() => setSelectedUser(null)}>Cerrar</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {passwordChangeUser && (
+        <div className="modal-overlay" onClick={() => {
+          setPasswordChangeUser(null);
+          setNewPassword('');
+          setConfirmPassword('');
+        }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal__header">
+              <h3 className="font-bold">Cambiar Contraseña</h3>
+              <p className="text-xs text-muted">Establece una nueva contraseña para el usuario</p>
+            </div>
+            <form onSubmit={handlePasswordChange}>
+              <div className="modal__body flex flex-col gap-4">
+                <div className="flex items-center gap-4 mb-2">
+                  <div style={{ 
+                    width: 48, height: 48, borderRadius: '50%', 
+                    background: 'var(--clr-primary-500)', color: 'white', 
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                    fontWeight: 700 
+                  }}>
+                    {passwordChangeUser.nombre?.[0]}{passwordChangeUser.apellido?.[0]}
+                  </div>
+                  <div>
+                    <div className="font-bold">{passwordChangeUser.nombre} {passwordChangeUser.apellido}</div>
+                    <div className="text-xs text-muted">{passwordChangeUser.email}</div>
+                  </div>
+                </div>
+                
+                <div className="input-group">
+                  <label className="input-label">Nueva Contraseña</label>
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      type={showNewPassword ? 'text' : 'password'} 
+                      className="input" 
+                      placeholder="Mínimo 6 caracteres"
+                      required
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      style={{ paddingRight: '2.5rem' }}
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      style={{ 
+                        position: 'absolute', right: '12px', top: '50%', 
+                        transform: 'translateY(-50%)', background: 'none', 
+                        border: 'none', color: 'var(--text-muted)', cursor: 'pointer' 
+                      }}
+                    >
+                      {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="input-group">
+                  <label className="input-label">Confirmar Contraseña</label>
+                  <input 
+                    type={showNewPassword ? 'text' : 'password'} 
+                    className="input" 
+                    placeholder="Repite la nueva contraseña"
+                    required
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="modal__footer" style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn--secondary" onClick={() => {
+                  setPasswordChangeUser(null);
+                  setNewPassword('');
+                  setConfirmPassword('');
+                }}>Cancelar</button>
+                <button type="submit" className="btn btn--primary" disabled={changingPassword}>
+                  {changingPassword ? 'Guardando...' : 'Cambiar Contraseña'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -344,6 +591,76 @@ export function UsersPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modal: Vincular empleado a usuario ───────────────── */}
+      {linkModalUser && (
+        <div className="modal-overlay" onClick={() => { setLinkModalUser(null); setSelectedEmployeeId(''); }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="modal__header">
+              <h3 className="font-bold">Vincular Empleado</h3>
+              <p className="text-xs text-muted">Asocia una ficha de empleado a la cuenta de usuario</p>
+            </div>
+            <div className="modal__body flex flex-col gap-4">
+              <div className="flex items-center gap-4 mb-2">
+                <div style={{ 
+                  width: 48, height: 48, borderRadius: '50%', 
+                  background: 'var(--clr-primary-500)', color: 'white', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                  fontWeight: 700 
+                }}>
+                  {linkModalUser.nombre?.[0]}{linkModalUser.apellido?.[0]}
+                </div>
+                <div>
+                  <div className="font-bold">{linkModalUser.nombre} {linkModalUser.apellido}</div>
+                  <div className="text-xs text-muted">{linkModalUser.email}</div>
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">
+                  <Link size={14} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
+                  Seleccionar empleado
+                </label>
+                <select
+                  className="input"
+                  style={{ width: '100%' }}
+                  value={selectedEmployeeId}
+                  onChange={e => setSelectedEmployeeId(e.target.value)}
+                >
+                  <option value="">— Selecciona un empleado —</option>
+                  {employees
+                    .filter(e => !e.user_id || e.user_id === linkModalUser.id)
+                    .map(e => (
+                      <option key={e.id} value={e.id}>
+                        {e.full_name} — {e.position} {e.user_id ? '(vinculado actual)' : ''}
+                      </option>
+                    ))}
+                </select>
+                <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '0.375rem' }}>
+                  Solo se muestran empleados sin vincular o el actualmente vinculado.
+                </p>
+              </div>
+            </div>
+            <div className="modal__footer" style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                onClick={() => { setLinkModalUser(null); setSelectedEmployeeId(''); }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={!selectedEmployeeId || linkingEmployee}
+                onClick={() => handleLinkEmployee(linkModalUser.id)}
+              >
+                {linkingEmployee ? 'Vinculando...' : 'Vincular Empleado'}
+              </button>
+            </div>
           </div>
         </div>
       )}

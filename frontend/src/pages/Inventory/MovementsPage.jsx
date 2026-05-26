@@ -6,7 +6,6 @@ import {
   Repeat, AlertCircle, Info, Download, ShoppingCart, CheckCircle2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import api from '../../lib/api';
@@ -54,7 +53,6 @@ export function MovementsPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title="Movimientos de Inventario" 
         subtitle="Registro de entradas, salidas y trazabilidad completa de stock"

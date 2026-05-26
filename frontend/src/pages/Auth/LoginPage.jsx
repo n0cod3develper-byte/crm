@@ -1,22 +1,26 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { LogIn, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
 
   async function handleSubmit(e) {
     e.preventDefault();
+    setError('');
     setIsSubmitting(true);
-    const success = await login(email, password);
-    if (success) {
+    const res = await login(email, password);
+    if (res.success) {
       navigate('/dashboard');
+    } else {
+      setError(res.error);
     }
     setIsSubmitting(false);
   }
@@ -57,6 +61,31 @@ export function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {error && (
+            <>
+              <style>{`
+                @keyframes slideDown {
+                  from { opacity: 0; transform: translateY(-8px); }
+                  to { opacity: 1; transform: translateY(0); }
+                }
+              `}</style>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '0.875rem 1.25rem',
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                borderRadius: 'var(--radius-md, 0.75rem)',
+                color: '#ef4444',
+                fontSize: '0.875rem',
+                animation: 'slideDown 0.2s ease-out'
+              }}>
+                <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                <span style={{ fontWeight: 500 }}>{error}</span>
+              </div>
+            </>
+          )}
           <div className="input-group">
             <label className="input-label">Correo electrónico</label>
             <div style={{ position: 'relative' }}>

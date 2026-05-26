@@ -7,7 +7,6 @@ import {
   ChevronDown, ChevronUp
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { OTFirmadaUploader } from '../../components/documentos/OTFirmadaUploader';
 import api from '../../lib/api';
@@ -377,7 +376,6 @@ export function OTFormPage() {
   // ─── Render ────────────────────────────────────────────
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title={isEditing ? `Editar OT ${otData?.consecutivo || ''}` : 'Nueva Orden de Trabajo'} 
         subtitle={isEditing ? 'Modifica los datos de la orden' : 'Completa los datos para crear una nueva OT'} 
@@ -407,7 +405,7 @@ export function OTFormPage() {
             <Wrench size={18} color="var(--clr-primary-400)" /> Datos Generales
           </h2>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div className="form-grid-2cols" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             {/* Tipo */}
             <div className="input-group">
               <label className="input-label">Tipo de mantenimiento</label>
@@ -438,33 +436,36 @@ export function OTFormPage() {
 
             {/* Frecuencia (Solo si es PREVENTIVO) */}
             {form.tipo_mantenimiento === 'PREVENTIVO' && (
-              <div className="input-group" style={{ gridColumn: '1 / -1', background: 'var(--bg-elevated)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                <label className="input-label" style={{ color: 'var(--clr-primary-400)', fontWeight: 700 }}>Frecuencia de Mantenimiento</label>
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-                  {frecuencias.map(f => (
-                    <label key={f.id} style={{
-                      display: 'flex', alignItems: 'center', gap: '0.5rem',
-                      padding: '0.75rem 1rem', border: '1px solid',
-                      borderColor: form.pm_frecuencia_id === f.id ? 'var(--clr-primary-400)' : 'var(--border-color)',
-                      background: form.pm_frecuencia_id === f.id ? 'rgba(67,56,202,0.05)' : 'white',
-                      borderRadius: 'var(--radius-md)', cursor: isLiqOrClosed || isEditing ? 'default' : 'pointer',
-                      flex: '1 1 200px'
-                    }}>
-                      <input
-                        type="radio"
-                        name="pm_frecuencia_id"
-                        value={f.id}
-                        checked={form.pm_frecuencia_id === f.id}
-                        onChange={() => handleFrecuenciaChange(f.id)}
-                        disabled={isLiqOrClosed || isEditing}
-                        style={{ accentColor: 'var(--clr-primary-400)' }}
-                      />
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{f.nombre}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{f.descripcion}</div>
-                      </div>
-                    </label>
-                  ))}
+              <div className="input-group" style={{ gridColumn: '1 / -1', background: 'var(--bg-elevated)', padding: '1.25rem', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)' }}>
+                <label className="input-label" style={{ color: 'var(--clr-primary-400)', fontWeight: 800, textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.05em' }}>
+                  Frecuencia de Mantenimiento
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginTop: '0.75rem' }}>
+                  {frecuencias.map(f => {
+                    const isActive = form.pm_frecuencia_id === f.id;
+                    return (
+                      <label 
+                        key={f.id} 
+                        className={`selectable-card ${isActive ? 'selectable-card--active' : ''}`}
+                        style={{ cursor: isLiqOrClosed || isEditing ? 'default' : 'pointer' }}
+                      >
+                        <input
+                          type="radio"
+                          name="pm_frecuencia_id"
+                          value={f.id}
+                          checked={isActive}
+                          onChange={() => handleFrecuenciaChange(f.id)}
+                          disabled={isLiqOrClosed || isEditing}
+                        />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
+                          <span style={{ fontWeight: 700, fontSize: '14px' }}>{f.nombre}</span>
+                          <span style={{ fontSize: '11px', color: isActive ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)', lineHeight: 1.3 }}>
+                            {f.descripcion}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             )}

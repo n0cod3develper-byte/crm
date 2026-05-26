@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Megaphone, Plus, Search, Trash2, Edit2, Zap, BarChart3, TrendingUp, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { CampaignForm } from '../../components/Campaigns/CampaignForm';
@@ -71,7 +70,6 @@ export function CampaignsPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
 
       <Topbar 
         title="Campañas de Marketing" 

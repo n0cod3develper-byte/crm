@@ -6,7 +6,6 @@ import {
   AlertCircle, ArrowRight, Send
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
@@ -56,7 +55,6 @@ export function SolicitudesListPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title="Solicitudes de Compra" 
         subtitle="Gestiona los requerimientos internos de materiales y servicios" 

@@ -11,7 +11,6 @@ import {
   Search,
   ChevronRight
 } from 'lucide-react';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 import { NavLink } from 'react-router-dom';
@@ -123,7 +122,6 @@ export const DashboardComprasPage = () => {
   if (loadingSols || loadingOcs || loadingProvs) {
     return (
       <div className="app-layout">
-        <Sidebar />
         <main className="main-content flex justify-center items-center" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
           <div className="spinner" />
         </main>
@@ -142,7 +140,6 @@ export const DashboardComprasPage = () => {
 
   return (
     <div className="app-layout">
-      <Sidebar />
 
             <Topbar 
   title="Módulo de Compras"
