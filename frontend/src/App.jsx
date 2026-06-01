@@ -108,7 +108,8 @@ function App() {
     <CubeProvider cubeApi={cubejsApi}>
       <QueryClientProvider client={queryClient}>
         <PermissionsProvider>
-          <BrowserRouter basename={import.meta.env.PROD ? '/crm' : '/'}>
+        
+          <BrowserRouter basename="/">
             <ErrorBoundary>
             <div className="app-root">
               {user && <Sidebar />}

@@ -1,13 +1,20 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { TrendingUp, Users, DollarSign, CheckSquare, ArrowUpRight, ArrowDownRight, Wrench, ShieldCheck, Activity, Calendar, RotateCcw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import { TrendingUp, Users, DollarSign, CheckSquare, ArrowUpRight, ArrowDownRight, Wrench, ShieldCheck, Activity, Calendar, RotateCcw, AlertTriangle, HardHat } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
-function KpiCard({ label, value, delta, deltaType, icon: Icon, color }) {
+function KpiCard({ label, value, delta, deltaType, icon: Icon, color, href }) {
   const isUp = deltaType === 'up';
+  const navigate = useNavigate();
+  const Comp = href ? 'a' : 'div';
   return (
-    <div className="kpi-card">
+    <Comp
+      className="kpi-card"
+      {...(href ? { href, onClick: (e) => { e.preventDefault(); navigate(href); }, style: { cursor: 'pointer', textDecoration: 'none', display: 'block' } } : {})}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <span className="kpi-label">{label}</span>
         <div style={{
@@ -25,30 +32,92 @@ function KpiCard({ label, value, delta, deltaType, icon: Icon, color }) {
           {delta}
         </div>
       )}
-    </div>
+    </Comp>
   );
 }
 
+const MODULO_LABELS = {
+  equipos:              'Equipos',
+  ordenes_trabajo:      'Mantenimiento',
+  inventario:           'Inventario',
+  inventario_locativo:  'Inventario Locativo',
+  proveedores:          'Proveedores',
+  communications:       'Comunicaciones',
+  companies:            'Empresas',
+  employees:            'Empleados',
+};
+
+const ACCION_LABELS = {
+  created:  'Creó',
+  updated:  'Actualizó',
+  deleted:  'Eliminó',
+  status_changed: 'Cambió estado de',
+  viewed:   'Vio',
+  exported: 'Exportó',
+};
+
+const MODULO_ICONS = {
+  equipos:              '🔧',
+  ordenes_trabajo:      '📋',
+  inventario:           '📦',
+  inventario_locativo:  '🏗️',
+  proveedores:          '🏢',
+  communications:       '💬',
+  companies:            '🏛️',
+  employees:            '👤',
+};
+
 function ActivityItem({ item }) {
-  const typeColors = {
-    email: '#60a5fa', call: '#4ade80', whatsapp: '#86efac',
-    meeting: '#a78bfa', note: '#94a3b8',
-  };
+  const modulo = (item.modulo || '').toLowerCase();
+  const moduloLabel = MODULO_LABELS[modulo] || (item.modulo || 'Sistema');
+  const accionLabel = ACCION_LABELS[item.accion] || (item.accion || 'interactuó con');
+  const icono = MODULO_ICONS[modulo] || '📌';
+  const fecha = new Date(item.created_at);
+
+  // Formatear como "14 abr 2026, 3:45 p.m."
+  const fechaStr = fecha.toLocaleDateString('es-CO', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  });
+  const horaStr = fecha.toLocaleTimeString('es-CO', {
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  });
+
   return (
     <div style={{
       display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
       padding: '0.75rem 0', borderBottom: '1px solid var(--border-color)',
     }}>
       <div style={{
-        width: 8, height: 8, borderRadius: '50%', marginTop: 6, flexShrink: 0,
-        background: typeColors[item.type] || 'var(--text-muted)',
-      }} />
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>
-          {item.subject || item.title || 'Actividad'}
+        width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+        background: 'var(--bg-elevated)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '1rem',
+      }}>
+        {icono}
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: 2 }}>
+          {moduloLabel}
         </div>
-        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 2 }}>
-          {item.created_by_name} &middot; {new Date(item.date || item.created_at).toLocaleDateString('es-CO')}
+        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500, lineHeight: 1.3 }}>
+          <span style={{ color: 'var(--clr-primary-400)', fontWeight: 600 }}>{accionLabel}</span>
+          {item.descripcion ? (
+            <span style={{
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: 220,
+              display: 'inline-block',
+              verticalAlign: 'bottom',
+            }}>
+              {' '}{item.descripcion}
+            </span>
+          ) : ''}
+        </div>
+        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 3, display: 'flex', gap: '0.5rem' }}>
+          <span>{item.user_name || 'Sistema'}</span>
+          <span>&middot;</span>
+          <span title={fecha.toISOString()}>{fechaStr}, {horaStr}</span>
         </div>
       </div>
     </div>
@@ -494,16 +563,182 @@ export function DashboardPage() {
     return `$${n.toLocaleString('es-CO', { minimumFractionDigits: 0 })}`;
   };
 
+  // ─── Toast de alerta SOAT urgente (próximos 7 días) ───
+  const soatToastShown = useRef(false);
+  useEffect(() => {
+    if (!dashLoading && !dashError && dashKpis?.soat_alertas?.por_vencer_7d > 0 && !soatToastShown.current) {
+      soatToastShown.current = true;
+      const urg = dashKpis.soat_alertas.por_vencer_7d;
+      toast(
+        (t) => (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', minWidth: 280 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+              background: 'rgba(239,68,68,0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <AlertTriangle size={18} color="#ef4444" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)', marginBottom: 2 }}>
+                {urg} equipo{urg !== 1 ? 's' : ''} con SOAT por vencer
+              </div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                {urg > 1 ? 'Tienen' : 'Tiene'} el SOAT por vencer en los próximos 7 días. Revisa y renueva a tiempo para evitar multas.
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  className="btn btn--sm"
+                  style={{
+                    background: '#ef4444', color: '#fff', border: 'none',
+                    borderRadius: 'var(--radius-md)', padding: '4px 12px',
+                    fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    window.location.href = '/equipos?soat=alerta';
+                    toast.dismiss(t.id);
+                  }}
+                >
+                  Ver equipos
+                </button>
+                <button
+                  className="btn btn--ghost btn--sm"
+                  style={{ fontSize: 'var(--text-xs)', cursor: 'pointer' }}
+                  onClick={() => toast.dismiss(t.id)}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        ),
+        {
+          duration: Infinity,
+          position: 'top-right',
+          style: {
+            background: 'var(--bg-surface)',
+            border: '1px solid rgba(239,68,68,0.3)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+            padding: '1rem',
+          },
+        }
+      );
+    }
+  }, [dashKpis, dashLoading, dashError]);
+
+  // ─── Toast de alerta SST urgente (próximos 7 días) ───
+  const sstToastShown = useRef(false);
+  useEffect(() => {
+    if (!dashLoading && !dashError && dashKpis?.sst_alertas?.por_vencer_7d > 0 && !sstToastShown.current) {
+      sstToastShown.current = true;
+      const urg = dashKpis.sst_alertas.por_vencer_7d;
+      toast(
+        (t) => (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', minWidth: 280 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+              background: 'rgba(34,197,94,0.15)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <HardHat size={18} color="#22c55e" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 'var(--text-sm)', marginBottom: 2 }}>
+                {urg} elemento{urg !== 1 ? 's' : ''} SST por vencer
+              </div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                {urg > 1 ? 'Tienen' : 'Tiene'} revisión o vencimiento en los próximos 7 días. Revisa el módulo SST para más detalles.
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  className="btn btn--sm"
+                  style={{
+                    background: '#22c55e', color: '#fff', border: 'none',
+                    borderRadius: 'var(--radius-md)', padding: '4px 12px',
+                    fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    window.location.href = '/inventario?area=SST';
+                    toast.dismiss(t.id);
+                  }}
+                >
+                  Ver elementos SST
+                </button>
+                <button
+                  className="btn btn--ghost btn--sm"
+                  style={{ fontSize: 'var(--text-xs)', cursor: 'pointer' }}
+                  onClick={() => toast.dismiss(t.id)}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        ),
+        {
+          duration: Infinity,
+          position: 'top-right',
+          style: {
+            background: 'var(--bg-surface)',
+            border: '1px solid rgba(34,197,94,0.3)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+            padding: '1rem',
+          },
+        }
+      );
+    }
+  }, [dashKpis, dashLoading, dashError]);
+
   const kpis = dashKpis ? [
     { label: 'Oportunidades activas', value: String(dashKpis.oportunidades_activas), delta: 'En pipeline activo', deltaType: 'up',   icon: TrendingUp,  color: '#6366f1' },
     { label: 'Empresas registradas',  value: String(dashKpis.empresas_registradas), delta: 'Total activas',      deltaType: 'up',   icon: Users,       color: '#22c55e' },
     { label: 'Pipeline total',        value: formatCurrency(dashKpis.pipeline_total), delta: 'En oportunidades activas', deltaType: 'up',   icon: DollarSign,  color: '#f59e0b' },
     { label: 'Tareas vencidas',       value: String(dashKpis.tareas_vencidas), delta: 'Pendientes por completar', deltaType: 'down', icon: CheckSquare, color: '#ef4444' },
+    dashKpis.soat_alertas?.total > 0
+      ? {
+          label: 'Alertas SOAT',
+          value: String(dashKpis.soat_alertas.total),
+          delta: `${dashKpis.soat_alertas.vencidos} vencido${dashKpis.soat_alertas.vencidos !== 1 ? 's' : ''} · ${dashKpis.soat_alertas.por_vencer} por vencer`,
+          deltaType: 'down',
+          icon: AlertTriangle,
+          color: dashKpis.soat_alertas.vencidos > 0 ? '#ef4444' : '#f59e0b',
+          href: '/equipos?soat=alerta',
+        }
+      : {
+          label: 'Alertas SOAT',
+          value: '0',
+          delta: 'Todo en regla',
+          deltaType: 'up',
+          icon: AlertTriangle,
+          color: '#22c55e',
+        },
+    dashKpis.sst_alertas?.total > 0
+      ? {
+          label: 'Alertas SST',
+          value: String(dashKpis.sst_alertas.total),
+          delta: `${dashKpis.sst_alertas.vencidos} vencido${dashKpis.sst_alertas.vencidos !== 1 ? 's' : ''} · ${dashKpis.sst_alertas.por_vencer} por vencer`,
+          deltaType: 'down',
+          icon: HardHat,
+          color: dashKpis.sst_alertas.vencidos > 0 ? '#ef4444' : '#f59e0b',
+          href: '/inventario?area=SST',
+        }
+      : {
+          label: 'Alertas SST',
+          value: '0',
+          delta: 'Todo en regla',
+          deltaType: 'up',
+          icon: HardHat,
+          color: '#22c55e',
+        },
   ] : [
     { label: 'Oportunidades activas', value: '—', delta: 'Cargando…', deltaType: 'up',   icon: TrendingUp,  color: '#6366f1' },
     { label: 'Empresas registradas',  value: '—', delta: 'Cargando…', deltaType: 'up',   icon: Users,       color: '#22c55e' },
     { label: 'Pipeline total',        value: '—', delta: 'Cargando…', deltaType: 'up',   icon: DollarSign,  color: '#f59e0b' },
     { label: 'Tareas vencidas',       value: '—', delta: 'Cargando…', deltaType: 'down', icon: CheckSquare, color: '#ef4444' },
+    { label: 'Alertas SOAT',          value: '—', delta: 'Cargando…', deltaType: 'up',   icon: AlertTriangle,color: '#f59e0b' },
+    { label: 'Alertas SST',           value: '—', delta: 'Cargando…', deltaType: 'up',   icon: HardHat,       color: '#22c55e' },
   ];
 
   return (

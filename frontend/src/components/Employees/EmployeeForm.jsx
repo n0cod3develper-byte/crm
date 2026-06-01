@@ -17,6 +17,9 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
     status: employee?.status || 'Activo',
     hourly_rate: employee?.hourly_rate || 0,
     user_id: employee?.user_id || '',
+    tipo_documento: employee?.tipo_documento || '',
+    numero_documento: employee?.numero_documento || '',
+    departamento: employee?.departamento || '',
   });
 
   // Obtener usuarios disponibles para vincular
@@ -119,6 +122,40 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div>
+          <label style={labelStyle}>Tipo Documento</label>
+          <select name="tipo_documento" className="input" style={{ width: '100%' }} value={form.tipo_documento} onChange={handleChange}>
+            <option value="">Seleccionar...</option>
+            <option value="CC">CC — Cédula de Ciudadanía</option>
+            <option value="TE">TE — Tarjeta de Identidad</option>
+            <option value="TI">TI — Tarjeta de Identidad</option>
+            <option value="PASAPORTE">Pasaporte</option>
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Número de Documento</label>
+          <input
+            name="numero_documento"
+            className="input"
+            style={{ width: '100%' }}
+            value={form.numero_documento}
+            onChange={handleChange}
+            placeholder="Ej: 1234567890"
+          />
+        </div>
+      </div>
+      <div>
+        <label style={labelStyle}>Departamento / Área de la Empresa</label>
+        <input
+          name="departamento"
+          className="input"
+          style={{ width: '100%' }}
+          value={form.departamento}
+          onChange={handleChange}
+          placeholder="Ej: Sistemas, Contabilidad, Operaciones"
+        />
       </div>
       <div>
         <label style={labelStyle}>Tarifa por hora (Mantenimiento)</label>
