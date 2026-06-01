@@ -480,11 +480,30 @@ export function DashboardPage() {
     refetchInterval: 60_000,
   });
 
-  const kpis = [
-    { label: 'Oportunidades activas', value: '24', delta: '+3 esta semana', deltaType: 'up',   icon: TrendingUp,  color: '#6366f1' },
-    { label: 'Empresas registradas',  value: '187', delta: '+12 este mes',  deltaType: 'up',   icon: Users,       color: '#22c55e' },
-    { label: 'Pipeline total',        value: '$48.2M', delta: '+8.4%',      deltaType: 'up',   icon: DollarSign,  color: '#f59e0b' },
-    { label: 'Tareas vencidas',       value: '7',   delta: '-2 vs ayer',    deltaType: 'down', icon: CheckSquare, color: '#ef4444' },
+  const { data: dashKpis, isLoading: dashLoading, isError: dashError } = useQuery({
+    queryKey: ['dashboard-kpis'],
+    queryFn: () => api.get('/dashboard/kpis').then(r => r.data.data),
+    refetchInterval: 60_000,
+  });
+
+  const formatCurrency = (val) => {
+    const n = parseFloat(val);
+    if (isNaN(n)) return '$0';
+    if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+    return `$${n.toLocaleString('es-CO', { minimumFractionDigits: 0 })}`;
+  };
+
+  const kpis = dashKpis ? [
+    { label: 'Oportunidades activas', value: String(dashKpis.oportunidades_activas), delta: 'En pipeline activo', deltaType: 'up',   icon: TrendingUp,  color: '#6366f1' },
+    { label: 'Empresas registradas',  value: String(dashKpis.empresas_registradas), delta: 'Total activas',      deltaType: 'up',   icon: Users,       color: '#22c55e' },
+    { label: 'Pipeline total',        value: formatCurrency(dashKpis.pipeline_total), delta: 'En oportunidades activas', deltaType: 'up',   icon: DollarSign,  color: '#f59e0b' },
+    { label: 'Tareas vencidas',       value: String(dashKpis.tareas_vencidas), delta: 'Pendientes por completar', deltaType: 'down', icon: CheckSquare, color: '#ef4444' },
+  ] : [
+    { label: 'Oportunidades activas', value: '—', delta: 'Cargando…', deltaType: 'up',   icon: TrendingUp,  color: '#6366f1' },
+    { label: 'Empresas registradas',  value: '—', delta: 'Cargando…', deltaType: 'up',   icon: Users,       color: '#22c55e' },
+    { label: 'Pipeline total',        value: '—', delta: 'Cargando…', deltaType: 'up',   icon: DollarSign,  color: '#f59e0b' },
+    { label: 'Tareas vencidas',       value: '—', delta: 'Cargando…', deltaType: 'down', icon: CheckSquare, color: '#ef4444' },
   ];
 
   return (
@@ -497,7 +516,18 @@ export function DashboardPage() {
 
       <main className="main-content">
         <div className="kpi-grid mb-6">
-          {kpis.map(k => <KpiCard key={k.label} {...k} />)}
+          {dashLoading && (
+            <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
+              <div className="spinner" />
+              Cargando indicadores del dashboard…
+            </div>
+          )}
+          {dashError && (
+            <div style={{ gridColumn: '1 / -1', padding: '1rem', color: 'var(--clr-danger)', fontSize: 'var(--text-sm)', background: 'rgba(239,68,68,0.08)', borderRadius: 'var(--radius-md)' }}>
+              No se pudieron cargar los indicadores. Verifica la conexión con el servidor.
+            </div>
+          )}
+          {!dashLoading && !dashError && kpis.map(k => <KpiCard key={k.label} {...k} />)}
         </div>
 
         <div style={{ marginBottom: '1.5rem' }}>
@@ -519,42 +549,66 @@ export function DashboardPage() {
             <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1.25rem' }}>
               Pipeline por etapa
             </h2>
-            {[
-              { name: 'Prospecto',   count: 8, value: '$12.4M', color: '#94a3b8', pct: 30 },
-              { name: 'Calificado',  count: 6, value: '$15.8M', color: '#60a5fa', pct: 45 },
-              { name: 'Propuesta',   count: 5, value: '$9.2M',  color: '#a78bfa', pct: 38 },
-              { name: 'Negociacion', count: 3, value: '$8.6M',  color: '#fb923c', pct: 25 },
-              { name: 'Ganado',      count: 2, value: '$2.2M',  color: '#4ade80', pct: 12 },
-            ].map(stage => (
-              <div key={stage.name} style={{ marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
-                  <span style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>{stage.name}</span>
-                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
-                    {stage.count} oport. &middot; {stage.value}
-                  </span>
-                </div>
-                <div style={{ height: 6, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%', width: `${stage.pct}%`, background: stage.color,
-                    borderRadius: 'var(--radius-full)',
-                    transition: 'width 0.6s ease',
-                  }} />
-                </div>
+            {dashLoading && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '1rem 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
+                <div className="spinner" />
+                Cargando…
               </div>
-            ))}
+            )}
+            {dashError && (
+              <div style={{ padding: '1rem 0', color: 'var(--clr-danger)', fontSize: 'var(--text-sm)' }}>
+                Error al cargar pipeline
+              </div>
+            )}
+            {!dashLoading && !dashError && dashKpis?.pipeline_por_etapa?.length === 0 && (
+              <div style={{ padding: '1rem 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm)', textAlign: 'center' }}>
+                No hay oportunidades registradas
+              </div>
+            )}
+            {!dashLoading && !dashError && (dashKpis?.pipeline_por_etapa || []).map(stage => {
+              const maxVal = Math.max(...(dashKpis.pipeline_por_etapa || []).map(s => s.count), 1);
+              const pct = maxVal > 0 ? (stage.count / maxVal) * 100 : 0;
+              return (
+                <div key={stage.id} style={{ marginBottom: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
+                    <span style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>{stage.name}</span>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                      {stage.count} oport. &middot; {formatCurrency(stage.total_value)}
+                    </span>
+                  </div>
+                  <div style={{ height: 6, background: 'var(--bg-elevated)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', width: `${Math.max(pct, 2)}%`, background: stage.color,
+                      borderRadius: 'var(--radius-full)',
+                      transition: 'width 0.6s ease',
+                    }} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div className="card">
             <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '0.75rem' }}>
               Actividad reciente
             </h2>
-            {[
-              { type: 'call',     subject: 'Llamada con LOGITRANS S.A.S', created_by_name: 'Carlos M.', date: new Date() },
-              { type: 'email',    subject: 'Cotizacion #0042 enviada',     created_by_name: 'Ana P.',    date: new Date(Date.now() - 3600000) },
-              { type: 'whatsapp', subject: 'Mensaje de seguimiento',        created_by_name: 'Carlos M.', date: new Date(Date.now() - 7200000) },
-              { type: 'meeting',  subject: 'Reunion de cierre Q2',          created_by_name: 'Ana P.',    date: new Date(Date.now() - 86400000) },
-              { type: 'note',     subject: 'Nota interna: revisar flete',   created_by_name: 'Tu',        date: new Date(Date.now() - 172800000) },
-            ].map((item, i) => <ActivityItem key={i} item={item} />)}
+            {dashLoading && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '1rem 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
+                <div className="spinner" />
+                Cargando…
+              </div>
+            )}
+            {dashError && (
+              <div style={{ padding: '1rem 0', color: 'var(--clr-danger)', fontSize: 'var(--text-sm)' }}>
+                Error al cargar actividad reciente
+              </div>
+            )}
+            {!dashLoading && !dashError && dashKpis?.actividad_reciente?.length === 0 && (
+              <div style={{ padding: '1rem 0', color: 'var(--text-muted)', fontSize: 'var(--text-sm)', textAlign: 'center' }}>
+                No hay actividad registrada recientemente
+              </div>
+            )}
+            {!dashLoading && !dashError && (dashKpis?.actividad_reciente || []).map((item, i) => <ActivityItem key={item.id || i} item={item} />)}
           </div>
         </div>
       </main>

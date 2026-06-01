@@ -44,6 +44,7 @@ import catalogoServiciosRoutes from './modules/catalogo_servicios/catalogo_servi
 import serviciosRoutes from './modules/servicios/servicios.routes.js';
 import turnosRoutes from './modules/turnos/turnos.routes.js';
 import reportsRoutes from './modules/reports/reports.routes.js';
+import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
 import { iniciarJobCierreAutomatico } from './jobs/turnosCierreAutomatico.job.js';
 import { inicializarFestivos } from './services/calendarioService.js';
 
@@ -128,6 +129,7 @@ app.get(`${API}/empresas/:id/equipos`, (req, res, next) => {
 // app.use(`${API}/automations`, automationsRoutes);
 // app.use(`${API}/ai`,          aiRoutes);
 // app.use(`${API}/telephony`,   telephonyRoutes);
+app.use(`${API}/dashboard`,  dashboardRoutes);
 app.use(`${API}/reports`,     reportsRoutes);
 
 // ─── 404 y manejo de errores ─────────────────────────────────

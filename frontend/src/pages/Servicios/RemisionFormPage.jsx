@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Save, Lock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import api from '../../lib/api';
 
 const label = { fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.375rem' };
@@ -64,9 +65,15 @@ export function RemisionFormPage() {
   const isReadOnly = isEditing && READ_ONLY_ESTADOS.includes(currentEstado);
 
   // ─── Datos maestros ─────────────────────────────────────────
-  const { data: empresas = [] } = useQuery({
-    queryKey: ['companies-all'],
-    queryFn: async () => { const { data } = await api.get('/companies', { params: { limit: 200 } }); return data.data || []; },
+  const searchCompanies = React.useCallback(async (searchTerm) => {
+    const { data } = await api.get('/companies', { params: { search: searchTerm || undefined, limit: 20 } });
+    return data.data || [];
+  }, []);
+
+  const { data: selectedCompany } = useQuery({
+    queryKey: ['company', form.company_id],
+    queryFn: async () => { const { data } = await api.get(`/companies/${form.company_id}`); return data.data; },
+    enabled: !!form.company_id && isEditing,
   });
 
   const { data: catalogoItems = [] } = useQuery({
@@ -351,14 +358,18 @@ export function RemisionFormPage() {
             </div>
             <div style={{ gridColumn: '1 / span 2' }}>
               <label style={label}>Empresa / Cliente *</label>
-              {isReadOnly ? (
-                <input {...inputProps('company_id')} value={existingData?.empresa_nombre || form.company_id} />
-              ) : (
-                <select name="company_id" className="input" style={{ width: '100%' }} value={form.company_id} onChange={handleChange} required>
-                  <option value="">Seleccionar empresa...</option>
-                  {empresas.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                </select>
-              )}
+              <SearchableSelect
+                fetchFn={searchCompanies}
+                value={form.company_id}
+                initialItem={selectedCompany}
+                onChange={(val) => {
+                  handleChange({ target: { name: 'company_id', value: val } });
+                }}
+                placeholder="Buscar cliente por nombre o NIT..."
+                noOptionsMessage="No se encontraron empresas con ese nombre o NIT"
+                errorMessage="Error al buscar empresas. Verifica la conexión."
+                disabled={isReadOnly}
+              />
             </div>
             <div>
               <label style={label}>Estado (Auto / Manual)</label>

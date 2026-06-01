@@ -8,6 +8,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { OTFirmadaUploader } from '../../components/documentos/OTFirmadaUploader';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import api from '../../lib/api';
 
 export function OTFormPage() {
@@ -105,15 +106,26 @@ export function OTFormPage() {
     enabled: !isEditing && form.tipo_mantenimiento === 'PREVENTIVO' && !!form.pm_frecuencia_id,
   });
 
-  // ─── Carga de empresas y equipos ────────────────────────
-  const { data: empresasData } = useQuery({
-    queryKey: ['companies-list'],
-    queryFn: async () => {
-      const { data } = await api.get('/companies', { params: { limit: 500 } });
-      return data.data || [];
-    },
-  });
-  const empresas = empresasData || [];
+  // ─── Empresa seleccionada (para edición) ──────────────
+  const [selectedCompany, setSelectedCompany] = React.useState(null);
+
+  React.useEffect(() => {
+    if (isEditing && form.empresa_id && !selectedCompany) {
+      api.get(`/companies/${form.empresa_id}`)
+        .then(r => setSelectedCompany(r.data.data))
+        .catch(() => {});
+    }
+  }, [isEditing, form.empresa_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Búsqueda de empresas (server-side) ─────────────────
+  const searchCompanies = React.useCallback(async (searchTerm) => {
+    const { data } = await api.get('/companies', {
+      params: { search: searchTerm || undefined, limit: 20 }
+    });
+    return data.data || [];
+  }, []);
+
+  // ─── Carga de equipos ──────────────────────────────────
 
   const { data: equiposData, isLoading: loadingEquipos } = useQuery({
     queryKey: ['equipos-empresa', form.empresa_id],
@@ -386,13 +398,26 @@ export function OTFormPage() {
               </div>
             </div>
 
-            {/* Empresa */}
+            {/* Empresa (búsqueda predictiva) */}
             <div className="input-group">
               <label className="input-label">Empresa</label>
-              <select className="input" name="empresa_id" value={form.empresa_id} onChange={handleChange} disabled={isEditing || isLiqOrClosed}>
-                <option value="">Seleccionar empresa...</option>
-                {empresas.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-              </select>
+              <SearchableSelect
+                fetchFn={searchCompanies}
+                value={form.empresa_id}
+                onChange={(val) => {
+                  if (!val) {
+                    setForm(prev => ({ ...prev, empresa_id: '', equipo_id: '' }));
+                    setSelectedCompany(null);
+                  } else {
+                    handleChange({ target: { name: 'empresa_id', value: val } });
+                  }
+                }}
+                initialItem={selectedCompany}
+                placeholder="Buscar cliente por nombre o NIT..."
+                disabled={isEditing || isLiqOrClosed}
+                name="empresa_id"
+                noOptionsMessage="No se encontraron empresas con ese nombre o NIT"
+              />
             </div>
 
             {/* Frecuencia (Solo si es PREVENTIVO) */}
