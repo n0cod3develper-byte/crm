@@ -78,7 +78,9 @@ const MIGRATION_FILES = [
   '046_fix_responsable_fk.sql',
   '047_sst_fields.sql',
   '048_locativo_module.sql',
-  '049_activity_log.sql'
+  '049_activity_log.sql',
+  '050_mantenimientos_programados_module.sql',
+  '051_seed_areas_inventario.sql'
 ];
 
 async function ensureMigrationsTable(client) {
