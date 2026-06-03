@@ -212,7 +212,8 @@ export class CatalogRepository {
       costo_reposicion, unit_price, stock_actual, stock_minimum,
       precio_servicio, precio_servicio_minimo, unidad_cobro,
       aplica_iva, iva_pct, es_destacado, marca, ubicacion_id,
-      tipo_repuesto, responsable_id, referencia_cruzada, equipos_compatibles
+      tipo_repuesto, responsable_id, referencia_cruzada, equipos_compatibles,
+      area
     } = data;
 
     const codigo = codigo_interno || await this._generarCodigo(tipo);
@@ -224,8 +225,8 @@ export class CatalogRepository {
         precio_servicio, precio_servicio_minimo, unidad_cobro,
         aplica_iva, iva_pct, es_destacado, marca, ubicacion_id,
         tipo_repuesto, responsable_id, referencia_cruzada, equipos_compatibles,
-        created_by
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+        created_by, area
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
       RETURNING *
     `;
     const res = await query(sql, [
@@ -252,6 +253,7 @@ export class CatalogRepository {
       JSON.stringify(referencia_cruzada || []),
       JSON.stringify(equipos_compatibles || []),
       userId,
+      area || 'MANTENIMIENTO',
     ]);
     return res.rows[0];
   }
@@ -268,7 +270,8 @@ export class CatalogRepository {
       'precio_servicio', 'precio_servicio_minimo', 'unidad_cobro',
       'activo_catalogo', 'activo_compras', 'es_destacado', 'aplica_iva', 'iva_pct',
       'imagen_url', 'imagen_thumb_url',
-      'tipo_repuesto', 'responsable_id', 'referencia_cruzada', 'equipos_compatibles'
+      'tipo_repuesto', 'responsable_id', 'referencia_cruzada', 'equipos_compatibles',
+      'area'
     ];
 
     const uuidFields = ['categoria_id', 'unidad_medida_id', 'ubicacion_id', 'responsable_id'];

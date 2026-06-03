@@ -15,8 +15,9 @@ export class EmployeesRepository {
       params.push(status);
     }
     if (search && search.trim() !== '') {
-      conditions.push(`full_name ILIKE $${i++}`);
+      conditions.push(`(full_name ILIKE $${i} OR numero_documento ILIKE $${i})`);
       params.push(`%${search.trim()}%`);
+      i++;
     }
     if (cursor) {
       conditions.push(`created_at < (SELECT created_at FROM employees WHERE id = $${i++})`);
@@ -61,11 +62,11 @@ export class EmployeesRepository {
   }
 
   async create(data) {
-    const { full_name, phone, email, position, status, user_id, hourly_rate, monthly_salary, identification, company } = data;
+    const { full_name, phone, email, position, status, user_id, hourly_rate, tipo_documento, numero_documento, departamento } = data;
     const result = await query(
-      `INSERT INTO employees (full_name, phone, email, position, status, user_id, hourly_rate, monthly_salary, identification, company)
+      `INSERT INTO employees (full_name, phone, email, position, status, user_id, hourly_rate, tipo_documento, numero_documento, departamento)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [full_name, phone, email, position, status || 'Activo', user_id || null, hourly_rate || 0, monthly_salary || 0, identification || null, company || null]
+      [full_name, phone, email, position, status || 'Activo', user_id || null, hourly_rate || 0, tipo_documento || null, numero_documento || null, departamento || null]
     );
     return result.rows[0];
   }
@@ -108,7 +109,7 @@ export class EmployeesRepository {
     const fields = [];
     const values = [];
     let i = 1;
-    const allowed = ['full_name', 'phone', 'email', 'position', 'status', 'user_id', 'hourly_rate', 'monthly_salary', 'identification', 'company'];
+    const allowed = ['full_name', 'phone', 'email', 'position', 'status', 'user_id', 'hourly_rate', 'tipo_documento', 'numero_documento', 'departamento'];
     
     for (const key of allowed) {
       if (key in data) {

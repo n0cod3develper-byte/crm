@@ -6,8 +6,8 @@ const repo = new InventoryRepository();
 export const inventoryController = {
   async list(req, res, next) {
     try {
-      const { category, search, isActive, limit, cursor } = req.query;
-      const result = await repo.findAll({ category, search, isActive, limit: parseInt(limit) || 50, cursor });
+      const { area, category, search, isActive, limit, cursor } = req.query;
+      const result = await repo.findAll({ area, category, search, isActive, limit: parseInt(limit) || 50, cursor });
       res.json({ success: true, ...result });
     } catch (err) { next(err); }
   },

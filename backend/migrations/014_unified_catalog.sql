@@ -164,9 +164,6 @@ SELECT
   u.abreviatura AS unidad_medida,
   i.stock_current AS stock_actual,
   i.stock_minimum AS stock_minimo,
-  -- Ubicación
-  ub.codigo_ubicacion,
-  ub.bodega as bodega_nombre,
   -- Precios unificados
   CASE 
     WHEN i.tipo = 'PRODUCTO' THEN i.unit_price 
@@ -183,8 +180,7 @@ SELECT
   i.imagen_thumb_url
 FROM inventory_items i
 LEFT JOIN catalogo_categorias c ON c.id = i.categoria_id
-LEFT JOIN unidades_medida u ON u.id = i.unidad_medida_id
-LEFT JOIN ubicaciones_bodega ub ON ub.id = i.ubicacion_id;
+LEFT JOIN unidades_medida u ON u.id = i.unidad_medida_id;
 
 -- 8. Seeds de servicios iniciales
 INSERT INTO inventory_items (

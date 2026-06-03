@@ -6,11 +6,22 @@ import { toast } from 'react-hot-toast';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { catalogApi } from '../../services/catalogApi';
+import { SistemasAssetForm } from './SistemasAssetForm';
+import { SstAssetForm } from './SstAssetForm';
+import { LocativoAssetForm } from './LocativoAssetForm';
+
+const AREA_OPTIONS = [
+  { value: 'MANTENIMIENTO', label: 'Mantenimiento', color: '#3B82F6' },
+  { value: 'LOCATIVO',      label: 'Locativo',      color: '#F97316' },
+  { value: 'SISTEMAS',      label: 'Sistemas',      color: '#6366F1' },
+  { value: 'SST',           label: 'SST',            color: '#22C55E' },
+];
 
 const inventorySchema = z.object({
   sku: z.string().optional(),
   name: z.string().min(2, 'Nombre obligatorio'),
   description: z.string().optional(),
+  area: z.string().default('MANTENIMIENTO'),
   categoria_id: z.string().optional(),
   ubicacion_id: z.string().optional(),
   marca: z.string().optional(),
@@ -22,7 +33,7 @@ const inventorySchema = z.object({
   is_active: z.boolean().default(true),
 });
 
-export function InventoryForm({ item, onSuccess, onCancel }) {
+export function InventoryForm({ item, onSuccess, onCancel, defaultArea }) {
   const queryClient = useQueryClient();
   const isEditing = !!item;
 
@@ -36,10 +47,19 @@ export function InventoryForm({ item, onSuccess, onCancel }) {
     queryFn: () => catalogApi.getUbicaciones()
   });
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
+  const [selectedArea, setSelectedArea] = React.useState(item?.area || defaultArea || 'MANTENIMIENTO');
+
+  // Siempre declarar hooks ANTES de cualquier early return condicional
+  // (React requiere el mismo orden de hooks en cada render)
+  const { register, handleSubmit, formState: { errors, isSubmitting }, setValue } = useForm({
     resolver: zodResolver(inventorySchema),
-    defaultValues: item || { unit: 'unidad', is_active: true, unit_cost: 0, unit_price: 0, stock_current: 0, stock_minimum: 0, marca: '' },
+    defaultValues: item || { area: defaultArea || 'MANTENIMIENTO', unit: 'unidad', is_active: true, unit_cost: 0, unit_price: 0, stock_current: 0, stock_minimum: 0, marca: '' },
   });
+
+  // Sincronizar selectedArea con el campo area del formulario
+  React.useEffect(() => {
+    setValue('area', selectedArea);
+  }, [selectedArea, setValue]);
 
   const mutation = useMutation({
     mutationFn: async (values) => {
@@ -62,8 +82,61 @@ export function InventoryForm({ item, onSuccess, onCancel }) {
     },
   });
 
+  // Early return condicional — seguro porque todos los hooks ya se declararon arriba
+  if (selectedArea === 'SISTEMAS') {
+    return <SistemasAssetForm item={item} onSuccess={onSuccess} onCancel={onCancel} />;
+  }
+  if (selectedArea === 'SST') {
+    return <SstAssetForm item={item} onSuccess={onSuccess} onCancel={onCancel} />;
+  }
+  if (selectedArea === 'LOCATIVO') {
+    return <LocativoAssetForm item={item} onSuccess={onSuccess} onCancel={onCancel} />;
+  }
+
   return (
     <form onSubmit={handleSubmit((d) => mutation.mutate(d))} className="flex flex-col gap-4">
+      {/* Área — solo mostrar selector si NO viene con área predefinida (create sin defaultArea o editing) */}
+      {!defaultArea && (
+        <div style={{ marginBottom: '0.25rem' }}>
+          <label className="input-label">Área de Inventario</label>
+          <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+            {AREA_OPTIONS.map(opt => (
+              <label
+                key={opt.value}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.375rem',
+                  padding: '0.45rem 0.85rem',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  border: '2px solid transparent',
+                  transition: 'all 0.15s ease',
+                  background: 'var(--bg-elevated)',
+                  color: 'var(--text-secondary)',
+                }}
+                className="radio-area-option"
+              >
+                <input
+                  type="radio"
+                  name="area"
+                  value={opt.value}
+                  checked={selectedArea === opt.value}
+                  onChange={() => setSelectedArea(opt.value)}
+                  style={{ accentColor: opt.color }}
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+      {defaultArea && (
+        <input type="hidden" name="area" value={selectedArea} />
+      )}
+
       <div className="flex gap-4">
         <div className="input-group w-full">
           <label className="input-label">SKU (Cod. Referencia)</label>

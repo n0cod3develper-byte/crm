@@ -5,7 +5,8 @@ import {
   FileText, Megaphone, Package, LifeBuoy,
   Zap, BarChart3, Settings, LogOut, Truck, Box, Wrench,
   ShoppingCart, ShoppingBag, Receipt, Clock, BookOpen, MapPin, History,
-  Bookmark, ClipboardList, Shield, Sun, Moon, Monitor, FileSpreadsheet, ChevronDown
+  Bookmark, ClipboardList, Shield, Sun, Moon, Monitor, FileSpreadsheet, ChevronDown,
+  CalendarClock
 } from 'lucide-react';
 import { useSidebarStore } from '../../stores/sidebarStore';
 import { useThemeStore } from '../../stores/themeStore';
@@ -37,6 +38,7 @@ const navItems = [
   { label: 'Mantenimiento', icon: Wrench, to: '/mantenimiento', modulo: 'ordenes_trabajo' },
   { label: 'Plantillas PM', icon: Settings, to: '/mantenimiento/configuracion', modulo: 'ordenes_trabajo' },
   { label: 'Turnos', icon: Clock, to: '/turnos', modulo: 'turnos' },
+  { label: 'Prog. Mant.', icon: CalendarClock, to: '/mantenimientos-programados', modulo: 'ordenes_trabajo' },
   { label: 'Supervisor', icon: Users, to: '/turnos/supervisor', modulo: 'turnos' },
   { label: 'Catálogo Serv.', icon: Bookmark, to: '/catalogo-servicios', modulo: 'servicios' },
   { label: 'Servicios', icon: ClipboardList, to: '/servicios', modulo: 'servicios' },

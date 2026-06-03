@@ -88,7 +88,19 @@ const MIGRATION_FILES = [
   '038_remisiones_catalogo_pro.sql',
   '039_fix_tipo_servicio_check_encoding.sql',
   '039_ot_historial_fields.sql',
-  '040_add_missing_modulos.sql'
+  '040_add_missing_modulos.sql',
+  '040_equipos_extended_fields.sql',
+  '041_soat_fields.sql',
+  '042_areas_inventario.sql',
+  '043_sistemas_asset_fields.sql',
+  '044_fix_sistemas_missing_columns.sql',
+  '045_employee_document_fields.sql',
+  '046_fix_responsable_fk.sql',
+  '047_sst_fields.sql',
+  '048_locativo_module.sql',
+  '049_activity_log.sql',
+  '050_mantenimientos_programados_module.sql',
+  '051_seed_areas_inventario.sql'
 ];
 
 async function ensureMigrationsTable(client) {

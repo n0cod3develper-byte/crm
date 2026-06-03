@@ -1,6 +1,7 @@
 import React from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
+import { Link } from 'lucide-react';
 import api from '../../lib/api';
 
 const POSITIONS = ['Administrativo', 'Operario', 'Técnico'];
@@ -20,10 +21,23 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
     position: employee?.position || 'Administrativo',
     status: employee?.status || 'Activo',
     hourly_rate: employee?.hourly_rate || 0,
-    monthly_salary: employee?.monthly_salary || 0,
+    user_id: employee?.user_id || '',
+    tipo_documento: employee?.tipo_documento || '',
+    numero_documento: employee?.numero_documento || '',
+    departamento: employee?.departamento || '',
   });
 
   const isOperarioTecnico = ['Operario', 'Técnico'].includes(form.position);
+
+  // Query para listar usuarios del sistema (para vincular)
+  const usuariosQuery = useQuery({
+    queryKey: ['users-list'],
+    queryFn: async () => {
+      const { data } = await api.get('/users');
+      return data.data || data;
+    },
+    staleTime: 60000,
+  });
 
   const mutation = useMutation({
     mutationFn: async (payload) => {
@@ -97,32 +111,88 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
             {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
+      </div>
+
+      {/* — Documento y Departamento (main) — */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
         <div>
-          <label style={labelStyle}>Tarifa por hora (Mantenimiento)</label>
-          <input name="hourly_rate" type="number" min={0} className="input" style={{ width: '100%' }} value={form.hourly_rate} onChange={handleChange} />
+          <label style={labelStyle}>Tipo Documento</label>
+          <select name="tipo_documento" className="input" style={{ width: '100%' }} value={form.tipo_documento} onChange={handleChange}>
+            <option value="">Seleccionar...</option>
+            <option value="CC">CC — Cédula de Ciudadanía</option>
+            <option value="TE">TE — Tarjeta de Identidad</option>
+            <option value="TI">TI — Tarjeta de Identidad</option>
+            <option value="PASAPORTE">Pasaporte</option>
+          </select>
         </div>
-        {isOperarioTecnico && (
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={labelStyle}>
-              Salario Mensual (COP)
-              <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px', borderRadius: 20, background: 'rgba(99,102,241,0.12)', color: 'var(--clr-primary-400)', fontWeight: 600 }}>
-                Horas Laborales
-              </span>
-            </label>
-            <input
-              name="monthly_salary"
-              type="number"
-              min={0}
+        <div>
+          <label style={labelStyle}>Número de Documento</label>
+          <input
+            name="numero_documento"
+            className="input"
+            style={{ width: '100%' }}
+            value={form.numero_documento}
+            onChange={handleChange}
+            placeholder="Ej: 1234567890"
+          />
+        </div>
+      </div>
+      <div>
+        <label style={labelStyle}>Departamento / Área de la Empresa</label>
+        <input
+          name="departamento"
+          className="input"
+          style={{ width: '100%' }}
+          value={form.departamento}
+          onChange={handleChange}
+          placeholder="Ej: Sistemas, Contabilidad, Operaciones"
+        />
+      </div>
+      <div>
+        <label style={labelStyle}>Tarifa por hora (Mantenimiento)</label>
+        <input
+          name="hourly_rate"
+          type="number"
+          className="input"
+          style={{ width: '100%' }}
+          value={form.hourly_rate}
+          onChange={handleChange}
+        />
+      </div>
+
+      {/* ─── Vinculación con usuario del sistema ──────────────── */}
+      <div style={{
+        borderTop: '1px solid var(--border-color)',
+        paddingTop: '1rem',
+        marginTop: '0.5rem',
+      }}>
+        <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+          <Link size={14} /> Vincular a usuario del sistema
+        </label>
+        {usuariosQuery.isLoading ? (
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', padding: '0.5rem 0' }}>
+            Cargando usuarios...
+          </div>
+        ) : (
+          <>
+            <select
+              name="user_id"
               className="input"
               style={{ width: '100%' }}
-              value={form.monthly_salary}
+              value={form.user_id}
               onChange={handleChange}
-              placeholder="Ej: 1500000"
-            />
+            >
+              <option value="">Sin vincular</option>
+              {(usuariosQuery.data || []).map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.nombre} {u.apellido} — {u.email}
+                </option>
+              ))}
+            </select>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
-              Se usa para calcular la liquidación de horas extras. Valor hora base = salario ÷ 220.
+              Vincular a un usuario permite que inicie sesión y acceda al sistema.
             </div>
-          </div>
+          </>
         )}
       </div>
 

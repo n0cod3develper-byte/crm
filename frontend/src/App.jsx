@@ -79,6 +79,7 @@ const SalesReportMantenimiento = lazy(() => import('./pages/Reportes/SalesReport
 const TurnoPage = lazy(() => import('./pages/Turnos/TurnoPage').then(m => ({ default: m.TurnoPage })));
 const TurnoSupervisorPage = lazy(() => import('./pages/Turnos/TurnoSupervisorPage').then(m => ({ default: m.TurnoSupervisorPage })));
 const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage').then(m => ({ default: m.ProfilePage })));
+const MantenimientosProgramados = lazy(() => import('./pages/MantenimientosProgramados').then(m => ({ default: m.default })));
 
 // Informes (Emily)
 const InformesIndexPage = lazy(() => import('./pages/Informes/InformesIndexPage').then(m => ({ default: m.InformesIndexPage })));
@@ -113,7 +114,8 @@ function App() {
     <CubeProvider cubeApi={cubejsApi}>
       <QueryClientProvider client={queryClient}>
         <PermissionsProvider>
-          <BrowserRouter basename={import.meta.env.PROD ? '/crm' : '/'}>
+        
+          <BrowserRouter basename="/">
             <ErrorBoundary>
             <div className="app-root">
               {user && <Sidebar />}
@@ -203,6 +205,9 @@ function App() {
 
                 {/* Perfil */}
                 <Route path="/perfil" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+
+                {/* Programación de Mantenimientos */}
+                <Route path="/mantenimientos-programados/*" element={<ProtectedRoute><MantenimientosProgramados /></ProtectedRoute>} />
 
                 {/* Admin Usuarios */}
                 <Route path="/admin/users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />

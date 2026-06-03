@@ -692,7 +692,7 @@ export class MantenimientoRepository {
   async liquidarOT(ot_id, notas_liquidacion, impuesto_pct, user_id) {
       return await withTransaction(async (client) => {
           // 1. Verificar estado actual
-          const otRes = await client.query(`SELECT estado, consecutivo, tipo_mantenimiento FROM ordenes_trabajo WHERE id = $1 FOR UPDATE`, [ot_id]);
+          const otRes = await client.query(`SELECT estado, consecutivo, tipo_mantenimiento, equipo_id, horometro_final FROM ordenes_trabajo WHERE id = $1 FOR UPDATE`, [ot_id]);
           if(otRes.rows.length === 0) throw new Error("OT no encontrada.");
           if(otRes.rows[0].estado === 'LIQUIDADA' || otRes.rows[0].estado === 'CERRADA') {
               throw new Error(`La OT ya está ${otRes.rows[0].estado}`);
@@ -770,7 +770,22 @@ export class MantenimientoRepository {
           // 6. Cambiar estado
           await client.query(`UPDATE ordenes_trabajo SET estado = 'LIQUIDADA', updated_at = NOW() WHERE id = $1`, [ot_id]);
 
-          return { success: true, message: 'La OT fue liquidada y el inventario descargado con éxito.' };
+          // 6.5 Actualizar automáticamente el horómetro del equipo (si horometro_final es mayor)
+          const { equipo_id, horometro_final } = otRes.rows[0];
+          if (equipo_id && horometro_final !== null && horometro_final !== undefined) {
+              const finalHoro = parseFloat(horometro_final);
+              if (!isNaN(finalHoro) && finalHoro > 0) {
+                  await client.query(`
+                      UPDATE equipos SET
+                        horometro_actual = GREATEST(horometro_actual, $1),
+                        fecha_horometro  = CURRENT_DATE,
+                        updated_at       = NOW()
+                      WHERE id = $2;
+                  `, [finalHoro, equipo_id]);
+              }
+          }
+
+          return { success: true, message: 'La OT fue liquidada y el inventario descargado con éxito y el horómetro del equipo actualizado.' };
       });
   }
 
