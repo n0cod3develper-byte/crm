@@ -65,7 +65,7 @@ export class DashboardRepository {
             a.modulo,
             a.accion,
             a.descripcion,
-            COALESCE(a.user_name, CONCAT_WS(' ', u.nombre, u.apellido)) AS user_name,
+            COALESCE(a.user_name, u.full_name) AS user_name,
             a.user_id,
             a.created_at
           FROM activity_log a

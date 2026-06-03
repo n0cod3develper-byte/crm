@@ -97,6 +97,7 @@ const MIGRATION_FILES = [
   '045_employee_document_fields.sql',
   '046_fix_responsable_fk.sql',
   '047_sst_fields.sql',
+  '047_documentos_module.sql',
   '048_locativo_module.sql',
   '049_activity_log.sql',
   '050_mantenimientos_programados_module.sql',

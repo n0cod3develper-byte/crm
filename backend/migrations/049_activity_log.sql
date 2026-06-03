@@ -198,7 +198,7 @@ CREATE TRIGGER trg_log_employees
 INSERT INTO activity_log (user_id, user_name, modulo, accion, descripcion, ref_type, ref_id, created_at)
 SELECT
   c.created_by,
-  CONCAT_WS(' ', u.nombre, u.apellido) AS user_name,
+  u.full_name AS user_name,
   'communications' AS modulo,
   'created' AS accion,
   c.subject AS descripcion,

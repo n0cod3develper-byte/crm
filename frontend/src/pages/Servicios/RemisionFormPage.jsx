@@ -73,7 +73,7 @@ export function RemisionFormPage() {
   const { data: selectedCompany } = useQuery({
     queryKey: ['company', form.company_id],
     queryFn: async () => { const { data } = await api.get(`/companies/${form.company_id}`); return data.data; },
-    enabled: !!form.company_id && isEditing,
+    enabled: !!form.company_id,
   });
 
   const { data: catalogoItems = [] } = useQuery({
@@ -147,12 +147,6 @@ export function RemisionFormPage() {
       .then(res => setEquiposFiltrados(res.data?.data || res.data || []))
       .catch(() => setEquiposFiltrados([]));
 
-    // Auto‑rellenar la dirección del cliente con la dirección de la empresa
-    const empresa = empresas.find(e => e.id === form.company_id);
-    if (empresa && empresa.address && !form.direccion_servicio) {
-      setForm(prev => ({ ...prev, direccion_servicio: empresa.address }));
-    }
-
     // Traer la forma de pago de la última remisión FIRMADO para esta empresa
     if (!isEditing || !existingData) {
       api.get(`/servicios/last-forma-pago/${form.company_id}`)
@@ -163,7 +157,14 @@ export function RemisionFormPage() {
         })
         .catch(() => { });
     }
-  }, [form.company_id, empresas]);
+  }, [form.company_id]);
+
+  // Auto‑rellenar la dirección del cliente con la dirección de la empresa
+  React.useEffect(() => {
+    if (selectedCompany && selectedCompany.address && !form.direccion_servicio) {
+      setForm(prev => ({ ...prev, direccion_servicio: selectedCompany.address }));
+    }
+  }, [selectedCompany]);
 
   // ─── Al cambiar servicio: autocompletar valor_hora ───────────
   React.useEffect(() => {
