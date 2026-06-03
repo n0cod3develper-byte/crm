@@ -2,7 +2,6 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Building2, ExternalLink } from 'lucide-react';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 import { toast } from 'react-hot-toast';
@@ -99,8 +98,6 @@ export function CompaniesPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
-
       <Topbar 
         title="Empresas" 
         subtitle={data?.pagination ? `${data.pagination.totalCount} empresas registradas` : 'Cargando...'} 

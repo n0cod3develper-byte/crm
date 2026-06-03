@@ -5,7 +5,6 @@ import {
   X, ChevronDown, ChevronUp, Printer, ArrowLeft,
   Users, Clock, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import {
   useLiquidacion, useFilterOptions,
@@ -108,7 +107,6 @@ export function LiquidacionGHPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar
         title="Liquidación Horas — Gestión Humana"
         subtitle={`${totales.total_operarios ?? 0} operarios${isFetching ? ' · actualizando...' : ''}`}

@@ -2,7 +2,6 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Truck, Trash2, Edit, Building2, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { EquipoForm } from '../../components/Equipos/EquipoForm';
@@ -55,7 +54,6 @@ export function EquiposPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar
         title="Equipos &amp; Maquinaria"
         subtitle={`Gestiona la flota de tus clientes (${equipos.length} registrados)`}

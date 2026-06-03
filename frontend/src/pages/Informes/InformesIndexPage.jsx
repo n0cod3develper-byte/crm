@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart3, FileSpreadsheet, TrendingUp, Users, ArrowRight, Clock } from 'lucide-react';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { useComparativa } from '../../hooks/useInformes';
 
@@ -60,7 +59,6 @@ export function InformesIndexPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar
         title="Módulo de Informes"
         subtitle="Reportes consolidados de Servicios, Equipos y Gestión Humana"

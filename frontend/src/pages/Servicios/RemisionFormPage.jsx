@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Save, Lock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
@@ -363,7 +362,6 @@ export function RemisionFormPage() {
   if (isEditing && loadingExisting) {
     return (
       <div className="app-layout">
-        <Sidebar />
         <div className="empty-state"><div className="spinner" /></div>
       </div>
     );
@@ -389,7 +387,6 @@ export function RemisionFormPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar
         title={isEditing ? `Editar Remisión${form.numero_remision ? ` No. ${form.numero_remision}` : ''}` : 'Nueva Remisión'}
         subtitle={isReadOnly ? 'Remisión en solo lectura' : (isEditing ? 'Editando datos de la remisión' : 'Registrar un nuevo servicio prestado')}

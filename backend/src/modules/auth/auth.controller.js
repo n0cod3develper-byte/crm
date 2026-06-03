@@ -21,16 +21,15 @@ async function login(req, res, next) {
     }
 
     const result = await query(
-      `SELECT u.id, u.email, u.nombre, u.apellido, u.password_hash, u.estado, r.slug as role 
+      `SELECT u.id, u.email, u.full_name, u.password_hash, u.role, u.is_active, u.avatar_url
        FROM users u
-       LEFT JOIN roles r ON u.rol_id = r.id
        WHERE u.email = $1`,
       [email]
     );
 
     const user = result.rows[0];
 
-    if (!user || user.estado !== 'ACTIVO') {
+    if (!user || !user.is_active) {
       throw new AppError('Credenciales inválidas o usuario inactivo', 401);
     }
 
@@ -49,6 +48,13 @@ async function login(req, res, next) {
     await query('UPDATE users SET updated_at = NOW() WHERE id = $1', [user.id]);
 
     delete user.password_hash;
+    const permisos = await obtenerPermisosUsuario(user.id);
+
+    // Split full_name into nombre/apellido for frontend
+    const nameParts = (user.full_name || '').split(' ');
+    user.nombre = nameParts[0] || '';
+    user.apellido = nameParts.slice(1).join(' ') || '';
+    user.rol_nombre = permisos.rol?.nombre || user.role;
 
     // Establecer cookies httpOnly (seguro contra XSS)
     setAuthCookies(res, accessToken, refreshToken);
@@ -56,7 +62,7 @@ async function login(req, res, next) {
     res.json({
       success: true,
       data: {
-        user
+        user: { ...user, ...permisos }
       }
     });
   } catch (err) {
@@ -126,9 +132,8 @@ async function me(req, res, next) {
     const userId = req.userId;
     
     const userResult = await query(
-      `SELECT u.id, u.email, u.nombre, u.apellido, u.avatar_url, u.estado, r.slug as rol_slug, r.nombre as rol_nombre
+      `SELECT u.id, u.email, u.full_name, u.avatar_url, u.role, u.is_active
        FROM users u
-       LEFT JOIN roles r ON u.rol_id = r.id
        WHERE u.id = $1`,
       [userId]
     );
@@ -137,6 +142,12 @@ async function me(req, res, next) {
     if (!user) throw new AppError('Usuario no encontrado', 404);
 
     const permisos = await obtenerPermisosUsuario(userId);
+
+    // Split full_name into nombre/apellido for frontend
+    const nameParts = (user.full_name || '').split(' ');
+    user.nombre = nameParts[0] || '';
+    user.apellido = nameParts.slice(1).join(' ') || '';
+    user.rol_nombre = permisos.rol?.nombre || user.role;
 
     res.json({
       ...user,

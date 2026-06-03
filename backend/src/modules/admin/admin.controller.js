@@ -101,11 +101,15 @@ export async function invitarUsuario(req, res) {
     const expires = new Date();
     expires.setHours(expires.getHours() + 48);
 
+    // Necesitamos el slug del rol_id para "role"
+    const roleQuery = await query('SELECT slug FROM roles WHERE id = $1', [rol_id]);
+    const newRoleSlug = roleQuery.rows.length > 0 ? roleQuery.rows[0].slug : 'tecnico';
+
     const insertSql = `
-      INSERT INTO users (email, nombre, rol_id, invitation_token, invitation_expires, estado)
-      VALUES ($1, $2, $3, $4, $5, 'ACTIVO')
+      INSERT INTO users (email, full_name, role, is_active)
+      VALUES ($1, $2, $3, true)
     `;
-    await query(insertSql, [email, 'Invitado', rol_id, token, expires]);
+    await query(insertSql, [email, 'Invitado', newRoleSlug]);
 
     const invitationLink = `${env.FRONTEND_URL}/register?token=${token}`;
     res.json({ success: true, invitationLink });
@@ -125,31 +129,30 @@ export async function listarUsuarios(req, res) {
 
     if (rol) {
       params.push(rol);
-      where += ` AND r.slug = $${params.length}`;
+      where += ` AND u.role = $${params.length}`;
     }
     if (estado) {
-      params.push(estado);
-      where += ` AND u.estado = $${params.length}`;
+      params.push(estado === 'ACTIVO' ? true : false);
+      where += ` AND u.is_active = $${params.length}`;
     }
     if (q) {
       params.push(`%${q}%`);
-      where += ` AND (u.nombre ILIKE $${params.length} OR u.email ILIKE $${params.length})`;
+      where += ` AND (u.full_name ILIKE $${params.length} OR u.email ILIKE $${params.length})`;
     }
 
     const sql = `
-      SELECT u.id, u.nombre, u.apellido, u.email, u.avatar_url, u.estado, u.updated_at,
+      SELECT u.id, u.full_name, u.email, u.avatar_url, u.is_active, u.updated_at,
              r.nombre as rol_nombre, r.slug as rol_slug, r.id as rol_id
       FROM users u
-      LEFT JOIN roles r ON u.rol_id = r.id
+      LEFT JOIN roles r ON u.role = r.slug
       ${where}
-      ORDER BY u.nombre ASC
+      ORDER BY u.full_name ASC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `;
 
     const countSql = `
       SELECT COUNT(*) 
       FROM users u
-      LEFT JOIN roles r ON u.rol_id = r.id
       ${where}
     `;
 
@@ -160,7 +163,23 @@ export async function listarUsuarios(req, res) {
 
     res.json({
       success: true,
-      data: usersResult.rows,
+      data: usersResult.rows.map(u => {
+        const parts = (u.full_name || '').split(' ');
+        const nombre = parts[0] || '';
+        const apellido = parts.slice(1).join(' ') || '';
+        return {
+          id: u.id,
+          nombre,
+          apellido,
+          email: u.email,
+          avatar_url: u.avatar_url,
+          estado: u.is_active ? 'ACTIVO' : 'INACTIVO',
+          updated_at: u.updated_at,
+          rol_nombre: u.rol_nombre,
+          rol_slug: u.rol_slug,
+          rol_id: u.rol_id
+        };
+      }),
       pagination: {
         total: parseInt(countResult.rows[0].count),
         page: parseInt(page),
@@ -178,8 +197,13 @@ export async function cambiarRolUsuario(req, res) {
 
   try {
     await withTransaction(async (client) => {
-      const sql = `UPDATE users SET rol_id = $2, updated_at = NOW() WHERE id = $1 RETURNING *`;
-      const result = await client.query(sql, [id, rol_id]);
+      // Necesitamos el slug del rol_id proporcionado para actualizar "role"
+      const roleQuery = await client.query('SELECT slug FROM roles WHERE id = $1', [rol_id]);
+      if (roleQuery.rows.length === 0) throw new Error('El rol proporcionado no existe');
+      const newRoleSlug = roleQuery.rows[0].slug;
+
+      const sql = `UPDATE users SET role = $2, updated_at = NOW() WHERE id = $1 RETURNING *`;
+      const result = await client.query(sql, [id, newRoleSlug]);
 
       if (result.rows.length === 0) throw new Error('Usuario no encontrado');
 
@@ -206,18 +230,28 @@ export async function miInformacion(req, res) {
     
     const [permisos, userResult] = await Promise.all([
       obtenerPermisosUsuario(userId),
-      query(`SELECT nombre, apellido, email, avatar_url, estado FROM users WHERE id = $1`, [userId])
+      query(`SELECT full_name, email, avatar_url, is_active FROM users WHERE id = $1`, [userId])
     ]);
 
-    if (!userResult.rows[0]) {
+    const user = userResult.rows[0];
+    if (!user) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
+    const parts = (user.full_name || '').split(' ');
+    const nombre = parts[0] || '';
+    const apellido = parts.slice(1).join(' ') || '';
+
     res.json({
-      ...userResult.rows[0],
+      nombre,
+      apellido,
+      email: user.email,
+      avatar_url: user.avatar_url,
+      estado: user.is_active ? 'ACTIVO' : 'INACTIVO',
       ...permisos
     });
   } catch (err) {
+    logger.error('Error en miInformacion:', err);
     res.status(500).json({ error: 'Error obteniendo perfil' });
   }
 }

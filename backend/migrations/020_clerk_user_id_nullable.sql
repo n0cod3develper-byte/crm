@@ -3,4 +3,4 @@
 --         Se usa autenticación propia (JWT + bcrypt).
 --         La columna clerk_user_id se mantiene por compatibilidad pero ya no es requerida.
 
-ALTER TABLE users ALTER COLUMN clerk_user_id DROP NOT NULL;
+ALTER TABLE usuarios_crm ALTER COLUMN clerk_user_id DROP NOT NULL;

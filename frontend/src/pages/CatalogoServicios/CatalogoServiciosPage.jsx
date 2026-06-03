@@ -2,7 +2,6 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Bookmark, Edit, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { CatalogoServicioForm } from '../../components/CatalogoServicios/CatalogoServicioForm';
@@ -40,7 +39,6 @@ export function CatalogoServiciosPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar
         title="Catálogo"
         subtitle={`${items.length} ítems registrados`}

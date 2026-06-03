@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, User, Phone, Mail, Filter, Trash2, Edit, Download, Upload } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import Papa from 'papaparse';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { EmployeeForm } from '../../components/Employees/EmployeeForm';
@@ -78,7 +77,6 @@ export function EmployeesPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar 
         title="Empleados" 
         subtitle={`${employees.length} registrados`} 

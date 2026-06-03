@@ -41,16 +41,15 @@ export async function authenticate(req, res, next) {
     
     // Buscar usuario en BD
     const userSql = `
-      SELECT u.id, u.email, u.nombre, u.apellido, u.full_name, u.estado, u.is_active, u.role as old_role, r.slug as role 
+      SELECT u.id, u.email, u.full_name, u.role, u.is_active, u.avatar_url
       FROM users u
-      LEFT JOIN roles r ON u.rol_id = r.id
       WHERE u.id = $1
     `;
     const result = await query(userSql, [payload.sub]);
     const user = result.rows[0];
 
     if (!user) throw new AppError('Usuario no encontrado', 401);
-    if (user.estado !== 'ACTIVO' && !user.is_active) throw new AppError('Cuenta desactivada', 403);
+    if (!user.is_active) throw new AppError('Cuenta desactivada', 403);
 
     req.user   = user;
     req.userId = user.id;
@@ -96,10 +95,10 @@ export async function obtenerPermisosUsuario(userId) {
         rp.puede_ver, rp.puede_crear, rp.puede_editar,
         rp.puede_eliminar, rp.puede_exportar, rp.puede_aprobar, rp.puede_liquidar
       FROM users u
-      JOIN roles r ON u.rol_id = r.id
+      JOIN roles r ON u.role = r.slug
       JOIN roles_permisos rp ON r.id = rp.rol_id
       JOIN modulos_sistema ms ON rp.modulo_id = ms.id
-      WHERE u.id = $1 AND u.estado = 'ACTIVO' AND r.activo = TRUE
+      WHERE u.id = $1 AND u.is_active = TRUE AND r.activo = TRUE
     `;
     const result = await query(sql, [userId]);
     if (result.rows.length === 0) {

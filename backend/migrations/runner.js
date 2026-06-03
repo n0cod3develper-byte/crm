@@ -87,7 +87,8 @@ const MIGRATION_FILES = [
   '038_add_cantidad_tipo_catalogo_servicios.sql',
   '038_remisiones_catalogo_pro.sql',
   '039_fix_tipo_servicio_check_encoding.sql',
-  '039_ot_historial_fields.sql'
+  '039_ot_historial_fields.sql',
+  '040_add_missing_modulos.sql'
 ];
 
 async function ensureMigrationsTable(client) {

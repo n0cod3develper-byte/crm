@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, FileText, Plus, Trash2, UserCheck, Edit, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 import { LiquidacionHorasModal } from './LiquidacionHorasModal';
@@ -80,8 +79,8 @@ export function RemisionDetailPage() {
     } catch { toast.error('Error generando PDF'); }
   };
 
-  if (isLoading) return <div className="app-layout"><Sidebar /><div className="empty-state"><div className="spinner" /></div></div>;
-  if (!remision) return <div className="app-layout"><Sidebar /><div className="empty-state"><p>Remisión no encontrada</p></div></div>;
+  if (isLoading) return <div className="app-layout"><div className="empty-state"><div className="spinner" /></div></div>;
+  if (!remision) return <div className="app-layout"><div className="empty-state"><p>Remisión no encontrada</p></div></div>;
 
   const operariosAsignados = remision.operarios || [];
   const totalLiquidado = horasLaborales.reduce((s, h) => s + parseFloat(h.total_liquidado || 0), 0);
@@ -95,7 +94,6 @@ export function RemisionDetailPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar
         title={`Remisión No. ${remision.numero_remision}`}
         subtitle={remision.empresa_nombre}

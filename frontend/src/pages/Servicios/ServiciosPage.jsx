@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, ClipboardList, FileText, Trash2, Eye, Edit, Calendar, Building2, Truck, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
@@ -54,7 +53,6 @@ export function ServiciosPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar
         title="Servicios / Remisiones"
         subtitle={`${totales.total} remisiones • ${formatCOP(totales.monto)} total`}

@@ -1,11 +1,11 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, Users, TrendingUp, CheckSquare,
   FileText, Megaphone, Package, LifeBuoy,
   Zap, BarChart3, Settings, LogOut, Truck, Box, Wrench,
   ShoppingCart, ShoppingBag, Receipt, Clock, BookOpen, MapPin, History,
-  Bookmark, ClipboardList, Shield, Sun, Moon, Monitor, FileSpreadsheet
+  Bookmark, ClipboardList, Shield, Sun, Moon, Monitor, FileSpreadsheet, ChevronDown
 } from 'lucide-react';
 import { useSidebarStore } from '../../stores/sidebarStore';
 import { useThemeStore } from '../../stores/themeStore';
@@ -107,6 +107,51 @@ export function Sidebar() {
     }
   });
 
+  // Agrupar items con indent=true dentro de su padre
+  const groupedItems = [];
+  let currentGroup = null;
+
+  finalItems.forEach(item => {
+    if (item.section) {
+      groupedItems.push(item);
+      currentGroup = null;
+    } else if (!item.indent) {
+      currentGroup = { ...item, subItems: [] };
+      groupedItems.push(currentGroup);
+    } else if (currentGroup && item.indent) {
+      currentGroup.subItems.push(item);
+    } else {
+      groupedItems.push(item);
+    }
+  });
+
+  const [openGroups, setOpenGroups] = useState({});
+
+  // Abrir automáticamente el grupo si estamos en una ruta hija
+  useEffect(() => {
+    const currentPath = location.pathname;
+    const newOpenGroups = { ...openGroups };
+    let changed = false;
+    groupedItems.forEach(group => {
+      if (group.subItems && group.subItems.length > 0) {
+        const isChildActive = group.subItems.some(sub => currentPath === sub.to || currentPath.startsWith(sub.to + '/'));
+        const isParentActive = currentPath === group.to || currentPath.startsWith(group.to + '/');
+        if ((isChildActive || isParentActive) && !newOpenGroups[group.label]) {
+          newOpenGroups[group.label] = true;
+          changed = true;
+        }
+      }
+    });
+    if (changed) {
+      setOpenGroups(newOpenGroups);
+    }
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleGroup = (e, label) => {
+    // Si queremos que navegue y expanda a la vez, no hacemos e.preventDefault()
+    setOpenGroups(prev => ({ ...prev, [label]: !prev[label] }));
+  };
+
   // Colapsado solo en desktop; en mobile/tablet se usa drawer
   const isCollapsed = !expanded && isDesktop;
 
@@ -141,7 +186,7 @@ export function Sidebar() {
 
         {/* ── Navegación ─────────────────────────── */}
         <nav className="sidebar__nav" aria-label="Módulos">
-          {finalItems.map((item, i) => {
+          {groupedItems.map((item, i) => {
             if (item.section) {
               return (
                 <div key={i} className="nav-section-label">
@@ -149,7 +194,64 @@ export function Sidebar() {
                 </div>
               );
             }
+
             const Icon = item.icon;
+            const hasSubItems = item.subItems && item.subItems.length > 0;
+            const isOpen = openGroups[item.label];
+
+            if (hasSubItems) {
+              return (
+                <div key={item.to} className="nav-group" style={{ display: 'flex', flexDirection: 'column' }}>
+                  <NavLink
+                    to={item.to}
+                    end={false}
+                    title={isCollapsed ? item.label : undefined}
+                    onClick={(e) => toggleGroup(e, item.label)}
+                    className={({ isActive }) =>
+                      `nav-item ${isActive || isOpen ? 'nav-item--active' : ''}`
+                    }
+                    role="menuitem"
+                  >
+                    <Icon size={16} className="nav-item__icon" />
+                    <span className="nav-item__label" style={{ flex: 1 }}>{item.label}</span>
+                    {!isCollapsed && (
+                      <ChevronDown
+                        size={14}
+                        style={{
+                          transition: 'transform 0.2s',
+                          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                          marginLeft: 'auto'
+                        }}
+                      />
+                    )}
+                  </NavLink>
+                  {isOpen && !isCollapsed && (
+                    <div className="nav-group__items" style={{ paddingLeft: '8px', marginTop: '2px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      {item.subItems.map(sub => {
+                        const SubIcon = sub.icon;
+                        return (
+                          <NavLink
+                            key={sub.to}
+                            to={sub.to}
+                            end={!sub.indent}
+                            title={isCollapsed ? sub.label : undefined}
+                            className={({ isActive }) =>
+                              `nav-item ${isActive ? 'nav-item--active' : ''} nav-item--indent`
+                            }
+                            role="menuitem"
+                            style={{ paddingLeft: '32px' }}
+                          >
+                            <SubIcon size={14} className="nav-item__icon" />
+                            <span className="nav-item__label">{sub.label}</span>
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <NavLink
                 key={item.to}
@@ -161,7 +263,7 @@ export function Sidebar() {
                 }
                 role="menuitem"
               >
-                <Icon size={item.indent ? 14 : 16} className="nav-item__icon" />
+                <Icon size={16} className="nav-item__icon" />
                 <span className="nav-item__label">{item.label}</span>
               </NavLink>
             );

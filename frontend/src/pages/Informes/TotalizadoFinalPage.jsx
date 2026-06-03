@@ -6,7 +6,6 @@ import {
   TrendingUp, DollarSign, Clock, Percent, Eye, EyeOff,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Sidebar } from '../../components/layout/Sidebar';
 import { Topbar } from '../../components/layout/Topbar';
 import { useTotalizadoFinal, useFilterOptions, useTotalizadoExports, useComparativa } from '../../hooks/useInformes';
 
@@ -164,7 +163,6 @@ export function TotalizadoFinalPage() {
 
   return (
     <div className="app-layout">
-      <Sidebar />
       <Topbar
         title="Informe Totalizado Final"
         subtitle={`${pagination.total ?? 0} registros${isFetching ? ' · actualizando...' : ''}`}

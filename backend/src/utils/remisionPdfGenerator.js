@@ -61,7 +61,7 @@ const TERMINOS = `CARGAR S.A.S. en la prestación de servicio en montacargas ha 
 function buildRemisionHtml(rem, horasLaborales = []) {
   const logo = getLogoBase64();
   const logoHtml = logo
-    ? `<img src="${logo}" style="height:150px;" alt="Logo_Cargar_sin_fondo" />`
+    ? `<img src="${logo}" style="width:230px; max-height:130px; object-fit:contain;" alt="Logo_Cargar_sin_fondo" />`
     : `<div style="font-size:20px;font-weight:800;color:#333;">CARGAR S.A.S.</div>`;
 
   const operarios = rem.operarios || [];
@@ -104,13 +104,15 @@ function buildRemisionHtml(rem, horasLaborales = []) {
     .header-center {
       text-align: center;
       flex: 1;
-      font-size: 10px;
+      font-size: 14px;
+      font-weight: bold;
       line-height: 1.6;
     }
     .header-right {
       text-align: right;
       font-size: 10px;
       min-width: 130px;
+      margin-top: 30px;
     }
     .order-number {
       font-size: 14px;
@@ -306,9 +308,9 @@ function buildRemisionHtml(rem, horasLaborales = []) {
       </tr>`).join('')}
       <tr style="font-weight: bold; background: #f0f0f0;">
         <td>TOTAL</td>
-        <td class="td-center">${totalHorasDesglose > 0 ? totalHorasDesglose : ''}</td>
+        <td class="td-center">${(rem.estado === 'REALIZADA' || rem.estado === 'LIQUIDADA') && totalHorasDesglose > 0 ? totalHorasDesglose : ''}</td>
         <td></td>
-        <td class="td-center">${totalParcialDesglose > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(totalParcialDesglose) : ''}</td>
+        <td class="td-center">${(rem.estado === 'REALIZADA' || rem.estado === 'LIQUIDADA') && totalParcialDesglose > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(totalParcialDesglose) : ''}</td>
       </tr>
     </tbody>
   </table>
@@ -321,11 +323,11 @@ function buildRemisionHtml(rem, horasLaborales = []) {
     Elaborado por: ${rem.creado_por_nombre || '—'}
   </div>
 
-  <!-- TOTALES FINANCIEROS (solo valores cuando REALIZADA) -->
+  <!-- TOTALES FINANCIEROS (solo valores cuando REALIZADA o LIQUIDADA) -->
    <div style="text-align: right; margin-top: 6px; font-size: 10px;">
-     ${(rem.estado === 'REALIZADA') && parseFloat(rem.iva_valor || 0) > 0 ? `<div style="margin-bottom: 2px;">IVA (${rem.iva_pct || 0}%): <strong>${formatCOP(rem.iva_valor)}</strong></div>` : ''}
-     ${(rem.estado === 'REALIZADA') && parseFloat(rem.descuentos || 0) > 0 ? `<div style="margin-bottom: 2px;">Descuentos: <strong>${formatCOP(rem.descuentos)}</strong></div>` : ''}
-     <div style="margin-top: 4px; font-weight: bold; font-size: 11px;">TOTAL: ${(rem.estado === 'REALIZADA') ? formatCOP(rem.total_neto) : ''}</div>
+     ${(rem.estado === 'REALIZADA' || rem.estado === 'LIQUIDADA') && parseFloat(rem.iva_valor || 0) > 0 ? `<div style="margin-bottom: 2px;">IVA (${rem.iva_pct || 0}%): <strong>${formatCOP(rem.iva_valor)}</strong></div>` : ''}
+     ${(rem.estado === 'REALIZADA' || rem.estado === 'LIQUIDADA') && parseFloat(rem.descuentos || 0) > 0 ? `<div style="margin-bottom: 2px;">Descuentos: <strong>${formatCOP(rem.descuentos)}</strong></div>` : ''}
+     <div style="margin-top: 4px; font-weight: bold; font-size: 11px;">TOTAL: ${(rem.estado === 'REALIZADA' || rem.estado === 'LIQUIDADA') ? formatCOP(rem.total_neto) : ''}</div>
    </div>
 
 
