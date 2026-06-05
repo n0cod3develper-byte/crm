@@ -1,14 +1,14 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, ClipboardList, FileText, Trash2, Eye, Edit, Calendar, Building2, Truck, DollarSign, Receipt } from 'lucide-react';
+import { Plus, Search, ClipboardList, FileText, Trash2, Eye, Edit, Calendar, Building2, Truck, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 
-const ESTADOS = ['all', 'BORRADOR', 'PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA', 'ANULADO'];
-const ESTADO_BADGE = { BORRADOR: 'gray', PENDIENTE: 'warning', REALIZADA: 'primary', LIQUIDADA: 'green', FACTURADA: 'success', ANULADO: 'danger' };
-const ESTADO_COLOR = { BORRADOR: '#64748b', PENDIENTE: '#f59e0b', REALIZADA: '#6366f1', LIQUIDADA: '#22c55e', FACTURADA: '#059669', ANULADO: '#ef4444' };
+const ESTADOS = ['all', 'BORRADOR', 'PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'ANULADO'];
+const ESTADO_BADGE = { BORRADOR: 'gray', PENDIENTE: 'warning', REALIZADA: 'primary', LIQUIDADA: 'green', ANULADO: 'danger' };
+const ESTADO_COLOR = { BORRADOR: '#64748b', PENDIENTE: '#f59e0b', REALIZADA: '#6366f1', LIQUIDADA: '#22c55e', ANULADO: '#ef4444' };
 
 function formatDate(d) {
   if (!d) return '—';
@@ -202,16 +202,6 @@ export function ServiciosPage() {
                           >
                             <Eye size={14} />
                           </button>
-                          {item.estado === 'LIQUIDADA' && (
-                            <button
-                              className="btn btn--ghost btn--sm"
-                              title="Convertir a factura"
-                              style={{ color: '#059669' }}
-                              onClick={() => navigate(`/facturacion/ots-pendientes?empresa_id=${item.company_id}&tab=remisiones`)}
-                            >
-                              <Receipt size={14} />
-                            </button>
-                          )}
                           {(item.estado === 'BORRADOR' || item.estado === 'PENDIENTE' || item.estado === 'REALIZADA') && (
                             <button
                               className="btn btn--ghost btn--sm"

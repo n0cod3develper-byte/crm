@@ -27,11 +27,13 @@ export class ServiciosRepository {
       SELECT r.*,
         c.name AS empresa_nombre, c.nit AS empresa_nit,
         e.marca AS equipo_marca, e.modelo AS equipo_modelo, e.serial AS equipo_serial,
-        cs.nombre AS servicio_nombre, cs.codigo AS servicio_codigo
+        COALESCE(inv.nombre_comercial, cs_old.nombre) AS servicio_nombre,
+        COALESCE(inv.codigo_interno,   cs_old.codigo)  AS servicio_codigo
       FROM remisiones r
       JOIN companies c ON c.id = r.company_id
       JOIN equipos e ON e.id = r.equipo_id
-      JOIN catalogo_servicios cs ON cs.id = r.catalogo_servicio_id
+      LEFT JOIN inventario inv     ON inv.id = r.catalogo_servicio_id
+      LEFT JOIN catalogo_servicios cs_old ON cs_old.id = r.catalogo_servicio_id
       WHERE ${conditions.join(' AND ')}
       ORDER BY r.fecha_servicio DESC, r.created_at DESC
       LIMIT $${i}
@@ -51,13 +53,17 @@ export class ServiciosRepository {
         c.phone_2 AS empresa_telefono2,
         e.marca AS equipo_marca, e.modelo AS equipo_modelo,
         e.serial AS equipo_serial, e.capacidad_carga AS equipo_capacidad,
-        cs.nombre AS servicio_nombre, cs.codigo AS servicio_codigo,
-        cs.descripcion AS servicio_descripcion, cs.precio_base AS servicio_precio_base,
-        (u.nombre || ' ' || COALESCE(u.apellido, '')) AS creado_por_nombre
+        COALESCE(inv.nombre_comercial, cs_old.nombre)       AS servicio_nombre,
+        COALESCE(inv.codigo_interno,   cs_old.codigo)        AS servicio_codigo,
+        COALESCE(inv.descripcion_corta, cs_old.descripcion)  AS servicio_descripcion,
+        COALESCE(inv.precio_servicio,  cs_old.precio_base)   AS servicio_precio_base,
+        COALESCE(inv.tipo,             cs_old.tipo)          AS tipo,
+        u.full_name AS creado_por_nombre
       FROM remisiones r
       JOIN companies c ON c.id = r.company_id
       JOIN equipos e ON e.id = r.equipo_id
-      JOIN catalogo_servicios cs ON cs.id = r.catalogo_servicio_id
+      LEFT JOIN inventario inv     ON inv.id = r.catalogo_servicio_id
+      LEFT JOIN catalogo_servicios cs_old ON cs_old.id = r.catalogo_servicio_id
       LEFT JOIN users u ON u.id = r.created_by
       WHERE r.id = $1 AND (r.deleted_at IS NULL OR r.estado = 'ANULADO')
     `, [id]);
@@ -67,7 +73,7 @@ export class ServiciosRepository {
 
     const opRes = await query(`
       SELECT ro.id AS asignacion_id, ro.empleado_id,
-             em.full_name, em.phone,
+             em.full_name, em.identification, em.phone,
              em.position, em.monthly_salary
       FROM remision_operarios ro
       JOIN employees em ON em.id = ro.empleado_id
@@ -90,6 +96,21 @@ export class ServiciosRepository {
       LIMIT 1
     `, [company_id]);
     return res.rows[0]?.forma_pago || null;
+  }
+
+  async findLastHorometro(equipo_id) {
+    const res = await query(`
+      SELECT horometro_regreso
+      FROM remisiones
+      WHERE equipo_id = $1
+        AND estado IN ('REALIZADA', 'LIQUIDADA')
+        AND horometro_regreso IS NOT NULL
+        AND horometro_regreso > 0
+        AND deleted_at IS NULL
+      ORDER BY fecha_servicio DESC, created_at DESC
+      LIMIT 1
+    `, [equipo_id]);
+    return res.rows[0]?.horometro_regreso || null;
   }
 
   async generarNumeroRemision(client) {
@@ -209,7 +230,7 @@ export class ServiciosRepository {
       'horas_fest_diurnas', 'valor_hora_fest_dia', 'horas_fest_nocturnas', 'valor_hora_fest_noc',
       'horas_otras', 'valor_hora_otras',
       'total_bruto', 'iva_pct', 'iva_valor', 'descuentos', 'total_neto',
-      'factura_id', 'estado', 'observaciones'
+      'estado', 'observaciones'
     ];
     for (const key of allowed) {
       if (key in data) {
@@ -267,9 +288,9 @@ export class ServiciosRepository {
 
   async findOperariosDisponibles() {
     const res = await query(
-      `SELECT id, full_name, phone, position, monthly_salary
+      `SELECT id, full_name, identification, phone, position, monthly_salary
        FROM employees
-       WHERE position = 'Operario' AND status = 'Activo'
+       WHERE LOWER(position) IN ('operario', 'técnico', 'tecnico') AND LOWER(status) = 'activo'
        ORDER BY full_name ASC`
     );
     return res.rows;

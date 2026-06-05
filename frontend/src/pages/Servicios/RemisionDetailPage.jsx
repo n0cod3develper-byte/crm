@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, FileText, Plus, Trash2, UserCheck, Edit, DollarSign, Receipt } from 'lucide-react';
+import { ArrowLeft, FileText, Plus, Trash2, UserCheck, Edit, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
@@ -21,7 +21,7 @@ function formatCOP(v) {
 }
 function formatTime(t) { return t ? String(t).substring(0, 5) : '—'; }
 
-const ESTADO_BADGE = { BORRADOR: 'gray', PENDIENTE: 'warning', REALIZADA: 'primary', LIQUIDADA: 'green', FACTURADA: 'success', ANULADO: 'danger' };
+const ESTADO_BADGE = { BORRADOR: 'gray', PENDIENTE: 'warning', REALIZADA: 'primary', LIQUIDADA: 'green', ANULADO: 'danger' };
 
 export function RemisionDetailPage() {
   const { id } = useParams();
@@ -101,7 +101,7 @@ export function RemisionDetailPage() {
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {remision.estado !== 'ANULADO' && (
               <button className="btn btn--outline" style={{ borderColor: 'rgba(34,197,94,0.5)', color: '#22c55e' }} onClick={() => setShowLiqModal(true)}>
-                <DollarSign size={16} /> Liquidar Horas
+                <DollarSign size={16} /> Horas Extras
               </button>
             )}
             {(remision.estado === 'BORRADOR' || remision.estado === 'PENDIENTE' || remision.estado === 'REALIZADA') && (
@@ -117,16 +117,6 @@ export function RemisionDetailPage() {
             )}
             {remision.estado === 'REALIZADA' && (
               <button className="btn btn--outline" onClick={() => updateEstadoMutation.mutate('LIQUIDADA')}>Marcar como Liquidada</button>
-            )}
-            {remision.estado === 'LIQUIDADA' && (
-              <button className="btn btn--primary" style={{ background: '#059669', borderColor: '#059669' }} onClick={() => navigate(`/facturacion/ots-pendientes?empresa_id=${remision.company_id}&tab=remisiones`)}>
-                <Receipt size={16} /> Convertir a Factura
-              </button>
-            )}
-            {remision.estado === 'FACTURADA' && (
-              <span className="badge badge--success" style={{ fontSize: '12px', padding: '6px 14px', background: '#059669', color: 'white' }}>
-                Facturada
-              </span>
             )}
             <button className="btn btn--primary" onClick={handleDownloadPDF}>
               <FileText size={16} /> Descargar PDF
@@ -213,12 +203,6 @@ export function RemisionDetailPage() {
               const colKeys = [
                 { key: 'min_ord_diurna', label: 'Ord. Diurna' },
                 { key: 'min_extra_diurna', label: 'Extra Diurna' },
-                { key: 'min_ord_nocturna', label: 'Ord. Nocturna' },
-                { key: 'min_extra_nocturna', label: 'Extra Nocturna' },
-                { key: 'min_dom_diurna', label: 'Dom. Diurna' },
-                { key: 'min_dom_nocturna', label: 'Dom. Nocturna' },
-                { key: 'min_extra_dom_diurna', label: 'Extra Dom. Diurna' },
-                { key: 'min_extra_dom_nocturna', label: 'Extra Dom. Noct.' },
               ];
               const colsToShow = colKeys.filter(col => horasLaborales.some(h => parseFloat(h[col.key] || 0) > 0));
 
@@ -233,7 +217,7 @@ export function RemisionDetailPage() {
                 <div style={{ marginTop: '1.5rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', margin: '1.5rem 0 0.75rem', paddingBottom: '0.4rem' }}>
                     <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
-                      Liquidación de Horas Laborales
+                      Horas Extras
                     </p>
                     {remision.estado !== 'LIQUIDADA' && (
                       <button 
@@ -256,7 +240,7 @@ export function RemisionDetailPage() {
                           {colsToShow.map(col => (
                             <th key={col.key} style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{col.label}</th>
                           ))}
-                          <th style={{ textAlign: 'right' }}>Total a Liquidar</th>
+                          <th style={{ textAlign: 'right' }}>Total Horas Extras</th>
                           <th style={{ width: '40px' }}></th>
                         </tr>
                       </thead>
@@ -320,26 +304,30 @@ export function RemisionDetailPage() {
           <div>
             <p style={sectionTitle}>Resumen Financiero</p>
             <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '1rem' }}>
-              {[
-                { l: 'Total Bruto', v: remision.total_bruto },
-                { l: `IVA (${remision.iva_pct}%)`, v: remision.iva_valor },
-                { l: 'Descuentos', v: remision.descuentos },
-              ].map(({ l, v }) => (
-                <div key={l} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '12px' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>{l}</span>
-                  <span>{formatCOP(v)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '12px' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Total Bruto</span>
+                <span>{formatCOP(remision.total_bruto)}</span>
+              </div>
+              {parseFloat(remision.iva_valor || 0) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '12px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>{`IVA (${remision.iva_pct}%)`}</span>
+                  <span>{formatCOP(remision.iva_valor)}</span>
                 </div>
-              ))}
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '12px' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Descuentos</span>
+                <span>{formatCOP(remision.descuentos)}</span>
+              </div>
               {totalLiquidado > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                  <span>Total Liquidar Operarios</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '12px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Total Horas Extras</span>
                   <span style={{ color: '#22c55e', fontWeight: 600 }}>{formatCOP(totalLiquidado)}</span>
                 </div>
               )}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid var(--border-color)', paddingTop: '0.5rem', marginTop: '0.5rem', fontWeight: 700, fontSize: '14px' }}>
                 <span>TOTAL NETO</span>
-                <span style={{ color: 'var(--clr-primary-500)' }}>{formatCOP(parseFloat(remision.total_neto || 0) + totalLiquidado)}</span>
+                <span style={{ color: 'var(--clr-primary-500)' }}>{formatCOP(remision.total_neto)}</span>
               </div>
             </div>
 
