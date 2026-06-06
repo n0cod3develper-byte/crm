@@ -1,13 +1,14 @@
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'react-hot-toast';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Info, Plus, Trash2, MapPin } from 'lucide-react';
 import api from '../../lib/api';
 
 const companySchema = z.object({
-  name: z.string().min(2, 'El nombre es obligatorio (mín 2 caracteres)'),
+  name: z.string().min(2, 'El nombre es obligatorio (mín 2 caracteres)').transform(v => v.toUpperCase()),
   nit: z.string().optional(),
   industry: z.string().default('logistics'),
   website: z.string().url('URL inválida').optional().or(z.literal('')),
@@ -18,6 +19,12 @@ const companySchema = z.object({
   modelo_captacion: z.string().optional(),
   regimen: z.string().optional(),
   responsable_captacion_id: z.string().optional(),
+  correo_facturacion: z.string().email('Formato de correo inválido').max(150, 'Máximo 150 caracteres').optional().or(z.literal('')),
+  correo_rut: z.string().email('Formato de correo inválido').max(150, 'Máximo 150 caracteres').optional().or(z.literal('')),
+  service_addresses: z.array(z.object({
+    address: z.string().min(1, 'La dirección es obligatoria'),
+    notes: z.string().optional()
+  })).optional(),
 });
 
 const MODELOS_CAPTACION = [
@@ -43,12 +50,40 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
     },
   });
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
+  const { register, handleSubmit, setValue, control, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(companySchema),
-    defaultValues: company || {
-      industry: 'logistics',
-    },
+    defaultValues: company
+      ? { ...company, name: company.name ? company.name.toUpperCase() : '' }
+      : { industry: 'logistics' },
   });
+
+  // Convertir nombre a MAYÚSCULAS en tiempo real
+  const nameValue = useWatch({ control, name: 'name' });
+  React.useEffect(() => {
+    if (nameValue && nameValue !== nameValue.toUpperCase()) {
+      setValue('name', nameValue.toUpperCase(), { shouldValidate: false, shouldDirty: true });
+    }
+  }, [nameValue, setValue]);
+
+  const { fields: addressFields, append: appendAddress, remove: removeAddress } = useFieldArray({
+    control,
+    name: 'service_addresses'
+  });
+
+  const { data: existingAddresses } = useQuery({
+    queryKey: ['company-service-addresses', company?.id],
+    queryFn: async () => {
+      const { data } = await api.get(`/companies/${company.id}/service-addresses`);
+      return data.data;
+    },
+    enabled: isEditing,
+  });
+
+  React.useEffect(() => {
+    if (existingAddresses && existingAddresses.length > 0) {
+      setValue('service_addresses', existingAddresses);
+    }
+  }, [existingAddresses, setValue]);
 
   const mutation = useMutation({
     mutationFn: async (values) => {
@@ -81,19 +116,28 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
     <form id="company-form" onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       <div className="input-group">
         <label className="input-label">Nombre de la empresa *</label>
-        <input 
-          {...register('name')} 
-          className="input" 
-          placeholder="Ej: Logística CARGAR SAS"
-          autoFocus 
+        <input
+          {...register('name')}
+          className="input"
+          placeholder="Ej: LOGÍSTICA CARGAR SAS"
+          autoFocus
+          style={{ textTransform: 'uppercase' }}
         />
         {errors.name && <span className="input-error">{errors.name.message}</span>}
       </div>
 
       <div className="flex gap-4">
         <div className="input-group w-full">
-          <label className="input-label">NIT</label>
-          <input {...register('nit')} className="input" placeholder="900.123.456-1" />
+          <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+            NIT
+            <span className="nit-tooltip-wrapper" aria-label="Ayuda sobre el NIT">
+              <Info size={14} className="nit-tooltip-icon" />
+              <span className="nit-tooltip-bubble" role="tooltip">
+                Favor ingresar el NIT sin puntos ni dígito de verificación.
+              </span>
+            </span>
+          </label>
+          <input {...register('nit')} className="input" placeholder="900123456" />
           {errors.nit && <span className="input-error">{errors.nit.message}</span>}
         </div>
         <div className="input-group w-full">
@@ -142,6 +186,58 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
       </div>
 
       <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0.5rem 0' }} />
+      <div className="flex items-center justify-between">
+        <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          Direcciones de Servicio Adicionales
+        </p>
+        <button
+          type="button"
+          onClick={() => appendAddress({ address: '', notes: '' })}
+          className="btn btn--secondary btn--sm flex items-center gap-1"
+        >
+          <Plus size={14} /> Añadir Dirección
+        </button>
+      </div>
+      
+      {addressFields.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {addressFields.map((field, index) => (
+            <div key={field.id} className="p-3 bg-surface-elevated rounded border border-border flex gap-3 relative">
+              <div className="flex-1 flex flex-col gap-3">
+                <div className="input-group">
+                  <label className="input-label">Dirección de Servicio *</label>
+                  <input
+                    {...register(`service_addresses.${index}.address`)}
+                    className="input"
+                    placeholder="Ej: Bodega Norte - Calle 80 # 65-20"
+                  />
+                  {errors.service_addresses?.[index]?.address && (
+                    <span className="input-error">{errors.service_addresses[index].address.message}</span>
+                  )}
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Notas de la dirección (Opcional)</label>
+                  <input
+                    {...register(`service_addresses.${index}.notes`)}
+                    className="input"
+                    placeholder="Horarios, contacto en puerta..."
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeAddress(index)}
+                className="btn btn--ghost text-danger-500 self-start"
+                title="Eliminar dirección"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0.5rem 0' }} />
       <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Información Comercial</p>
 
       <div className="flex gap-4">
@@ -180,6 +276,34 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
             ))
           )}
         </select>
+      </div>
+
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0.5rem 0' }} />
+      <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Correos Electrónicos</p>
+
+      <div className="flex gap-4">
+        <div className="input-group w-full">
+          <label className="input-label">Correo de Facturación</label>
+          <input
+            {...register('correo_facturacion')}
+            type="email"
+            className="input"
+            placeholder="facturacion@empresa.com"
+            maxLength={150}
+          />
+          {errors.correo_facturacion && <span className="input-error">{errors.correo_facturacion.message}</span>}
+        </div>
+        <div className="input-group w-full">
+          <label className="input-label">Correo RUT</label>
+          <input
+            {...register('correo_rut')}
+            type="email"
+            className="input"
+            placeholder="rut@empresa.com"
+            maxLength={150}
+          />
+          {errors.correo_rut && <span className="input-error">{errors.correo_rut.message}</span>}
+        </div>
       </div>
 
       <div className="modal__footer" style={{ padding: '1rem 0 0 0', border: 'none' }}>

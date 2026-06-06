@@ -388,7 +388,7 @@ export function UsersPage() {
       </div>
 
       {selectedUser && (
-        <div className="modal-overlay" onClick={() => setSelectedUser(null)}>
+        <div className="modal-overlay">
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
             <div className="modal__header">
               <h3 className="font-bold">Gestionar Acceso</h3>
@@ -426,11 +426,7 @@ export function UsersPage() {
       )}
 
       {passwordChangeUser && (
-        <div className="modal-overlay" onClick={() => {
-          setPasswordChangeUser(null);
-          setNewPassword('');
-          setConfirmPassword('');
-        }}>
+        <div className="modal-overlay">
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
             <div className="modal__header">
               <h3 className="font-bold">Cambiar Contraseña</h3>
@@ -507,7 +503,7 @@ export function UsersPage() {
       )}
 
       {showInviteModal && (
-        <div className="modal-overlay" onClick={() => setShowInviteModal(false)}>
+        <div className="modal-overlay">
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
             <div className="modal__header">
               <h3 className="font-bold">Invitar Nuevo Usuario</h3>
@@ -597,7 +593,7 @@ export function UsersPage() {
 
       {/* ─── Modal: Vincular empleado a usuario ───────────────── */}
       {linkModalUser && (
-        <div className="modal-overlay" onClick={() => { setLinkModalUser(null); setSelectedEmployeeId(''); }}>
+        <div className="modal-overlay">
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div className="modal__header">
               <h3 className="font-bold">Vincular Empleado</h3>

@@ -67,16 +67,11 @@ export function ExportInventoryModal({ onClose }) {
     }
   }, [area, fechaDesde, fechaHasta, onClose]);
 
-  React.useEffect(() => {
-    const handleEsc = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
-  }, [onClose]);
+  // El modal NO se cierra con Escape ni con clic en el backdrop.
+  // Solo se cierra con el botón X o al completar la exportación.
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
         <div className="modal__header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

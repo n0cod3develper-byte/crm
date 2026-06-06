@@ -36,14 +36,10 @@ function formatTime(t) {
   return String(t).substring(0, 5);
 }
 
-const TERMINOS = `CARGAR S.A.S. en la prestación de servicio en montacargas ha pactado las siguientes cláusulas
-
+const TERMINOS = `CARGAR S.A.S. en la prestación de servicio en montacargas ha pactado las siguientes cláusulas:
 1. Cuenta con una póliza de responsabilidad civil contractual.
-
 2. El cliente asume totalmente la responsabilidad por la dirección, supervisión y control de la operación del montacargas que se le suministraron operario calificado, evitando riesgos virtuales de siniestros ó movimientos y operaciones efectuados de modo impropio.
-
 3. En caso de siniestro o daños, las partes interesadas se responsabilizaran de manera equitativa por los hechos ocurridos, evitando una reclamacion o demanda futura por perdida o daños quedando por consiguiente CARGAR S.A.S. a paz y salvo y libre de toda responsabilidad.
-
 4. Si el servicio es después de las 5 PM se cobrará a la tarifa con el recargo correspondiente y los sábados después de las 12 M.`;
 
 function buildRemisionHtml(rem, horasLaborales = []) {
@@ -142,10 +138,10 @@ function buildRemisionHtml(rem, horasLaborales = []) {
     }
     .terminos-box {
       border: 1px solid #000;
-      padding: 6px 8px;
+      padding: 4px 8px;
       font-size: 9px;
-      line-height: 1.5;
-      margin-bottom: 8px;
+      line-height: 1.15;
+      margin-bottom: 6px;
       white-space: pre-wrap;
     }
     .totals-grid {
@@ -298,7 +294,7 @@ function buildRemisionHtml(rem, horasLaborales = []) {
       <tr>
         <td>${row.label}</td>
         <td class="td-center">${parseFloat(row.horas) > 0 ? row.horas : ''}</td>
-        <td class="td-center">${parseFloat(row.valor) > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(row.valor) : ''}</td>
+        <td class="td-center">${parseFloat(row.horas) > 0 && parseFloat(row.valor) > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(row.valor) : ''}</td>
         <td class="td-center">${(parseFloat(row.horas) > 0 && parseFloat(row.valor) > 0) ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(parseFloat(row.horas) * parseFloat(row.valor)) : ''}</td>
       </tr>`).join('')}
       <tr style="font-weight: bold; background: #f0f0f0;">
@@ -324,6 +320,18 @@ function buildRemisionHtml(rem, horasLaborales = []) {
     <div class="totals-value">CO$ ${new Intl.NumberFormat('es-CO').format(rem.descuentos || 0)}</div>
     <div class="totals-label totals-final">TOTAL NETO</div>
     <div class="totals-value totals-final">CO$ ${new Intl.NumberFormat('es-CO').format(totalNetoFinal)}</div>
+  </div>
+
+  <!-- NOTA INFORMATIVA -->
+  <div style="border: 1.5px solid #000; padding: 8px 10px; margin-top: 12px; margin-bottom: 8px; font-size: 9px; line-height: 1.5;">
+    <div style="font-weight: bold; text-align: center; font-size: 10px; margin-bottom: 6px; text-transform: uppercase;">NOTA INFORMATIVA PARA EL CLIENTE</div>
+    <p style="margin: 0;">
+      <strong>ESTIMADO USUARIO:</strong> La labor solo comenzará cuando usted firme este documento, mediante el cual, en calidad de cliente, se compromete a aceptar y cumplir las cláusulas del contrato de servicio de montacargas previamente estipuladas y designa una persona responsable para la dirección y supervisión de las operaciones.
+    </p>
+    <p style="margin: 8px 0 0; text-align: right;">
+      Atentamente,<br/>
+      <strong>CARGAR S.A.S.</strong>
+    </p>
   </div>
 
   <!-- FIRMA -->

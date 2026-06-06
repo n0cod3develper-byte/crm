@@ -16,5 +16,10 @@ router.patch('/usuarios/:id/password', requireAuth, soloAdmin, adminController.c
 
 // Ruta para el usuario actual (usada al cargar la app)
 router.get('/permisos', requireAuth, adminController.miInformacion);
+// Rutas de administración de módulos (solo Admin)
+router.get('/modulos', requireAuth, soloAdmin, adminController.listarModulos);
+router.post('/modulos', requireAuth, soloAdmin, adminController.crearModulo);
+router.put('/modulos/:id', requireAuth, soloAdmin, adminController.actualizarModulo);
+router.delete('/modulos/:id', requireAuth, soloAdmin, adminController.eliminarModulo);
 
 export default router;

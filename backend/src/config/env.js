@@ -19,6 +19,7 @@ const envSchema = z.object({
   MICROSOFT_TENANT_ID: z.string().default('common'),
 
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
+  CORS_ORIGINS: z.string().optional(),
   API_BASE_URL: z.string().default('http://localhost:3005'),
 
   S3_ENDPOINT: z.string().default('http://localhost:9000'),

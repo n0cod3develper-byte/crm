@@ -32,5 +32,8 @@ router.get('/:id',           companiesController.get);
 router.patch('/:id',         companiesController.update);
 router.delete('/:id',        authorize('admin'), companiesController.remove);
 router.get('/:id/timeline',  companiesController.timeline);
+router.get('/:id/service-addresses', companiesController.getServiceAddresses);
+router.post('/:id/service-addresses', companiesController.addServiceAddress);
+router.delete('/service-addresses/:addressId', companiesController.deleteServiceAddress);
 
 export default router;

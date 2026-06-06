@@ -84,7 +84,10 @@ export class CompaniesRepository {
   }
 
   async create(data, userId) {
-    const { name, nit, industry, website, phone, address, city, country, tags, notes, assigned_to, modelo_captacion, regimen, responsable_captacion_id } = data;
+    const { name, nit, industry, website, phone, address, city, country, tags, notes, assigned_to, modelo_captacion, regimen, responsable_captacion_id, correo_facturacion, correo_rut } = data;
+
+    // Normalizar nombre a MAYÚSCULAS
+    const normalizedName = name ? name.trim().toUpperCase() : name;
 
     if (nit) {
       const duplicado = await this.nitYaExiste(nit);
@@ -93,17 +96,34 @@ export class CompaniesRepository {
       }
     }
 
-    const result = await query(
-      `INSERT INTO companies
-         (name, nit, industry, website, phone, address, city, country, tags, notes, assigned_to, modelo_captacion, regimen, responsable_captacion_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-       RETURNING *`,
-      [name, nit || null, industry || 'logistics', website || null, phone || null,
-       address || null, city || null, country || 'Colombia',
-       tags || [], notes || null, assigned_to || userId,
-       modelo_captacion || null, regimen || null, responsable_captacion_id || null]
-    );
-    return result.rows[0];
+    return await withTransaction(async (client) => {
+      const result = await client.query(
+        `INSERT INTO companies
+           (name, nit, industry, website, phone, address, city, country, tags, notes, assigned_to, modelo_captacion, regimen, responsable_captacion_id, correo_facturacion, correo_rut)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+         RETURNING *`,
+        [normalizedName, nit || null, industry || 'logistics', website || null, phone || null,
+         address || null, city || null, country || 'Colombia',
+         tags || [], notes || null, assigned_to || userId,
+         modelo_captacion || null, regimen || null, responsable_captacion_id || null,
+         correo_facturacion || null, correo_rut || null]
+      );
+      
+      const company = result.rows[0];
+
+      if (data.service_addresses && Array.isArray(data.service_addresses)) {
+        for (const addr of data.service_addresses) {
+          if (addr.address && addr.address.trim()) {
+            await client.query(
+              `INSERT INTO company_service_addresses (company_id, address, notes) VALUES ($1, $2, $3)`,
+              [company.id, addr.address.trim(), addr.notes || null]
+            );
+          }
+        }
+      }
+
+      return company;
+    });
   }
 
   async update(id, data) {
@@ -118,23 +138,47 @@ export class CompaniesRepository {
       }
     }
 
-    const allowed = ['name','nit','industry','website','phone','address','city','country','tags','notes','assigned_to','modelo_captacion','regimen','responsable_captacion_id'];
+    // Normalizar nombre a MAYÚSCULAS si viene en el payload
+    if ('name' in data && data.name) {
+      data = { ...data, name: data.name.trim().toUpperCase() };
+    }
+
+    const allowed = ['name','nit','industry','website','phone','address','city','country','tags','notes','assigned_to','modelo_captacion','regimen','responsable_captacion_id','correo_facturacion','correo_rut'];
     for (const key of allowed) {
       if (key in data) {
         fields.push(`${key} = $${i++}`);
         values.push(data[key]);
       }
     }
-    if (fields.length === 0) return this.findById(id);
+    return await withTransaction(async (client) => {
+      let company = null;
+      if (fields.length > 0) {
+        fields.push(`updated_at = NOW()`);
+        values.push(id);
+        const result = await client.query(
+          `UPDATE companies SET ${fields.join(', ')} WHERE id = $${i} AND deleted_at IS NULL RETURNING *`,
+          values
+        );
+        company = result.rows[0];
+      }
 
-    fields.push(`updated_at = NOW()`);
-    values.push(id);
+      if (data.service_addresses !== undefined) {
+        // Borrar existentes y recrear para simplificar sync
+        await client.query(`DELETE FROM company_service_addresses WHERE company_id = $1`, [id]);
+        if (Array.isArray(data.service_addresses)) {
+          for (const addr of data.service_addresses) {
+            if (addr.address && addr.address.trim()) {
+              await client.query(
+                `INSERT INTO company_service_addresses (company_id, address, notes) VALUES ($1, $2, $3)`,
+                [id, addr.address.trim(), addr.notes || null]
+              );
+            }
+          }
+        }
+      }
 
-    const result = await query(
-      `UPDATE companies SET ${fields.join(', ')} WHERE id = $${i} AND deleted_at IS NULL RETURNING *`,
-      values
-    );
-    return result.rows[0] || null;
+      return company || this.findById(id);
+    });
   }
 
   async softDelete(id) {
@@ -193,7 +237,7 @@ export class CompaniesRepository {
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
              RETURNING id, name`,
             [
-              row.nombre.trim(),
+              row.nombre.trim().toUpperCase(),
               nit,
               row.industry || 'logistics',
               row.website || null,
@@ -249,5 +293,31 @@ export class CompaniesRepository {
       [companyId, limit]
     );
     return result.rows;
+  }
+
+  // ─── Service Addresses ──────────────────────────────────────
+  async getServiceAddresses(companyId) {
+    const result = await query(
+      `SELECT * FROM company_service_addresses WHERE company_id = $1 ORDER BY created_at ASC`,
+      [companyId]
+    );
+    return result.rows;
+  }
+
+  async addServiceAddress(companyId, address, notes = null) {
+    const result = await query(
+      `INSERT INTO company_service_addresses (company_id, address, notes)
+       VALUES ($1, $2, $3) RETURNING *`,
+      [companyId, address, notes]
+    );
+    return result.rows[0];
+  }
+
+  async deleteServiceAddress(id) {
+    const result = await query(
+      `DELETE FROM company_service_addresses WHERE id = $1 RETURNING id`,
+      [id]
+    );
+    return result.rows[0] || null;
   }
 }

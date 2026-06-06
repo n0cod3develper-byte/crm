@@ -55,6 +55,14 @@ export function CompanyDetailPage() {
     }
   });
 
+  const { data: serviceAddresses, isLoading: isAddressesLoading } = useQuery({
+    queryKey: ['company-service-addresses', id],
+    queryFn: async () => {
+      const { data } = await api.get(`/companies/${id}/service-addresses`);
+      return data.data;
+    }
+  });
+
   if (isLoading) return (
     <div className="app-layout">
       <div className="main-content flex items-center justify-center">
@@ -320,11 +328,34 @@ export function CompanyDetailPage() {
                    <p className="mb-4">{company.regimen || 'No definido'}</p>
                    
                    <label className="input-label">Notas Internas</label>
-                   <p style={{ fontSize: 'var(--text-sm)', whiteSpace: 'pre-wrap' }}>
+                   <p style={{ fontSize: 'var(--text-sm)', whiteSpace: 'pre-wrap' }} className="mb-6">
                      {company.notes || 'No hay notas adicionales.'}
                    </p>
-                </div>
-                <div>
+
+                   <div className="border-t border-color pt-6 mt-4">
+                     <label className="input-label mb-3">Direcciones de Servicio</label>
+                     {isAddressesLoading ? (
+                       <span className="text-muted text-xs">Cargando direcciones...</span>
+                     ) : serviceAddresses?.length === 0 ? (
+                       <p className="text-sm text-muted">No hay direcciones de servicio registradas.</p>
+                     ) : (
+                       <ul className="space-y-3">
+                         {serviceAddresses.map(addr => (
+                           <li key={addr.id} className="p-3 bg-surface-elevated rounded-lg border border-color">
+                             <div className="flex items-start gap-2">
+                               <MapPin size={14} className="text-primary mt-0.5 shrink-0" />
+                               <div>
+                                 <p className="text-sm font-medium">{addr.address}</p>
+                                 {addr.notes && <p className="text-xs text-muted mt-1">{addr.notes}</p>}
+                               </div>
+                             </div>
+                           </li>
+                         ))}
+                       </ul>
+                     )}
+                   </div>
+                 </div>
+                 <div>
                    <label className="input-label">Tags</label>
                    <div className="flex flex-wrap gap-2 mb-4">
                      {company.tags?.map(t => <span key={t} className="badge badge--gray">{t}</span>)}
@@ -335,7 +366,21 @@ export function CompanyDetailPage() {
                    <p className="mb-4">{company.assigned_to_name || 'Sin asignar'}</p>
                    
                    <label className="input-label">Responsable de Captación</label>
-                   <p>{company.responsable_captacion_nombre || 'Sin asignar'}</p>
+                   <p className="mb-4">{company.responsable_captacion_nombre || 'Sin asignar'}</p>
+
+                   <label className="input-label">Correo de Facturación</label>
+                   <p className="mb-4">
+                     {company.correo_facturacion
+                       ? <a href={`mailto:${company.correo_facturacion}`} className="link">{company.correo_facturacion}</a>
+                       : 'No registrado'}
+                   </p>
+
+                   <label className="input-label">Correo RUT</label>
+                   <p>
+                     {company.correo_rut
+                       ? <a href={`mailto:${company.correo_rut}`} className="link">{company.correo_rut}</a>
+                       : 'No registrado'}
+                   </p>
                 </div>
               </div>
             )}
@@ -407,6 +452,7 @@ export function CompanyDetailPage() {
         >
           <ContactForm 
             defaultCompanyId={id}
+            fixedCompany={true}
             onSuccess={() => setIsContactModalOpen(false)}
             onCancel={() => setIsContactModalOpen(false)}
           />

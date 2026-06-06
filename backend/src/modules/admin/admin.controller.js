@@ -23,11 +23,16 @@ export async function obtenerDetalleRol(req, res) {
     const rolSql = `SELECT id, nombre, slug, descripcion, activo FROM roles WHERE id = $1`;
     const permisosSql = `
       SELECT ms.id as modulo_id, ms.nombre as modulo_nombre, ms.slug as modulo_slug,
-             rp.puede_ver, rp.puede_crear, rp.puede_editar, rp.puede_eliminar,
-             rp.puede_exportar, rp.puede_aprobar, rp.puede_liquidar
-      FROM roles_permisos rp
-      JOIN modulos_sistema ms ON rp.modulo_id = ms.id
-      WHERE rp.rol_id = $1
+             COALESCE(rp.puede_ver, false) as puede_ver,
+             COALESCE(rp.puede_crear, false) as puede_crear,
+             COALESCE(rp.puede_editar, false) as puede_editar,
+             COALESCE(rp.puede_eliminar, false) as puede_eliminar,
+             COALESCE(rp.puede_exportar, false) as puede_exportar,
+             COALESCE(rp.puede_aprobar, false) as puede_aprobar,
+             COALESCE(rp.puede_liquidar, false) as puede_liquidar
+      FROM modulos_sistema ms
+      LEFT JOIN roles_permisos rp ON rp.modulo_id = ms.id AND rp.rol_id = $1
+      ORDER BY ms.orden_menu, ms.nombre
     `;
     
     const [rolResult, permisosResult] = await Promise.all([
@@ -102,10 +107,10 @@ export async function invitarUsuario(req, res) {
     expires.setHours(expires.getHours() + 48);
 
     const insertSql = `
-      INSERT INTO users (email, nombre, rol_id, invitation_token, invitation_expires, estado)
-      VALUES ($1, $2, $3, $4, $5, 'ACTIVO')
+      INSERT INTO users (email, nombre, full_name, rol_id, invitation_token, invitation_expires, estado)
+      VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVO')
     `;
-    await query(insertSql, [email, 'Invitado', rol_id, token, expires]);
+    await query(insertSql, [email, 'Invitado', 'Invitado', rol_id, token, expires]);
 
     const invitationLink = `${env.FRONTEND_URL}/register?token=${token}`;
     res.json({ success: true, invitationLink });
@@ -253,5 +258,100 @@ export async function cambiarClaveUsuario(req, res) {
   } catch (err) {
     console.error('Error en cambiarClaveUsuario:', err);
     res.status(500).json({ error: err.message || 'Error al cambiar la contraseña del usuario' });
+  }
+}
+
+// ─── Módulos del Sistema ────────────────────────────────────────
+
+export async function listarModulos(req, res) {
+  try {
+    const sql = `SELECT id, nombre, slug, icono, ruta_base, orden_menu, activo FROM modulos_sistema ORDER BY orden_menu ASC, nombre ASC`;
+    const result = await query(sql);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error en listarModulos:', err);
+    res.status(500).json({ error: 'Error listando módulos' });
+  }
+}
+
+export async function crearModulo(req, res) {
+  const { nombre, slug, icono, ruta_base, orden_menu, activo } = req.body;
+  
+  if (!nombre || !slug) {
+    return res.status(400).json({ error: 'El nombre y slug son obligatorios' });
+  }
+
+  try {
+    const exists = await query('SELECT id FROM modulos_sistema WHERE slug = $1', [slug]);
+    if (exists.rows.length > 0) {
+      return res.status(400).json({ error: 'Ya existe un módulo con este slug' });
+    }
+
+    const sql = `
+      INSERT INTO modulos_sistema (nombre, slug, icono, ruta_base, orden_menu, activo)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `;
+    const result = await query(sql, [nombre, slug, icono || null, ruta_base || null, orden_menu || 0, activo !== false]);
+    
+    invalidarTodoElCache();
+    
+    res.status(201).json({ success: true, data: result.rows[0], message: 'Módulo creado exitosamente' });
+  } catch (err) {
+    console.error('Error en crearModulo:', err);
+    res.status(500).json({ error: 'Error creando módulo' });
+  }
+}
+
+export async function actualizarModulo(req, res) {
+  const { id } = req.params;
+  const { nombre, slug, icono, ruta_base, orden_menu, activo } = req.body;
+
+  if (!nombre || !slug) {
+    return res.status(400).json({ error: 'El nombre y slug son obligatorios' });
+  }
+
+  try {
+    const exists = await query('SELECT id FROM modulos_sistema WHERE slug = $1 AND id != $2', [slug, id]);
+    if (exists.rows.length > 0) {
+      return res.status(400).json({ error: 'Ya existe otro módulo con este slug' });
+    }
+
+    const sql = `
+      UPDATE modulos_sistema
+      SET nombre = $1, slug = $2, icono = $3, ruta_base = $4, orden_menu = $5, activo = $6
+      WHERE id = $7
+      RETURNING *
+    `;
+    const result = await query(sql, [nombre, slug, icono || null, ruta_base || null, orden_menu || 0, activo !== false, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Módulo no encontrado' });
+    }
+
+    invalidarTodoElCache();
+    res.json({ success: true, data: result.rows[0], message: 'Módulo actualizado correctamente' });
+  } catch (err) {
+    console.error('Error en actualizarModulo:', err);
+    res.status(500).json({ error: 'Error actualizando módulo' });
+  }
+}
+
+export async function eliminarModulo(req, res) {
+  const { id } = req.params;
+
+  try {
+    const sql = `DELETE FROM modulos_sistema WHERE id = $1 RETURNING *`;
+    const result = await query(sql, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Módulo no encontrado' });
+    }
+
+    invalidarTodoElCache();
+    res.json({ success: true, message: 'Módulo eliminado correctamente' });
+  } catch (err) {
+    console.error('Error en eliminarModulo:', err);
+    res.status(500).json({ error: 'Error eliminando módulo. Verifique que no esté en uso.' });
   }
 }

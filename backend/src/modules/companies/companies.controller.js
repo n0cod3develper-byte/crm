@@ -125,4 +125,31 @@ export const companiesController = {
       res.json({ success: true, data: items });
     } catch (err) { next(err); }
   },
+
+  // ─── Service Addresses ──────────────────────────────────────
+  async getServiceAddresses(req, res, next) {
+    try {
+      const addresses = await repo.getServiceAddresses(req.params.id);
+      res.json({ success: true, data: addresses });
+    } catch (err) { next(err); }
+  },
+
+  async addServiceAddress(req, res, next) {
+    try {
+      const { address, notes } = req.body;
+      if (!address) {
+        return res.status(400).json({ success: false, error: { message: 'La dirección es obligatoria' } });
+      }
+      const newAddress = await repo.addServiceAddress(req.params.id, address, notes);
+      res.status(201).json({ success: true, data: newAddress });
+    } catch (err) { next(err); }
+  },
+
+  async deleteServiceAddress(req, res, next) {
+    try {
+      const result = await repo.deleteServiceAddress(req.params.addressId);
+      if (!result) throw new NotFoundError('Dirección de servicio');
+      res.json({ success: true, message: 'Dirección de servicio eliminada correctamente' });
+    } catch (err) { next(err); }
+  },
 };

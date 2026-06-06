@@ -18,7 +18,7 @@ const contactSchema = z.object({
   is_primary: z.boolean().default(false),
 });
 
-export function ContactForm({ contact, defaultCompanyId, onSuccess, onCancel }) {
+export function ContactForm({ contact, defaultCompanyId, fixedCompany = false, onSuccess, onCancel }) {
   const queryClient = useQueryClient();
   const isEditing = !!contact;
 
@@ -39,7 +39,9 @@ export function ContactForm({ contact, defaultCompanyId, onSuccess, onCancel }) 
 
   const mutation = useMutation({
     mutationFn: async (values) => {
-      const payload = { ...values, company_id: values.company_id || null };
+      // Si fixedCompany es true, forzamos el defaultCompanyId para asegurar que se guarde, aunque el select esté disabled
+      const finalCompanyId = fixedCompany ? defaultCompanyId : values.company_id;
+      const payload = { ...values, company_id: finalCompanyId || null };
       if (isEditing) {
         const { data } = await api.patch(`/contacts/${contact.id}`, payload);
         return data;
@@ -100,7 +102,7 @@ export function ContactForm({ contact, defaultCompanyId, onSuccess, onCancel }) 
 
       <div className="input-group">
         <label className="input-label">Empresa</label>
-        <select {...register('company_id')} className="input">
+        <select {...register('company_id')} className="input" disabled={fixedCompany} style={fixedCompany ? { backgroundColor: 'var(--bg-secondary)', color: 'var(--text-muted)' } : {}}>
           <option value="">— Sin empresa —</option>
           {companiesData?.map(c => (
             <option key={c.id} value={c.id.toString()}>{c.name}</option>

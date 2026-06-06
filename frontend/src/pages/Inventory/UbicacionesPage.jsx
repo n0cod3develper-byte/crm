@@ -15,7 +15,7 @@ function MiniModal({ title, item, onSave, onClose }) {
   const [active, setActive] = useState(item?.activo !== undefined ? item.activo : true);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-content card max-w-sm animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
         <h3 className="font-bold text-base mb-4">{item ? `Editar ${title}` : `Nuevo ${title}`}</h3>
         <div className="space-y-3">
@@ -339,7 +339,7 @@ export function UbicacionesPage() {
 
       {/* ─── Ubicación Modal ─── */}
       {isUbiModalOpen && (
-        <div className="modal-overlay" onClick={closeUbiModal}>
+        <div className="modal-overlay">
           <div className="modal-content card max-w-md animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <h2 className="font-bold text-lg mb-5">{selectedUbi ? 'Editar Ubicación' : 'Nueva Ubicación'}</h2>
             <form onSubmit={handleUbiSubmit} className="space-y-4">

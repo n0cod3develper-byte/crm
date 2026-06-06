@@ -80,7 +80,12 @@ const MIGRATION_FILES = [
   '048_locativo_module.sql',
   '049_activity_log.sql',
   '050_mantenimientos_programados_module.sql',
-  '051_seed_areas_inventario.sql'
+  '051_seed_areas_inventario.sql',
+  '052_add_invitation_columns.sql',
+  '053_drop_fullname_notnull.sql',
+  '054_add_missing_modules.sql',
+  '055_add_email_fields_to_companies.sql',
+  '056_company_service_addresses_and_remision_relations.sql'
 ];
 
 async function ensureMigrationsTable(client) {

@@ -56,8 +56,25 @@ const httpServer = createServer(app);
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
+// ─── CORS: orígenes permitidos ─────────────────────────────────
+const corsOrigins = (() => {
+  const origins = [env.FRONTEND_URL];
+  if (env.CORS_ORIGINS) {
+    env.CORS_ORIGINS.split(',').forEach(o => {
+      const trimmed = o.trim();
+      if (trimmed && !origins.includes(trimmed)) origins.push(trimmed);
+    });
+  }
+  return origins;
+})();
+
 app.use(cors({
-  origin: env.FRONTEND_URL,
+  origin: (origin, callback) => {
+    // Permitir requests sin origin (apps, curl, etc)
+    if (!origin) return callback(null, true);
+    if (corsOrigins.includes(origin)) return callback(null, true);
+    callback(null, false);
+  },
   credentials: true,
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
 }));

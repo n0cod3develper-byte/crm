@@ -2,20 +2,17 @@ import React from 'react';
 import { X } from 'lucide-react';
 
 export function Modal({ title, children, footer, onClose, maxWidth = '560px' }) {
+  // El modal NO se cierra con Escape ni con clic en el backdrop.
+  // Solo se cierra con los botones explícitos de la UI (X, Cancelar, Guardar).
   React.useEffect(() => {
-    const handleEsc = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleEsc);
     document.body.style.overflow = 'hidden';
     return () => {
-      window.removeEventListener('keydown', handleEsc);
       document.body.style.overflow = 'unset';
     };
-  }, [onClose]);
+  }, []);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div 
         className="modal" 
         style={{ maxWidth }} 

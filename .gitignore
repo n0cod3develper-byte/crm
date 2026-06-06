@@ -39,3 +39,4 @@ docker-volumes/
 uploads/
 test_pdf.js
 test_ot.pdf
+backend/database.sqlite

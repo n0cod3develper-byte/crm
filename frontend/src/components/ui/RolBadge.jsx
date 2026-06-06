@@ -6,7 +6,7 @@ const ROL_CONFIG = {
   tecnico:         { label: 'Técnico',           color: 'bg-green-100 text-green-800' },
   almacenista:     { label: 'Almacenista',       color: 'bg-orange-100 text-orange-800' },
   comprador:       { label: 'Comprador',         color: 'bg-purple-100 text-purple-800' },
-  aprobador_1:     { label: 'Aprobador N1',      color: 'bg-indigo-100 text-indigo-800' },
+  aprobador_1:     { label: 'Mercadeo',           color: 'bg-pink-100 text-pink-800' },
   aprobador_2:     { label: 'Aprobador N2',      color: 'bg-indigo-100 text-indigo-800' },
   aprobador_3:     { label: 'Aprobador N3',      color: 'bg-indigo-100 text-indigo-800' },
   consulta:        { label: 'Consulta',          color: 'bg-gray-100 text-gray-700' },

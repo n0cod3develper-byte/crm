@@ -6,7 +6,7 @@ import api from '../../lib/api';
 const labelStyle = { fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.375rem' };
 const sectionTitle = { fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0.25rem 0 0.75rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.4rem' };
 
-const UNIDADES = ['hora', 'día', 'semana', 'mes', 'servicio', 'km', 'COP'];
+const UNIDADES = ['hora', 'día', 'semana', 'mes', 'servicio', 'COP'];
 const TIPOS_SERVICIO = ['Fijo', 'Esporádico', 'Otras Ventas'];
 
 

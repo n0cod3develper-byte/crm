@@ -397,7 +397,7 @@ function AreaPickerModal({ onSelect, onClose }) {
   ];
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
         <div className="modal__header">
           <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700 }}>Nuevo Ítem</h2>
