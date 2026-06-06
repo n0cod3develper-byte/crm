@@ -308,11 +308,21 @@ export class EquiposRepository {
     return result.rows[0] || null;
   }
 
-  async findByCompany(empresa_id) {
-    const result = await query(
-      `SELECT * FROM equipos_completo WHERE empresa_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC`,
-      [empresa_id]
-    );
+  async findByCompany(empresa_id, { estado, include_id } = {}) {
+    let sql = `SELECT * FROM equipos_completo WHERE empresa_id = $1 AND deleted_at IS NULL`;
+    const params = [empresa_id];
+    let i = 2;
+    if (estado) {
+      if (include_id) {
+        sql += ` AND (estado = $${i++} OR id = $${i++})`;
+        params.push(estado.toUpperCase(), include_id);
+      } else {
+        sql += ` AND estado = $${i++}`;
+        params.push(estado.toUpperCase());
+      }
+    }
+    sql += ` ORDER BY created_at DESC`;
+    const result = await query(sql, params);
     return result.rows;
   }
 

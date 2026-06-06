@@ -54,8 +54,9 @@ const navItems = [
   { label: 'Analítica / BI', icon: BarChart3, to: '/reportes' },
   { label: 'Ventas Servicios', icon: ClipboardList, to: '/reportes/servicios', indent: true },
   { label: 'Ventas Mantenimiento', icon: Wrench, to: '/reportes/mantenimiento', indent: true },
-  { label: 'Roles', icon: Shield, to: '/admin/roles', adminOnly: true },
   { label: 'Usuarios', icon: Users, to: '/admin/usuarios', adminOnly: true },
+  { label: 'Roles y Permisos', icon: Shield, to: '/admin/roles', adminOnly: true },
+  { label: 'Módulos del Sistema', icon: Settings, to: '/admin/modulos', adminOnly: true },
 ];
 
 // ─── Componente principal ────────────────────────────────────

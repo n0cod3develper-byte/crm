@@ -177,7 +177,8 @@ export const equiposController = {
 
   async listByCompany(req, res, next) {
     try {
-      const equipos = await repo.findByCompany(req.params.id);
+      const { estado, include_id } = req.query;
+      const equipos = await repo.findByCompany(req.params.id, { estado, include_id });
       res.json({ success: true, data: equipos });
     } catch (err) { next(err); }
   },

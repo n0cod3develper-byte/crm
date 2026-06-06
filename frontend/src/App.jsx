@@ -68,6 +68,7 @@ const FacturasListPage = lazy(() => import('./pages/Facturacion/FacturasListPage
 const FacturaDetailPage = lazy(() => import('./pages/Facturacion/FacturaDetailPage').then(m => ({ default: m.FacturaDetailPage })));
 const RolesPage = lazy(() => import('./pages/Admin/RolesPage').then(m => ({ default: m.RolesPage })));
 const UsersPage = lazy(() => import('./pages/Admin/UsersPage').then(m => ({ default: m.UsersPage })));
+const ModulesPage = lazy(() => import('./pages/Admin/ModulesPage').then(m => ({ default: m.ModulesPage })));
 
 const CatalogoServiciosPage = lazy(() => import('./pages/CatalogoServicios/CatalogoServiciosPage').then(m => ({ default: m.CatalogoServiciosPage })));
 const ServiciosPage = lazy(() => import('./pages/Servicios/ServiciosPage').then(m => ({ default: m.ServiciosPage })));
@@ -141,6 +142,7 @@ function App() {
                 <Route path="/mantenimiento/:id" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="ver"><OTDetailPage /></SafeModule>} />
                 <Route path="/admin/roles" element={<ProtectedRoute adminOnly><RolesPage /></ProtectedRoute>} />
                 <Route path="/admin/usuarios" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
+                <Route path="/admin/modulos" element={<ProtectedRoute adminOnly><ModulesPage /></ProtectedRoute>} />
 
                 {/* Compras */}
                 <Route path="/compras" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><DashboardComprasPage /></ProtectedRoute>} />

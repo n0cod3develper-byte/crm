@@ -73,7 +73,7 @@ export class ServiciosRepository {
 
     const opRes = await query(`
       SELECT ro.id AS asignacion_id, ro.empleado_id,
-             em.full_name, em.identification, em.phone,
+             em.full_name, em.numero_documento AS identification, em.phone,
              em.position, em.monthly_salary
       FROM remision_operarios ro
       JOIN employees em ON em.id = ro.empleado_id
@@ -125,7 +125,9 @@ export class ServiciosRepository {
     return String(next).padStart(5, '0');
   }
 
-  async create(data, userId) {
+  async create(data, user) {
+    const userId = user?.id;
+    const userStr = user ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.email : 'Sistema';
     return await withTransaction(async (client) => {
       const numero = await this.generarNumeroRemision(client);
       const d = data;
@@ -134,7 +136,7 @@ export class ServiciosRepository {
         INSERT INTO remisiones (
           numero_remision, fecha_servicio, hora_acordada, forma_pago,
           company_id, catalogo_servicio_id, equipo_id,
-          solicitado_por, direccion_servicio, numero_maquina,
+          solicitado_por, solicitado_por_id, direccion_servicio, numero_maquina,
           hora_salida_cargar, hora_llegada_cliente, hora_salida_cliente, hora_llegada_cargar,
           segundo_hora_salida_cargar, segundo_hora_llegada_cliente, segundo_hora_salida_cliente, segundo_hora_llegada_cargar,
           segundo_horometro_salida, segundo_horometro_regreso,
@@ -147,7 +149,7 @@ export class ServiciosRepository {
           observaciones, estado, created_by
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-          $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42
+          $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43
         ) RETURNING *
       `, [
         numero,                                   // $1
@@ -158,40 +160,41 @@ export class ServiciosRepository {
         d.catalogo_servicio_id,                   // $6
         d.equipo_id,                              // $7
         d.solicitado_por || null,                 // $8
-        d.direccion_servicio || null,             // $9
-        d.numero_maquina || null,                 // $10
-        d.hora_salida_cargar || null,             // $11
-        d.hora_llegada_cliente || null,           // $12
-        d.hora_salida_cliente || null,            // $13
-        d.hora_llegada_cargar || null,            // $14
-        d.segundo_hora_salida_cargar || null,     // $15
-        d.segundo_hora_llegada_cliente || null,   // $16
-        d.segundo_hora_salida_cliente || null,    // $17
-        d.segundo_hora_llegada_cargar || null,    // $18
-        d.segundo_horometro_salida || null,       // $19
-        d.segundo_horometro_regreso || null,      // $20
-        d.horometro_salida || null,               // $21
-        d.horometro_regreso || null,              // $22
-        d.cantidad_horas || 0,                   // $23
-        d.valor_hora || 0,                       // $24
-        d.horas_diurnas || 0,                    // $25
-        d.valor_hora_diurna || 0,               // $26
-        d.horas_nocturnas || 0,                  // $27
-        d.valor_hora_nocturna || 0,             // $28
-        d.horas_fest_diurnas || 0,              // $29
-        d.valor_hora_fest_dia || 0,             // $30
-        d.horas_fest_nocturnas || 0,            // $31
-        d.valor_hora_fest_noc || 0,             // $32
-        d.horas_otras || 0,                     // $33
-        d.valor_hora_otras || 0,               // $34
-        d.total_bruto || 0,                    // $35
-        d.iva_pct || 19.00,                    // $36
-        d.iva_valor || 0,                      // $37
-        d.descuentos || 0,                     // $38
-        d.total_neto || 0,                     // $39
-        d.observaciones || null,               // $40
-        d.estado || 'BORRADOR',                // $41
-        userId,                                // $42
+        d.solicitado_por_id || null,              // $9
+        d.direccion_servicio || null,             // $10
+        d.numero_maquina || null,                 // $11
+        d.hora_salida_cargar || null,             // $12
+        d.hora_llegada_cliente || null,           // $13
+        d.hora_salida_cliente || null,            // $14
+        d.hora_llegada_cargar || null,            // $15
+        d.segundo_hora_salida_cargar || null,     // $16
+        d.segundo_hora_llegada_cliente || null,   // $17
+        d.segundo_hora_salida_cliente || null,    // $18
+        d.segundo_hora_llegada_cargar || null,    // $19
+        d.segundo_horometro_salida || null,       // $20
+        d.segundo_horometro_regreso || null,      // $21
+        d.horometro_salida || null,               // $22
+        d.horometro_regreso || null,              // $23
+        d.cantidad_horas || 0,                   // $24
+        d.valor_hora || 0,                       // $25
+        d.horas_diurnas || 0,                    // $26
+        d.valor_hora_diurna || 0,               // $27
+        d.horas_nocturnas || 0,                  // $28
+        d.valor_hora_nocturna || 0,             // $29
+        d.horas_fest_diurnas || 0,              // $30
+        d.valor_hora_fest_dia || 0,             // $31
+        d.horas_fest_nocturnas || 0,            // $32
+        d.valor_hora_fest_noc || 0,             // $33
+        d.horas_otras || 0,                     // $34
+        d.valor_hora_otras || 0,               // $35
+        d.total_bruto || 0,                    // $36
+        d.iva_pct || 19.00,                    // $37
+        d.iva_valor || 0,                      // $38
+        d.descuentos || 0,                     // $39
+        d.total_neto || 0,                     // $40
+        d.observaciones || null,               // $41
+        d.estado || 'BORRADOR',                // $42
+        userId,                                // $43
       ]);
 
       if (data.operario_id) {
@@ -209,64 +212,202 @@ export class ServiciosRepository {
         );
       }
 
+      if (d.equipo_id) {
+        const eqRes = await client.query('SELECT estado FROM equipos WHERE id = $1', [d.equipo_id]);
+        const estado_anterior = eqRes.rows[0]?.estado || 'OPERATIVO';
+
+        if (estado_anterior !== 'ALQUILADO') {
+          await client.query(
+            `UPDATE equipos SET 
+              estado = 'ALQUILADO',
+              motivo_estado = $1,
+              fecha_cambio_estado = CURRENT_DATE,
+              actualizado_por = $2,
+              updated_at = NOW()
+             WHERE id = $3`,
+            [`Alquilado automáticamente por creación de remisión ${numero}`, userStr, d.equipo_id]
+          );
+
+          await client.query(
+            `INSERT INTO equipos_historial_estado (
+              equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
+            ) VALUES ($1, $2, $3, $4, $5)`,
+            [d.equipo_id, estado_anterior, 'ALQUILADO', `Alquilado por creación de remisión ${numero}`, userStr]
+          );
+        }
+      }
+
       return res.rows[0];
     });
   }
 
-  async update(id, data) {
-    const fields = [];
-    const values = [];
-    let i = 1;
-    const allowed = [
-      'fecha_servicio', 'hora_acordada', 'forma_pago',
-      'catalogo_servicio_id', 'equipo_id', 'solicitado_por',
-      'direccion_servicio', 'numero_maquina',
-      'hora_salida_cargar', 'hora_llegada_cliente', 'hora_salida_cliente', 'hora_llegada_cargar',
-      'segundo_fecha_acordada',
-      'segundo_hora_salida_cargar', 'segundo_hora_llegada_cliente', 'segundo_hora_salida_cliente', 'segundo_hora_llegada_cargar', 'segundo_horometro_salida', 'segundo_horometro_regreso',
-      'horometro_salida', 'horometro_regreso',
-      'cantidad_horas', 'valor_hora',
-      'horas_diurnas', 'valor_hora_diurna', 'horas_nocturnas', 'valor_hora_nocturna',
-      'horas_fest_diurnas', 'valor_hora_fest_dia', 'horas_fest_nocturnas', 'valor_hora_fest_noc',
-      'horas_otras', 'valor_hora_otras',
-      'total_bruto', 'iva_pct', 'iva_valor', 'descuentos', 'total_neto',
-      'estado', 'observaciones'
-    ];
-    for (const key of allowed) {
-      if (key in data) {
-        fields.push(`${key} = $${i++}`);
-        let val = data[key];
-        if (val === '') val = null;
-        values.push(val);
-      }
-    }
-    if (fields.length === 0) return this.findById(id);
-    fields.push(`updated_at = NOW()`);
-    values.push(id);
-    const result = await query(
-      `UPDATE remisiones SET ${fields.join(', ')} WHERE id = $${i} AND deleted_at IS NULL RETURNING *`,
-      values
-    );
+  async update(id, data, user) {
+    const userStr = user ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.email : 'Sistema';
+    return await withTransaction(async (client) => {
+      // 1. Obtener estado y equipo actuales
+      const currentRes = await client.query('SELECT equipo_id, estado, numero_remision FROM remisiones WHERE id = $1', [id]);
+      const current = currentRes.rows[0];
+      if (!current) return null;
 
-    if ('operario_id' in data || 'operario_2_id' in data) {
-      await query(`DELETE FROM remision_operarios WHERE remision_id = $1`, [id]);
-      if (data.operario_id) {
-        await query(`INSERT INTO remision_operarios (remision_id, empleado_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [id, data.operario_id]);
+      // 2. Construir y ejecutar la actualización de remisiones
+      const fields = [];
+      const values = [];
+      let i = 1;
+      const allowed = [
+        'fecha_servicio', 'hora_acordada', 'forma_pago',
+        'catalogo_servicio_id', 'equipo_id', 'solicitado_por', 'solicitado_por_id',
+        'direccion_servicio', 'numero_maquina',
+        'hora_salida_cargar', 'hora_llegada_cliente', 'hora_salida_cliente', 'hora_llegada_cargar',
+        'segundo_fecha_acordada',
+        'segundo_hora_salida_cargar', 'segundo_hora_llegada_cliente', 'segundo_hora_salida_cliente', 'segundo_hora_llegada_cargar', 'segundo_horometro_salida', 'segundo_horometro_regreso',
+        'horometro_salida', 'horometro_regreso',
+        'cantidad_horas', 'valor_hora',
+        'horas_diurnas', 'valor_hora_diurna', 'horas_nocturnas', 'valor_hora_nocturna',
+        'horas_fest_diurnas', 'valor_hora_fest_dia', 'horas_fest_nocturnas', 'valor_hora_fest_noc',
+        'horas_otras', 'valor_hora_otras',
+        'total_bruto', 'iva_pct', 'iva_valor', 'descuentos', 'total_neto',
+        'estado', 'observaciones'
+      ];
+      for (const key of allowed) {
+        if (key in data) {
+          fields.push(`${key} = $${i++}`);
+          let val = data[key];
+          if (val === '') val = null;
+          values.push(val);
+        }
       }
-      if (data.operario_2_id) {
-        await query(`INSERT INTO remision_operarios (remision_id, empleado_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [id, data.operario_2_id]);
-      }
-    }
 
-    return result.rows[0] || null;
+      let updatedRem = null;
+      if (fields.length > 0) {
+        fields.push(`updated_at = NOW()`);
+        values.push(id);
+        const result = await client.query(
+          `UPDATE remisiones SET ${fields.join(', ')} WHERE id = $${i} AND deleted_at IS NULL RETURNING *`,
+          values
+        );
+        updatedRem = result.rows[0] || null;
+      } else {
+        const fetchUpdated = await client.query(`SELECT * FROM remisiones WHERE id = $1`, [id]);
+        updatedRem = fetchUpdated.rows[0] || null;
+      }
+
+      if (!updatedRem) return null;
+
+      if ('operario_id' in data || 'operario_2_id' in data) {
+        await client.query(`DELETE FROM remision_operarios WHERE remision_id = $1`, [id]);
+        if (data.operario_id) {
+          await client.query(`INSERT INTO remision_operarios (remision_id, empleado_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [id, data.operario_id]);
+        }
+        if (data.operario_2_id) {
+          await client.query(`INSERT INTO remision_operarios (remision_id, empleado_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [id, data.operario_2_id]);
+        }
+      }
+
+      // 3. Lógica de transición de estado de equipos (orientada a estado objetivo)
+      const old_equipo_id = current.equipo_id;
+      const new_equipo_id = 'equipo_id' in data ? data.equipo_id : old_equipo_id;
+      const old_estado = current.estado;
+      const new_estado = 'estado' in data ? data.estado : old_estado;
+
+      const is_released_state = ['LIQUIDADA', 'FACTURADA', 'ANULADO'].includes(new_estado);
+
+      // A. Garantizar que el equipo actual esté en el estado correspondiente
+      if (new_equipo_id) {
+        const target_estado = is_released_state ? 'OPERATIVO' : 'ALQUILADO';
+        const eqRes = await client.query('SELECT estado FROM equipos WHERE id = $1', [new_equipo_id]);
+        const current_eq_state = eqRes.rows[0]?.estado;
+
+        if (current_eq_state && current_eq_state !== target_estado) {
+          const motivo = is_released_state
+            ? `Liberado por estado ${new_estado} de remisión ${current.numero_remision}`
+            : `Alquilado por remisión ${current.numero_remision} (Estado: ${new_estado})`;
+
+          await client.query(
+            `UPDATE equipos SET 
+              estado = $1, 
+              motivo_estado = $2, 
+              fecha_cambio_estado = CURRENT_DATE, 
+              actualizado_por = $3,
+              updated_at = NOW()
+             WHERE id = $4`,
+            [target_estado, motivo, userStr, new_equipo_id]
+          );
+
+          await client.query(
+            `INSERT INTO equipos_historial_estado (
+              equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
+            ) VALUES ($1, $2, $3, $4, $5)`,
+            [new_equipo_id, current_eq_state, target_estado, motivo, userStr]
+          );
+        }
+      }
+
+      // B. Si el equipo cambió, liberar el equipo anterior
+      if (old_equipo_id && new_equipo_id && old_equipo_id !== new_equipo_id) {
+        const eqOldRes = await client.query('SELECT estado FROM equipos WHERE id = $1', [old_equipo_id]);
+        const stateOld = eqOldRes.rows[0]?.estado;
+        if (stateOld && stateOld !== 'OPERATIVO') {
+          const motivo = `Liberado por cambio de equipo en remisión ${current.numero_remision}`;
+          await client.query(
+            `UPDATE equipos SET 
+              estado = 'OPERATIVO',
+              motivo_estado = $1,
+              fecha_cambio_estado = CURRENT_DATE,
+              actualizado_por = $2,
+              updated_at = NOW()
+             WHERE id = $3`,
+            [motivo, userStr, old_equipo_id]
+          );
+          await client.query(
+            `INSERT INTO equipos_historial_estado (
+              equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
+            ) VALUES ($1, $2, $3, $4, $5)`,
+            [old_equipo_id, stateOld, 'OPERATIVO', motivo, userStr]
+          );
+        }
+      }
+
+      return updatedRem;
+    });
   }
 
-  async softDelete(id) {
-    const result = await query(
-      `UPDATE remisiones SET deleted_at = NOW(), estado = 'ANULADO' WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
-      [id]
-    );
-    return result.rows[0] || null;
+  async softDelete(id, user) {
+    const userStr = user ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.email : 'Sistema';
+    return await withTransaction(async (client) => {
+      const currentRes = await client.query('SELECT equipo_id, estado, numero_remision FROM remisiones WHERE id = $1', [id]);
+      const current = currentRes.rows[0];
+      if (!current) return null;
+
+      const result = await client.query(
+        `UPDATE remisiones SET deleted_at = NOW(), estado = 'ANULADO' WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
+        [id]
+      );
+
+      if (current.equipo_id && current.estado !== 'ANULADO') {
+        const eqRes = await client.query('SELECT estado FROM equipos WHERE id = $1', [current.equipo_id]);
+        const state = eqRes.rows[0]?.estado;
+        if (state && state !== 'OPERATIVO') {
+          await client.query(
+            `UPDATE equipos SET 
+              estado = 'OPERATIVO',
+              motivo_estado = $1,
+              fecha_cambio_estado = CURRENT_DATE,
+              actualizado_por = $2,
+              updated_at = NOW()
+             WHERE id = $3`,
+            [`Liberado por anulación de remisión ${current.numero_remision}`, userStr, current.equipo_id]
+          );
+          await client.query(
+            `INSERT INTO equipos_historial_estado (
+              equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
+            ) VALUES ($1, $2, $3, $4, $5)`,
+            [current.equipo_id, state, 'OPERATIVO', `Liberado por anulación de remisión ${current.numero_remision}`, userStr]
+          );
+        }
+      }
+
+      return result.rows[0] || null;
+    });
   }
 
   async addOperario(remision_id, empleado_id) {
@@ -288,9 +429,9 @@ export class ServiciosRepository {
 
   async findOperariosDisponibles() {
     const res = await query(
-      `SELECT id, full_name, identification, phone, position, monthly_salary
+      `SELECT id, full_name, numero_documento AS identification, phone, position, monthly_salary
        FROM employees
-       WHERE LOWER(position) IN ('operario', 'técnico', 'tecnico') AND LOWER(status) = 'activo'
+       WHERE LOWER(position) = 'operario' AND LOWER(status) = 'activo'
        ORDER BY full_name ASC`
     );
     return res.rows;

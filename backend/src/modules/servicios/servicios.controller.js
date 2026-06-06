@@ -27,7 +27,7 @@ export const serviciosController = {
       if (!fecha_servicio || !company_id || !catalogo_servicio_id || !equipo_id) {
         throw new BadRequestError('fecha_servicio, company_id, catalogo_servicio_id y equipo_id son requeridos');
       }
-      const item = await repo.create(req.body, req.user.id);
+      const item = await repo.create(req.body, req.user);
       res.status(201).json({ success: true, data: item });
     } catch (err) { next(err); }
   },
@@ -55,14 +55,14 @@ export const serviciosController = {
         throw new ForbiddenError('No se puede editar una remisión LIQUIDADA. Solo se permiten actualizaciones de liquidación.');
       }
 
-      const updated = await repo.update(req.params.id, req.body);
+      const updated = await repo.update(req.params.id, req.body, req.user);
       res.json({ success: true, data: updated });
     } catch (err) { next(err); }
   },
 
   async remove(req, res, next) {
     try {
-      const result = await repo.softDelete(req.params.id);
+      const result = await repo.softDelete(req.params.id, req.user);
       if (!result) throw new NotFoundError('Remisión');
       res.json({ success: true, message: 'Remisión anulada correctamente' });
     } catch (err) { next(err); }

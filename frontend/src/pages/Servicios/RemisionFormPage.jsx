@@ -1,10 +1,12 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Save, Lock } from 'lucide-react';
+import { ArrowLeft, Save, Lock, Plus } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { Modal } from '../../components/common/Modal';
+import { ContactForm } from '../../components/Contacts/ContactForm';
 import api from '../../lib/api';
 
 const label = { fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.375rem' };
@@ -17,7 +19,7 @@ const EMPTY = {
   hora_acordada: '',
   forma_pago: 'Contado',
   company_id: '', catalogo_servicio_id: '', equipo_id: '', operario_id: '', operario_2_id: '',
-  solicitado_por: '', direccion_servicio: '', numero_maquina: '',
+  solicitado_por: '', solicitado_por_id: '', direccion_servicio: '', numero_maquina: '',
   hora_salida_cargar: '', hora_llegada_cliente: '', hora_salida_cliente: '', hora_llegada_cargar: '',
   segundo_fecha_acordada: '', segundo_hora_salida_cargar: '', segundo_hora_llegada_cliente: '', segundo_hora_salida_cliente: '', segundo_hora_llegada_cargar: '', segundo_horometro_salida: '', segundo_horometro_regreso: '',
   horometro_salida: '', horometro_regreso: '',
@@ -27,7 +29,7 @@ const EMPTY = {
   horas_fest_diurnas: 0, valor_hora_fest_dia: 0,
   horas_fest_nocturnas: 0, valor_hora_fest_noc: 0,
   horas_otras: 0, valor_hora_otras: 0,
-  total_bruto: 0, iva_pct: 19, iva_valor: 0, descuentos: 0, total_neto: 0,
+  total_bruto: 0, iva_pct: 0, aplica_iva: false, iva_valor: 0, descuentos: 0, total_neto: 0,
   observaciones: '',
   estado: 'BORRADOR',
 };
@@ -61,6 +63,10 @@ export function RemisionFormPage() {
   const [horasManual, setHorasManual] = React.useState(false);
   const [currentEstado, setCurrentEstado] = React.useState(null);
   const [estadoManual, setEstadoManual] = React.useState(false);
+  
+  const [isContactModalOpen, setIsContactModalOpen] = React.useState(false);
+  const [isAddressModalOpen, setIsAddressModalOpen] = React.useState(false);
+  const [newAddressForm, setNewAddressForm] = React.useState({ address: '', notes: '' });
 
   const isReadOnly = isEditing && READ_ONLY_ESTADOS.includes(currentEstado);
 
@@ -79,15 +85,32 @@ export function RemisionFormPage() {
   const { data: catalogoItems = [] } = useQuery({
     queryKey: ['catalogo-pro-servicios'],
     queryFn: async () => {
-      const { data } = await api.get('/catalogo', { params: { tipo: 'SERVICIO', limit: 200 } });
-      // El catálogo PRO devuelve { items: [] }
-      return data.items || [];
+      const { data } = await api.get('/catalogo-servicios', { params: { is_active: true, limit: 200 } });
+      return data.data || [];
     },
   });
 
   const { data: operariosDisp = [] } = useQuery({
     queryKey: ['operarios-disponibles'],
     queryFn: async () => { const { data } = await api.get('/servicios/operarios-disponibles'); return data.data || []; },
+  });
+
+  const { data: contactsData = [], refetch: refetchContacts } = useQuery({
+    queryKey: ['company-contacts', form.company_id],
+    queryFn: async () => {
+      const { data } = await api.get('/contacts', { params: { companyId: form.company_id } });
+      return data.data || [];
+    },
+    enabled: !!form.company_id,
+  });
+
+  const { data: serviceAddressesData = [], refetch: refetchAddresses } = useQuery({
+    queryKey: ['company-service-addresses', form.company_id],
+    queryFn: async () => {
+      const { data } = await api.get(`/companies/${form.company_id}/service-addresses`);
+      return data.data || [];
+    },
+    enabled: !!form.company_id,
   });
 
   React.useEffect(() => {
@@ -129,6 +152,8 @@ export function RemisionFormPage() {
         f.operario_2_id = existingData.operarios[1]?.empleado_id || '';
       }
       if (existingData.estado) f.estado = existingData.estado;
+      // Inferir aplica_iva desde el iva_pct guardado
+      f.aplica_iva = parseFloat(existingData.iva_pct || 0) > 0;
       setForm(f);
       setHorasManual(true);
       // Solo bloquear auto-cálculo si la remisión ya está LIQUIDADA o ANULADA (modo solo lectura)
@@ -143,7 +168,12 @@ export function RemisionFormPage() {
   React.useEffect(() => {
     if (!form.company_id) { setEquiposFiltrados([]); return; }
 
-    api.get(`/equipos/by-company/${form.company_id}`)
+    const params = { estado: 'OPERATIVO' };
+    if (isEditing && form.equipo_id) {
+      params.include_id = form.equipo_id;
+    }
+
+    api.get(`/equipos/by-company/${form.company_id}`, { params })
       .then(res => setEquiposFiltrados(res.data?.data || res.data || []))
       .catch(() => setEquiposFiltrados([]));
 
@@ -159,38 +189,21 @@ export function RemisionFormPage() {
     }
   }, [form.company_id]);
 
-  // Auto‑rellenar la dirección del cliente con la dirección de la empresa
+  // Auto‑rellenar la dirección del cliente con la dirección principal de la empresa si no hay una seteada
   React.useEffect(() => {
-    if (selectedCompany && selectedCompany.address && !form.direccion_servicio) {
+    if (!isEditing && selectedCompany && selectedCompany.address && !form.direccion_servicio) {
       setForm(prev => ({ ...prev, direccion_servicio: selectedCompany.address }));
     }
-  }, [selectedCompany]);
+  }, [selectedCompany, isEditing]);
 
   // ─── Al cambiar servicio: autocompletar valor_hora ───────────
   React.useEffect(() => {
     if (form.catalogo_servicio_id && catalogoMap[form.catalogo_servicio_id]) {
-      // catalogo_completo view expone precio_venta; fallbacks para compatibilidad
       const item = catalogoMap[form.catalogo_servicio_id];
-      const precio = parseFloat(item.precio_venta || item.precio_servicio || item.precio_base || 0);
-      if (precio > 0) {
-        setForm(prev => ({ ...prev, valor_hora: precio }));
-      }
-      // Determinar si el servicio está exento de IVA
-      // Servicios de MONTACARGAS CON OPERARIO, ALQUILER DE GRUA, GAS no tienen IVA
-      const tipo = (item.tipo || '').toString().toUpperCase();
-      const nombre = (item.nombre_comercial || item.nombre || item.name || '').toString().toUpperCase();
-      const esExentoIVA =
-        ['GRUA', 'GAS', 'MONTACARGAS'].includes(tipo) ||
-        nombre.includes('MONTACARGAS') ||
-        nombre.includes('GRUA') || nombre.includes('GRÚA') ||
-        nombre.includes('GAS');
-      if (esExentoIVA) {
-        setForm(prev => ({ ...prev, iva_pct: 0 }));
-      } else {
-        setForm(prev => ({ ...prev, iva_pct: prev.iva_pct || 19 }));
-      }
+      const precio = parseFloat(item.precio_base ?? 0);
+      setForm(prev => ({ ...prev, valor_hora: precio }));
     }
-  }, [form.catalogo_servicio_id, catalogoMap, form.operario_id, form.operario_2_id]);
+  }, [form.catalogo_servicio_id, catalogoMap]);
 
   // ─── Auto-calcular valor_hora_fest_dia al 125% del valor_hora ──
   React.useEffect(() => {
@@ -223,26 +236,26 @@ export function RemisionFormPage() {
     estadoManual, isReadOnly
   ]);
 
-  // ─── Al cambiar equipo: autocompletar numero_maquina ─────────
   React.useEffect(() => {
     if (form.equipo_id && equiposFiltrados.length) {
       const eq = equiposFiltrados.find(e => e.id === form.equipo_id);
       if (eq) {
-        setForm(prev => ({ ...prev, numero_maquina: eq.serial }));
-      }
-      // Obtener el último horómetro de regreso de la última remisión de esta máquina
-      // Solo para nuevas remisiones (no al editar)
-      if (!isEditing) {
-        api.get(`/servicios/last-horometro/${form.equipo_id}`)
-          .then(res => {
-            if (res.data?.data) {
-              setForm(prev => ({ ...prev, horometro_salida: res.data.data }));
+        setForm(prev => {
+          const updated = { ...prev, numero_maquina: eq.serial };
+          // Solo auto-completar el horómetro de salida si:
+          // 1. No estamos editando una remisión existente, O
+          // 2. Estamos editando pero el equipo_id seleccionado cambió respecto al original de la remisión (existingData?.equipo_id)
+          const isDifferentEquipment = isEditing && existingData && existingData.equipo_id !== form.equipo_id;
+          if (!isEditing || isDifferentEquipment) {
+            if (eq.horometro_actual !== undefined && eq.horometro_actual !== null) {
+              updated.horometro_salida = eq.horometro_actual;
             }
-          })
-          .catch(() => { });
+          }
+          return updated;
+        });
       }
     }
-  }, [form.equipo_id, equiposFiltrados]);
+  }, [form.equipo_id, equiposFiltrados, isEditing, existingData]);
 
   // ─── Auto-calcular horas por tiempos (Ambos operarios) ─────────────────────
   React.useEffect(() => {
@@ -292,15 +305,16 @@ export function RemisionFormPage() {
   // ─── Auto-calcular totales ───────────────────────────────────
   React.useEffect(() => {
     const bruto = parseFloat(form.cantidad_horas || 0) * parseFloat(form.valor_hora || 0);
-    const iva = bruto * (parseFloat(form.iva_pct || 19) / 100);
+    const iva = form.aplica_iva ? Math.round(bruto * 0.19) : 0;
     const neto = bruto + iva - parseFloat(form.descuentos || 0) + totalLiquidacion;
     setForm(prev => ({
       ...prev,
       total_bruto: Math.round(bruto),
-      iva_valor: Math.round(iva),
+      iva_pct: form.aplica_iva ? 19 : 0,
+      iva_valor: iva,
       total_neto: Math.round(neto),
     }));
-  }, [form.cantidad_horas, form.valor_hora, form.iva_pct, form.descuentos, totalLiquidacion]);
+  }, [form.cantidad_horas, form.valor_hora, form.aplica_iva, form.descuentos, totalLiquidacion]);
 
   // ─── Mutation ────────────────────────────────────────────────
   const mutation = useMutation({
@@ -342,7 +356,30 @@ export function RemisionFormPage() {
       setEstadoManual(false);
     }
 
+    // Al cambiar solicitado_por_id, auto-completar solicitado_por (nombre string)
+    if (name === 'solicitado_por_id') {
+      const c = contactsData.find(ct => String(ct.id) === String(value));
+      setForm(prev => ({ ...prev, solicitado_por_id: value, solicitado_por: c ? `${c.first_name} ${c.last_name}`.trim() : '' }));
+      return;
+    }
+
     setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleCreateAddress = async (e) => {
+    e.preventDefault();
+    if (!newAddressForm.address.trim()) return;
+    try {
+      const { data } = await api.post(`/companies/${form.company_id}/service-addresses`, newAddressForm);
+      toast.success('Dirección creada');
+      setIsAddressModalOpen(false);
+      setNewAddressForm({ address: '', notes: '' });
+      refetchAddresses();
+      // Auto-seleccionar
+      setForm(prev => ({ ...prev, direccion_servicio: data.data.address }));
+    } catch (err) {
+      toast.error('Error al guardar dirección');
+    }
   };
 
   const handleHorasChange = (e) => {
@@ -361,6 +398,16 @@ export function RemisionFormPage() {
     if (!form.company_id || !form.catalogo_servicio_id || !form.equipo_id || !form.fecha_servicio || (!isEditing && !form.operario_id)) {
       toast.error('Faltan campos obligatorios');
       return;
+    }
+    // Validar horómetro si el equipo tiene información registrada
+    if (form.equipo_id && equiposFiltrados.length) {
+      const eq = equiposFiltrados.find(e => e.id === form.equipo_id);
+      if (eq && eq.horometro_actual !== undefined && eq.horometro_actual !== null && eq.horometro_actual !== '') {
+        if (form.horometro_salida === undefined || form.horometro_salida === null || form.horometro_salida === '') {
+          toast.error('El Horómetro de Salida es obligatorio para el equipo seleccionado.');
+          return;
+        }
+      }
     }
     mutation.mutate(form);
   };
@@ -464,12 +511,55 @@ export function RemisionFormPage() {
               </select>
             </div>
             <div>
-              <label style={label}>Solicitado Por</label>
-              <input placeholder="Nombre del contacto" {...inputProps('solicitado_por')} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+                <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)' }}>Solicitado Por</label>
+                {!isReadOnly && form.company_id && (
+                  <button type="button" onClick={() => setIsContactModalOpen(true)} className="btn btn--ghost btn--sm" style={{ padding: '0 4px', height: 'auto', color: 'var(--clr-primary-500)' }} title="Nuevo contacto">
+                    <Plus size={14} /> Nuevo
+                  </button>
+                )}
+              </div>
+              {isReadOnly ? (
+                <input {...inputProps('solicitado_por')} />
+              ) : (
+                <select name="solicitado_por_id" className="input" style={{ width: '100%' }} value={form.solicitado_por_id || ''} onChange={handleChange} disabled={!form.company_id}>
+                  <option value="">{form.company_id ? 'Seleccionar contacto...' : 'Seleccione empresa primero'}</option>
+                  {contactsData.map(c => (
+                    <option key={c.id} value={c.id}>{c.first_name} {c.last_name} {c.position ? `(${c.position})` : ''}</option>
+                  ))}
+                  {/* Para compatibilidad si el contacto ya no existe pero hay nombre histórico guardado, o es texto libre histórico */}
+                  {form.solicitado_por && !form.solicitado_por_id && (
+                    <option value="" disabled>Historico: {form.solicitado_por}</option>
+                  )}
+                </select>
+              )}
             </div>
             <div style={{ gridColumn: '2 / -1' }}>
-              <label style={label}>Dirección de Servicio</label>
-              <input placeholder="Dirección donde se presta el servicio" {...inputProps('direccion_servicio')} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+                <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)' }}>Dirección de Servicio</label>
+                {!isReadOnly && form.company_id && (
+                  <button type="button" onClick={() => setIsAddressModalOpen(true)} className="btn btn--ghost btn--sm" style={{ padding: '0 4px', height: 'auto', color: 'var(--clr-primary-500)' }} title="Nueva dirección">
+                    <Plus size={14} /> Nueva
+                  </button>
+                )}
+              </div>
+              {isReadOnly ? (
+                <input {...inputProps('direccion_servicio')} />
+              ) : (
+                <select name="direccion_servicio" className="input" style={{ width: '100%' }} value={form.direccion_servicio || ''} onChange={handleChange} disabled={!form.company_id}>
+                  <option value="">{form.company_id ? 'Seleccionar o dejar en blanco...' : 'Seleccione empresa primero'}</option>
+                  {selectedCompany?.address && (
+                    <option value={selectedCompany.address}>{selectedCompany.address} (Sede Principal)</option>
+                  )}
+                  {serviceAddressesData.map(a => (
+                    <option key={a.id} value={a.address}>{a.address} {a.notes ? `- ${a.notes}` : ''}</option>
+                  ))}
+                  {/* Si la dirección es histórica y no está en la lista */}
+                  {form.direccion_servicio && form.direccion_servicio !== selectedCompany?.address && !serviceAddressesData.find(a => a.address === form.direccion_servicio) && (
+                    <option value={form.direccion_servicio}>{form.direccion_servicio} (Histórica)</option>
+                  )}
+                </select>
+              )}
             </div>
           </div>
 
@@ -482,8 +572,8 @@ export function RemisionFormPage() {
                 <input {...inputProps('catalogo_servicio_id')} value={`[${existingData?.servicio_codigo}] ${existingData?.servicio_nombre}`} />
               ) : (
                 <select name="catalogo_servicio_id" className="input" style={{ width: '100%' }} value={form.catalogo_servicio_id} onChange={handleChange} required>
-                  <option value="">Seleccionar servicio del catálogo PRO...</option>
-                  {catalogoItems.map(s => <option key={s.id} value={s.id}>[{s.codigo_interno}] {s.nombre_comercial}</option>)}
+                  <option value="">Seleccionar servicio del catálogo...</option>
+                  {catalogoItems.map(s => <option key={s.id} value={s.id}>[{s.codigo}] {s.nombre}</option>)}
                 </select>
               )}
             </div>
@@ -647,8 +737,24 @@ export function RemisionFormPage() {
               <input type="number" min={0} {...inputProps('valor_hora')} />
             </div>
             <div>
-              <label style={label}>IVA (%)</label>
-              <input type="number" min={0} max={100} {...inputProps('iva_pct')} />
+              <label style={label}>IVA</label>
+              {isReadOnly ? (
+                <span style={{ display: 'flex', alignItems: 'center', height: '36px', fontWeight: 600, fontSize: 'var(--text-sm)', color: form.aplica_iva ? 'var(--clr-primary-500)' : 'var(--text-muted)' }}>
+                  {form.aplica_iva ? '✔ Aplica IVA (19%)' : '✘ Sin IVA'}
+                </span>
+              ) : (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 500, fontSize: 'var(--text-sm)', color: 'var(--text-primary)', height: '36px', userSelect: 'none' }}>
+                  <input
+                    type="checkbox"
+                    id="aplica_iva"
+                    name="aplica_iva"
+                    checked={!!form.aplica_iva}
+                    onChange={(e) => setForm(prev => ({ ...prev, aplica_iva: e.target.checked }))}
+                    style={{ width: 16, height: 16, accentColor: 'var(--clr-primary-500)', cursor: 'pointer' }}
+                  />
+                  Aplicar IVA (19%)
+                </label>
+              )}
             </div>
             <div>
               <label style={label}>Descuentos (COP)</label>
@@ -657,7 +763,10 @@ export function RemisionFormPage() {
           </div>
           <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', background: 'var(--bg-secondary)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
             <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>Total Bruto</span><span style={{ fontWeight: 700 }}>{formatCOP(form.total_bruto)}</span></div>
-            <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>IVA</span><span style={{ fontWeight: 700 }}>{formatCOP(form.iva_valor)}</span></div>
+            <div style={{ flex: 1 }}>
+              <span style={{ ...label, display: 'block' }}>IVA {form.aplica_iva ? '(19%)' : ''}</span>
+              <span style={{ fontWeight: 700, color: form.aplica_iva ? 'inherit' : 'var(--text-muted)' }}>{form.aplica_iva ? formatCOP(form.iva_valor) : '—'}</span>
+            </div>
             <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>Descuentos</span><span style={{ fontWeight: 700 }}>{formatCOP(form.descuentos)}</span></div>
             <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>TOTAL NETO</span><span style={{ fontWeight: 800, color: 'var(--clr-primary-500)', fontSize: '16px' }}>{formatCOP(form.total_neto)}</span></div>
           </div>
@@ -682,6 +791,59 @@ export function RemisionFormPage() {
           )}
         </form>
       </main>
+      {/* MODALES */}
+      {isContactModalOpen && (
+        <Modal title="Crear Contacto Rápido" onClose={() => setIsContactModalOpen(false)}>
+          <ContactForm 
+            defaultCompanyId={form.company_id}
+            fixedCompany={true}
+            onSuccess={() => {
+              setIsContactModalOpen(false);
+              refetchContacts().then(res => {
+                // Auto-seleccionar el último contacto creado. 
+                // Como es una lista nueva, podemos tomar el que tenga el ID más alto o re-buscar.
+                const data = res.data;
+                if (data && data.length > 0) {
+                  const latest = [...data].sort((a,b) => b.id - a.id)[0];
+                  setForm(prev => ({ ...prev, solicitado_por_id: latest.id, solicitado_por: `${latest.first_name} ${latest.last_name}`.trim() }));
+                }
+              });
+            }}
+            onCancel={() => setIsContactModalOpen(false)}
+          />
+        </Modal>
+      )}
+
+      {isAddressModalOpen && (
+        <Modal title="Agregar Dirección de Servicio" onClose={() => setIsAddressModalOpen(false)}>
+          <form onSubmit={handleCreateAddress} className="flex flex-col gap-4">
+            <div className="input-group">
+              <label className="input-label">Dirección *</label>
+              <input 
+                className="input" 
+                value={newAddressForm.address} 
+                onChange={e => setNewAddressForm(p => ({ ...p, address: e.target.value }))}
+                placeholder="Ej: Bodega Sur"
+                autoFocus
+                required
+              />
+            </div>
+            <div className="input-group">
+              <label className="input-label">Notas / Horario (Opcional)</label>
+              <input 
+                className="input" 
+                value={newAddressForm.notes} 
+                onChange={e => setNewAddressForm(p => ({ ...p, notes: e.target.value }))}
+                placeholder="Entregar por la portería 2..."
+              />
+            </div>
+            <div className="modal__footer">
+              <button type="button" className="btn btn--secondary" onClick={() => setIsAddressModalOpen(false)}>Cancelar</button>
+              <button type="submit" className="btn btn--primary" disabled={!newAddressForm.address.trim()}>Guardar Dirección</button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }
