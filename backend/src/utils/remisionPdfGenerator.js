@@ -2,6 +2,7 @@ import puppeteer from 'puppeteer';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { findChromePath } from './chromeFinder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -362,8 +363,9 @@ export async function generateRemisionPdf(remision, horasLaborales = []) {
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   };
 
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-    launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  const chromePath = findChromePath();
+  if (chromePath) {
+    launchOptions.executablePath = chromePath;
   } else if (process.platform === 'linux') {
     launchOptions.executablePath = '/usr/bin/chromium-browser';
   }

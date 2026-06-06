@@ -2,6 +2,7 @@ import puppeteer from 'puppeteer';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { findChromePath } from './chromeFinder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -547,8 +548,9 @@ export async function generateOTPdf(ot) {
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
     };
 
-    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-      launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    const chromePath = findChromePath();
+    if (chromePath) {
+      launchOptions.executablePath = chromePath;
     } else if (process.platform === 'linux') {
       launchOptions.executablePath = '/usr/bin/chromium-browser';
     }
@@ -742,8 +744,14 @@ export async function generatePrefacturaPdf(factura) {
     const launchOptions = {
       headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
     };
+
+    const chromePath = findChromePath();
+    if (chromePath) {
+      launchOptions.executablePath = chromePath;
+    } else if (process.platform === 'linux') {
+      launchOptions.executablePath = '/usr/bin/chromium-browser';
+    }
 
     logger.debug('Launching puppeteer for Prefactura PDF', { consecutivo: factura.consecutivo_interno });
     const browser = await puppeteer.launch(launchOptions);
