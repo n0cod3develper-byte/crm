@@ -192,6 +192,9 @@ export class CompaniesRepository {
   async importCompanies(rows, userId) {
     const results = { success: 0, errors: [] };
 
+    // Helper: convierte cualquier valor a string trimmed (maneja números de Excel)
+    const str = (v) => (v == null ? '' : String(v).trim());
+
     await withTransaction(async (client) => {
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -199,33 +202,35 @@ export class CompaniesRepository {
         const rowErrors = [];
 
         // ─── Validaciones ────────────────────────────────────
-        if (!row.nombre || !row.nombre.trim()) {
+        if (!str(row.nombre)) {
           rowErrors.push('El campo "Nombre" es obligatorio');
         }
 
-        const nit = row.nit ? row.nit.trim() : null;
+        const nit = str(row.nit) || null;
         if (nit) {
           if (nit.length > 50) rowErrors.push('NIT muy largo (máx 50 caracteres)');
           const duplicado = await this.nitYaExiste(nit);
           if (duplicado) rowErrors.push('NIT ya existe en el sistema');
         }
 
-        if (row.modelo_captacion && row.modelo_captacion.length > 100) {
+        const modeloCaptacion = str(row.modelo_captacion);
+        if (modeloCaptacion && modeloCaptacion.length > 100) {
           rowErrors.push('Modelo de captación muy largo (máx 100 caracteres)');
         }
-        if (row.regimen && !['RC', 'NI'].includes(row.regimen.toUpperCase())) {
+        const regimen = str(row.regimen).toUpperCase();
+        if (regimen && !['RC', 'NI'].includes(regimen)) {
           rowErrors.push('Régimen inválido (debe ser RC o NI)');
         }
-        if (row.correo_facturacion) {
-          const email = row.correo_facturacion.trim();
+        if (str(row.correo_facturacion)) {
+          const email = str(row.correo_facturacion);
           if (email.length > 150) {
             rowErrors.push('Correo de facturación muy largo (máx 150 caracteres)');
           } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             rowErrors.push('Correo de facturación con formato inválido');
           }
         }
-        if (row.correo_rut) {
-          const email = row.correo_rut.trim();
+        if (str(row.correo_rut)) {
+          const email = str(row.correo_rut);
           if (email.length > 150) {
             rowErrors.push('Correo RUT muy largo (máx 150 caracteres)');
           } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -254,22 +259,22 @@ export class CompaniesRepository {
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
              RETURNING id, name`,
             [
-              row.nombre.trim().toUpperCase(),
+              str(row.nombre).toUpperCase(),
               nit,
-              row.industry || 'logistics',
-              row.website || null,
-              row.telefono || null,
-              row.direccion || null,
-              row.ciudad || null,
-              row.pais || 'Colombia',
-              row.tags ? row.tags.split(',').map(t => t.trim()) : [],
-              row.notes || row.notas || null,
+              str(row.industry) || 'logistics',
+              str(row.website) || null,
+              str(row.telefono) || null,
+              str(row.direccion) || null,
+              str(row.ciudad) || null,
+              str(row.pais) || 'Colombia',
+              str(row.tags) ? str(row.tags).split(',').map(t => t.trim()) : [],
+              str(row.notes) || str(row.notas) || null,
               userId,
-              row.modelo_captacion || null,
-              row.regimen ? row.regimen.toUpperCase() : null,
-              row.responsable_captacion_id || null,
-              row.correo_facturacion ? row.correo_facturacion.trim() : null,
-              row.correo_rut ? row.correo_rut.trim() : null,
+              str(row.modelo_captacion) || null,
+              regimen || null,
+              str(row.responsable_captacion_id) || null,
+              str(row.correo_facturacion) || null,
+              str(row.correo_rut) || null,
             ]
           );
           results.success++;
