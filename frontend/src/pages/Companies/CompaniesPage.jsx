@@ -10,24 +10,102 @@ import * as XLSX from 'xlsx';
 import { Modal } from '../../components/common/Modal';
 import { CompanyForm } from '../../components/Companies/CompanyForm';
 
-const COLUMNAS_PLANTILLA = ['Nombre', 'NIT', 'Teléfono', 'Dirección', 'Ciudad', 'País', 'Sitio Web', 'Sector', 'Modelo de Captación', 'Régimen', 'Tags', 'Notas'];
+const COLUMNAS_PLANTILLA = [
+  'Nombre *',
+  'NIT',
+  'Sector',
+  'Sitio Web',
+  'Teléfono',
+  'Ciudad',
+  'Dirección',
+  'País',
+  'Notas',
+  'Modelo de Captación',
+  'Régimen',
+  'Responsable Captación ID',
+  'Correo de Facturación',
+  'Correo RUT',
+  'Tags'
+];
 
 function descargarPlantilla() {
-  const data = [
+  const dataEmpresas = [
     COLUMNAS_PLANTILLA,
-    ['Logística del Norte SAS', '900.123.456-7', '+57 601 2345678', 'Calle 50 #30-20, Oficina 301', 'Bogotá', 'Colombia', 'https://logisticanorte.com', 'logistics', 'Google / Buscador', 'RC', 'cliente-activo,flota-propia', 'Cliente desde 2023'],
-    ['Transportes del Sur Ltda', '800.987.654-3', '+57 604 8765432', 'Av. Siempre Viva #45-12', 'Medellín', 'Colombia', '', 'logistics', 'Recomendación / Referido', 'NI', '', 'Contacto: Juan Pérez'],
+    [
+      'LOGÍSTICA DEL NORTE SAS',
+      '900123456',
+      'logistics',
+      'https://logisticanorte.com',
+      '+57 601 2345678',
+      'Bogotá',
+      'Calle 50 #30-20, Oficina 301',
+      'Colombia',
+      'Cliente VIP con flota propia. Requiere entrega oportuna.',
+      'Google / Buscador',
+      'RC',
+      '',
+      'facturacion@logisticanorte.com',
+      'rut@logisticanorte.com',
+      'cliente-activo,flota-propia'
+    ],
+    [
+      'TRANSPORTES DEL SUR LTDA',
+      '800987654',
+      'logistics',
+      '',
+      '+57 604 8765432',
+      'Medellín',
+      'Av. Siempre Viva #45-12',
+      'Colombia',
+      'Contacto principal: Juan Pérez.',
+      'Recomendación / Referido',
+      'NI',
+      '',
+      'facturas@transportessur.com',
+      '',
+      'transporte,flotilla'
+    ]
   ];
 
-  const ws = XLSX.utils.aoa_to_sheet(data);
+  const dataInstrucciones = [
+    ['Campo', 'Descripción', '¿Obligatorio?', 'Tipo de Dato', 'Longitud Máx.', 'Ejemplo / Valores Permitidos'],
+    ['Nombre *', 'Nombre o Razón Social de la empresa (se normaliza a MAYÚSCULAS automáticamente).', 'SÍ', 'Texto', '150', 'LOGÍSTICA DEL NORTE SAS'],
+    ['NIT', 'Número de Identificación Tributaria. Ingresar SIN puntos, guiones ni dígito de verificación.', 'NO', 'Texto', '50', '900123456'],
+    ['Sector', 'Sector económico o industria principal de la empresa.', 'NO', 'Texto (Código)', '50', 'Opciones válidas: logistics (Logística/Transporte), manufacturing (Manufactura), retail (Comercio), technology (Tecnología), other (Otro)'],
+    ['Sitio Web', 'Dirección URL de la página web de la empresa.', 'NO', 'Texto (URL)', '200', 'https://logisticanorte.com'],
+    ['Teléfono', 'Número telefónico principal de contacto.', 'NO', 'Texto', '50', '+57 601 2345678'],
+    ['Ciudad', 'Ciudad de ubicación principal de la empresa.', 'NO', 'Texto', '100', 'Bogotá'],
+    ['Dirección', 'Dirección física de las instalaciones principales de la empresa.', 'NO', 'Texto', '255', 'Calle 50 #30-20, Oficina 301'],
+    ['País', 'País de ubicación de la empresa.', 'NO', 'Texto', '50', 'Colombia (por defecto si se deja vacío)'],
+    ['Notas', 'Comentarios, observaciones o notas internas de la empresa.', 'NO', 'Texto', 'Sin Límite', 'Cliente con flota propia, requiere facturación los primeros 5 días.'],
+    ['Modelo de Captación', 'Canal o medio mediante el cual se atrajo o contactó al cliente.', 'NO', 'Texto (Lista)', '100', 'Opciones válidas: Recomendación / Referido, Redes Sociales, Google / Buscador, Correo Electrónico, WhatsApp, Visita Asesor Comercial, Página Web / Sitio Oficial, Mail Marketing'],
+    ['Régimen', 'Régimen tributario de la empresa (RC o NI).', 'NO', 'Texto (Código)', '2', 'Opciones válidas: RC (Régimen Común) o NI (No Inscrito)'],
+    ['Responsable Captación ID', 'Identificador UUID del empleado responsable de la captación (debe existir en el sistema).', 'NO', 'Texto (UUID)', '36', '7a12b345-67c8-90d1-e2f3-456789abcde0'],
+    ['Correo de Facturación', 'Correo electrónico exclusivo para el envío de facturación y estados de cuenta.', 'NO', 'Texto (Email)', '150', 'facturacion@empresa.com'],
+    ['Correo RUT', 'Correo electrónico exclusivo para gestión de documentos tributarios y actualizaciones del RUT.', 'NO', 'Texto (Email)', '150', 'rut@empresa.com'],
+    ['Tags', 'Etiquetas o palabras clave para clasificar y filtrar la empresa (separadas por comas).', 'NO', 'Texto (CSV)', '255', 'cliente-activo, flota-propia']
+  ];
 
-  // Ancho de columna estimado
-  ws['!cols'] = COLUMNAS_PLANTILLA.map(() => ({ wch: 22 }));
+  const wsEmpresas = XLSX.utils.aoa_to_sheet(dataEmpresas);
+  const wsInstrucciones = XLSX.utils.aoa_to_sheet(dataInstrucciones);
+
+  // Configuración de anchos de columna para una visualización premium
+  wsEmpresas['!cols'] = COLUMNAS_PLANTILLA.map(() => ({ wch: 24 }));
+  wsInstrucciones['!cols'] = [
+    { wch: 24 }, // Campo
+    { wch: 60 }, // Descripción
+    { wch: 15 }, // ¿Obligatorio?
+    { wch: 18 }, // Tipo de dato
+    { wch: 15 }, // Longitud Máx
+    { wch: 60 }  // Ejemplo
+  ];
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Empresas');
+  XLSX.utils.book_append_sheet(wb, wsEmpresas, 'Empresas');
+  XLSX.utils.book_append_sheet(wb, wsInstrucciones, 'Instrucciones');
+  
   XLSX.writeFile(wb, 'plantilla_importacion_empresas.xlsx');
-  toast.success('Plantilla descargada');
+  toast.success('Plantilla de importación descargada con éxito');
 }
 
 export function CompaniesPage() {

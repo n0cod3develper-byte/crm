@@ -216,6 +216,22 @@ export class CompaniesRepository {
         if (row.regimen && !['RC', 'NI'].includes(row.regimen.toUpperCase())) {
           rowErrors.push('Régimen inválido (debe ser RC o NI)');
         }
+        if (row.correo_facturacion) {
+          const email = row.correo_facturacion.trim();
+          if (email.length > 150) {
+            rowErrors.push('Correo de facturación muy largo (máx 150 caracteres)');
+          } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            rowErrors.push('Correo de facturación con formato inválido');
+          }
+        }
+        if (row.correo_rut) {
+          const email = row.correo_rut.trim();
+          if (email.length > 150) {
+            rowErrors.push('Correo RUT muy largo (máx 150 caracteres)');
+          } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            rowErrors.push('Correo RUT con formato inválido');
+          }
+        }
 
         // ─── Si hay errores en esta fila ──────────────────────
         if (rowErrors.length > 0) {
@@ -233,8 +249,9 @@ export class CompaniesRepository {
           const insertResult = await client.query(
             `INSERT INTO companies
                (name, nit, industry, website, phone, address, city, country,
-                tags, notes, assigned_to, modelo_captacion, regimen, responsable_captacion_id)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                tags, notes, assigned_to, modelo_captacion, regimen, responsable_captacion_id,
+                correo_facturacion, correo_rut)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
              RETURNING id, name`,
             [
               row.nombre.trim().toUpperCase(),
@@ -246,11 +263,13 @@ export class CompaniesRepository {
               row.ciudad || null,
               row.pais || 'Colombia',
               row.tags ? row.tags.split(',').map(t => t.trim()) : [],
-              row.notas || null,
+              row.notes || row.notas || null,
               userId,
               row.modelo_captacion || null,
               row.regimen ? row.regimen.toUpperCase() : null,
               row.responsable_captacion_id || null,
+              row.correo_facturacion ? row.correo_facturacion.trim() : null,
+              row.correo_rut ? row.correo_rut.trim() : null,
             ]
           );
           results.success++;

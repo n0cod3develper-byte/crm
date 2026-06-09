@@ -69,6 +69,7 @@ const FacturaDetailPage = lazy(() => import('./pages/Facturacion/FacturaDetailPa
 const RolesPage = lazy(() => import('./pages/Admin/RolesPage').then(m => ({ default: m.RolesPage })));
 const UsersPage = lazy(() => import('./pages/Admin/UsersPage').then(m => ({ default: m.UsersPage })));
 const ModulesPage = lazy(() => import('./pages/Admin/ModulesPage').then(m => ({ default: m.ModulesPage })));
+const BackupsPage = lazy(() => import('./pages/Admin/BackupsPage').then(m => ({ default: m.BackupsPage })));
 
 const CatalogoServiciosPage = lazy(() => import('./pages/CatalogoServicios/CatalogoServiciosPage').then(m => ({ default: m.CatalogoServiciosPage })));
 const ServiciosPage = lazy(() => import('./pages/Servicios/ServiciosPage').then(m => ({ default: m.ServiciosPage })));
@@ -203,6 +204,7 @@ function App() {
 
                 {/* Admin Usuarios */}
                 <Route path="/admin/users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
+                <Route path="/admin/backups" element={<ProtectedRoute adminOnly><BackupsPage /></ProtectedRoute>} />
 
                 {/* Redirect raíz */}
                 <Route path="/403" element={<Error403Page />} />

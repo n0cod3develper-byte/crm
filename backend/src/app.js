@@ -36,6 +36,7 @@ import comprasRoutes from './modules/compras/compras.routes.js';
 import documentosRoutes from './modules/documentos/documentos.routes.js';
 import webhooksRoutes from './modules/webhooks/webhooks.routes.js';
 import adminRoutes from './modules/admin/admin.routes.js';
+import backupsRoutes from './modules/admin/backups.routes.js';
 import facturacionRoutes from './modules/facturacion/facturacion.routes.js';
 import catalogRoutes from './modules/inventory/catalog.routes.js';
 import ubicacionesRoutes from './modules/inventory/ubicaciones.routes.js';
@@ -49,6 +50,7 @@ import locativoRoutes from './modules/locativo/locativo.routes.js';
 import mantenimientosProgramadosRoutes from './modules/mantenimientos-programados/mantenimientosProgramados.routes.js';
 import { iniciarJobCierreAutomatico } from './jobs/turnosCierreAutomatico.job.js';
 import { inicializarFestivos } from './services/calendarioService.js';
+import { initBackupCronJob } from './services/backupService.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -105,6 +107,7 @@ app.get('/health', (_req, res) => {
 const API = '/api/v1';
 app.use(`${API}/webhooks`,      webhooksRoutes);
 app.use(`${API}/admin`,         adminRoutes);
+app.use(`/api/backups`,         backupsRoutes); // Ruta especificada en los requerimientos
 app.use(`${API}/me`,            adminRoutes); // Reutilizamos el router para /me
 app.use(`${API}/auth`,          authRoutes);
 app.use(`${API}/companies`,     companiesRoutes);
@@ -169,6 +172,9 @@ async function bootstrap() {
 
   // Iniciar job de cierre automático de turnos (23:59 America/Bogota)
   iniciarJobCierreAutomatico();
+
+  // Iniciar job de backups automático (02:00 AM)
+  initBackupCronJob();
 
   // Inicializar festivos colombianos para año actual y siguiente
   inicializarFestivos().catch((err) =>

@@ -87,7 +87,7 @@ export const companiesController = {
 
       // Mapear columnas del Excel a los campos del sistema
       const rows = rawData.map(row => ({
-        nombre: row.Nombre || row.nombre || null,
+        nombre: row['Nombre *'] || row.Nombre || row.nombre || null,
         nit: row.NIT || row.nit || null,
         telefono: row.Teléfono || row.Telefono || row.telefono || null,
         direccion: row.Dirección || row.Direccion || row.direccion || null,
@@ -98,6 +98,8 @@ export const companiesController = {
         modelo_captacion: row['Modelo de Captación'] || row['Modelo Captacion'] || row.modelo_captacion || null,
         regimen: row.Régimen || row.Regimen || row.regimen || null,
         responsable_captacion_id: row['Responsable Captación ID'] || row['Responsable Captacion ID'] || row.responsable_captacion_id || null,
+        correo_facturacion: row['Correo de Facturación'] || row['Correo Facturación'] || row['Correo Facturacion'] || row.correo_facturacion || null,
+        correo_rut: row['Correo RUT'] || row['Correo Rut'] || row.correo_rut || null,
         tags: row.Tags || row.tags || row.Etiquetas || null,
         notas: row.Notas || row.notas || row['Notas Internas'] || null,
       }));
