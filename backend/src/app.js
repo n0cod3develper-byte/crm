@@ -53,6 +53,7 @@ import { inicializarFestivos } from './services/calendarioService.js';
 import { initBackupCronJob } from './services/backupService.js';
 
 const app = express();
+app.set('trust proxy', 1); // Trust first proxy (Traefik)
 const httpServer = createServer(app);
 // ─── Seguridad ───────────────────────────────────────────────
 app.use(helmet({
