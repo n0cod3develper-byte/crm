@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -125,12 +125,18 @@ export function OTFormPage() {
     return data.data || [];
   }, []);
 
-  // ─── Carga de equipos ──────────────────────────────────
+  // --- Carga de equipos (solo OPERATIVOS de la empresa seleccionada) ---
 
   const { data: equiposData, isLoading: loadingEquipos } = useQuery({
-    queryKey: ['equipos-empresa', form.empresa_id],
+    queryKey: ['equipos-empresa-operativos', form.empresa_id, isEditing ? form.equipo_id : null],
     queryFn: async () => {
-      const { data } = await api.get(`/empresas/${form.empresa_id}/equipos`);
+      const params = { estado: 'OPERATIVO' };
+      // En edicion: incluir el equipo actual aunque no sea OPERATIVO
+      // para no romper OTs ya creadas con equipos en otro estado
+      if (isEditing && form.equipo_id) {
+        params.include_id = form.equipo_id;
+      }
+      const { data } = await api.get(`/equipos/by-company/${form.empresa_id}`, { params });
       return data.data || [];
     },
     enabled: !!form.empresa_id,
@@ -950,3 +956,4 @@ export function OTFormPage() {
     </div>
   );
 }
+

@@ -309,8 +309,15 @@ export class EquiposRepository {
   }
 
   async findByCompany(empresa_id, { estado, include_id } = {}) {
+    let targetEmpresaId = empresa_id;
+    if (typeof empresa_id === 'string' && (empresa_id.toLowerCase() === 'cargar' || empresa_id.toLowerCase() === 'cargar s.a.s' || empresa_id.toLowerCase() === 'cargar s.a.s.')) {
+      const resEmp = await query(`SELECT id FROM companies WHERE name = 'CARGAR S.A.S' LIMIT 1`);
+      if (resEmp.rows.length > 0) {
+        targetEmpresaId = resEmp.rows[0].id;
+      }
+    }
     let sql = `SELECT * FROM equipos_completo WHERE empresa_id = $1 AND deleted_at IS NULL`;
-    const params = [empresa_id];
+    const params = [targetEmpresaId];
     let i = 2;
     if (estado) {
       if (include_id) {

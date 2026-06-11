@@ -164,18 +164,21 @@ export function RemisionFormPage() {
     }
   }, [existingData, isEditing]);
 
-  // ─── Al cambiar empresa: cargar equipos y forma de pago ──────
+  // ─── Cargar equipos de CARGAR S.A.S. (solo OPERATIVOS) ──────
   React.useEffect(() => {
-    if (!form.company_id) { setEquiposFiltrados([]); return; }
-
     const params = { estado: 'OPERATIVO' };
     if (isEditing && form.equipo_id) {
       params.include_id = form.equipo_id;
     }
 
-    api.get(`/equipos/by-company/${form.company_id}`, { params })
+    api.get('/equipos/by-company/cargar', { params })
       .then(res => setEquiposFiltrados(res.data?.data || res.data || []))
       .catch(() => setEquiposFiltrados([]));
+  }, [isEditing, form.equipo_id]);
+
+  // ─── Al cambiar empresa: cargar forma de pago ─────────────────
+  React.useEffect(() => {
+    if (!form.company_id) return;
 
     // Traer la forma de pago de la última remisión FIRMADO para esta empresa
     if (!isEditing || !existingData) {
@@ -187,7 +190,7 @@ export function RemisionFormPage() {
         })
         .catch(() => { });
     }
-  }, [form.company_id]);
+  }, [form.company_id, isEditing, existingData]);
 
   // Auto‑rellenar la dirección del cliente con la dirección principal de la empresa si no hay una seteada
   React.useEffect(() => {
@@ -582,9 +585,9 @@ export function RemisionFormPage() {
               {isReadOnly ? (
                 <input {...inputProps('equipo_id')} value={`${existingData?.equipo_marca} ${existingData?.equipo_modelo} — ${existingData?.equipo_serial}`} />
               ) : (
-                <select name="equipo_id" className="input" style={{ width: '100%' }} value={form.equipo_id} onChange={handleChange} required disabled={!form.company_id}>
-                  <option value="">{form.company_id ? 'Seleccionar equipo...' : 'Primero selecciona la empresa'}</option>
-                  {equiposFiltrados.map(e => <option key={e.id} value={e.id}>{e.marca} {e.modelo} — {e.serial}</option>)}
+                <select name="equipo_id" className="input" style={{ width: '100%' }} value={form.equipo_id} onChange={handleChange} required>
+                  <option value="">Seleccionar equipo...</option>
+                  {equiposFiltrados.map(e => <option key={e.id} value={e.id}>{e.marca} - {e.serie || '—'}</option>)}
                 </select>
               )}
             </div>

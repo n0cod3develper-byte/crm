@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import api from '../../lib/api';
+import { SearchableSelect } from '../ui/SearchableSelect';
 
 const STATUSES = [
   { value: 'open',        label: 'Abierto' },
@@ -31,15 +32,22 @@ export function TicketForm({ ticket, onSuccess, onCancel }) {
     assigned_to: ticket?.assigned_to || '',
   });
 
-  // Cargar empresas para el select
-  const { data: companiesData } = useQuery({
-    queryKey: ['companies-select'],
-    queryFn: async () => {
-      const { data } = await api.get('/companies', { params: { limit: 200 } });
-      return data;
-    },
-    staleTime: 60_000,
-  });
+  const [selectedCompany, setSelectedCompany] = React.useState(null);
+
+  React.useEffect(() => {
+    if (ticket?.company_id) {
+      api.get(`/companies/${ticket.company_id}`)
+        .then(r => setSelectedCompany(r.data.data))
+        .catch(() => {});
+    }
+  }, [ticket]);
+
+  const searchCompanies = React.useCallback(async (searchTerm) => {
+    const { data } = await api.get('/companies', {
+      params: { search: searchTerm || undefined, limit: 20 }
+    });
+    return data.data || [];
+  }, []);
 
   // Cargar empleados para asignar
   const { data: employeesData } = useQuery({
@@ -55,7 +63,6 @@ export function TicketForm({ ticket, onSuccess, onCancel }) {
     staleTime: 60_000,
   });
 
-  const companies = companiesData?.data || [];
   const employees = employeesData?.data || [];
 
   const mutation = useMutation({
@@ -138,10 +145,15 @@ export function TicketForm({ ticket, onSuccess, onCancel }) {
       {/* Empresa */}
       <div>
         <label style={labelStyle}>Empresa</label>
-        <select id="ticket-company" className="input" style={inputStyle} value={form.company_id} onChange={set('company_id')}>
-          <option value="">— Sin empresa —</option>
-          {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <SearchableSelect
+          fetchFn={searchCompanies}
+          value={form.company_id}
+          onChange={(val) => setForm(f => ({ ...f, company_id: val }))}
+          initialItem={selectedCompany}
+          placeholder="Buscar empresa por nombre o NIT..."
+          name="company_id"
+          noOptionsMessage="No se encontraron empresas"
+        />
       </div>
 
       {/* Asignado a */}

@@ -244,7 +244,8 @@ export function EquiposPage() {
                     <th style={{ width: 80 }}>Foto</th>
                     <th>Empresa</th>
                     <th>Marca / Modelo</th>
-                    <th>Serial / Serie</th>
+                    <th>Serial</th>
+                    <th>Código</th>
                     <th>Horómetro</th>
                     <th>Combustible / Propulsión</th>
                     <th>Ubicación</th>
@@ -306,14 +307,10 @@ export function EquiposPage() {
                           </div>
                         </td>
                         <td>
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <code>{eq.serial}</code>
-                            {eq.serie && (
-                              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                                Serie: {eq.serie}
-                              </span>
-                            )}
-                          </div>
+                          <code>{eq.serial}</code>
+                        </td>
+                        <td>
+                          {eq.serie ? <code>{eq.serie}</code> : '—'}
                         </td>
                         <td>
                           <div style={{ display: 'flex', flexDirection: 'column' }}>

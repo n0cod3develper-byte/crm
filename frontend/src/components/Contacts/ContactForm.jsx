@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { toast } from 'react-hot-toast';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
+import { SearchableSelect } from '../ui/SearchableSelect';
 
 const contactSchema = z.object({
   first_name: z.string().min(2, 'El nombre es obligatorio (mín 2 caracteres)'),
@@ -22,20 +23,31 @@ export function ContactForm({ contact, defaultCompanyId, fixedCompany = false, o
   const queryClient = useQueryClient();
   const isEditing = !!contact;
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
+  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(contactSchema),
     defaultValues: contact
       ? { ...contact, company_id: contact.company_id?.toString() }
       : { is_primary: false, company_id: defaultCompanyId?.toString() || '' },
   });
 
-  const { data: companiesData } = useQuery({
-    queryKey: ['companies-select'],
-    queryFn: async () => {
-      const { data } = await api.get('/companies', { params: { limit: 100 } });
-      return data.data;
-    },
-  });
+  const companyId = watch('company_id');
+  const [selectedCompany, setSelectedCompany] = React.useState(null);
+
+  React.useEffect(() => {
+    const targetId = contact?.company_id || defaultCompanyId;
+    if (targetId) {
+      api.get(`/companies/${targetId}`)
+        .then(r => setSelectedCompany(r.data.data))
+        .catch(() => {});
+    }
+  }, [contact, defaultCompanyId]);
+
+  const searchCompanies = React.useCallback(async (searchTerm) => {
+    const { data } = await api.get('/companies', {
+      params: { search: searchTerm || undefined, limit: 20 }
+    });
+    return data.data || [];
+  }, []);
 
   const mutation = useMutation({
     mutationFn: async (values) => {
@@ -102,12 +114,24 @@ export function ContactForm({ contact, defaultCompanyId, fixedCompany = false, o
 
       <div className="input-group">
         <label className="input-label">Empresa</label>
-        <select {...register('company_id')} className="input" disabled={fixedCompany} style={fixedCompany ? { backgroundColor: 'var(--bg-secondary)', color: 'var(--text-muted)' } : {}}>
-          <option value="">— Sin empresa —</option>
-          {companiesData?.map(c => (
-            <option key={c.id} value={c.id.toString()}>{c.name}</option>
-          ))}
-        </select>
+        {fixedCompany ? (
+          <input
+            className="input"
+            value={selectedCompany?.name || 'Cargando empresa...'}
+            disabled
+            style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-muted)' }}
+          />
+        ) : (
+          <SearchableSelect
+            fetchFn={searchCompanies}
+            value={companyId}
+            onChange={(val) => setValue('company_id', val)}
+            initialItem={selectedCompany}
+            placeholder="Buscar empresa por nombre o NIT..."
+            name="company_id"
+            noOptionsMessage="No se encontraron empresas"
+          />
+        )}
       </div>
 
       <div className="input-group">
