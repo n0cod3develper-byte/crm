@@ -311,11 +311,20 @@ export class EquiposRepository {
   async findByCompany(empresa_id, { estado, include_id } = {}) {
     let targetEmpresaId = empresa_id;
     if (typeof empresa_id === 'string' && (empresa_id.toLowerCase() === 'cargar' || empresa_id.toLowerCase() === 'cargar s.a.s' || empresa_id.toLowerCase() === 'cargar s.a.s.')) {
-      const resEmp = await query(`SELECT id FROM companies WHERE name = 'CARGAR S.A.S' LIMIT 1`);
+      const resEmp = await query(`SELECT id FROM companies WHERE name ILIKE 'CARGAR%' LIMIT 1`);
       if (resEmp.rows.length > 0) {
         targetEmpresaId = resEmp.rows[0].id;
       }
     }
+
+    // Validar que targetEmpresaId sea un UUID válido antes de continuar.
+    // Esto previene que PostgreSQL lance un error de sintaxis de tipo UUID (500 Internal Server Error)
+    // en caso de que la empresa 'CARGAR' no exista en la base de datos de producción.
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(targetEmpresaId)) {
+      return [];
+    }
+
     let sql = `SELECT * FROM equipos_completo WHERE empresa_id = $1 AND deleted_at IS NULL`;
     const params = [targetEmpresaId];
     let i = 2;
