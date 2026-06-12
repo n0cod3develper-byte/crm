@@ -46,13 +46,17 @@ export const serviciosController = {
       const incomingKeys = Object.keys(req.body);
       const isLiquidacionPatch = incomingKeys.length > 0 && incomingKeys.every(k => liquidacionFields.has(k));
 
+      const isAdmin = req.user && req.user.role === 'admin';
+
       // Bloquear edición completa de remisiones ANULADAS o LIQUIDADAS
-      // (solo se permite el patch parcial de la liquidación)
-      if (item.estado === 'ANULADO') {
-        throw new ForbiddenError('No se puede editar una remisión ANULADA');
-      }
-      if (item.estado === 'LIQUIDADA' && !isLiquidacionPatch) {
-        throw new ForbiddenError('No se puede editar una remisión LIQUIDADA. Solo se permiten actualizaciones de liquidación.');
+      // (solo se permite el patch parcial de la liquidación) si no es administrador
+      if (!isAdmin) {
+        if (item.estado === 'ANULADO') {
+          throw new ForbiddenError('No se puede editar una remisión ANULADA');
+        }
+        if (item.estado === 'LIQUIDADA' && !isLiquidacionPatch) {
+          throw new ForbiddenError('No se puede editar una remisión LIQUIDADA. Solo se permiten actualizaciones de liquidación.');
+        }
       }
 
       const updated = await repo.update(req.params.id, req.body, req.user);

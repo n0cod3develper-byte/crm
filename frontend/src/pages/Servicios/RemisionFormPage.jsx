@@ -7,6 +7,7 @@ import { Topbar } from '../../components/layout/Topbar';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { Modal } from '../../components/common/Modal';
 import { ContactForm } from '../../components/Contacts/ContactForm';
+import { usePermissions } from '../../contexts/PermissionsContext';
 import api from '../../lib/api';
 
 const label = { fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.375rem' };
@@ -70,7 +71,9 @@ export function RemisionFormPage() {
   const [isAddressModalOpen, setIsAddressModalOpen] = React.useState(false);
   const [newAddressForm, setNewAddressForm] = React.useState({ address: '', notes: '' });
 
-  const isReadOnly = isEditing && READ_ONLY_ESTADOS.includes(currentEstado);
+  const { esAdmin } = usePermissions();
+
+  const isReadOnly = isEditing && READ_ONLY_ESTADOS.includes(currentEstado) && !esAdmin();
 
   // ─── Datos maestros ─────────────────────────────────────────
   const searchCompanies = React.useCallback(async (searchTerm) => {
@@ -454,11 +457,11 @@ export function RemisionFormPage() {
       const svc = catalogoItems.find(s => String(s.id) === String(it.catalogo_servicio_id));
       if (!svc) return false;
       const nombre = (svc.nombre || '').toUpperCase();
-      return nombre.includes('MONTACARGA') ||
-        nombre.includes('ELEVADOR') ||
-        nombre.includes('CAMIONETA') ||
-        nombre.includes('VEHICULO')
-
+      return nombre.includes('MONTACARGA') || 
+             nombre.includes('ELEVADOR') || 
+             nombre.includes('CAMIONETA') || 
+             nombre.includes('VEHICULO') ||
+             nombre.includes('VEHÍCULO');
     });
   }, [form.items, catalogoItems]);
 
@@ -786,7 +789,7 @@ export function RemisionFormPage() {
                   }
                   return acc;
                 }, 0);
-              })()}
+                })()}
             </div>
             <div style={{ gridColumn: '1 / 3' }}>
               <label style={label}>Equipo {requiresEquipo ? '*' : '(Opcional)'}</label>

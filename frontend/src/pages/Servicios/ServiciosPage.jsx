@@ -4,6 +4,7 @@ import { Plus, Search, ClipboardList, FileText, Trash2, Eye, Edit, Calendar, Bui
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Topbar } from '../../components/layout/Topbar';
+import { usePermissions } from '../../contexts/PermissionsContext';
 import api from '../../lib/api';
 
 const ESTADOS = ['all', 'BORRADOR', 'PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'ANULADO'];
@@ -24,6 +25,7 @@ export function ServiciosPage() {
   const qc = useQueryClient();
   const [search, setSearch] = React.useState('');
   const [filterEstado, setFilterEstado] = React.useState('all');
+  const { esAdmin } = usePermissions();
 
   const { data, isLoading } = useQuery({
     queryKey: ['servicios', search, filterEstado],
@@ -214,7 +216,7 @@ export function ServiciosPage() {
                           >
                             <Eye size={14} />
                           </button>
-                          {(item.estado === 'BORRADOR' || item.estado === 'PENDIENTE' || item.estado === 'REALIZADA') && (
+                          {(esAdmin() || item.estado === 'BORRADOR' || item.estado === 'PENDIENTE' || item.estado === 'REALIZADA') && (
                             <button
                               className="btn btn--ghost btn--sm"
                               title="Editar"
