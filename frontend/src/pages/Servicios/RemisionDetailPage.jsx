@@ -5,6 +5,7 @@ import { ArrowLeft, FileText, Plus, Trash2, UserCheck, Edit, DollarSign } from '
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
+import { usePermissions } from '../../contexts/PermissionsContext';
 import { LiquidacionHorasModal } from './LiquidacionHorasModal';
 
 const labelStyle = { fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 };
@@ -27,6 +28,7 @@ export function RemisionDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { esAdmin } = usePermissions();
   const [selectedOperario, setSelectedOperario] = React.useState('');
   const [showLiqModal, setShowLiqModal] = React.useState(false);
 
@@ -104,7 +106,7 @@ export function RemisionDetailPage() {
                 <DollarSign size={16} /> Horas Extras
               </button>
             )}
-            {(remision.estado === 'BORRADOR' || remision.estado === 'PENDIENTE' || remision.estado === 'REALIZADA') && (
+            {(esAdmin() || remision.estado === 'BORRADOR' || remision.estado === 'PENDIENTE' || remision.estado === 'REALIZADA') && (
               <button className="btn btn--ghost" onClick={() => navigate(`/servicios/${id}/editar`)}>
                 <Edit size={16} /> Editar
               </button>

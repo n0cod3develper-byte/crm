@@ -298,11 +298,28 @@ export function RemisionFormPage() {
 
     const totalHoras = parseFloat((horas1 + horas2).toFixed(2));
 
-    if (totalHoras > 0) {
-      setForm(prev => ({ ...prev, cantidad_horas: Math.max(1, totalHoras) }));
-    } else if (!form.cantidad_horas || form.cantidad_horas < 1) {
-      setForm(prev => ({ ...prev, cantidad_horas: 1 }));
-    }
+    const totalHorasCalc = totalHoras > 0 ? Math.max(1, totalHoras) : null;
+
+    setForm(prev => {
+      const updated = { ...prev };
+      
+      if (totalHorasCalc !== null) {
+        updated.cantidad_horas = totalHorasCalc;
+      } else if (!prev.cantidad_horas || prev.cantidad_horas < 1) {
+        updated.cantidad_horas = 1;
+      }
+
+      if (totalHorasCalc !== null && updated.items) {
+        updated.items = updated.items.map(it => {
+          if ((it.unidad || '').trim().toLowerCase() === 'hora') {
+            return { ...it, cantidad: totalHorasCalc };
+          }
+          return it;
+        });
+      }
+
+      return updated;
+    });
   }, [
     form.hora_salida_cargar, form.hora_llegada_cargar,
     form.horometro_salida, form.horometro_regreso,
@@ -681,6 +698,11 @@ export function RemisionFormPage() {
                               required
                             >
                               <option value="">Seleccionar...</option>
+                              {it.catalogo_servicio_id && !catalogoItems.some(s => String(s.id) === String(it.catalogo_servicio_id)) && (
+                                <option value={it.catalogo_servicio_id}>
+                                  {it.servicio_codigo ? `[${it.servicio_codigo}] ${it.servicio_nombre}` : `Servicio Inactivo (${it.catalogo_servicio_id})`}
+                                </option>
+                              )}
                               {catalogoItems.map(s => (
                                 <option key={s.id} value={s.id}>[{s.codigo}] {s.nombre}</option>
                               ))}
