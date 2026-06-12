@@ -454,11 +454,11 @@ export function RemisionFormPage() {
       const svc = catalogoItems.find(s => String(s.id) === String(it.catalogo_servicio_id));
       if (!svc) return false;
       const nombre = (svc.nombre || '').toUpperCase();
-      return nombre.includes('MONTACARGA') || 
-             nombre.includes('ELEVADOR') || 
-             nombre.includes('CAMIONETA') || 
-             nombre.includes('VEHICULO') ||
-             nombre.includes('VEHÍCULO');
+      return nombre.includes('MONTACARGA') ||
+        nombre.includes('ELEVADOR') ||
+        nombre.includes('CAMIONETA') ||
+        nombre.includes('VEHICULO')
+
     });
   }, [form.items, catalogoItems]);
 
@@ -786,7 +786,7 @@ export function RemisionFormPage() {
                   }
                   return acc;
                 }, 0);
-                })()}
+              })()}
             </div>
             <div style={{ gridColumn: '1 / 3' }}>
               <label style={label}>Equipo {requiresEquipo ? '*' : '(Opcional)'}</label>
