@@ -10,8 +10,8 @@ import { EstadoEquipoBadge } from '../../components/Equipos/EstadoEquipoBadge';
 import { ESTADOS_EQUIPO, TIPOS_EQUIPO, TIPOS_PROPULSION } from '../../constants/equipos';
 import api from '../../lib/api';
 
-const MOTORES = ['all', 'Mazda', 'Toyota', 'Hyster'];
-const COMBUSTIBLES = ['all', 'GLP', 'Gasolina', 'Eléctrico', 'Híbrido'];
+const MOTORES = ['all', 'Mazda', 'Toyota', 'Nissan', 'Isuzu', 'N/A', 'Hyster'];
+const COMBUSTIBLES = ['all', 'GLP', 'Gasolina', 'Eléctrico', 'Híbrido', 'Diesel', 'Gas', 'Dual'];
 
 export function EquiposPage() {
   const qc = useQueryClient();
@@ -81,6 +81,12 @@ export function EquiposPage() {
   const handleCreate = () => { setEditingEquipo(null); setIsModalOpen(true); };
   const handleEdit = (eq) => { setEditingEquipo(eq); setIsModalOpen(true); };
   const handleClose = () => { setIsModalOpen(false); setEditingEquipo(null); };
+
+  const getEquipoThumbUrl = (eq) => {
+    const path = eq.foto_thumb_url || `/api/v1/equipos/${eq.id}/foto?thumb=true`;
+    if (path.startsWith('http')) return path;
+    return path;
+  };
 
   return (
     <div className="app-layout">
@@ -273,7 +279,7 @@ export function EquiposPage() {
                             boxShadow: 'var(--shadow-sm)'
                           }}>
                             <img 
-                              src={eq.foto_thumb_url || `/api/v1/equipos/${eq.id}/foto?thumb=true`} 
+                              src={getEquipoThumbUrl(eq)} 
                               alt={`${eq.marca} ${eq.modelo}`}
                               style={{
                                 width: '100%',

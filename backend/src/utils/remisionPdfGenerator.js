@@ -51,29 +51,20 @@ function buildRemisionHtml(rem, horasLaborales = []) {
 
   const operarios = rem.operarios || [];
 
-  // Se usan los campos principales del servicio en la fila DIURNO, según solicitud
+  
   const horarioRows = [
-    { label: 'DIURNO',         horas: rem.cantidad_horas,        valor: rem.valor_hora },
-    { label: 'NOCTURNO',       horas: rem.horas_nocturnas,       valor: rem.valor_hora_nocturna },
-    { label: 'FESTIVO DIURNO', horas: rem.horas_fest_diurnas,    valor: rem.valor_hora_fest_dia },
-    { label: 'FESTIVO NOCTURNO', horas: rem.horas_fest_nocturnas, valor: rem.valor_hora_fest_noc },
-    { label: 'OTRO',           horas: rem.horas_otras,           valor: rem.valor_hora_otras },
+    { label: 'ORDINARIA', horas: rem.horas_ordinarias, valor: rem.valor_hora_ordinaria },
+    { label: 'CON RECARGO', horas: rem.horas_recargo, valor: rem.valor_hora_recargo },
   ];
 
-  // Recalcular el total parcial desglose usando la nueva fila diurno
   const totalParcialDesglose =
-    ((parseFloat(rem.cantidad_horas) || 0) * (parseFloat(rem.valor_hora) || 0)) +
-    ((parseFloat(rem.horas_nocturnas) || 0) * (parseFloat(rem.valor_hora_nocturna) || 0)) +
-    ((parseFloat(rem.horas_fest_diurnas) || 0) * (parseFloat(rem.valor_hora_fest_dia) || 0)) +
-    ((parseFloat(rem.horas_fest_nocturnas) || 0) * (parseFloat(rem.valor_hora_fest_noc) || 0)) +
-    ((parseFloat(rem.horas_otras) || 0) * (parseFloat(rem.valor_hora_otras) || 0));
+    ((parseFloat(rem.horas_ordinarias) || 0) * (parseFloat(rem.valor_hora_ordinaria) || 0)) +
+    ((parseFloat(rem.horas_recargo) || 0) * (parseFloat(rem.valor_hora_recargo) || 0));
 
   const totalHorasDesglose =
-    (parseFloat(rem.cantidad_horas) || 0) +
-    (parseFloat(rem.horas_nocturnas) || 0) +
-    (parseFloat(rem.horas_fest_diurnas) || 0) +
-    (parseFloat(rem.horas_fest_nocturnas) || 0) +
-    (parseFloat(rem.horas_otras) || 0);
+    (parseFloat(rem.horas_ordinarias) || 0) +
+    (parseFloat(rem.horas_recargo) || 0);
+
 
   const totalLiquidado = horasLaborales.reduce((sum, h) => sum + parseFloat(h.total_liquidado || 0), 0);
   // El nuevo TOTAL NETO es el neto de la remisión + lo liquidado a operarios
@@ -267,14 +258,31 @@ function buildRemisionHtml(rem, horasLaborales = []) {
     <thead>
       <tr>
         <th style="width:30px">ITEM</th>
-        <th style="text-align:left">CÓDIGO / DESCRIPCION</th>
+        <th style="text-align:left">CÓDIGO / DESCRIPCIÓN</th>
+        <th style="width:40px">CANT.</th>
+        <th style="width:70px">VR. UNIT.</th>
+        <th style="width:30px">IVA</th>
+        <th style="width:70px">SUBTOTAL</th>
       </tr>
     </thead>
     <tbody>
+      ${(rem.items && rem.items.length > 0) ? rem.items.map((item, i) => `
+      <tr>
+        <td class="td-center">${i + 1}</td>
+        <td>
+          <strong>${item.servicio_codigo || ''}</strong> - ${item.servicio_nombre || ''}
+          ${item.descripcion ? `<br><span style="color:#444;">${item.descripcion}</span>` : ''}
+        </td>
+        <td class="td-center">${item.cantidad || 1}</td>
+        <td class="td-center">${item.valor_unitario > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(item.valor_unitario) : ''}</td>
+        <td class="td-center">${item.aplica_iva ? 'SÍ' : ''}</td>
+        <td class="td-center">${(item.cantidad * item.valor_unitario) > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(Math.round(item.cantidad * item.valor_unitario)) : ''}</td>
+      </tr>
+      `).join('') : `
       <tr>
         <td class="td-center">1</td>
-        <td><strong>${rem.servicio_codigo || ''}</strong><br>${rem.servicio_nombre || ''}</td>
-      </tr>
+        <td colspan="5"><strong>${rem.servicio_codigo || ''}</strong><br>${rem.servicio_nombre || ''}</td>
+      </tr>`}
     </tbody>
   </table>
 

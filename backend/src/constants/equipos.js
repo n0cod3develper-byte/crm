@@ -26,6 +26,10 @@ export const ALTURAS_MAXIMAS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => ({
 }));
 
 export const TIPOS_PROPULSION = [
+  { valor: 'DIESEL',                  label: 'Diesel'                   },
+  { valor: 'GAS',                     label: 'Gas'                      },
+  { valor: 'DUAL',                    label: 'Dual'                     },
+  { valor: 'ELECTRICO',               label: 'Eléctrico'                },
   { valor: 'GLP',                     label: 'GLP'                      },
   { valor: 'GASOLINA',                label: 'Gasolina'                 },
   { valor: 'ELECTRICO_BATERIA_LITIO', label: 'Eléctrico / Batería Litio'},

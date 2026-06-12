@@ -7,7 +7,7 @@ import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { obtenerPermisosUsuario } from '../../middleware/auth.js';
 import { setAuthCookies, clearAuthCookies, getRefreshToken, parseMaxAge } from '../../utils/cookies.js';
-import { redis } from '../../config/redis.js';
+import { redis, isRedisAvailable } from '../../config/redis.js';
 
 /**
  * Login de usuario
@@ -168,19 +168,21 @@ async function refreshToken(req, res, next) {
 
     // ─── Refresh Token Rotation ─────────────────────────────────
     // Verificar que el refresh token no haya sido usado antes (replay detection)
-    const tokenJti = payload.jti || token;
-    const isReplayed = await redis.get(`refresh:used:${tokenJti}`);
-    if (isReplayed) {
-      // Posible robo de token — invalidar todos los refresh tokens del usuario
-      logger.warn('Posible robo de refresh token detectado', { userId: payload.sub });
-      await redis.del(`refresh:family:${payload.sub}`);
-      clearAuthCookies(res);
-      throw new AppError('Sesión expirada — inicie sesión nuevamente', 401);
-    }
+    if (isRedisAvailable()) {
+      const tokenJti = payload.jti || token;
+      const isReplayed = await redis.get(`refresh:used:${tokenJti}`);
+      if (isReplayed) {
+        // Posible robo de token — invalidar todos los refresh tokens del usuario
+        logger.warn('Posible robo de refresh token detectado', { userId: payload.sub });
+        await redis.del(`refresh:family:${payload.sub}`);
+        clearAuthCookies(res);
+        throw new AppError('Sesión expirada — inicie sesión nuevamente', 401);
+      }
 
-    // Marcar este token como usado (tiempo de vida igual al refresh token)
-    const ttlMs = parseMaxAge(env.JWT_REFRESH_EXPIRES_IN);
-    await redis.set(`refresh:used:${tokenJti}`, '1', 'PX', ttlMs);
+      // Marcar este token como usado (tiempo de vida igual al refresh token)
+      const ttlMs = parseMaxAge(env.JWT_REFRESH_EXPIRES_IN);
+      await redis.set(`refresh:used:${tokenJti}`, '1', 'PX', ttlMs);
+    }
 
     // Generar nuevo par con nuevo jti
     const tokens = generateTokenPair(payload.sub);

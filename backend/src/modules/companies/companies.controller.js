@@ -88,15 +88,15 @@ export const companiesController = {
       // Mapear columnas del Excel a los campos del sistema
       const rows = rawData.map(row => ({
         nombre: row['Nombre *'] || row.Nombre || row.nombre || null,
-        nit: row.NIT || row.nit || null,
+        nit: row['NIT *'] || row.NIT || row.nit || null,
         telefono: row.Teléfono || row.Telefono || row.telefono || null,
-        direccion: row.Dirección || row.Direccion || row.direccion || null,
+        direccion: row['Dirección *'] || row.Dirección || row.Direccion || row.direccion || null,
         ciudad: row.Ciudad || row.ciudad || null,
         pais: row.País || row.Pais || row.pais || null,
         website: row['Sitio Web'] || row['Website'] || row.website || null,
         industry: row.Industria || row.Sector || row.industry || null,
         modelo_captacion: row['Modelo de Captación'] || row['Modelo Captacion'] || row.modelo_captacion || null,
-        regimen: row.Régimen || row.Regimen || row.regimen || null,
+        regimen: row['Régimen *'] || row.Régimen || row.Regimen || row.regimen || null,
         responsable_captacion_id: row['Responsable Captación ID'] || row['Responsable Captacion ID'] || row.responsable_captacion_id || null,
         correo_facturacion: row['Correo de Facturación'] || row['Correo Facturación'] || row['Correo Facturacion'] || row.correo_facturacion || null,
         correo_rut: row['Correo RUT'] || row['Correo Rut'] || row.correo_rut || null,

@@ -8,9 +8,10 @@ export function FotoEquipo({ equipoId, currentFotoUrl, onUploadSuccess, onDelete
   const [timestamp, setTimestamp] = useState(Date.now());
 
   // Construir URL con timestamp para evitar cache
-  const imageUrl = currentFotoUrl 
-    ? `${currentFotoUrl}${currentFotoUrl.includes('?') ? '&' : '?'}t=${timestamp}`
-    : `/api/v1/equipos/${equipoId}/foto?t=${timestamp}`;
+  const getBaseUrl = () => api.defaults.baseURL.replace(/\/api\/v1$/, '');
+  const pathPart = currentFotoUrl || `/api/v1/equipos/${equipoId}/foto`;
+  const urlBase = pathPart.startsWith('http') ? pathPart : `${getBaseUrl()}${pathPart}`;
+  const imageUrl = `${urlBase}${urlBase.includes('?') ? '&' : '?'}t=${timestamp}`;
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];

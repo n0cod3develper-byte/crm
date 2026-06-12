@@ -12,16 +12,16 @@ import { CompanyForm } from '../../components/Companies/CompanyForm';
 
 const COLUMNAS_PLANTILLA = [
   'Nombre *',
-  'NIT',
+  'NIT *',
   'Sector',
   'Sitio Web',
   'Teléfono',
   'Ciudad',
-  'Dirección',
+  'Dirección *',
   'País',
   'Notas',
   'Modelo de Captación',
-  'Régimen',
+  'Régimen *',
   'Responsable Captación ID',
   'Correo de Facturación',
   'Correo RUT',
@@ -70,16 +70,16 @@ function descargarPlantilla() {
   const dataInstrucciones = [
     ['Campo', 'Descripción', '¿Obligatorio?', 'Tipo de Dato', 'Longitud Máx.', 'Ejemplo / Valores Permitidos'],
     ['Nombre *', 'Nombre o Razón Social de la empresa (se normaliza a MAYÚSCULAS automáticamente).', 'SÍ', 'Texto', '150', 'LOGÍSTICA DEL NORTE SAS'],
-    ['NIT', 'Número de Identificación Tributaria. Ingresar SIN puntos, guiones ni dígito de verificación.', 'NO', 'Texto', '50', '900123456'],
+    ['NIT *', 'Número de Identificación Tributaria. Ingresar SIN puntos, guiones ni dígito de verificación.', 'SÍ', 'Texto', '50', '900123456'],
     ['Sector', 'Sector económico o industria principal de la empresa.', 'NO', 'Texto (Código)', '50', 'Opciones válidas: logistics (Logística/Transporte), manufacturing (Manufactura), retail (Comercio), technology (Tecnología), other (Otro)'],
     ['Sitio Web', 'Dirección URL de la página web de la empresa.', 'NO', 'Texto (URL)', '200', 'https://logisticanorte.com'],
     ['Teléfono', 'Número telefónico principal de contacto.', 'NO', 'Texto', '50', '+57 601 2345678'],
     ['Ciudad', 'Ciudad de ubicación principal de la empresa.', 'NO', 'Texto', '100', 'Bogotá'],
-    ['Dirección', 'Dirección física de las instalaciones principales de la empresa.', 'NO', 'Texto', '255', 'Calle 50 #30-20, Oficina 301'],
+    ['Dirección *', 'Dirección física de las instalaciones principales de la empresa.', 'SÍ', 'Texto', '255', 'Calle 50 #30-20, Oficina 301'],
     ['País', 'País de ubicación de la empresa.', 'NO', 'Texto', '50', 'Colombia (por defecto si se deja vacío)'],
     ['Notas', 'Comentarios, observaciones o notas internas de la empresa.', 'NO', 'Texto', 'Sin Límite', 'Cliente con flota propia, requiere facturación los primeros 5 días.'],
     ['Modelo de Captación', 'Canal o medio mediante el cual se atrajo o contactó al cliente.', 'NO', 'Texto (Lista)', '100', 'Opciones válidas: Recomendación / Referido, Redes Sociales, Google / Buscador, Correo Electrónico, WhatsApp, Visita Asesor Comercial, Página Web / Sitio Oficial, Mail Marketing'],
-    ['Régimen', 'Régimen tributario de la empresa (RC o NI).', 'NO', 'Texto (Código)', '2', 'Opciones válidas: RC (Régimen Común) o NI (No Inscrito)'],
+    ['Régimen *', 'Régimen tributario de la empresa (RC o NI).', 'SÍ (RC por defecto)', 'Texto (Código)', '2', 'Opciones válidas: RC (Régimen Común) o NI (No Inscrito)'],
     ['Responsable Captación ID', 'Identificador UUID del empleado responsable de la captación (debe existir en el sistema).', 'NO', 'Texto (UUID)', '36', '7a12b345-67c8-90d1-e2f3-456789abcde0'],
     ['Correo de Facturación', 'Correo electrónico exclusivo para el envío de facturación y estados de cuenta.', 'NO', 'Texto (Email)', '150', 'facturacion@empresa.com'],
     ['Correo RUT', 'Correo electrónico exclusivo para gestión de documentos tributarios y actualizaciones del RUT.', 'NO', 'Texto (Email)', '150', 'rut@empresa.com'],
@@ -139,7 +139,7 @@ export function CompaniesPage() {
       setDeletingId(null);
     },
     onError: (err) => {
-      toast.error(err.response?.data?.error?.message || 'Error al eliminar empresa (¿Eres admin?)');
+      toast.error(err.response?.data?.message || err.response?.data?.error || 'Error al eliminar empresa (¿Eres admin?)');
       setDeletingId(null);
     }
   });
@@ -420,7 +420,7 @@ export function CompaniesPage() {
                       queryClient.invalidateQueries({ queryKey: ['companies'] });
                       toast.success(`Importación completada: ${data.data.importadas} empresas creadas`);
                     } catch (err) {
-                      const msg = err.response?.data?.error?.message || 'Error al procesar el archivo';
+                      const msg = err.response?.data?.message || err.response?.data?.error || 'Error al procesar el archivo';
                       toast.error(msg);
                     } finally {
                       setIsImporting(false);

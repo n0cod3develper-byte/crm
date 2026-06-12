@@ -86,14 +86,22 @@ export class CompaniesRepository {
   async create(data, userId) {
     const { name, nit, industry, website, phone, address, city, country, tags, notes, assigned_to, modelo_captacion, regimen, responsable_captacion_id, correo_facturacion, correo_rut } = data;
 
-    // Normalizar nombre a MAYÚSCULAS
-    const normalizedName = name ? name.trim().toUpperCase() : name;
+    if (!name || !name.trim()) {
+      throw new BadRequestError('El nombre de la empresa es obligatorio');
+    }
+    if (!nit || !nit.trim()) {
+      throw new BadRequestError('El NIT es obligatorio');
+    }
+    if (!address || !address.trim()) {
+      throw new BadRequestError('La dirección es obligatoria');
+    }
 
-    if (nit) {
-      const duplicado = await this.nitYaExiste(nit);
-      if (duplicado) {
-        throw new BadRequestError('Este NIT ya está registrado');
-      }
+    // Normalizar nombre a MAYÚSCULAS
+    const normalizedName = name.trim().toUpperCase();
+
+    const duplicado = await this.nitYaExiste(nit.trim());
+    if (duplicado) {
+      throw new BadRequestError('Este NIT ya está registrado');
     }
 
     return await withTransaction(async (client) => {
@@ -102,10 +110,10 @@ export class CompaniesRepository {
            (name, nit, industry, website, phone, address, city, country, tags, notes, assigned_to, modelo_captacion, regimen, responsable_captacion_id, correo_facturacion, correo_rut)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          RETURNING *`,
-        [normalizedName, nit || null, industry || 'logistics', website || null, phone || null,
-         address || null, city || null, country || 'Colombia',
+        [normalizedName, nit.trim(), industry || 'logistics', website || null, phone || null,
+         address.trim(), city || null, country || 'Colombia',
          tags || [], notes || null, assigned_to || userId,
-         modelo_captacion || null, regimen || null, responsable_captacion_id || null,
+         modelo_captacion || null, regimen || 'RC', responsable_captacion_id || null,
          correo_facturacion || null, correo_rut || null]
       );
       
@@ -131,11 +139,24 @@ export class CompaniesRepository {
     const values = [];
     let i = 1;
 
-    if ('nit' in data && data.nit) {
-      const duplicado = await this.nitYaExiste(data.nit, id);
+    if ('name' in data && (!data.name || !data.name.trim())) {
+      throw new BadRequestError('El nombre de la empresa no puede estar vacío');
+    }
+    if ('nit' in data) {
+      if (!data.nit || !data.nit.trim()) {
+        throw new BadRequestError('El NIT no puede estar vacío');
+      }
+      const duplicado = await this.nitYaExiste(data.nit.trim(), id);
       if (duplicado) {
         throw new BadRequestError('Este NIT ya está registrado');
       }
+      data.nit = data.nit.trim();
+    }
+    if ('address' in data && (!data.address || !data.address.trim())) {
+      throw new BadRequestError('La dirección no puede estar vacía');
+    }
+    if ('regimen' in data && (!data.regimen || !data.regimen.trim())) {
+      throw new BadRequestError('El régimen no puede estar vacío');
     }
 
     // Normalizar nombre a MAYÚSCULAS si viene en el payload
@@ -207,17 +228,24 @@ export class CompaniesRepository {
         }
 
         const nit = str(row.nit) || null;
-        if (nit) {
+        if (!nit) {
+          rowErrors.push('El campo "NIT" es obligatorio');
+        } else {
           if (nit.length > 50) rowErrors.push('NIT muy largo (máx 50 caracteres)');
           const duplicado = await this.nitYaExiste(nit);
           if (duplicado) rowErrors.push('NIT ya existe en el sistema');
+        }
+
+        const address = str(row.direccion) || null;
+        if (!address) {
+          rowErrors.push('El campo "Dirección" es obligatorio');
         }
 
         const modeloCaptacion = str(row.modelo_captacion);
         if (modeloCaptacion && modeloCaptacion.length > 100) {
           rowErrors.push('Modelo de captación muy largo (máx 100 caracteres)');
         }
-        const regimen = str(row.regimen).toUpperCase();
+        const regimen = str(row.regimen).toUpperCase() || 'RC';
         if (regimen && !['RC', 'NI'].includes(regimen)) {
           rowErrors.push('Régimen inválido (debe ser RC o NI)');
         }

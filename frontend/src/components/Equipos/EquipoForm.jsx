@@ -80,6 +80,7 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel }) {
     motivo_estado: equipo?.motivo_estado || '',
     soat_vigente: equipo?.soat_vigente ?? false,
     soat_vencimiento: equipo?.soat_vencimiento || '',
+    bonificacion_hora: equipo?.bonificacion_hora || 0,
   });
 
   // Cargar lista de empresas para el selector
@@ -542,7 +543,26 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel }) {
                 [<option key="" value="">Selecciona altura...</option>,
                   ...ALTURAS_MAXIMAS.map(a => <option key={a.valor} value={a.valor}>{a.label}</option>)]
               )}
-              {renderInput('motor', 'Motor Fabricante')}
+              <div key="motor" style={halfField} className="equipo-field">
+                <label style={label}>Motor Fabricante</label>
+                <input
+                  name="motor"
+                  className="input"
+                  style={inputPremium}
+                  placeholder="Ej: Mazda"
+                  value={form.motor ?? ''}
+                  onChange={handleChange}
+                  list="motores-list"
+                />
+                <datalist id="motores-list">
+                  <option value="Mazda" />
+                  <option value="Toyota" />
+                  <option value="Nissan" />
+                  <option value="Isuzu" />
+                  <option value="N/A" />
+                  <option value="Hyster" />
+                </datalist>
+              </div>
               {renderInput('color', 'Color del Chasis', { inputPlaceholder: 'Ej: Amarillo' })}
             </div>
           </div>
@@ -608,6 +628,24 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel }) {
                   onChange={handleChange}
                   placeholder="0"
                 />
+              </div>
+
+              <div style={fullField}>
+                <label style={label}>Bonificación por Hora ($)</label>
+                <input
+                  type="number"
+                  name="bonificacion_hora"
+                  className="input"
+                  style={inputPremium}
+                  step="0.01"
+                  min="0"
+                  value={form.bonificacion_hora}
+                  onChange={handleChange}
+                  placeholder="0.00"
+                />
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+                  Valor monetario de bonificación por cada hora de operación del equipo.
+                </span>
               </div>
             </div>
           </div>

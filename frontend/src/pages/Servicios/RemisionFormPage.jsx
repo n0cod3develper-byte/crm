@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Save, Lock, Plus } from 'lucide-react';
+import { ArrowLeft, Save, Lock, Plus, Minus } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
@@ -32,6 +32,8 @@ const EMPTY = {
   total_bruto: 0, iva_pct: 0, aplica_iva: false, iva_valor: 0, descuentos: 0, total_neto: 0,
   observaciones: '',
   estado: 'BORRADOR',
+  bonificacion_hora: 0,
+  items: [],
 };
 
 /**
@@ -63,7 +65,7 @@ export function RemisionFormPage() {
   const [horasManual, setHorasManual] = React.useState(false);
   const [currentEstado, setCurrentEstado] = React.useState(null);
   const [estadoManual, setEstadoManual] = React.useState(false);
-  
+
   const [isContactModalOpen, setIsContactModalOpen] = React.useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = React.useState(false);
   const [newAddressForm, setNewAddressForm] = React.useState({ address: '', notes: '' });
@@ -221,7 +223,8 @@ export function RemisionFormPage() {
     if (estadoManual || isReadOnly) return;
 
     // Obligatorios mínimos
-    const hasObligatorios = form.company_id && form.catalogo_servicio_id && form.equipo_id && form.fecha_servicio;
+    const hasService = form.catalogo_servicio_id || (form.items && form.items.length > 0 && form.items[0].catalogo_servicio_id);
+    const hasObligatorios = form.company_id && hasService && form.equipo_id && form.fecha_servicio;
     if (!hasObligatorios) return;
 
     const hasSalida = !!(form.hora_salida_cargar);
@@ -305,19 +308,44 @@ export function RemisionFormPage() {
     form.operario_2_id, horasManual
   ]);
 
-  // ─── Auto-calcular totales ───────────────────────────────────
+  // ─── Auto-calcular totales (IVA por ítem) ──────────────────────
   React.useEffect(() => {
-    const bruto = parseFloat(form.cantidad_horas || 0) * parseFloat(form.valor_hora || 0);
-    const iva = form.aplica_iva ? Math.round(bruto * 0.19) : 0;
-    const neto = bruto + iva - parseFloat(form.descuentos || 0) + totalLiquidacion;
+    let sumSubtotales = 0;
+    let sumIva = 0;
+    let sumDescuentos = 0;
+    let sumCantHoras = 0;
+    let sumValorHoras = 0;
+
+    (form.items || []).forEach(it => {
+      const brutoItem = Math.round((parseFloat(it.cantidad) || 0) * (parseFloat(it.valor_unitario) || 0));
+      const descItem = Math.round(brutoItem * (parseFloat(it.descuento_pct) || 0) / 100);
+      const subNetoItem = brutoItem - descItem;
+
+      sumSubtotales += brutoItem;
+      sumDescuentos += descItem;
+
+      if (it.aplica_iva) {
+        sumIva += Math.round(subNetoItem * 0.19);
+      }
+
+      if ((it.unidad || '').trim().toLowerCase() === 'hora') {
+        sumCantHoras += parseFloat(it.cantidad) || 0;
+        sumValorHoras += brutoItem; // Cantidad * Valor Unitario
+      }
+    });
+
+    const netoFinal = sumSubtotales - sumDescuentos + sumIva;
+
     setForm(prev => ({
       ...prev,
-      total_bruto: Math.round(bruto),
-      iva_pct: form.aplica_iva ? 19 : 0,
-      iva_valor: iva,
-      total_neto: Math.round(neto),
+      cantidad_horas: sumCantHoras,
+      valor_hora: sumValorHoras,
+      descuentos: sumDescuentos,
+      total_bruto: Math.round(sumSubtotales),
+      iva_valor: Math.round(sumIva),
+      total_neto: Math.round(netoFinal),
     }));
-  }, [form.cantidad_horas, form.valor_hora, form.aplica_iva, form.descuentos, totalLiquidacion]);
+  }, [form.items]);
 
   // ─── Mutation ────────────────────────────────────────────────
   const mutation = useMutation({
@@ -349,7 +377,7 @@ export function RemisionFormPage() {
     // Al cambiar campos de hora de inicio/fin, resetear el flag manual
     // para que el auto-cálculo de estado pueda actuar (BORRADOR → PENDIENTE → REALIZADA)
     if (['hora_salida_cargar', 'hora_llegada_cargar', 'horometro_salida', 'horometro_regreso',
-         'segundo_hora_salida_cargar', 'segundo_hora_llegada_cargar', 'segundo_horometro_salida', 'segundo_horometro_regreso'].includes(name)) {
+      'segundo_hora_salida_cargar', 'segundo_hora_llegada_cargar', 'segundo_horometro_salida', 'segundo_horometro_regreso'].includes(name)) {
       setHorasManual(false);
     }
     // Al cambiar CUALQUIER campo de tiempo (los 4 de tiempos del servicio),
@@ -396,9 +424,47 @@ export function RemisionFormPage() {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
+  // --- Item management helpers ---
+  const addItem = () => {
+    setForm(prev => ({
+      ...prev,
+      items: [...(prev.items || []), { catalogo_servicio_id: '', descripcion: '', unidad: '', cantidad: 1, valor_unitario: 0, descuento_pct: 0, aplica_iva: false }]
+    }));
+  };
+
+  const removeItem = (idx) => {
+    setForm(prev => ({
+      ...prev,
+      items: (prev.items || []).filter((_, i) => i !== idx)
+    }));
+  };
+
+  const updateItem = (idx, field, value) => {
+    setForm(prev => {
+      const newItems = [...(prev.items || [])];
+      newItems[idx] = { ...newItems[idx], [field]: value };
+      return { ...prev, items: newItems };
+    });
+  };
+
+  const requiresEquipo = React.useMemo(() => {
+    if (!form.items || form.items.length === 0) return true;
+    return form.items.some(it => {
+      if (!it.catalogo_servicio_id) return false;
+      const svc = catalogoItems.find(s => String(s.id) === String(it.catalogo_servicio_id));
+      if (!svc) return false;
+      const nombre = (svc.nombre || '').toUpperCase();
+      return nombre.includes('MONTACARGA') || 
+             nombre.includes('ELEVADOR') || 
+             nombre.includes('CAMIONETA') || 
+             nombre.includes('VEHICULO') ||
+             nombre.includes('VEHÍCULO');
+    });
+  }, [form.items, catalogoItems]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.company_id || !form.catalogo_servicio_id || !form.equipo_id || !form.fecha_servicio || (!isEditing && !form.operario_id)) {
+    if (!form.company_id || (!form.catalogo_servicio_id && (!form.items || form.items.length === 0)) || (requiresEquipo && !form.equipo_id) || !form.fecha_servicio) {
       toast.error('Faltan campos obligatorios');
       return;
     }
@@ -461,11 +527,11 @@ export function RemisionFormPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ maxWidth: 960 }}>
+        <form onSubmit={handleSubmit} style={{ maxWidth: 1400 }}>
 
           {/* — Información General — */}
           <p style={section}>Información General</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>
             <div>
               <label style={label}>Fecha del Servicio *</label>
               <input type="date" {...inputProps('fecha_servicio')} required />
@@ -537,7 +603,7 @@ export function RemisionFormPage() {
                 </select>
               )}
             </div>
-            <div style={{ gridColumn: '2 / -1' }}>
+            <div style={{ gridColumn: '1 / span 3' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
                 <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)' }}>Dirección de Servicio</label>
                 {!isReadOnly && form.company_id && (
@@ -570,22 +636,164 @@ export function RemisionFormPage() {
           <p style={section}>Servicio y Equipo</p>
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem' }}>
             <div style={{ gridColumn: '1 / -1' }}>
-              <label style={label}>Tipo de Servicio (Catálogo) *</label>
-              {isReadOnly ? (
-                <input {...inputProps('catalogo_servicio_id')} value={`[${existingData?.servicio_codigo}] ${existingData?.servicio_nombre}`} />
-              ) : (
-                <select name="catalogo_servicio_id" className="input" style={{ width: '100%' }} value={form.catalogo_servicio_id} onChange={handleChange} required>
-                  <option value="">Seleccionar servicio del catálogo...</option>
-                  {catalogoItems.map(s => <option key={s.id} value={s.id}>[{s.codigo}] {s.nombre}</option>)}
-                </select>
-              )}
+              {/* — Ítems de Servicio — */}
+              <div style={{ overflowX: 'auto', marginBottom: '0.75rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border-color)' }}>
+                      <th style={{ ...label, display: 'table-cell', marginBottom: 0, padding: '0.5rem 0.75rem', textAlign: 'left', width: '22%' }}>Servicio *</th>
+                      <th style={{ ...label, display: 'table-cell', marginBottom: 0, padding: '0.5rem 0.75rem', textAlign: 'left', width: '25%' }}>Descripción</th>
+                      <th style={{ ...label, display: 'table-cell', marginBottom: 0, padding: '0.5rem 0.75rem', textAlign: 'center', width: '8%' }}>Unidad</th>
+                      <th style={{ ...label, display: 'table-cell', marginBottom: 0, padding: '0.5rem 0.75rem', textAlign: 'center', width: '6%' }}>Cant.</th>
+                      <th style={{ ...label, display: 'table-cell', marginBottom: 0, padding: '0.5rem 0.75rem', textAlign: 'right', width: '11%' }}>Valor Unit.</th>
+                      <th style={{ ...label, display: 'table-cell', marginBottom: 0, padding: '0.5rem 0.75rem', textAlign: 'center', width: '6%' }}>Desc.(%)</th>
+                      <th style={{ ...label, display: 'table-cell', marginBottom: 0, padding: '0.5rem 0.75rem', textAlign: 'center', width: '5%' }}>+IVA</th>
+                      <th style={{ ...label, display: 'table-cell', marginBottom: 0, padding: '0.5rem 0.75rem', textAlign: 'right', width: '13%' }}>Subtotal</th>
+                      <th style={{ width: '4%' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(form.items || []).map((it, idx) => {
+                      const brutoItem = Math.round((parseFloat(it.cantidad) || 0) * (parseFloat(it.valor_unitario) || 0));
+                      const descItem = Math.round(brutoItem * (parseFloat(it.descuento_pct) || 0) / 100);
+                      const sub = brutoItem - descItem;
+                      return (
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.4rem 0.5rem' }}>
+                            <select
+                              className="input"
+                              style={{ width: '100%', fontSize: '12px' }}
+                              value={it.catalogo_servicio_id}
+                              onChange={e => {
+                                const sid = e.target.value;
+                                const svc = catalogoItems.find(s => String(s.id) === String(sid));
+                                updateItem(idx, 'catalogo_servicio_id', sid);
+                                if (svc) {
+                                  updateItem(idx, 'valor_unitario', parseFloat(svc.precio_venta || svc.precio_servicio || svc.precio_base || 0));
+                                  updateItem(idx, 'unidad', svc.unidad_cobro || svc.unidad || 'hora');
+                                  // No auto-rellenar descripcion — el usuario la escribe libremente
+                                }
+                              }}
+                              disabled={isReadOnly}
+                              required
+                            >
+                              <option value="">Seleccionar...</option>
+                              {catalogoItems.map(s => (
+                                <option key={s.id} value={s.id}>[{s.codigo}] {s.nombre}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td style={{ padding: '0.4rem 0.5rem' }}>
+                            <input
+                              type="text"
+                              className="input"
+                              style={{ width: '100%', fontSize: '12px' }}
+                              value={it.descripcion}
+                              onChange={e => updateItem(idx, 'descripcion', e.target.value)}
+                              placeholder="Descripción del servicio..."
+                              disabled={isReadOnly}
+                            />
+                          </td>
+                          <td style={{ padding: '0.4rem 0.5rem' }}>
+                            <input
+                              type="text"
+                              className="input"
+                              style={{ width: '100%', textAlign: 'center', fontSize: '12px', MozAppearance: 'textfield', appearance: 'textfield' }}
+                              value={it.unidad ?? ''}
+                              onChange={e => updateItem(idx, 'unidad', e.target.value)}
+                              placeholder="hora"
+                              disabled={isReadOnly}
+                            />
+                          </td>
+                          <td style={{ padding: '0.4rem 0.5rem' }}>
+                            <input
+                              type="text"
+                              className="input"
+                              style={{ width: '100%', textAlign: 'center', fontSize: '12px', MozAppearance: 'textfield', appearance: 'textfield' }}
+                              value={it.cantidad}
+                              onChange={e => updateItem(idx, 'cantidad', e.target.value)}
+                              disabled={isReadOnly}
+                            />
+                          </td>
+                          <td style={{ padding: '0.4rem 0.5rem' }}>
+                            <input
+                              type="text"
+                              className="input"
+                              style={{ width: '100%', textAlign: 'right', fontSize: '12px', MozAppearance: 'textfield', appearance: 'textfield' }}
+                              value={it.valor_unitario}
+                              onChange={e => updateItem(idx, 'valor_unitario', e.target.value)}
+                              disabled={isReadOnly}
+                            />
+                          </td>
+                          <td style={{ padding: '0.4rem 0.5rem' }}>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              className="input"
+                              style={{ width: '100%', textAlign: 'center', fontSize: '12px' }}
+                              value={it.descuento_pct ?? 0}
+                              onChange={e => updateItem(idx, 'descuento_pct', e.target.value)}
+                              disabled={isReadOnly}
+                            />
+                          </td>
+                          <td style={{ padding: '0.4rem 0.5rem', textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={it.aplica_iva}
+                              onChange={e => updateItem(idx, 'aplica_iva', e.target.checked)}
+                              disabled={isReadOnly}
+                              style={{ width: 16, height: 16 }}
+                            />
+                          </td>
+                          <td style={{ padding: '0.4rem 0.5rem', textAlign: 'right', fontWeight: 600, fontSize: '13px' }}>
+                            {formatCOP(sub)}
+                          </td>
+                          <td style={{ padding: '0.4rem 0.5rem', textAlign: 'center' }}>
+                            {!isReadOnly && (
+                              <button
+                                type="button"
+                                className="btn btn--ghost"
+                                style={{ padding: '0.3rem', color: 'var(--clr-danger-500)' }}
+                                onClick={() => removeItem(idx)}
+                                title="Eliminar"
+                              >
+                                <Minus size={14} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    style={{ marginTop: '0.5rem', fontSize: '12px' }}
+                    onClick={addItem}
+                  >
+                    <Plus size={14} /> Agregar Ítem de Servicio
+                  </button>
+                )}
+              </div>
+              {(() => {
+                const totalHorasItems = (form.items || []).reduce((acc, it) => {
+                  if ((it.unidad || '').trim().toLowerCase() === 'hora') {
+                    return acc + (parseFloat(it.cantidad) || 0);
+                  }
+                  return acc;
+                }, 0);
+                })()}
             </div>
             <div style={{ gridColumn: '1 / 3' }}>
-              <label style={label}>Equipo *</label>
+              <label style={label}>Equipo {requiresEquipo ? '*' : '(Opcional)'}</label>
               {isReadOnly ? (
-                <input {...inputProps('equipo_id')} value={`${existingData?.equipo_marca} ${existingData?.equipo_modelo} — ${existingData?.equipo_serial}`} />
+                <input {...inputProps('equipo_id')} value={`${existingData?.equipo_marca || ''} ${existingData?.equipo_modelo || ''} — ${existingData?.equipo_serial || ''}`} />
               ) : (
-                <select name="equipo_id" className="input" style={{ width: '100%' }} value={form.equipo_id} onChange={handleChange} required>
+                <select name="equipo_id" className="input" style={{ width: '100%' }} value={form.equipo_id} onChange={handleChange} required={requiresEquipo}>
                   <option value="">Seleccionar equipo...</option>
                   {equiposFiltrados.map(e => <option key={e.id} value={e.id}>{e.marca} - {e.serie || '—'}</option>)}
                 </select>
@@ -595,14 +803,36 @@ export function RemisionFormPage() {
               <label style={label}>No. Máquina</label>
               <input placeholder="Ej: 73" {...inputProps('numero_maquina')} />
             </div>
+            <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div>
+                <label style={label}>Horómetro Salida</label>
+                <input
+                  type="number" step="0.01" name="horometro_salida" className="input" style={{ width: '100%' }}
+                  value={form.horometro_salida}
+                  onChange={isReadOnly ? undefined : handleHorometroChange}
+                  readOnly={isReadOnly}
+                  placeholder="Ej: 1250.5"
+                />
+              </div>
+              <div>
+                <label style={label}>Horómetro Regreso</label>
+                <input
+                  type="number" step="0.01" name="horometro_regreso" className="input" style={{ width: '100%' }}
+                  value={form.horometro_regreso}
+                  onChange={isReadOnly ? undefined : handleHorometroChange}
+                  readOnly={isReadOnly}
+                  placeholder="Ej: 1252.42"
+                />
+              </div>
+            </div>
 
             <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
-                <label style={label}>Operario Inicial *</label>
+                <label style={label}>Operario Inicial</label>
                 {isReadOnly ? (
                   <input className="input" style={{ width: '100%' }} disabled value={existingData?.operarios?.[0]?.full_name || '—'} />
                 ) : (
-                  <select name="operario_id" className="input" style={{ width: '100%' }} value={form.operario_id} onChange={handleChange} required>
+                  <select name="operario_id" className="input" style={{ width: '100%' }} value={form.operario_id} onChange={handleChange}>
                     <option value="">Seleccionar operario...</option>
                     {operariosDisp.map(o => <option key={o.id} value={o.id}>{o.full_name}</option>)}
                   </select>
@@ -622,153 +852,101 @@ export function RemisionFormPage() {
             </div>
           </div>
 
-          {/* — Tiempos del Servicio (Primer Operario) — */}
-          <p style={section}>Tiempos del Servicio (Operario Inicial)</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            {[
-              { name: 'hora_salida_cargar', label: 'Hora Salida CARGAR' },
-              { name: 'hora_llegada_cliente', label: 'Hora Llegada Cliente' },
-              { name: 'hora_salida_cliente', label: 'Hora Salida Cliente' },
-              { name: 'hora_llegada_cargar', label: 'Hora Llegada CARGAR' },
-            ].map(({ name, label: lbl }) => (
-              <div key={name}>
-                <label style={label}>{lbl}</label>
-                <input type="time" {...inputProps(name)} />
-              </div>
-            ))}
-            <div>
-              <label style={label}>Horómetro Salida {form.operario_2_id ? '(Op. 1)' : ''}</label>
-              <input
-                type="number" step="0.01" name="horometro_salida" className="input" style={{ width: '100%' }}
-                value={form.horometro_salida}
-                onChange={isReadOnly ? undefined : handleHorometroChange}
-                readOnly={isReadOnly}
-                placeholder="Ej: 1250.5"
-              />
-            </div>
-            <div>
-              <label style={label}>Horómetro Regreso {form.operario_2_id ? '(Op. 1)' : ''}</label>
-              <input
-                type="number" step="0.01" name="horometro_regreso" className="input" style={{ width: '100%' }}
-                value={form.horometro_regreso}
-                onChange={isReadOnly ? undefined : handleHorometroChange}
-                readOnly={isReadOnly}
-                placeholder="Ej: 1252.42"
-              />
-            </div>
-          </div>
+          {/* — Tiempos del Servicio (solo visible si hay ítem OPERARIO) — */}
+          {(() => {
+            const hasOperario = (form.items || []).some(it => {
+              const svc = catalogoItems.find(s => String(s.id) === String(it.catalogo_servicio_id));
+              return svc && (svc.nombre || '').toUpperCase().includes('OPERARIO');
+            });
+            if (!hasOperario) return null;
+            return (
+              <>
+                <p style={section}>Tiempos del Servicio (Operario Inicial)</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                  {[
+                    { name: 'hora_salida_cargar', label: 'Hora Salida CARGAR' },
+                    { name: 'hora_llegada_cliente', label: 'Hora Llegada Cliente' },
+                    { name: 'hora_salida_cliente', label: 'Hora Salida Cliente' },
+                    { name: 'hora_llegada_cargar', label: 'Hora Llegada CARGAR' },
+                  ].map(({ name, label: lbl }) => (
+                    <div key={name}>
+                      <label style={label}>{lbl}</label>
+                      <input type="time" {...inputProps(name)} />
+                    </div>
+                  ))}
+                </div>
 
-          {form.operario_2_id && (
-            <>
-              <p style={section}>Tiempos del Servicio (Segundo Operario)</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div>
-                  <label style={label}>Fecha Acordada (Op. 2)</label>
-                  <input type="date" {...inputProps('segundo_fecha_acordada')} />
-                </div>
-                {[
-                  { name: 'segundo_hora_salida_cargar', label: 'Hora Salida CARGAR' },
-                  { name: 'segundo_hora_llegada_cliente', label: 'Hora Llegada Cliente' },
-                  { name: 'segundo_hora_salida_cliente', label: 'Hora Salida Cliente' },
-                  { name: 'segundo_hora_llegada_cargar', label: 'Hora Llegada CARGAR' },
-                ].map(({ name, label: lbl }) => (
-                  <div key={name}>
-                    <label style={label}>{lbl}</label>
-                    <input type="time" {...inputProps(name)} />
-                  </div>
-                ))}
-                <div>
-                  <label style={label}>Horómetro Salida (Op. 2)</label>
-                  <input
-                    type="number" step="0.01" name="segundo_horometro_salida" className="input" style={{ width: '100%' }}
-                    value={form.segundo_horometro_salida}
-                    onChange={isReadOnly ? undefined : handleHorometroChange}
-                    readOnly={isReadOnly}
-                    placeholder="Ej: 1250.5"
-                  />
-                </div>
-                <div>
-                  <label style={label}>Horómetro Regreso (Op. 2)</label>
-                  <input
-                    type="number" step="0.01" name="segundo_horometro_regreso" className="input" style={{ width: '100%' }}
-                    value={form.segundo_horometro_regreso}
-                    onChange={isReadOnly ? undefined : handleHorometroChange}
-                    readOnly={isReadOnly}
-                    placeholder="Ej: 1252.42"
-                  />
-                </div>
-              </div>
-            </>
-          )}
+                {form.operario_2_id && (
+                  <>
+                    <p style={section}>Tiempos del Servicio (Segundo Operario)</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                      <div>
+                        <label style={label}>Fecha Acordada (Op. 2)</label>
+                        <input type="date" {...inputProps('segundo_fecha_acordada')} />
+                      </div>
+                      {[
+                        { name: 'segundo_hora_salida_cargar', label: 'Hora Salida CARGAR' },
+                        { name: 'segundo_hora_llegada_cliente', label: 'Hora Llegada Cliente' },
+                        { name: 'segundo_hora_salida_cliente', label: 'Hora Salida Cliente' },
+                        { name: 'segundo_hora_llegada_cargar', label: 'Hora Llegada CARGAR' },
+                      ].map(({ name, label: lbl }) => (
+                        <div key={name}>
+                          <label style={label}>{lbl}</label>
+                          <input type="time" {...inputProps(name)} />
+                        </div>
+                      ))}
+                      <div>
+                        <label style={label}>Horómetro Salida (Op. 2)</label>
+                        <input
+                          type="number" step="0.01" name="segundo_horometro_salida" className="input" style={{ width: '100%' }}
+                          value={form.segundo_horometro_salida}
+                          onChange={isReadOnly ? undefined : handleHorometroChange}
+                          readOnly={isReadOnly}
+                          placeholder="Ej: 1250.5"
+                        />
+                      </div>
+                      <div>
+                        <label style={label}>Horómetro Regreso (Op. 2)</label>
+                        <input
+                          type="number" step="0.01" name="segundo_horometro_regreso" className="input" style={{ width: '100%' }}
+                          value={form.segundo_horometro_regreso}
+                          onChange={isReadOnly ? undefined : handleHorometroChange}
+                          readOnly={isReadOnly}
+                          placeholder="Ej: 1252.42"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            );
+          })()}
 
           {/* — Descripción del Servicio — */}
           <p style={section}>Descripción del Servicio — Valores</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>
             <div>
               <label style={label}>
-                Cantidad / Horas{form.operario_2_id ? ' (Op.1 + Op.2)' : ''}
-                {!isReadOnly && !horasManual && (
-                  (form.hora_salida_cargar && form.hora_llegada_cargar) ||
-                  (form.horometro_salida && form.horometro_regreso)
-                ) && (
-                  <span style={{ color: 'var(--clr-primary-500)', marginLeft: 4, fontWeight: 400 }}>(auto)</span>
-                )}
+                Cantidad / Horas
+                <span style={{ color: 'var(--clr-primary-500)', marginLeft: 4, fontWeight: 400 }}>(auto)</span>
               </label>
               <input
-                type="number" step="0.01" min={0} name="cantidad_horas" className="input" style={{ width: '100%' }}
+                type="text" className="input" style={{ width: '100%', background: 'var(--bg-secondary)', fontWeight: 600 }}
                 value={form.cantidad_horas}
-                onChange={isReadOnly ? undefined : handleHorasChange}
-                readOnly={isReadOnly}
-                title="Se calcula automáticamente. Mínimo 1 hora."
+                readOnly disabled
               />
-              {!isReadOnly && (
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: 2 }}>
-                  Llegada − Salida CARGAR (mín. 1 h) — editable manualmente
-                </div>
-              )}
             </div>
             <div>
-              <label style={label}>
-                Valor por Hora (COP)
-                {!isReadOnly && form.catalogo_servicio_id && (
-                  (catalogoMap[form.catalogo_servicio_id]?.precio_venta > 0 ||
-                   catalogoMap[form.catalogo_servicio_id]?.precio_servicio > 0 ||
-                   catalogoMap[form.catalogo_servicio_id]?.precio_base > 0) && (
-                  <span style={{ color: 'var(--clr-primary-500)', marginLeft: 4, fontWeight: 400 }}>(del catálogo)</span>
-                ))}
-              </label>
-              <input type="number" min={0} {...inputProps('valor_hora')} />
+              <label style={label}>Valor por Hora (COP) <span style={{ color: 'var(--clr-primary-500)', fontWeight: 400 }}>(auto)</span></label>
+              <input type="text" className="input" style={{ width: '100%', background: 'var(--bg-secondary)', fontWeight: 600 }} value={formatCOP(form.valor_hora)} readOnly disabled />
             </div>
-            <div>
-              <label style={label}>IVA</label>
-              {isReadOnly ? (
-                <span style={{ display: 'flex', alignItems: 'center', height: '36px', fontWeight: 600, fontSize: 'var(--text-sm)', color: form.aplica_iva ? 'var(--clr-primary-500)' : 'var(--text-muted)' }}>
-                  {form.aplica_iva ? '✔ Aplica IVA (19%)' : '✘ Sin IVA'}
-                </span>
-              ) : (
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 500, fontSize: 'var(--text-sm)', color: 'var(--text-primary)', height: '36px', userSelect: 'none' }}>
-                  <input
-                    type="checkbox"
-                    id="aplica_iva"
-                    name="aplica_iva"
-                    checked={!!form.aplica_iva}
-                    onChange={(e) => setForm(prev => ({ ...prev, aplica_iva: e.target.checked }))}
-                    style={{ width: 16, height: 16, accentColor: 'var(--clr-primary-500)', cursor: 'pointer' }}
-                  />
-                  Aplicar IVA (19%)
-                </label>
-              )}
-            </div>
-            <div>
-              <label style={label}>Descuentos (COP)</label>
-              <input type="number" min={0} {...inputProps('descuentos')} />
-            </div>
+
           </div>
           <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', background: 'var(--bg-secondary)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
             <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>Total Bruto</span><span style={{ fontWeight: 700 }}>{formatCOP(form.total_bruto)}</span></div>
             <div style={{ flex: 1 }}>
-              <span style={{ ...label, display: 'block' }}>IVA {form.aplica_iva ? '(19%)' : ''}</span>
-              <span style={{ fontWeight: 700, color: form.aplica_iva ? 'inherit' : 'var(--text-muted)' }}>{form.aplica_iva ? formatCOP(form.iva_valor) : '—'}</span>
+              <span style={{ ...label, display: 'block' }}>Total IVA (19%)</span>
+              <span style={{ fontWeight: 700, color: form.iva_valor > 0 ? 'inherit' : 'var(--text-muted)' }}>{form.iva_valor > 0 ? formatCOP(form.iva_valor) : '—'}</span>
             </div>
             <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>Descuentos</span><span style={{ fontWeight: 700 }}>{formatCOP(form.descuentos)}</span></div>
             <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>TOTAL NETO</span><span style={{ fontWeight: 800, color: 'var(--clr-primary-500)', fontSize: '16px' }}>{formatCOP(form.total_neto)}</span></div>
@@ -797,7 +975,7 @@ export function RemisionFormPage() {
       {/* MODALES */}
       {isContactModalOpen && (
         <Modal title="Crear Contacto Rápido" onClose={() => setIsContactModalOpen(false)}>
-          <ContactForm 
+          <ContactForm
             defaultCompanyId={form.company_id}
             fixedCompany={true}
             onSuccess={() => {
@@ -807,7 +985,7 @@ export function RemisionFormPage() {
                 // Como es una lista nueva, podemos tomar el que tenga el ID más alto o re-buscar.
                 const data = res.data;
                 if (data && data.length > 0) {
-                  const latest = [...data].sort((a,b) => b.id - a.id)[0];
+                  const latest = [...data].sort((a, b) => b.id - a.id)[0];
                   setForm(prev => ({ ...prev, solicitado_por_id: latest.id, solicitado_por: `${latest.first_name} ${latest.last_name}`.trim() }));
                 }
               });
@@ -822,9 +1000,9 @@ export function RemisionFormPage() {
           <form onSubmit={handleCreateAddress} className="flex flex-col gap-4">
             <div className="input-group">
               <label className="input-label">Dirección *</label>
-              <input 
-                className="input" 
-                value={newAddressForm.address} 
+              <input
+                className="input"
+                value={newAddressForm.address}
                 onChange={e => setNewAddressForm(p => ({ ...p, address: e.target.value }))}
                 placeholder="Ej: Bodega Sur"
                 autoFocus
@@ -833,9 +1011,9 @@ export function RemisionFormPage() {
             </div>
             <div className="input-group">
               <label className="input-label">Notas / Horario (Opcional)</label>
-              <input 
-                className="input" 
-                value={newAddressForm.notes} 
+              <input
+                className="input"
+                value={newAddressForm.notes}
                 onChange={e => setNewAddressForm(p => ({ ...p, notes: e.target.value }))}
                 placeholder="Entregar por la portería 2..."
               />

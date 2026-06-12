@@ -178,6 +178,7 @@ export class EquiposRepository {
       estado,
       motivo_estado,
       actualizado_por,
+      bonificacion_hora,
     } = data;
 
     // Si horometro_actual > 0, registrar fecha_horometro automáticamente
@@ -194,10 +195,10 @@ export class EquiposRepository {
         serie, tipo_equipo, capacidad_nominal, tipo_mastil, altura_maxima, tipo_propulsion,
         horometro_actual, odometro, fecha_horometro, fecha_odometro, ubicacion_fisica,
         ciudad_ubicacion, estado, motivo_estado, fecha_cambio_estado, actualizado_por,
-        soat_vigente, soat_vencimiento
+        soat_vigente, soat_vencimiento, bonificacion_hora
       )
       VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27
       )
       RETURNING *
     `;
@@ -229,6 +230,7 @@ export class EquiposRepository {
       actualizado_por || null,
       data.soat_vigente ?? false,
       data.soat_vencimiento || null,
+      parseFloat(bonificacion_hora) || 0,
     ];
 
     const result = await query(queryStr, values);
@@ -245,7 +247,7 @@ export class EquiposRepository {
       'serie', 'tipo_equipo', 'capacidad_nominal', 'tipo_mastil', 'altura_maxima', 'tipo_propulsion',
       'horometro_actual', 'odometro', 'fecha_horometro', 'fecha_odometro', 'ubicacion_fisica',
       'ciudad_ubicacion', 'estado', 'motivo_estado', 'fecha_cambio_estado', 'foto_path', 'foto_url',
-      'foto_thumb_url', 'actualizado_por', 'soat_vigente', 'soat_vencimiento'
+      'foto_thumb_url', 'actualizado_por', 'soat_vigente', 'soat_vencimiento', 'bonificacion_hora'
     ];
 
     // Obtener valores actuales para validación de fechas de actualización

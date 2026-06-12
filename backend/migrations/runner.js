@@ -85,7 +85,15 @@ const MIGRATION_FILES = [
   '053_drop_fullname_notnull.sql',
   '054_add_missing_modules.sql',
   '055_add_email_fields_to_companies.sql',
-  '056_company_service_addresses_and_remision_relations.sql'
+  '056_company_service_addresses_and_remision_relations.sql',
+  '057_remision_multiples_servicios.sql',
+  '058_remision_servicios_fields.sql',
+  '059_item_iva.sql',
+  '060_update_equipos_constraints.sql',
+  '061_companies_required_fields.sql',
+  '062_equipos_bonificacion_hora.sql',
+  '063_servicios_equipo_optional.sql',
+  '064_servicios_bonificacion_hora.sql'
 ];
 
 async function ensureMigrationsTable(client) {

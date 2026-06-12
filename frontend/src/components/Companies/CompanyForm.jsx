@@ -9,15 +9,15 @@ import api from '../../lib/api';
 
 const companySchema = z.object({
   name: z.string().min(2, 'El nombre es obligatorio (mín 2 caracteres)').transform(v => v.toUpperCase()),
-  nit: z.string().optional(),
+  nit: z.string().min(1, 'El NIT es obligatorio'),
   industry: z.string().default('logistics'),
   website: z.string().url('URL inválida').optional().or(z.literal('')),
   phone: z.string().optional(),
   city: z.string().optional(),
-  address: z.string().optional(),
+  address: z.string().min(1, 'La dirección es obligatoria'),
   notes: z.string().optional(),
   modelo_captacion: z.string().optional(),
-  regimen: z.string().optional(),
+  regimen: z.string().min(1, 'El régimen es obligatorio').default('RC'),
   responsable_captacion_id: z.string().optional(),
   correo_facturacion: z.string().email('Formato de correo inválido').max(150, 'Máximo 150 caracteres').optional().or(z.literal('')),
   correo_rut: z.string().email('Formato de correo inválido').max(150, 'Máximo 150 caracteres').optional().or(z.literal('')),
@@ -53,8 +53,8 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
   const { register, handleSubmit, setValue, control, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(companySchema),
     defaultValues: company
-      ? { ...company, name: company.name ? company.name.toUpperCase() : '' }
-      : { industry: 'logistics' },
+      ? { ...company, name: company.name ? company.name.toUpperCase() : '', regimen: company.regimen || 'RC' }
+      : { industry: 'logistics', regimen: 'RC' },
   });
 
   // Convertir nombre a MAYÚSCULAS en tiempo real
@@ -101,7 +101,7 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
       onSuccess?.();
     },
     onError: (err) => {
-      const msg = err.response?.data?.error?.message;
+      const msg = err.response?.data?.message || err.response?.data?.error;
       if (msg && msg.toLowerCase().includes('nit')) {
         toast.error('Este NIT ya está registrado');
       } else {
@@ -129,7 +129,7 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
       <div className="flex gap-4">
         <div className="input-group w-full">
           <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-            NIT
+            NIT *
             <span className="nit-tooltip-wrapper" aria-label="Ayuda sobre el NIT">
               <Info size={14} className="nit-tooltip-icon" />
               <span className="nit-tooltip-bubble" role="tooltip">
@@ -170,8 +170,9 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
           <input {...register('city')} className="input" placeholder="Bogotá, Colombia" />
         </div>
         <div className="input-group w-full">
-          <label className="input-label">Dirección</label>
-          <input {...register('address')} className="input" />
+          <label className="input-label">Dirección *</label>
+          <input {...register('address')} className="input" placeholder="Ej: Calle 26 # 45-10" />
+          {errors.address && <span className="input-error">{errors.address.message}</span>}
         </div>
       </div>
 
@@ -251,12 +252,12 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
           </select>
         </div>
         <div className="input-group w-full">
-          <label className="input-label">Régimen</label>
+          <label className="input-label">Régimen *</label>
           <select {...register('regimen')} className="input">
-            <option value="">Seleccionar...</option>
             <option value="RC">RC</option>
             <option value="NI">NI</option>
           </select>
+          {errors.regimen && <span className="input-error">{errors.regimen.message}</span>}
         </div>
       </div>
 

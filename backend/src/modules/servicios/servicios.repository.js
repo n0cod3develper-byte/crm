@@ -13,7 +13,7 @@ export class ServiciosRepository {
     if (fecha_desde) { conditions.push(`r.fecha_servicio >= $${i++}`); params.push(fecha_desde); }
     if (fecha_hasta) { conditions.push(`r.fecha_servicio <= $${i++}`); params.push(fecha_hasta); }
     if (search?.trim()) {
-      conditions.push(`(r.numero_remision ILIKE $${i} OR c.name ILIKE $${i})`);
+      conditions.push(`(r.numero_remision ILIKE $${i} OR c.name ILIKE $${i} OR e.serie ILIKE $${i})`);
       params.push(`%${search.trim()}%`);
       i++;
     }
@@ -26,12 +26,32 @@ export class ServiciosRepository {
     const sql = `
       SELECT r.*,
         c.name AS empresa_nombre, c.nit AS empresa_nit,
-        e.marca AS equipo_marca, e.modelo AS equipo_modelo, e.serial AS equipo_serial,
-        COALESCE(inv.nombre_comercial, cs_old.nombre) AS servicio_nombre,
-        COALESCE(inv.codigo_interno,   cs_old.codigo)  AS servicio_codigo
+        e.marca AS equipo_marca, e.modelo AS equipo_modelo, e.serial AS equipo_serial, e.serie AS equipo_serie,
+        COALESCE(
+          (
+            SELECT string_agg(COALESCE(inv_sub.nombre_comercial, cs_sub.nombre), ' + ')
+            FROM remision_servicios rs
+            LEFT JOIN inventario inv_sub ON inv_sub.id = rs.catalogo_servicio_id
+            LEFT JOIN catalogo_servicios cs_sub ON cs_sub.id = rs.catalogo_servicio_id
+            WHERE rs.remision_id = r.id
+          ),
+          inv.nombre_comercial, 
+          cs_old.nombre
+        ) AS servicio_nombre,
+        COALESCE(
+          (
+            SELECT string_agg(COALESCE(inv_sub.codigo_interno, cs_sub.codigo), ' + ')
+            FROM remision_servicios rs
+            LEFT JOIN inventario inv_sub ON inv_sub.id = rs.catalogo_servicio_id
+            LEFT JOIN catalogo_servicios cs_sub ON cs_sub.id = rs.catalogo_servicio_id
+            WHERE rs.remision_id = r.id
+          ),
+          inv.codigo_interno,   
+          cs_old.codigo
+        ) AS servicio_codigo
       FROM remisiones r
       JOIN companies c ON c.id = r.company_id
-      JOIN equipos e ON e.id = r.equipo_id
+      LEFT JOIN equipos e ON e.id = r.equipo_id
       LEFT JOIN inventario inv     ON inv.id = r.catalogo_servicio_id
       LEFT JOIN catalogo_servicios cs_old ON cs_old.id = r.catalogo_servicio_id
       WHERE ${conditions.join(' AND ')}
@@ -52,7 +72,7 @@ export class ServiciosRepository {
         c.phone AS empresa_telefono, c.address AS empresa_direccion,
         c.phone_2 AS empresa_telefono2,
         e.marca AS equipo_marca, e.modelo AS equipo_modelo,
-        e.serial AS equipo_serial, e.capacidad_carga AS equipo_capacidad,
+        e.serial AS equipo_serial, e.serie AS equipo_serie, e.capacidad_carga AS equipo_capacidad,
         COALESCE(inv.nombre_comercial, cs_old.nombre)       AS servicio_nombre,
         COALESCE(inv.codigo_interno,   cs_old.codigo)        AS servicio_codigo,
         COALESCE(inv.descripcion_corta, cs_old.descripcion)  AS servicio_descripcion,
@@ -61,7 +81,7 @@ export class ServiciosRepository {
         u.full_name AS creado_por_nombre
       FROM remisiones r
       JOIN companies c ON c.id = r.company_id
-      JOIN equipos e ON e.id = r.equipo_id
+      LEFT JOIN equipos e ON e.id = r.equipo_id
       LEFT JOIN inventario inv     ON inv.id = r.catalogo_servicio_id
       LEFT JOIN catalogo_servicios cs_old ON cs_old.id = r.catalogo_servicio_id
       LEFT JOIN users u ON u.id = r.created_by
@@ -81,6 +101,18 @@ export class ServiciosRepository {
       ORDER BY em.full_name ASC
     `, [id]);
     rem.operarios = opRes.rows;
+
+    const itemsRes = await query(`
+      SELECT rs.id, rs.catalogo_servicio_id, rs.descripcion, rs.cantidad, rs.valor_unitario, rs.subtotal, rs.aplica_iva,
+             COALESCE(inv.nombre_comercial, cs_old.nombre) AS servicio_nombre,
+             COALESCE(inv.codigo_interno, cs_old.codigo) AS servicio_codigo
+      FROM remision_servicios rs
+      LEFT JOIN inventario inv ON inv.id = rs.catalogo_servicio_id
+      LEFT JOIN catalogo_servicios cs_old ON cs_old.id = rs.catalogo_servicio_id
+      WHERE rs.remision_id = $1
+      ORDER BY rs.orden ASC, rs.created_at ASC
+    `, [id]);
+    rem.items = itemsRes.rows;
 
     return rem;
   }
@@ -145,11 +177,12 @@ export class ServiciosRepository {
           horas_diurnas, valor_hora_diurna, horas_nocturnas, valor_hora_nocturna,
           horas_fest_diurnas, valor_hora_fest_dia, horas_fest_nocturnas, valor_hora_fest_noc,
           horas_otras, valor_hora_otras,
+          horas_ordinarias, valor_hora_ordinaria, horas_recargo, valor_hora_recargo,
           total_bruto, iva_pct, iva_valor, descuentos, total_neto,
-          observaciones, estado, created_by
+          observaciones, estado, created_by, bonificacion_hora
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
-          $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43
+          $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47,$48
         ) RETURNING *
       `, [
         numero,                                   // $1
@@ -157,8 +190,8 @@ export class ServiciosRepository {
         d.hora_acordada || null,                  // $3
         d.forma_pago || 'Contado',                // $4
         d.company_id,                             // $5
-        d.catalogo_servicio_id,                   // $6
-        d.equipo_id,                              // $7
+        d.items && d.items.length > 0 ? d.items[0].catalogo_servicio_id : d.catalogo_servicio_id, // $6
+        d.equipo_id || null,                              // $7
         d.solicitado_por || null,                 // $8
         d.solicitado_por_id || null,              // $9
         d.direccion_servicio || null,             // $10
@@ -187,14 +220,19 @@ export class ServiciosRepository {
         d.valor_hora_fest_noc || 0,             // $33
         d.horas_otras || 0,                     // $34
         d.valor_hora_otras || 0,               // $35
-        d.total_bruto || 0,                    // $36
-        d.iva_pct || 19.00,                    // $37
-        d.iva_valor || 0,                      // $38
-        d.descuentos || 0,                     // $39
-        d.total_neto || 0,                     // $40
-        d.observaciones || null,               // $41
-        d.estado || 'BORRADOR',                // $42
-        userId,                                // $43
+        d.horas_ordinarias || 0,               // $36
+        d.valor_hora_ordinaria || 0,           // $37
+        d.horas_recargo || 0,                  // $38
+        d.valor_hora_recargo || 0,             // $39
+        d.total_bruto || 0,                    // $40
+        d.iva_pct || 19.00,                    // $41
+        d.iva_valor || 0,                      // $42
+        d.descuentos || 0,                     // $43
+        d.total_neto || 0,                     // $44
+        d.observaciones || null,               // $45
+        d.estado || 'BORRADOR',                // $46
+        userId,                                // $47
+        d.bonificacion_hora || 0,              // $48
       ]);
 
       if (data.operario_id) {
@@ -210,6 +248,16 @@ export class ServiciosRepository {
            ON CONFLICT DO NOTHING`,
           [res.rows[0].id, data.operario_2_id]
         );
+      }
+      if (d.items && Array.isArray(d.items)) {
+        let orden = 0;
+        for (const item of d.items) {
+          await client.query(
+            `INSERT INTO remision_servicios (remision_id, catalogo_servicio_id, descripcion, cantidad, valor_unitario, aplica_iva, orden)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [res.rows[0].id, item.catalogo_servicio_id, item.descripcion || null, item.cantidad || 1, item.valor_unitario || 0, item.aplica_iva || false, orden++]
+          );
+        }
       }
 
       if (d.equipo_id) {
@@ -265,14 +313,18 @@ export class ServiciosRepository {
         'horas_diurnas', 'valor_hora_diurna', 'horas_nocturnas', 'valor_hora_nocturna',
         'horas_fest_diurnas', 'valor_hora_fest_dia', 'horas_fest_nocturnas', 'valor_hora_fest_noc',
         'horas_otras', 'valor_hora_otras',
+        'horas_ordinarias', 'valor_hora_ordinaria', 'horas_recargo', 'valor_hora_recargo',
         'total_bruto', 'iva_pct', 'iva_valor', 'descuentos', 'total_neto',
-        'estado', 'observaciones'
+        'estado', 'observaciones', 'bonificacion_hora'
       ];
       for (const key of allowed) {
         if (key in data) {
           fields.push(`${key} = $${i++}`);
           let val = data[key];
           if (val === '') val = null;
+          if (key === 'catalogo_servicio_id' && data.items && data.items.length > 0) {
+            val = data.items[0].catalogo_servicio_id;
+          }
           values.push(val);
         }
       }
@@ -300,6 +352,17 @@ export class ServiciosRepository {
         }
         if (data.operario_2_id) {
           await client.query(`INSERT INTO remision_operarios (remision_id, empleado_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [id, data.operario_2_id]);
+        }
+      }
+      if (data.items && Array.isArray(data.items)) {
+        await client.query(`DELETE FROM remision_servicios WHERE remision_id = $1`, [id]);
+        let orden = 0;
+        for (const item of data.items) {
+          await client.query(
+            `INSERT INTO remision_servicios (remision_id, catalogo_servicio_id, descripcion, cantidad, valor_unitario, aplica_iva, orden)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [id, item.catalogo_servicio_id, item.descripcion || null, item.cantidad || 1, item.valor_unitario || 0, item.aplica_iva || false, orden++]
+          );
         }
       }
 
