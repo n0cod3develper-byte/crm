@@ -16,7 +16,7 @@ export const BackupsPage = () => {
     refetchInterval: 30000, // Refrescar cada 30 segundos
   });
 
-  const { data: backups, isLoading: isLoadingList } = useQuery({
+  const { data: backups, isLoading: isLoadingList, isError: isListError } = useQuery({
     queryKey: ['backupList'],
     queryFn: getBackupList,
   });
@@ -116,6 +116,14 @@ export const BackupsPage = () => {
         {isLoadingList ? (
           <div className="card" style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
             <RefreshCw className="spinner text-primary" size={32} />
+          </div>
+        ) : isListError ? (
+          <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+            <AlertCircle size={48} style={{ color: 'var(--clr-danger)', margin: '0 auto 1rem' }} />
+            <h3 style={{ color: 'var(--clr-danger)', marginBottom: '0.5rem' }}>Error al cargar respaldos</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+              No se pudo conectar con el servicio de respaldos. Verifica que el backend esté accesible y la ruta del API esté configurada correctamente.
+            </p>
           </div>
         ) : (
           <BackupTable 

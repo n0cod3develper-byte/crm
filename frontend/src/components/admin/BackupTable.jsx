@@ -4,7 +4,7 @@ import { Download, Trash2, Database, Clock, HardDrive } from 'lucide-react';
 export const BackupTable = ({ backups, onDelete, isDeleting }) => {
   const [deleteCandidate, setDeleteCandidate] = useState(null);
 
-  if (!backups || backups.length === 0) {
+  if (!backups || !Array.isArray(backups) || backups.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '3rem' }}>
         <Database size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 1rem' }} />
