@@ -1,9 +1,12 @@
 import api from '../lib/api';
 
-// Backups están montadas en /api/backups (fuera de /api/v1) en el backend local.
-// Usamos baseURL vacío para que la ruta completa /api/backups/* pase por el
-// proxy de Vite (→ localhost:3005 → backend) y no haya problemas de CORS.
-const BACKUP_BASE = '';
+// Backups están montadas en /api/backups (fuera de /api/v1).
+// En producción (VITE_API_URL definido) usamos el mismo origen que la API
+// para que las cookies de autenticación se envíen correctamente.
+// En desarrollo local usamos ruta relativa (pasa por proxy de Vite).
+const BACKUP_BASE = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace(/\/api\/v1\/?$/, '')
+  : '';
 
 export const getBackupList = async () => {
   const { data } = await api.get('/api/backups/list', { baseURL: BACKUP_BASE });
