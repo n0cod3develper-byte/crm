@@ -40,3 +40,13 @@ uploads/
 test_pdf.js
 test_ot.pdf
 backend/database.sqlite
+
+# Archivos de planificación y documentación local
+implementation_plan*
+SyncDB.txt
+
+# Archivos Excel generados o importados
+*.xlsx
+
+# Backups de base de datos locales
+cargar-crm-backups/
