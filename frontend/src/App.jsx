@@ -83,6 +83,13 @@ const TurnoSupervisorPage = lazy(() => import('./pages/Turnos/TurnoSupervisorPag
 const ProfilePage = lazy(() => import('./pages/Profile/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const MantenimientosProgramados = lazy(() => import('./pages/MantenimientosProgramados').then(m => ({ default: m.default })));
 
+const InformesIndexPage = lazy(() => import('./pages/Informes/InformesIndexPage').then(m => ({ default: m.InformesIndexPage })));
+const InformesServiciosPage = lazy(() => import('./pages/Informes/InformesServiciosPage').then(m => ({ default: m.InformesServiciosPage })));
+const InformesMantenimientoPage = lazy(() => import('./pages/Informes/InformesMantenimientoPage').then(m => ({ default: m.InformesMantenimientoPage })));
+
+const BudgetIndexPage = lazy(() => import('./pages/Presupuestos/BudgetIndexPage').then(m => ({ default: m.BudgetIndexPage })));
+const BudgetFormPage = lazy(() => import('./pages/Presupuestos/BudgetFormPage').then(m => ({ default: m.BudgetFormPage })));
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -195,6 +202,15 @@ function App() {
                 <Route path="/reportes" element={<ProtectedRoute><ReportBuilderPage /></ProtectedRoute>} />
                 <Route path="/reportes/servicios" element={<ProtectedRoute><SalesReportServicios /></ProtectedRoute>} />
                 <Route path="/reportes/mantenimiento" element={<ProtectedRoute><SalesReportMantenimiento /></ProtectedRoute>} />
+
+                {/* Informes Nuevos */}
+                <Route path="/informes" element={<ProtectedRoute><InformesIndexPage /></ProtectedRoute>} />
+                <Route path="/informes/servicios" element={<ProtectedRoute><InformesServiciosPage /></ProtectedRoute>} />
+                <Route path="/informes/mantenimiento" element={<ProtectedRoute><InformesMantenimientoPage /></ProtectedRoute>} />
+
+                {/* Presupuestos */}
+                <Route path="/presupuestos" element={<ProtectedRoute><BudgetIndexPage /></ProtectedRoute>} />
+                <Route path="/presupuestos/area/:areaId" element={<ProtectedRoute><BudgetFormPage /></ProtectedRoute>} />
 
                 {/* Perfil */}
                 <Route path="/perfil" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />

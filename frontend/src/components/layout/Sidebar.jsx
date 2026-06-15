@@ -6,7 +6,7 @@ import {
   Zap, BarChart3, Settings, LogOut, Truck, Box, Wrench,
   ShoppingCart, ShoppingBag, Receipt, Clock, BookOpen, MapPin, History,
   Bookmark, ClipboardList, Shield, Sun, Moon, Monitor,
-  CalendarClock, Database
+  CalendarClock, Database, PieChart, DollarSign
 } from 'lucide-react';
 import { useSidebarStore } from '../../stores/sidebarStore';
 import { useThemeStore } from '../../stores/themeStore';
@@ -51,6 +51,8 @@ const navItems = [
   { label: 'Solicitudes', icon: FileText, to: '/compras/solicitudes', modulo: 'ordenes_compra', indent: true },
   { label: 'Órdenes Compra', icon: ShoppingCart, to: '/compras/oc', modulo: 'ordenes_compra', indent: true },
   { section: 'Administración' },
+  { label: 'Presupuestos', icon: DollarSign, to: '/presupuestos' },
+  { label: 'Informes Dinámicos', icon: PieChart, to: '/informes' },
   { label: 'Analítica / BI', icon: BarChart3, to: '/reportes' },
   { label: 'Ventas Servicios', icon: ClipboardList, to: '/reportes/servicios', indent: true },
   { label: 'Ventas Mantenimiento', icon: Wrench, to: '/reportes/mantenimiento', indent: true },
