@@ -348,7 +348,6 @@ function KpiHoursByOperator({ dateFrom, dateTo }) {
           </thead>
           <tbody>
             {kpiData.data.map((item, idx) => {
-              const isTop3 = idx < 3;
               return (
                 <tr
                   key={item.operator_id}
@@ -356,17 +355,13 @@ function KpiHoursByOperator({ dateFrom, dateTo }) {
                   style={{
                     cursor: 'pointer', borderBottom: '1px solid var(--border-color)',
                     transition: 'background 0.15s ease',
-                    background: isTop3 ? `${MEDAL_COLORS[idx]}08` : 'transparent'
+                    background: 'transparent'
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = isTop3 ? `${MEDAL_COLORS[idx]}12` : 'rgba(99,102,241,0.05)'}
-                  onMouseLeave={e => e.currentTarget.style.background = isTop3 ? `${MEDAL_COLORS[idx]}08` : 'transparent'}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.08)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
                   <td style={{ ...tdStyle, textAlign: 'center' }}>
-                    {isTop3 ? (
-                      <Award size={18} color={MEDAL_COLORS[idx]} />
-                    ) : (
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{idx + 1}</span>
-                    )}
+                    <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{idx + 1}</span>
                   </td>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>{item.operator_name}</td>
                   <td style={{ ...tdStyle, textAlign: 'center' }}>{item.total_orders}</td>
@@ -476,7 +471,7 @@ export function KpiHorasOperativas({ appliedFilters }) {
               Horas Laboradas por Operario
             </h3>
             <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Ranking por total de horas — Top 3 destacados
+              Ranking por total de horas
             </p>
           </div>
         </div>
