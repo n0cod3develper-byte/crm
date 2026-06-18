@@ -17,6 +17,11 @@ const envSchema = z.object({
   MICROSOFT_CLIENT_ID: z.string().optional(),
   MICROSOFT_CLIENT_SECRET: z.string().optional(),
   MICROSOFT_TENANT_ID: z.string().default('common'),
+  GRAPH_TENANT_ID: z.string().optional(),
+  GRAPH_CLIENT_ID: z.string().optional(),
+  GRAPH_CLIENT_SECRET: z.string().optional(),
+  GRAPH_SENDER_MAILBOX: z.string().optional(),
+  SOAT_ALERT_RECIPIENTS: z.string().optional(),
 
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
   CORS_ORIGINS: z.string().optional(),
@@ -35,7 +40,7 @@ const envSchema = z.object({
   WHATSAPP_VERIFY_TOKEN: z.string().optional(),
 
   SENDGRID_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().email().default('noreply@cargarsas.com'),
+  EMAIL_FROM: z.string().email().default('noreply@cargar.com.co'),
   EMAIL_FROM_NAME: z.string().default('CARGAR SAS CRM'),
 
   ASTERISK_ENABLED: z.string().default('false').transform(v => v === 'true'),
