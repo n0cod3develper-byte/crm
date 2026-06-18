@@ -30,6 +30,7 @@ const EMPTY = {
   horas_fest_diurnas: 0, valor_hora_fest_dia: 0,
   horas_fest_nocturnas: 0, valor_hora_fest_noc: 0,
   horas_otras: 0, valor_hora_otras: 0,
+  horas_ordinarias: 0, valor_hora_ordinaria: 0, horas_recargo: 0, valor_hora_recargo: 0,
   total_bruto: 0, iva_pct: 0, aplica_iva: false, iva_valor: 0, descuentos: 0, total_neto: 0,
   observaciones: '',
   estado: 'BORRADOR',
@@ -52,6 +53,81 @@ function calcularHoras(salida, regreso) {
 
 function formatCOP(v) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v || 0);
+}
+
+/**
+ * Festivos oficiales de Colombia 2026.
+ * Domingos y festivos = todo recargo (125% del valor hora).
+ */
+const FESTIVOS_COLOMBIA_2026 = [
+  '2026-01-01', // Año Nuevo
+  '2026-01-12', // Reyes Magos
+  '2026-03-23', // Día de San José
+  '2026-04-02', // Jueves Santo
+  '2026-04-03', // Viernes Santo
+  '2026-05-01', // Día del Trabajo
+  '2026-05-18', // Ascensión del Señor
+  '2026-06-08', // Corpus Christi
+  '2026-06-15', // Sagrado Corazón
+  '2026-06-29', // San Pedro y San Pablo
+  '2026-07-20', // Día de la Independencia
+  '2026-08-07', // Batalla de Boyacá
+  '2026-08-17', // Asunción de la Virgen
+  '2026-10-12', // Día de la Raza
+  '2026-11-02', // Todos los Santos
+  '2026-11-16', // Independencia de Cartagena
+  '2026-12-08', // Inmaculada Concepción
+  '2026-12-25', // Navidad
+];
+
+/**
+ * Calcula el desglose de horas ordinarias vs recargo según horario laboral.
+ * HORARIO NORMAL:
+ *   Lunes–Viernes: 7:00 AM – 5:00 PM
+ *   Sábado:        7:00 AM – 12:00 M
+ * RECARGO (125%):
+ *   Domingos, festivos = todo el día es recargo.
+ *   Cualquier hora fuera del horario normal = recargo.
+ */
+function calcularDesgloseHoras(fechaServicio, salidaStr, llegadaStr) {
+  if (!salidaStr || !llegadaStr || !fechaServicio) return { ordinarias: 0, recargo: 0, total: 0 };
+  const ts = (t) => t.length > 5 ? t.substring(0, 5) : t;
+  const s = new Date(`1970-01-01T${ts(salidaStr)}:00`);
+  const l = new Date(`1970-01-01T${ts(llegadaStr)}:00`);
+  if (isNaN(s.getTime()) || isNaN(l.getTime())) return { ordinarias: 0, recargo: 0, total: 0 };
+  if (l < s) l.setDate(l.getDate() + 1);
+
+  const fecha = new Date(fechaServicio + 'T12:00:00');
+  const dayOfWeek = fecha.getDay(); // 0=Dom, 1=Lun, ..., 6=Sáb
+  const esFestivo = FESTIVOS_COLOMBIA_2026.includes(fechaServicio);
+  const esDomingoOFestivo = dayOfWeek === 0 || esFestivo;
+
+  // Si es domingo o festivo → todo es recargo
+  if (esDomingoOFestivo) {
+    const totalMin = Math.round((l - s) / 60000);
+    const hRec = Math.round((totalMin / 60) * 100) / 100;
+    return { ordinarias: 0, recargo: hRec, total: hRec };
+  }
+
+  // Horario normal según día
+  const normalStart = 7;  // 7:00 AM
+  const normalEnd = dayOfWeek === 6 ? 12 : 17; // Sáb: 12M, Lun-Vie: 5PM
+
+  let ordMin = 0, recMin = 0;
+  let current = new Date(s);
+  while (current < l) {
+    const hora = current.getHours();
+    if (hora < normalStart || hora >= normalEnd) {
+      recMin++;
+    } else {
+      ordMin++;
+    }
+    current.setMinutes(current.getMinutes() + 1);
+  }
+
+  const hOrd = Math.round((ordMin / 60) * 100) / 100;
+  const hRec = Math.round((recMin / 60) * 100) / 100;
+  return { ordinarias: hOrd, recargo: hRec, total: parseFloat((hOrd + hRec).toFixed(2)) };
 }
 
 export function RemisionFormPage() {
@@ -154,7 +230,14 @@ export function RemisionFormPage() {
       }
       if (existingData.operarios && existingData.operarios.length > 0) {
         f.operario_id = existingData.operarios[0]?.empleado_id || '';
-        f.operario_2_id = existingData.operarios[1]?.empleado_id || '';
+        if (existingData.operarios.length > 1) {
+          f.operario_2_id = existingData.operarios[1].empleado_id;
+        } else if (existingData.segundo_hora_salida_cargar || existingData.segundo_fecha_acordada) {
+          // Si usaron al mismo operario 2 veces, la DB solo guarda 1 por el UNIQUE
+          f.operario_2_id = existingData.operarios[0].empleado_id;
+        } else {
+          f.operario_2_id = '';
+        }
       }
       if (existingData.estado) f.estado = existingData.estado;
       // Inferir aplica_iva desde el iva_pct guardado
@@ -302,7 +385,7 @@ export function RemisionFormPage() {
 
     setForm(prev => {
       const updated = { ...prev };
-      
+
       if (totalHorasCalc !== null) {
         updated.cantidad_horas = totalHorasCalc;
       } else if (!prev.cantidad_horas || prev.cantidad_horas < 1) {
@@ -310,9 +393,14 @@ export function RemisionFormPage() {
       }
 
       if (totalHorasCalc !== null && updated.items) {
+        let indexHora = 0;
         updated.items = updated.items.map(it => {
           if ((it.unidad || '').trim().toLowerCase() === 'hora') {
-            return { ...it, cantidad: totalHorasCalc };
+            let h = 1;
+            if (indexHora === 0) h = horas1 > 0 ? horas1 : 1;
+            else if (indexHora === 1) h = horas2 > 0 ? horas2 : 1;
+            indexHora++;
+            return { ...it, cantidad: h };
           }
           return it;
         });
@@ -325,16 +413,37 @@ export function RemisionFormPage() {
     form.horometro_salida, form.horometro_regreso,
     form.segundo_hora_salida_cargar, form.segundo_hora_llegada_cargar,
     form.segundo_horometro_salida, form.segundo_horometro_regreso,
-    form.operario_2_id, horasManual
+    form.operario_2_id, horasManual, form.fecha_servicio
   ]);
 
-  // ─── Auto-calcular totales (IVA por ítem) ──────────────────────
+  // ─── Auto-calcular totales (IVA por ítem + recargo horas extras) ──
   React.useEffect(() => {
     let sumSubtotales = 0;
     let sumIva = 0;
     let sumDescuentos = 0;
     let sumCantHoras = 0;
     let sumValorHoras = 0;
+
+    let d1 = { ordinarias: 0, recargo: 0 };
+    if (form.hora_salida_cargar && form.hora_llegada_cargar && form.fecha_servicio) {
+      d1 = calcularDesgloseHoras(form.fecha_servicio, form.hora_salida_cargar, form.hora_llegada_cargar);
+    }
+    let d2 = { ordinarias: 0, recargo: 0 };
+    const fecha2 = form.segundo_fecha_acordada || form.fecha_servicio;
+    if (form.operario_2_id && form.segundo_hora_salida_cargar && form.segundo_hora_llegada_cargar && fecha2) {
+      d2 = calcularDesgloseHoras(fecha2, form.segundo_hora_salida_cargar, form.segundo_hora_llegada_cargar);
+    }
+
+    const totalOrdHours = parseFloat((d1.ordinarias + d2.ordinarias).toFixed(2));
+    const totalRecHours = parseFloat((d1.recargo + d2.recargo).toFixed(2));
+
+    let indexHora = 0;
+    let totalOrdValue = 0;
+    let totalRecValueBase = 0;
+    let totalExtraRecargo = 0;
+
+    let d1Values = { v: 0 };
+    let d2Values = { v: 0 };
 
     (form.items || []).forEach(it => {
       const brutoItem = Math.round((parseFloat(it.cantidad) || 0) * (parseFloat(it.valor_unitario) || 0));
@@ -350,22 +459,51 @@ export function RemisionFormPage() {
 
       if ((it.unidad || '').trim().toLowerCase() === 'hora') {
         sumCantHoras += parseFloat(it.cantidad) || 0;
-        sumValorHoras += brutoItem; // Cantidad * Valor Unitario
+        sumValorHoras += brutoItem;
+        const v = parseFloat(it.valor_unitario) || 0;
+        if (indexHora === 0) {
+          totalOrdValue += d1.ordinarias * v;
+          totalRecValueBase += d1.recargo * v;
+          totalExtraRecargo += d1.recargo * (v * 0.25);
+          d1Values.v = v;
+        } else if (indexHora === 1) {
+          totalOrdValue += d2.ordinarias * v;
+          totalRecValueBase += d2.recargo * v;
+          totalExtraRecargo += d2.recargo * (v * 0.25);
+          d2Values.v = v;
+        }
+        indexHora++;
       }
     });
 
-    const netoFinal = sumSubtotales - sumDescuentos + sumIva;
+    const avgOrdRate = totalOrdHours > 0 ? totalOrdValue / totalOrdHours : 0;
+    const avgRecRate = totalRecHours > 0 ? (totalRecValueBase * 1.25) / totalRecHours : 0;
+    const recargoExtra = Math.round(totalExtraRecargo);
+    const netoFinal = sumSubtotales - sumDescuentos + sumIva + recargoExtra;
 
     setForm(prev => ({
       ...prev,
       cantidad_horas: sumCantHoras,
       valor_hora: sumValorHoras,
+      horas_ordinarias: totalOrdHours,
+      horas_recargo: totalRecHours,
+      valor_hora_ordinaria: Math.round(avgOrdRate),
+      valor_hora_recargo: Math.round(avgRecRate),
       descuentos: sumDescuentos,
       total_bruto: Math.round(sumSubtotales),
       iva_valor: Math.round(sumIva),
       total_neto: Math.round(netoFinal),
+      _totalExtraRecargo: recargoExtra,
+      _desgloseDetalle: {
+        d1: { ord: d1.ordinarias, rec: d1.recargo, v: d1Values.v },
+        d2: { ord: d2.ordinarias, rec: d2.recargo, v: d2Values.v }
+      }
     }));
-  }, [form.items]);
+  }, [
+    form.items,
+    form.hora_salida_cargar, form.hora_llegada_cargar, form.fecha_servicio,
+    form.operario_2_id, form.segundo_hora_salida_cargar, form.segundo_hora_llegada_cargar, form.segundo_fecha_acordada
+  ]);
 
   // ─── Mutation ────────────────────────────────────────────────
   const mutation = useMutation({
@@ -380,19 +518,24 @@ export function RemisionFormPage() {
     onError: (err) => toast.error(err.response?.data?.message || 'Error al guardar'),
   });
 
+  // Helper: calcula horas entre dos campos de hora (HH:MM)
+  const calcHorasFromTimesInline = (salida, llegada) => {
+    if (!salida || !llegada) return 0;
+    const ts = (t) => t.length > 5 ? t.substring(0, 5) : t;
+    const s = new Date(`1970-01-01T${ts(salida)}:00`);
+    const l = new Date(`1970-01-01T${ts(llegada)}:00`);
+    if (isNaN(s.getTime()) || isNaN(l.getTime())) return 0;
+    if (l < s) l.setDate(l.getDate() + 1); // cruza medianoche
+    return Math.max(0, (l - s) / (1000 * 60 * 60));
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'estado') setEstadoManual(true);
 
-    // Validar operarios duplicados
-    if (name === 'operario_id' && value && value === form.operario_2_id) {
-      toast.error('El operario inicial no puede ser el mismo que el segundo operario.');
-      return;
-    }
-    if (name === 'operario_2_id' && value && value === form.operario_id) {
-      toast.error('El segundo operario no puede ser el mismo que el operario inicial.');
-      return;
-    }
+    // Se permite que el operario inicial y el segundo operario sean el mismo,
+    // ya que puede realizar dos servicios separados.
+
 
     // Al cambiar campos de hora de inicio/fin, resetear el flag manual
     // para que el auto-cálculo de estado pueda actuar (BORRADOR → PENDIENTE → REALIZADA)
@@ -411,6 +554,92 @@ export function RemisionFormPage() {
     if (name === 'solicitado_por_id') {
       const c = contactsData.find(ct => String(ct.id) === String(value));
       setForm(prev => ({ ...prev, solicitado_por_id: value, solicitado_por: c ? `${c.first_name} ${c.last_name}`.trim() : '' }));
+      return;
+    }
+
+    // ── Cálculo inline de horas al cambiar hora_salida_cargar o hora_llegada_cargar ──
+    // Actualiza cantidad_horas Y la cantidad de ítems con unidad "hora" en un solo setState
+    if (name === 'hora_salida_cargar' || name === 'hora_llegada_cargar') {
+      setForm(prev => {
+        const updated = { ...prev, [name]: value };
+
+        const horaSalida = name === 'hora_salida_cargar' ? value : prev.hora_salida_cargar;
+        const horaLlegada = name === 'hora_llegada_cargar' ? value : prev.hora_llegada_cargar;
+
+        if (horaSalida && horaLlegada) {
+          let horas1 = calcHorasFromTimesInline(horaSalida, horaLlegada);
+
+          let horas2 = 0;
+          if (prev.operario_2_id && prev.segundo_hora_salida_cargar && prev.segundo_hora_llegada_cargar) {
+            horas2 = calcHorasFromTimesInline(prev.segundo_hora_salida_cargar, prev.segundo_hora_llegada_cargar);
+          }
+
+          const totalHoras = parseFloat((horas1 + horas2).toFixed(2));
+          const totalHorasCalc = totalHoras > 0 ? Math.max(1, totalHoras) : null;
+
+          if (totalHorasCalc !== null) {
+            updated.cantidad_horas = totalHorasCalc;
+            if (updated.items) {
+              let indexHora = 0;
+              updated.items = updated.items.map(it => {
+                if ((it.unidad || '').trim().toLowerCase() === 'hora') {
+                  let h = 1;
+                  if (indexHora === 0) h = horas1 > 0 ? horas1 : 1;
+                  else if (indexHora === 1) h = horas2 > 0 ? horas2 : 1;
+                  indexHora++;
+                  return { ...it, cantidad: h };
+                }
+                return it;
+              });
+            }
+          }
+        }
+
+        return updated;
+      });
+      return;
+    }
+
+    // ── Cálculo inline para horas del segundo operario ──
+    if (name === 'segundo_hora_salida_cargar' || name === 'segundo_hora_llegada_cargar') {
+      setForm(prev => {
+        const updated = { ...prev, [name]: value };
+
+        const seg_salida = name === 'segundo_hora_salida_cargar' ? value : prev.segundo_hora_salida_cargar;
+        const seg_llegada = name === 'segundo_hora_llegada_cargar' ? value : prev.segundo_hora_llegada_cargar;
+
+        let horas1 = 0;
+        if (prev.hora_salida_cargar && prev.hora_llegada_cargar) {
+          horas1 = calcHorasFromTimesInline(prev.hora_salida_cargar, prev.hora_llegada_cargar);
+        }
+
+        let horas2 = 0;
+        if (prev.operario_2_id && seg_salida && seg_llegada) {
+          horas2 = calcHorasFromTimesInline(seg_salida, seg_llegada);
+        }
+
+        const totalHoras = parseFloat((horas1 + horas2).toFixed(2));
+        const totalHorasCalc = totalHoras > 0 ? Math.max(1, totalHoras) : null;
+
+        if (totalHorasCalc !== null) {
+          updated.cantidad_horas = totalHorasCalc;
+          if (updated.items) {
+            let indexHora = 0;
+            updated.items = updated.items.map(it => {
+              if ((it.unidad || '').trim().toLowerCase() === 'hora') {
+                let h = 1;
+                if (indexHora === 0) h = horas1 > 0 ? horas1 : 1;
+                else if (indexHora === 1) h = horas2 > 0 ? horas2 : 1;
+                indexHora++;
+                return { ...it, cantidad: h };
+              }
+              return it;
+            });
+          }
+        }
+
+        return updated;
+      });
       return;
     }
 
@@ -474,11 +703,11 @@ export function RemisionFormPage() {
       const svc = catalogoItems.find(s => String(s.id) === String(it.catalogo_servicio_id));
       if (!svc) return false;
       const nombre = (svc.nombre || '').toUpperCase();
-      return nombre.includes('MONTACARGA') || 
-             nombre.includes('ELEVADOR') || 
-             nombre.includes('CAMIONETA') || 
-             nombre.includes('VEHICULO') ||
-             nombre.includes('VEHÍCULO');
+      return nombre.includes('MONTACARGA') ||
+        nombre.includes('ELEVADOR') ||
+        nombre.includes('CAMIONETA') ||
+        nombre.includes('VEHICULO') ||
+        nombre.includes('VEHÍCULO');
     });
   }, [form.items, catalogoItems]);
 
@@ -811,7 +1040,7 @@ export function RemisionFormPage() {
                   }
                   return acc;
                 }, 0);
-                })()}
+              })()}
             </div>
             <div style={{ gridColumn: '1 / 3' }}>
               <label style={label}>Equipo {requiresEquipo ? '*' : '(Opcional)'}</label>
@@ -855,7 +1084,7 @@ export function RemisionFormPage() {
               <div>
                 <label style={label}>Operario Inicial</label>
                 {isReadOnly ? (
-                  <input className="input" style={{ width: '100%' }} disabled value={existingData?.operarios?.[0]?.full_name || '—'} />
+                  <input className="input" style={{ width: '100%' }} disabled value={existingData?.operarios?.find(o => String(o.empleado_id) === String(form.operario_id))?.full_name || '—'} />
                 ) : (
                   <select name="operario_id" className="input" style={{ width: '100%' }} value={form.operario_id} onChange={handleChange}>
                     <option value="">Seleccionar operario...</option>
@@ -866,7 +1095,7 @@ export function RemisionFormPage() {
               <div>
                 <label style={label}>Segundo Operario (Opcional)</label>
                 {isReadOnly ? (
-                  <input className="input" style={{ width: '100%' }} disabled value={existingData?.operarios?.[1]?.full_name || '—'} />
+                  <input className="input" style={{ width: '100%' }} disabled value={existingData?.operarios?.find(o => String(o.empleado_id) === String(form.operario_2_id))?.full_name || '—'} />
                 ) : (
                   <select name="operario_2_id" className="input" style={{ width: '100%' }} value={form.operario_2_id || ''} onChange={handleChange}>
                     <option value="">Seleccionar segundo operario...</option>
@@ -947,34 +1176,110 @@ export function RemisionFormPage() {
             );
           })()}
 
-          {/* — Descripción del Servicio — */}
-          <p style={section}>Descripción del Servicio — Valores</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>
+          {/* — Desglose de Horas y Totales — */}
+          <p style={section}>Desglose de Horas y Totales</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+            {/* Tabla de desglose de horas */}
             <div>
-              <label style={label}>
-                Cantidad / Horas
-                <span style={{ color: 'var(--clr-primary-500)', marginLeft: 4, fontWeight: 400 }}>(auto)</span>
-              </label>
-              <input
-                type="text" className="input" style={{ width: '100%', background: 'var(--bg-secondary)', fontWeight: 600 }}
-                value={form.cantidad_horas}
-                readOnly disabled
-              />
+              <table className="table" style={{ margin: 0, fontSize: '12px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left' }}>Horario</th>
+                    <th>Detalle por Operario</th>
+                    <th>Horas</th>
+                    <th>Valor Promedio</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>ORDINARIA</strong></td>
+                    <td style={{ fontSize: '11px', verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '160px' }}>
+                        {form._desgloseDetalle?.d1?.ord > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.05)', padding: '3px 6px', borderRadius: '4px' }}>
+                            <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Op. 1</span>
+                            <span style={{ color: 'var(--text-muted)' }}>{form._desgloseDetalle.d1.ord} h &times; <span style={{ color: 'var(--text-primary)' }}>{formatCOP(form._desgloseDetalle.d1.v)}</span></span>
+                          </div>
+                        )}
+                        {form._desgloseDetalle?.d2?.ord > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.05)', padding: '3px 6px', borderRadius: '4px' }}>
+                            <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Op. 2</span>
+                            <span style={{ color: 'var(--text-muted)' }}>{form._desgloseDetalle.d2.ord} h &times; <span style={{ color: 'var(--text-primary)' }}>{formatCOP(form._desgloseDetalle.d2.v)}</span></span>
+                          </div>
+                        )}
+                        {(!form._desgloseDetalle?.d1?.ord && !form._desgloseDetalle?.d2?.ord) && <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>{form.horas_ordinarias || 0}</td>
+                    <td style={{ textAlign: 'center' }}>{formatCOP(form.valor_hora_ordinaria)}</td>
+                    <td style={{ textAlign: 'center' }}>{formatCOP(Math.round((form.horas_ordinarias || 0) * (form.valor_hora_ordinaria || 0)))}</td>
+                  </tr>
+                  <tr style={{ background: (form.horas_recargo > 0) ? 'rgba(245,158,11,0.08)' : 'transparent' }}>
+                    <td><strong>CON RECARGO</strong> <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>(125%)</span></td>
+                    <td style={{ fontSize: '11px', verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '160px' }}>
+                        {form._desgloseDetalle?.d1?.rec > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', padding: '2px 6px', borderRadius: '4px' }}>
+                            <span style={{ fontWeight: 600, color: '#f59e0b' }}>Op. 1</span>
+                            <span style={{ color: 'rgba(245,158,11,0.8)' }}>{form._desgloseDetalle.d1.rec} h &times; <span style={{ fontWeight: 700, color: '#f59e0b' }}>{formatCOP(form._desgloseDetalle.d1.v * 1.25)}</span></span>
+                          </div>
+                        )}
+                        {form._desgloseDetalle?.d2?.rec > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', padding: '2px 6px', borderRadius: '4px' }}>
+                            <span style={{ fontWeight: 600, color: '#f59e0b' }}>Op. 2</span>
+                            <span style={{ color: 'rgba(245,158,11,0.8)' }}>{form._desgloseDetalle.d2.rec} h &times; <span style={{ fontWeight: 700, color: '#f59e0b' }}>{formatCOP(form._desgloseDetalle.d2.v * 1.25)}</span></span>
+                          </div>
+                        )}
+                        {(!form._desgloseDetalle?.d1?.rec && !form._desgloseDetalle?.d2?.rec) && <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'center', fontWeight: form.horas_recargo > 0 ? 700 : 400, color: form.horas_recargo > 0 ? '#f59e0b' : 'inherit' }}>{form.horas_recargo || 0}</td>
+                    <td style={{ textAlign: 'center' }}>{formatCOP(form.valor_hora_recargo)}</td>
+                    <td style={{ textAlign: 'center', fontWeight: form.horas_recargo > 0 ? 700 : 400, color: form.horas_recargo > 0 ? '#f59e0b' : 'inherit' }}>{formatCOP(Math.round((form.horas_recargo || 0) * (form.valor_hora_recargo || 0)))}</td>
+                  </tr>
+                  <tr style={{ background: 'var(--bg-secondary)', fontWeight: 700 }}>
+                    <td>TOTAL</td>
+                    <td></td>
+                    <td style={{ textAlign: 'center' }}>{parseFloat(form.horas_ordinarias || 0) + parseFloat(form.horas_recargo || 0)}</td>
+                    <td></td>
+                    <td style={{ textAlign: 'center' }}>{formatCOP(Math.round(((form.horas_ordinarias || 0) * (form.valor_hora_ordinaria || 0)) + ((form.horas_recargo || 0) * (form.valor_hora_recargo || 0))))}</td>
+                  </tr>
+                </tbody>
+              </table>
+              {form.horas_recargo > 0 && (
+                <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '6px', fontSize: '11px', color: '#f59e0b' }}>
+                  ⚠ {form.horas_recargo} hora(s) fuera de horario normal — recargo del 25% adicional = <strong>{formatCOP(form._totalExtraRecargo || 0)}</strong>
+                </div>
+              )}
             </div>
+            {/* Resumen de totales */}
             <div>
-              <label style={label}>Valor por Hora (COP) <span style={{ color: 'var(--clr-primary-500)', fontWeight: 400 }}>(auto)</span></label>
-              <input type="text" className="input" style={{ width: '100%', background: 'var(--bg-secondary)', fontWeight: 600 }} value={formatCOP(form.valor_hora)} readOnly disabled />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <span style={{ ...label, display: 'block' }}>Total Bruto (Ítems)</span>
+                  <span style={{ fontWeight: 700, fontSize: '14px' }}>{formatCOP(form.total_bruto)}</span>
+                </div>
+                <div>
+                  <span style={{ ...label, display: 'block' }}>+ Recargo Horas Extras</span>
+                  <span style={{ fontWeight: 700, fontSize: '14px', color: form.horas_recargo > 0 ? '#f59e0b' : 'var(--text-muted)' }}>
+                    {form.horas_recargo > 0 ? formatCOP(form._totalExtraRecargo || 0) : '—'}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ ...label, display: 'block' }}>IVA (19%)</span>
+                  <span style={{ fontWeight: 700, color: form.iva_valor > 0 ? 'inherit' : 'var(--text-muted)' }}>{form.iva_valor > 0 ? formatCOP(form.iva_valor) : '—'}</span>
+                </div>
+                <div>
+                  <span style={{ ...label, display: 'block' }}>Descuentos</span>
+                  <span style={{ fontWeight: 700 }}>{formatCOP(form.descuentos)}</span>
+                </div>
+              </div>
+              <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: 'linear-gradient(135deg, rgba(37,99,235,0.08), rgba(37,99,235,0.02))', borderRadius: '8px', border: '1px solid rgba(37,99,235,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-secondary)' }}>TOTAL NETO</span>
+                <span style={{ fontWeight: 800, color: 'var(--clr-primary-500)', fontSize: '18px' }}>{formatCOP(form.total_neto)}</span>
+              </div>
             </div>
-
-          </div>
-          <div style={{ display: 'flex', gap: '1rem', marginTop: '0.75rem', background: 'var(--bg-secondary)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-            <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>Total Bruto</span><span style={{ fontWeight: 700 }}>{formatCOP(form.total_bruto)}</span></div>
-            <div style={{ flex: 1 }}>
-              <span style={{ ...label, display: 'block' }}>Total IVA (19%)</span>
-              <span style={{ fontWeight: 700, color: form.iva_valor > 0 ? 'inherit' : 'var(--text-muted)' }}>{form.iva_valor > 0 ? formatCOP(form.iva_valor) : '—'}</span>
-            </div>
-            <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>Descuentos</span><span style={{ fontWeight: 700 }}>{formatCOP(form.descuentos)}</span></div>
-            <div style={{ flex: 1 }}><span style={{ ...label, display: 'block' }}>TOTAL NETO</span><span style={{ fontWeight: 800, color: 'var(--clr-primary-500)', fontSize: '16px' }}>{formatCOP(form.total_neto)}</span></div>
           </div>
 
 

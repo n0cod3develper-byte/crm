@@ -105,7 +105,8 @@ export class ServiciosRepository {
     const itemsRes = await query(`
       SELECT rs.id, rs.catalogo_servicio_id, rs.descripcion, rs.cantidad, rs.valor_unitario, rs.subtotal, rs.aplica_iva,
              COALESCE(inv.nombre_comercial, cs_old.nombre) AS servicio_nombre,
-             COALESCE(inv.codigo_interno, cs_old.codigo) AS servicio_codigo
+             COALESCE(inv.codigo_interno, cs_old.codigo) AS servicio_codigo,
+             COALESCE(inv.unidad_cobro, inv.unit, cs_old.unidad, 'hora') AS unidad
       FROM remision_servicios rs
       LEFT JOIN inventario inv ON inv.id = rs.catalogo_servicio_id
       LEFT JOIN catalogo_servicios cs_old ON cs_old.id = rs.catalogo_servicio_id
