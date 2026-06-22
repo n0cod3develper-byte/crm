@@ -51,6 +51,7 @@ import mantenimientosProgramadosRoutes from './modules/mantenimientos-programado
 import informesRoutes from './modules/informes/informes.routes.js';
 import budgetRoutes from './modules/budget/budget.routes.js';
 import { iniciarJobCierreAutomatico } from './jobs/turnosCierreAutomatico.job.js';
+import { iniciarJobSoatEmail } from './jobs/soatEmailNotifier.js';
 import { inicializarFestivos } from './services/calendarioService.js';
 import { initBackupCronJob } from './services/backupService.js';
 
@@ -177,6 +178,9 @@ async function bootstrap() {
 
   // Iniciar job de cierre automático de turnos (23:59 America/Bogota)
   iniciarJobCierreAutomatico();
+
+  // Iniciar job de notificaciones de SOAT (06:00 America/Bogota)
+  iniciarJobSoatEmail();
 
   // Iniciar job de backups automático (02:00 AM)
   initBackupCronJob();
