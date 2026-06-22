@@ -253,10 +253,11 @@ export class ServiciosRepository {
       if (d.items && Array.isArray(d.items)) {
         let orden = 0;
         for (const item of d.items) {
+          const cantidadRedondeada = Math.round((parseFloat(item.cantidad) || 1) * 100) / 100;
           await client.query(
             `INSERT INTO remision_servicios (remision_id, catalogo_servicio_id, descripcion, cantidad, valor_unitario, aplica_iva, orden)
              VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [res.rows[0].id, item.catalogo_servicio_id, item.descripcion || null, item.cantidad || 1, item.valor_unitario || 0, item.aplica_iva || false, orden++]
+            [res.rows[0].id, item.catalogo_servicio_id, item.descripcion || null, cantidadRedondeada, item.valor_unitario || 0, item.aplica_iva || false, orden++]
           );
         }
       }
@@ -359,10 +360,11 @@ export class ServiciosRepository {
         await client.query(`DELETE FROM remision_servicios WHERE remision_id = $1`, [id]);
         let orden = 0;
         for (const item of data.items) {
+          const cantidadRedondeada = Math.round((parseFloat(item.cantidad) || 1) * 100) / 100;
           await client.query(
             `INSERT INTO remision_servicios (remision_id, catalogo_servicio_id, descripcion, cantidad, valor_unitario, aplica_iva, orden)
              VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-            [id, item.catalogo_servicio_id, item.descripcion || null, item.cantidad || 1, item.valor_unitario || 0, item.aplica_iva || false, orden++]
+            [id, item.catalogo_servicio_id, item.descripcion || null, cantidadRedondeada, item.valor_unitario || 0, item.aplica_iva || false, orden++]
           );
         }
       }

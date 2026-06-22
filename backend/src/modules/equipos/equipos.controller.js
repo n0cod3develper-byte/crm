@@ -183,6 +183,14 @@ export const equiposController = {
     } catch (err) { next(err); }
   },
 
+  async listExternos(req, res, next) {
+    try {
+      const { search, estado, include_id } = req.query;
+      const equipos = await repo.findExternos({ search, estado, include_id });
+      res.json({ success: true, data: equipos });
+    } catch (err) { next(err); }
+  },
+
   async cambiarEstado(req, res, next) {
     try {
       const { id } = req.params;

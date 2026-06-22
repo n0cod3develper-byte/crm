@@ -15,6 +15,7 @@ router.use(authenticate);
 // ⚠️ IMPORTANTE: /by-company/:id debe estar ANTES de /:id para que Express
 // no interprete la cadena literal 'by-company' como un valor de :id.
 router.get('/by-company/:id',      equiposController.listByCompany);
+router.get('/externos',            equiposController.listExternos);
 
 router.get('/',                    equiposController.list);
 router.post('/',                   equiposController.create);

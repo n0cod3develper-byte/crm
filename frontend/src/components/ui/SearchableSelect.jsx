@@ -89,7 +89,9 @@ export function SearchableSelect({
       try {
         const items = await fetchFn(searchTerm);
         setResults(Array.isArray(items) ? items : []);
-        setIsOpen(true);
+        if (document.activeElement === inputRef.current) {
+          setIsOpen(true);
+        }
         setHighlightedIndex(-1);
       } catch {
         setResults([]);
@@ -308,8 +310,10 @@ export function SearchableSelect({
             position: 'absolute',
             top: 'calc(100% + 4px)',
             left: 0,
-            right: 0,
             zIndex: 1000,
+            minWidth: '100%',
+            width: 'max-content',
+            maxWidth: '450px',
             background: 'var(--bg-surface)',
             border: '1px solid var(--border-color)',
             borderRadius: 'var(--radius-md)',

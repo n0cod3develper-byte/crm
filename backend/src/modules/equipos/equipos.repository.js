@@ -344,6 +344,37 @@ export class EquiposRepository {
     return result.rows;
   }
 
+  async findExternos({ search, estado, include_id } = {}) {
+    // Buscar equipos de todas las empresas excepto CARGAR S.A.S.
+    let sql = `
+      SELECT * FROM equipos_completo 
+      WHERE empresa_id != (SELECT id FROM companies WHERE name ILIKE 'CARGAR%' LIMIT 1)
+        AND deleted_at IS NULL
+    `;
+    const params = [];
+    let i = 1;
+
+    if (search && search.trim() !== '') {
+      sql += ` AND (marca ILIKE $${i} OR serie ILIKE $${i} OR serial ILIKE $${i} OR empresa_nombre ILIKE $${i})`;
+      params.push(`%${search.trim()}%`);
+      i++;
+    }
+
+    if (estado) {
+      if (include_id) {
+        sql += ` AND (estado = $${i++} OR id = $${i++})`;
+        params.push(estado.toUpperCase(), include_id);
+      } else {
+        sql += ` AND estado = $${i++}`;
+        params.push(estado.toUpperCase());
+      }
+    }
+
+    sql += ` ORDER BY empresa_nombre ASC, marca ASC LIMIT 50`;
+    const result = await query(sql, params);
+    return result.rows;
+  }
+
   async findStateHistory(equipoId, { limit = 20, offset = 0 } = {}) {
     const result = await query(
       `SELECT id, estado_anterior, estado_nuevo, motivo, cambiado_por, created_at as fecha

@@ -105,7 +105,8 @@ function calcularDesgloseHoras(fechaServicio, salidaStr, llegadaStr) {
   // Si es domingo o festivo → todo es recargo
   if (esDomingoOFestivo) {
     const totalMin = Math.round((l - s) / 60000);
-    const hRec = Math.round((totalMin / 60) * 100) / 100;
+    let hRec = Math.round((totalMin / 60) * 100) / 100;
+    if (hRec > 0 && hRec < 1) hRec = 1;
     return { ordinarias: 0, recargo: hRec, total: hRec };
   }
 
@@ -125,8 +126,17 @@ function calcularDesgloseHoras(fechaServicio, salidaStr, llegadaStr) {
     current.setMinutes(current.getMinutes() + 1);
   }
 
-  const hOrd = Math.round((ordMin / 60) * 100) / 100;
-  const hRec = Math.round((recMin / 60) * 100) / 100;
+  let hOrd = Math.round((ordMin / 60) * 100) / 100;
+  let hRec = Math.round((recMin / 60) * 100) / 100;
+  
+  // Garantizar cobro mínimo de 1 hora
+  const totalRaw = parseFloat((hOrd + hRec).toFixed(2));
+  if (totalRaw > 0 && totalRaw < 1) {
+    // Escalar proporcionalmente para que la suma sea 1
+    hOrd = Math.round((hOrd / totalRaw) * 100) / 100;
+    hRec = parseFloat((1 - hOrd).toFixed(2));
+  }
+
   return { ordinarias: hOrd, recargo: hRec, total: parseFloat((hOrd + hRec).toFixed(2)) };
 }
 
@@ -138,6 +148,9 @@ export function RemisionFormPage() {
 
   const [form, setForm] = React.useState(EMPTY);
   const [equiposFiltrados, setEquiposFiltrados] = React.useState([]);
+  const [equiposExternosFiltrados, setEquiposExternosFiltrados] = React.useState([]);
+  const [equipoExterno, setEquipoExterno] = React.useState(false);
+  const [equipoInicializado, setEquipoInicializado] = React.useState(false);
   const [catalogoMap, setCatalogoMap] = React.useState({});
   const [horasManual, setHorasManual] = React.useState(false);
   const [currentEstado, setCurrentEstado] = React.useState(null);
@@ -255,14 +268,39 @@ export function RemisionFormPage() {
   // ─── Cargar equipos de CARGAR S.A.S. (solo OPERATIVOS) ──────
   React.useEffect(() => {
     const params = { estado: 'OPERATIVO' };
-    if (isEditing && form.equipo_id) {
+    if (isEditing && form.equipo_id && !equipoExterno) {
       params.include_id = form.equipo_id;
     }
 
     api.get('/equipos/by-company/cargar', { params })
       .then(res => setEquiposFiltrados(res.data?.data || res.data || []))
       .catch(() => setEquiposFiltrados([]));
-  }, [isEditing, form.equipo_id]);
+  }, [isEditing, form.equipo_id, equipoExterno]);
+
+  // ─── Cargar equipos externos ──────
+  React.useEffect(() => {
+    if (!equipoExterno && (!isEditing || !form.equipo_id)) return;
+    
+    const params = { estado: 'OPERATIVO' };
+    if (isEditing && form.equipo_id && equipoExterno) {
+      params.include_id = form.equipo_id;
+    }
+    
+    api.get('/equipos/externos', { params })
+      .then(res => setEquiposExternosFiltrados(res.data?.data || res.data || []))
+      .catch(() => setEquiposExternosFiltrados([]));
+  }, [equipoExterno, isEditing, form.equipo_id]);
+
+  // ─── Detectar si el equipo guardado es externo ──────
+  React.useEffect(() => {
+    if (isEditing && existingData && existingData.equipo_id && !equipoInicializado && equiposFiltrados.length > 0) {
+      const isInternal = equiposFiltrados.some(e => String(e.id) === String(existingData.equipo_id));
+      if (!isInternal) {
+        setEquipoExterno(true);
+      }
+      setEquipoInicializado(true);
+    }
+  }, [isEditing, existingData, equiposFiltrados, equipoInicializado]);
 
   // ─── Al cambiar empresa: cargar forma de pago ─────────────────
   React.useEffect(() => {
@@ -332,19 +370,26 @@ export function RemisionFormPage() {
     if (form.equipo_id && equiposFiltrados.length) {
       const eq = equiposFiltrados.find(e => e.id === form.equipo_id);
       if (eq) {
-        setForm(prev => {
-          const updated = { ...prev, numero_maquina: eq.serial };
-          // Solo auto-completar el horómetro de salida si:
-          // 1. No estamos editando una remisión existente, O
-          // 2. Estamos editando pero el equipo_id seleccionado cambió respecto al original de la remisión (existingData?.equipo_id)
-          const isDifferentEquipment = isEditing && existingData && existingData.equipo_id !== form.equipo_id;
-          if (!isEditing || isDifferentEquipment) {
-            if (eq.horometro_actual !== undefined && eq.horometro_actual !== null) {
-              updated.horometro_salida = eq.horometro_actual;
-            }
-          }
-          return updated;
-        });
+        setForm(prev => ({ ...prev, numero_maquina: eq.serial }));
+        
+        const isDifferentEquipment = isEditing && existingData && existingData.equipo_id !== form.equipo_id;
+        if (!isEditing || isDifferentEquipment) {
+          api.get(`/servicios/last-horometro/${form.equipo_id}`)
+            .then(res => {
+              const lastH = res.data?.data;
+              if (lastH !== undefined && lastH !== null) {
+                setForm(prev => ({ ...prev, horometro_salida: lastH }));
+              } else if (eq.horometro_actual !== undefined && eq.horometro_actual !== null) {
+                // Fallback al del maestro si no hay remisiones previas
+                setForm(prev => ({ ...prev, horometro_salida: eq.horometro_actual }));
+              }
+            })
+            .catch(() => {
+              if (eq.horometro_actual !== undefined && eq.horometro_actual !== null) {
+                setForm(prev => ({ ...prev, horometro_salida: eq.horometro_actual }));
+              }
+            });
+        }
       }
     }
   }, [form.equipo_id, equiposFiltrados, isEditing, existingData]);
@@ -397,8 +442,8 @@ export function RemisionFormPage() {
         updated.items = updated.items.map(it => {
           if ((it.unidad || '').trim().toLowerCase() === 'hora') {
             let h = 1;
-            if (indexHora === 0) h = horas1 > 0 ? horas1 : 1;
-            else if (indexHora === 1) h = horas2 > 0 ? horas2 : 1;
+            if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.round(horas1 * 100) / 100) : 1;
+            else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.round(horas2 * 100) / 100) : 1;
             indexHora++;
             return { ...it, cantidad: h };
           }
@@ -584,8 +629,8 @@ export function RemisionFormPage() {
               updated.items = updated.items.map(it => {
                 if ((it.unidad || '').trim().toLowerCase() === 'hora') {
                   let h = 1;
-                  if (indexHora === 0) h = horas1 > 0 ? horas1 : 1;
-                  else if (indexHora === 1) h = horas2 > 0 ? horas2 : 1;
+                  if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.round(horas1 * 100) / 100) : 1;
+                  else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.round(horas2 * 100) / 100) : 1;
                   indexHora++;
                   return { ...it, cantidad: h };
                 }
@@ -628,8 +673,8 @@ export function RemisionFormPage() {
             updated.items = updated.items.map(it => {
               if ((it.unidad || '').trim().toLowerCase() === 'hora') {
                 let h = 1;
-                if (indexHora === 0) h = horas1 > 0 ? horas1 : 1;
-                else if (indexHora === 1) h = horas2 > 0 ? horas2 : 1;
+                if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.round(horas1 * 100) / 100) : 1;
+                else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.round(horas2 * 100) / 100) : 1;
                 indexHora++;
                 return { ...it, cantidad: h };
               }
@@ -718,8 +763,9 @@ export function RemisionFormPage() {
       return;
     }
     // Validar horómetro si el equipo tiene información registrada
-    if (form.equipo_id && equiposFiltrados.length) {
-      const eq = equiposFiltrados.find(e => e.id === form.equipo_id);
+    if (form.equipo_id) {
+      const listaEquipos = equipoExterno ? equiposExternosFiltrados : equiposFiltrados;
+      const eq = listaEquipos.find(e => String(e.id) === String(form.equipo_id));
       if (eq && eq.horometro_actual !== undefined && eq.horometro_actual !== null && eq.horometro_actual !== '') {
         if (form.horometro_salida === undefined || form.horometro_salida === null || form.horometro_salida === '') {
           toast.error('El Horómetro de Salida es obligatorio para el equipo seleccionado.');
@@ -886,7 +932,7 @@ export function RemisionFormPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem' }}>
             <div style={{ gridColumn: '1 / -1' }}>
               {/* — Ítems de Servicio — */}
-              <div style={{ overflowX: 'auto', marginBottom: '0.75rem' }}>
+              <div style={{ overflow: 'visible', marginBottom: '0.75rem' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--text-sm)' }}>
                   <thead>
                     <tr style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border-color)' }}>
@@ -909,33 +955,32 @@ export function RemisionFormPage() {
                       return (
                         <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
                           <td style={{ padding: '0.4rem 0.5rem' }}>
-                            <select
-                              className="input"
-                              style={{ width: '100%', fontSize: '12px' }}
+                            <SearchableSelect
                               value={it.catalogo_servicio_id}
-                              onChange={e => {
-                                const sid = e.target.value;
+                              onChange={(val) => {
+                                const sid = val;
                                 const svc = catalogoItems.find(s => String(s.id) === String(sid));
                                 updateItem(idx, 'catalogo_servicio_id', sid);
                                 if (svc) {
                                   updateItem(idx, 'valor_unitario', parseFloat(svc.precio_venta || svc.precio_servicio || svc.precio_base || 0));
                                   updateItem(idx, 'unidad', svc.unidad_cobro || svc.unidad || 'hora');
-                                  // No auto-rellenar descripcion — el usuario la escribe libremente
                                 }
                               }}
-                              disabled={isReadOnly}
-                              required
-                            >
-                              <option value="">Seleccionar...</option>
-                              {it.catalogo_servicio_id && !catalogoItems.some(s => String(s.id) === String(it.catalogo_servicio_id)) && (
-                                <option value={it.catalogo_servicio_id}>
-                                  {it.servicio_codigo ? `[${it.servicio_codigo}] ${it.servicio_nombre}` : `Servicio Inactivo (${it.catalogo_servicio_id})`}
-                                </option>
+                              fetchFn={async (term) => {
+                                const lower = term.toLowerCase();
+                                return catalogoItems.filter(s => s.nombre?.toLowerCase().includes(lower) || s.codigo?.toLowerCase().includes(lower));
+                              }}
+                              getOptionLabel={s => `[${s.codigo}] ${s.nombre}`}
+                              renderOption={(s, { isHighlighted }) => (
+                                <div style={{ fontWeight: isHighlighted ? 700 : 500 }}>
+                                  [{s.codigo}] {s.nombre}
+                                </div>
                               )}
-                              {catalogoItems.map(s => (
-                                <option key={s.id} value={s.id}>[{s.codigo}] {s.nombre}</option>
-                              ))}
-                            </select>
+                              placeholder="Seleccionar..."
+                              minSearchLength={0}
+                              disabled={isReadOnly}
+                              initialItem={catalogoItems.find(s => String(s.id) === String(it.catalogo_servicio_id)) || (it.servicio_nombre ? { id: it.catalogo_servicio_id, codigo: it.servicio_codigo || 'N/A', nombre: it.servicio_nombre } : null)}
+                            />
                           </td>
                           <td style={{ padding: '0.4rem 0.5rem' }}>
                             <input
@@ -1045,12 +1090,70 @@ export function RemisionFormPage() {
             <div style={{ gridColumn: '1 / 3' }}>
               <label style={label}>Equipo {requiresEquipo ? '*' : '(Opcional)'}</label>
               {isReadOnly ? (
-                <input {...inputProps('equipo_id')} value={`${existingData?.equipo_marca || ''} ${existingData?.equipo_modelo || ''} — ${existingData?.equipo_serial || ''}`} />
+                <input className="input" style={{ width: '100%' }} disabled value={`${existingData?.equipo_marca || ''} ${existingData?.equipo_modelo || ''} — ${existingData?.equipo_serial || ''}`} />
               ) : (
-                <select name="equipo_id" className="input" style={{ width: '100%' }} value={form.equipo_id} onChange={handleChange} required={requiresEquipo}>
-                  <option value="">Seleccionar equipo...</option>
-                  {equiposFiltrados.map(e => <option key={e.id} value={e.id}>{e.marca} - {e.serie || '—'}</option>)}
-                </select>
+                <>
+                  {!equipoExterno ? (
+                    <SearchableSelect
+                      name="equipo_id"
+                      value={form.equipo_id}
+                      onChange={(val) => handleChange({ target: { name: 'equipo_id', value: val } })}
+                      fetchFn={async (term) => {
+                        const lower = term.toLowerCase();
+                        return equiposFiltrados.filter(e => e.marca?.toLowerCase().includes(lower) || e.serie?.toLowerCase().includes(lower) || e.serial?.toLowerCase().includes(lower));
+                      }}
+                      getOptionLabel={e => `${e.marca} - ${e.serie || e.serial || '—'}`}
+                      renderOption={(e, { isHighlighted }) => (
+                        <div style={{ fontWeight: isHighlighted ? 700 : 500 }}>
+                          {e.marca} - {e.serie || e.serial || '—'}
+                        </div>
+                      )}
+                      placeholder="Seleccionar equipo interno..."
+                      minSearchLength={0}
+                      disabled={isReadOnly}
+                      initialItem={equiposFiltrados.find(e => String(e.id) === String(form.equipo_id))}
+                    />
+                  ) : (
+                    <SearchableSelect
+                      name="equipo_id"
+                      value={form.equipo_id}
+                      onChange={(val) => handleChange({ target: { name: 'equipo_id', value: val } })}
+                      fetchFn={async (term) => {
+                        const lower = term.toLowerCase();
+                        return equiposExternosFiltrados.filter(e => 
+                          e.marca?.toLowerCase().includes(lower) || 
+                          e.serie?.toLowerCase().includes(lower) || 
+                          e.serial?.toLowerCase().includes(lower) ||
+                          e.empresa_nombre?.toLowerCase().includes(lower)
+                        );
+                      }}
+                      getOptionLabel={e => `${e.empresa_nombre} — ${e.marca} - ${e.serie || e.serial || '—'}`}
+                      renderOption={(e, { isHighlighted }) => (
+                        <div style={{ fontWeight: isHighlighted ? 700 : 500 }}>
+                          {e.empresa_nombre} — {e.marca} - {e.serie || e.serial || '—'}
+                        </div>
+                      )}
+                      placeholder="Seleccionar equipo externo..."
+                      minSearchLength={0}
+                      disabled={isReadOnly}
+                      initialItem={equiposExternosFiltrados.find(e => String(e.id) === String(form.equipo_id))}
+                    />
+                  )}
+                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input 
+                      type="checkbox" 
+                      id="toggle-equipo-externo"
+                      checked={equipoExterno}
+                      onChange={(e) => {
+                        setEquipoExterno(e.target.checked);
+                        handleChange({ target: { name: 'equipo_id', value: '' } });
+                      }}
+                      disabled={isReadOnly}
+                      style={{ cursor: isReadOnly ? 'not-allowed' : 'pointer' }}
+                    />
+                    <label htmlFor="toggle-equipo-externo" style={{ fontSize: '12px', color: 'var(--text-muted)', cursor: isReadOnly ? 'not-allowed' : 'pointer', userSelect: 'none' }}>Usar equipo externo</label>
+                  </div>
+                </>
               )}
             </div>
             <div>
@@ -1125,7 +1228,7 @@ export function RemisionFormPage() {
                   ].map(({ name, label: lbl }) => (
                     <div key={name}>
                       <label style={label}>{lbl}</label>
-                      <input type="time" {...inputProps(name)} />
+                      <input type="text" placeholder="HH:MM" {...inputProps(name)} />
                     </div>
                   ))}
                 </div>
@@ -1146,7 +1249,7 @@ export function RemisionFormPage() {
                       ].map(({ name, label: lbl }) => (
                         <div key={name}>
                           <label style={label}>{lbl}</label>
-                          <input type="time" {...inputProps(name)} />
+                          <input type="text" placeholder="HH:MM" {...inputProps(name)} />
                         </div>
                       ))}
                       <div>
