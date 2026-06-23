@@ -5,12 +5,26 @@ import { requireAuth } from '../../middleware/auth.js';
 import { authLimiter, uploadLimiter } from '../../middleware/rateLimiter.js';
 import { uploadSingle } from '../../config/storage.js';
 import { env } from '../../config/env.js';
+import { validate } from '../../middleware/validate.js';
+import { z } from 'zod';
+
+const registerSchema = z.object({
+  nombre: z.string().min(2),
+  apellido: z.string().min(2),
+  email: z.string().email(),
+  password: z.string().min(6)
+});
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1)
+});
 
 const router = Router();
 
 // ─── Local Auth ──────────────────────────────────────────────
-router.post('/register', authLimiter, authController.register);
-router.post('/login', authLimiter, authController.login);
+router.post('/register', authLimiter, validate(registerSchema), authController.register);
+router.post('/login', authLimiter, validate(loginSchema), authController.login);
 
 // ─── Google OAuth ────────────────────────────────────────────
 router.get('/google',

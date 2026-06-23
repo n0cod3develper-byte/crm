@@ -2,8 +2,7 @@ import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
-import cubejs from '@cubejs-client/core';
-import { CubeProvider } from '@cubejs-client/react';
+
 
 // Stores & Contexts
 import { useAuthStore } from './stores/authStore';
@@ -15,10 +14,7 @@ import { ErrorBoundary, SafeModule } from './components/ErrorBoundary';
 import { Sidebar } from './components/layout/Sidebar';
 
 // --- Configuración Global de Cube.js ---
-const cubejsApi = cubejs(
-  'd780c33e1d4c2c85bd4ccf36cea8d82779ffded6e5430df2e10e427e053aa6faa17c82a0e7f4b99ef91f317cf6478e146db708dbf3b377a790ed737bebf04f03',
-  { apiUrl: 'http://localhost:4000/cubejs-api/v1' }
-);
+
 
 // Lazy loaded pages
 const LoginPage = lazy(() => import('./pages/Auth/LoginPage').then(m => ({ default: m.LoginPage })));
@@ -75,7 +71,7 @@ const CatalogoServiciosPage = lazy(() => import('./pages/CatalogoServicios/Catal
 const ServiciosPage = lazy(() => import('./pages/Servicios/ServiciosPage').then(m => ({ default: m.ServiciosPage })));
 const RemisionFormPage = lazy(() => import('./pages/Servicios/RemisionFormPage').then(m => ({ default: m.RemisionFormPage })));
 const RemisionDetailPage = lazy(() => import('./pages/Servicios/RemisionDetailPage').then(m => ({ default: m.RemisionDetailPage })));
-const ReportBuilderPage = lazy(() => import('./pages/Reportes/ReportBuilderPage').then(m => ({ default: m.ReportBuilderPage })));
+
 const SalesReportServicios = lazy(() => import('./pages/Reportes/SalesReportServicios').then(m => ({ default: m.SalesReportServicios })));
 const SalesReportMantenimiento = lazy(() => import('./pages/Reportes/SalesReportMantenimiento').then(m => ({ default: m.SalesReportMantenimiento })));
 const TurnoPage = lazy(() => import('./pages/Turnos/TurnoPage').then(m => ({ default: m.TurnoPage })));
@@ -89,6 +85,8 @@ const InformesMantenimientoPage = lazy(() => import('./pages/Informes/InformesMa
 
 const BudgetIndexPage = lazy(() => import('./pages/Presupuestos/BudgetIndexPage').then(m => ({ default: m.BudgetIndexPage })));
 const BudgetFormPage = lazy(() => import('./pages/Presupuestos/BudgetFormPage').then(m => ({ default: m.BudgetFormPage })));
+
+const PromptGeneratorPage = lazy(() => import('./pages/Sistemas/PromptGeneratorPage').then(m => ({ default: m.PromptGeneratorPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -115,7 +113,7 @@ function App() {
   }, [applyTheme]);
 
   return (
-    <CubeProvider cubeApi={cubejsApi}>
+    
       <QueryClientProvider client={queryClient}>
         <PermissionsProvider>
         
@@ -199,7 +197,7 @@ function App() {
                 <Route path="/proveedores/:id" element={<ProtectedRoute modulo="proveedores" accion="ver"><ProveedorFichaPage /></ProtectedRoute>} />
 
                 {/* Analítica / BI */}
-                <Route path="/reportes" element={<ProtectedRoute><ReportBuilderPage /></ProtectedRoute>} />
+                
                 <Route path="/reportes/servicios" element={<ProtectedRoute><SalesReportServicios /></ProtectedRoute>} />
                 <Route path="/reportes/mantenimiento" element={<ProtectedRoute><SalesReportMantenimiento /></ProtectedRoute>} />
 
@@ -217,6 +215,9 @@ function App() {
 
                 {/* Programación de Mantenimientos */}
                 <Route path="/mantenimientos-programados/*" element={<ProtectedRoute><MantenimientosProgramados /></ProtectedRoute>} />
+
+                {/* Sistemas */}
+                <Route path="/sistemas/generador-prompts" element={<ProtectedRoute adminOnly><PromptGeneratorPage /></ProtectedRoute>} />
 
                 {/* Admin Usuarios */}
                 <Route path="/admin/users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
@@ -249,7 +250,7 @@ function App() {
           }}
         />
       </QueryClientProvider>
-    </CubeProvider>
+    
   );
 }
 

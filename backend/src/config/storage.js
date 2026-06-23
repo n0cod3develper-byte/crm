@@ -43,9 +43,17 @@ export function buildUploadPath(entidadTipo, entidadId, tipoSlug) {
   return path.join(base, entidadId.toString(), tipoSlug || 'general').replace(/\\/g, '/');
 }
 
-// CAMBIO CLAVE: usar memoryStorage en lugar de diskStorage
-// El archivo llega completo en memoria (buffer) antes de guardarlo.
-const storage = multer.memoryStorage();
+import os from 'os';
+// CAMBIO CLAVE: usar diskStorage en lugar de memoryStorage para evitar OOM leaks
+// El archivo se guarda en temp dir del OS
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, os.tmpdir())
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.fieldname + '-' + Date.now())
+  }
+});
 
 // Pre-filtro por MIME declarado por el cliente (primera defensa)
 const fileFilter = (_req, file, cb) => {

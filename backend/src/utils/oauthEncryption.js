@@ -7,7 +7,7 @@ const IV_LENGTH = 16;
 
 function getEncryptionKey() {
   const rawKey = env.OAUTH_TOKEN_ENCRYPTION_KEY;
-  if (!rawKey) return null;
+  if (!rawKey) throw new Error('OAUTH_TOKEN_ENCRYPTION_KEY is required');
   return crypto.createHash('sha256').update(rawKey).digest();
 }
 
@@ -15,10 +15,7 @@ export function encryptToken(plaintext) {
   if (!plaintext) return plaintext;
   
   const key = getEncryptionKey();
-  if (!key) {
-    logger.debug('OAUTH_TOKEN_ENCRYPTION_KEY no configurada — tokens OAuth se almacenarán en texto plano');
-    return plaintext;
-  }
+
 
   try {
     const iv = crypto.randomBytes(IV_LENGTH);
@@ -43,9 +40,6 @@ export function decryptToken(encryptedText) {
   }
 
   const key = getEncryptionKey();
-  if (!key) {
-    return encryptedText;
-  }
 
   try {
     const parts = encryptedText.split(':');

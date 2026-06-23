@@ -265,6 +265,16 @@ export function RemisionFormPage() {
   }, [isEditing, form.equipo_id]);
 
   // ─── Al cambiar empresa: cargar forma de pago ─────────────────
+  // ─── Función de búsqueda de equipos por serie y capacidad nominal ───
+  const searchEquipos = React.useCallback(async (term) => {
+    if (!term) return [];
+    const lowered = term.toLowerCase();
+    return equiposFiltrados.filter(e =>
+      (e.serie && e.serie.toLowerCase().includes(lowered)) ||
+      (e.capacidad_nominal && String(e.capacidad_nominal).includes(lowered))
+    );
+  }, [equiposFiltrados]);
+
   React.useEffect(() => {
     if (!form.company_id) return;
 
@@ -1020,7 +1030,7 @@ export function RemisionFormPage() {
                         </tr>
                       );
                     })}
-                  </tbody>
+                </tbody>
                 </table>
                 {!isReadOnly && (
                   <button
@@ -1033,23 +1043,28 @@ export function RemisionFormPage() {
                   </button>
                 )}
               </div>
-              {(() => {
-                const totalHorasItems = (form.items || []).reduce((acc, it) => {
-                  if ((it.unidad || '').trim().toLowerCase() === 'hora') {
-                    return acc + (parseFloat(it.cantidad) || 0);
-                  }
-                  return acc;
-                }, 0);
-              })()}
             </div>
             <div style={{ gridColumn: '1 / 3' }}>
               <label style={label}>Equipo {requiresEquipo ? '*' : '(Opcional)'}</label>
               {isReadOnly ? (
                 <input {...inputProps('equipo_id')} value={`${existingData?.equipo_marca || ''} ${existingData?.equipo_modelo || ''} — ${existingData?.equipo_serial || ''}`} />
               ) : (
-                <select name="equipo_id" className="input" style={{ width: '100%' }} value={form.equipo_id} onChange={handleChange} required={requiresEquipo}>
-                  <option value="">Seleccionar equipo...</option>
-                  {equiposFiltrados.map(e => <option key={e.id} value={e.id}>{e.marca} - {e.serie || '—'}</option>)}
+                <select
+                  {...inputProps('equipo_id')}
+                  className="input"
+                  style={{ width: '100%' }}
+                  value={form.equipo_id}
+                  onChange={e => {
+                    handleChange({ target: { name: 'equipo_id', value: e.target.value } });
+                  }}
+                  required={requiresEquipo}
+                  disabled={isReadOnly}
+                >
+                  {equiposFiltrados.map(e => (
+                    <option key={e.id} value={e.id}>
+                      {e.nombre || e.serial || e.id}
+                    </option>
+                  ))}
                 </select>
               )}
             </div>

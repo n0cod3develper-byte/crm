@@ -13,12 +13,13 @@ const BASE_PATH = process.env.UPLOADS_BASE_PATH || './uploads';
  * 3. Escribir buffer en disco con la extensión correcta.
  * 4. Retornar metadata completa del archivo guardado.
  *
- * @param {Buffer} buffer         - Buffer del archivo (de memoryStorage)
+ * @param {string} tempFilePath   - Ruta del archivo temporal subido
  * @param {string} carpetaRel     - Ruta relativa. Ej: 'empresas/uuid/rut'
  * @param {string} nombreOriginal - Nombre original del usuario
  * @returns {Promise<object>} Metadata del archivo guardado
  */
-export async function guardarArchivo(buffer, carpetaRel, nombreOriginal) {
+export async function guardarArchivo(tempFilePath, carpetaRel, nombreOriginal) {
+  const buffer = fs.readFileSync(tempFilePath);
   // Paso 1: Detectar tipo REAL por magic bytes antes de escribir nada
   const tipoDetectado = await detectarTipoReal(buffer);
 
@@ -35,8 +36,8 @@ export async function guardarArchivo(buffer, carpetaRel, nombreOriginal) {
   const nombreDisco = `${idArchivo}.${tipoDetectado.ext}`;
   const rutaFinal = path.join(carpetaAbs, nombreDisco);
 
-  // Paso 4: Escribir buffer directamente con nombre definitivo
-  fs.writeFileSync(rutaFinal, buffer);
+  // Paso 4: Mover el archivo temporal al destino final
+  fs.renameSync(tempFilePath, rutaFinal);
 
   const stats = fs.statSync(rutaFinal);
 

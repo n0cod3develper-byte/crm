@@ -4,8 +4,12 @@ import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { verifyAccessToken } from '../utils/jwt.js';
 import { getAccessToken } from '../utils/cookies.js';
+import { redis } from '../config/redis.js';
 
-const permissionsCache = new NodeCache({ stdTTL: env.PERMISSIONS_CACHE_TTL_SECONDS || 300 });
+const permissionsCache = new NodeCache({ 
+  stdTTL: env.PERMISSIONS_CACHE_TTL_SECONDS || 300,
+  maxKeys: 1000 // Prevenir OOM leaks
+});
 
 /**
  * Middleware para requerir autenticación JWT
@@ -19,6 +23,13 @@ export const requireAuth = async (req, res, next) => {
     }
 
     const payload = verifyAccessToken(token);
+
+    if (redis && redis.status === 'ready') {
+      const isBlacklisted = await redis.get(`bl_${token}`);
+      if (isBlacklisted) {
+        return res.status(401).json({ error: 'Token revocado' });
+      }
+    }
     
     // Buscar usuario en BD
     const userSql = `

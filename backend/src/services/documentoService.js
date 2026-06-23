@@ -124,7 +124,7 @@ export class DocumentoService {
    * @param {object} datos - { tipo_documento_id, nombre_display, descripcion, fecha_documento, fecha_vencimiento, es_confidencial }
    */
   async subirDocumento(entidadTipo, entidadId, file, datos, userId, carpetaRel) {
-    const fileMeta = await guardarArchivo(file.buffer, carpetaRel, file.originalname);
+    const fileMeta = await guardarArchivo(file.path, carpetaRel, file.originalname);
 
     const result = await query(`
       INSERT INTO documentos (

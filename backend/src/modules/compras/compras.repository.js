@@ -12,6 +12,13 @@ export class ComprasRepository {
   }
 
   // === SOLICITUDES DE COMPRA ===
+  async updateEstadoOc(id, nuevoEstado, estadoRequerido) {
+    const res = await db.query(
+      "UPDATE ordenes_compra SET estado = $1, updated_at = NOW() WHERE id = $2 AND estado = $3 RETURNING id",
+      [nuevoEstado, id, estadoRequerido]
+    );
+    return res.rowCount > 0;
+  }
   async isSolicitudExists(consecutivo) {
     const res = await db.query('SELECT id FROM solicitudes_compra WHERE consecutivo = $1', [consecutivo]);
     return res.rowCount > 0;

@@ -138,18 +138,29 @@ async function generateBackupNodeJs(adminUserId) {
       const columns = colsResult.rows.map(r => r.column_name);
       const colList = columns.map(c => `"${c}"`).join(', ');
 
-      // Obtener todos los datos
-      const dataResult = await query(
-        `SELECT * FROM "${tableName}" ORDER BY 1`
-      );
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
 
-      if (dataResult.rows.length === 0) continue;
+      sqlContent += `-- Tabla: ${tableName}\n`;
+      
+      while (hasMore) {
+        const dataResult = await query(
+          `SELECT * FROM "${tableName}" ORDER BY 1 LIMIT $1 OFFSET $2`,
+          [PAGE_SIZE, offset]
+        );
 
-      sqlContent += `-- Tabla: ${tableName} (${dataResult.rows.length} registros)\n`;
+        if (dataResult.rows.length === 0) {
+          hasMore = false;
+          continue;
+        }
 
-      for (const row of dataResult.rows) {
-        const values = columns.map(col => formatValue(row[col]));
-        sqlContent += `INSERT INTO "${tableName}" (${colList}) VALUES (${values.join(', ')});\n`;
+        for (const row of dataResult.rows) {
+          const values = columns.map(col => formatValue(row[col]));
+          sqlContent += `INSERT INTO "${tableName}" (${colList}) VALUES (${values.join(', ')});\n`;
+        }
+        
+        offset += PAGE_SIZE;
       }
       sqlContent += '\n';
     } catch (tableErr) {
