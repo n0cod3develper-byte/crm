@@ -93,7 +93,7 @@ export const uploadImagen = async (req, res, next) => {
     const uploadPath = buildUploadPath('CATALOGO', id, 'imagenes');
 
     // 2. Guardar físicamente
-    const fileMeta = await guardarArchivo(req.file.buffer, uploadPath, req.file.originalname);
+    const fileMeta = await guardarArchivo(req.file.path, uploadPath, req.file.originalname);
 
     // 3. Actualizar base de datos
     const item = await repo.update(id, { 

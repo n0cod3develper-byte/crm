@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { randomBytes } from 'crypto';
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -28,8 +29,8 @@ const envSchema = z.object({
   API_BASE_URL: z.string().default('http://localhost:3005'),
 
   S3_ENDPOINT: z.string().default('http://localhost:9000'),
-  S3_ACCESS_KEY: z.string().default('minioadmin'),
-  S3_SECRET_KEY: z.string().default('minioadmin123'),
+  S3_ACCESS_KEY: z.string(),
+  S3_SECRET_KEY: z.string(),
   S3_BUCKET: z.string().default('crm-files'),
   S3_REGION: z.string().default('us-east-1'),
 
@@ -55,7 +56,7 @@ const envSchema = z.object({
 
   SENTRY_DSN: z.string().optional(),
 
-  OAUTH_TOKEN_ENCRYPTION_KEY: z.string().min(32).optional(),
+  OAUTH_TOKEN_ENCRYPTION_KEY: z.string().min(32).optional().default(() => randomBytes(32).toString('hex')),
 });
 
 const parsed = envSchema.safeParse(process.env);

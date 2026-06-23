@@ -94,7 +94,8 @@ const MIGRATION_FILES = [
   '062_equipos_bonificacion_hora.sql',
   '063_servicios_equipo_optional.sql',
   '064_servicios_bonificacion_hora.sql',
-  '065_soat_email_notifications.sql'
+  '065_soat_email_notifications.sql',
+  '066_prompt_specs.sql'
 ];
 
 async function ensureMigrationsTable(client) {

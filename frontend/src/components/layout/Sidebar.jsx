@@ -6,7 +6,8 @@ import {
   Zap, BarChart3, Settings, LogOut, Truck, Box, Wrench,
   ShoppingCart, ShoppingBag, Receipt, Clock, BookOpen, MapPin, History,
   Bookmark, ClipboardList, Shield, Sun, Moon, Monitor,
-  CalendarClock, Database, PieChart, DollarSign
+  CalendarClock, Database, PieChart, DollarSign,
+  MessageSquareCode
 } from 'lucide-react';
 import { useSidebarStore } from '../../stores/sidebarStore';
 import { useThemeStore } from '../../stores/themeStore';
@@ -60,6 +61,8 @@ const navItems = [
   { label: 'Roles y Permisos', icon: Shield, to: '/admin/roles', adminOnly: true },
   { label: 'Módulos del Sistema', icon: Settings, to: '/admin/modulos', adminOnly: true },
   { label: 'Respaldos DB', icon: Database, to: '/admin/backups', adminOnly: true },
+  { section: 'Sistemas' },
+  { label: 'Generador Prompts', icon: MessageSquareCode, to: '/sistemas/generador-prompts', adminOnly: true },
 ];
 
 // ─── Componente principal ────────────────────────────────────

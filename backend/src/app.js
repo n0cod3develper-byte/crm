@@ -9,7 +9,7 @@ import { createServer } from 'http';
 
 import { env } from './config/env.js';
 import { checkConnection } from './config/database.js';
-import { connectRedis } from './config/redis.js';
+import { connectRedis, redis } from './config/redis.js';
 import { initializePassport } from './config/passport.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { generalLimiter, uploadLimiter } from './middleware/rateLimiter.js';
@@ -50,6 +50,7 @@ import locativoRoutes from './modules/locativo/locativo.routes.js';
 import mantenimientosProgramadosRoutes from './modules/mantenimientos-programados/mantenimientosProgramados.routes.js';
 import informesRoutes from './modules/informes/informes.routes.js';
 import budgetRoutes from './modules/budget/budget.routes.js';
+import promptSpecsRoutes from './modules/prompt-specs/promptSpecs.routes.js';
 import { iniciarJobCierreAutomatico } from './jobs/turnosCierreAutomatico.job.js';
 import { iniciarJobSoatEmail } from './jobs/soatEmailNotifier.js';
 import { inicializarFestivos } from './services/calendarioService.js';
@@ -60,7 +61,25 @@ app.set('trust proxy', 1); // Trust first proxy (Traefik)
 const httpServer = createServer(app);
 // ─── Seguridad ───────────────────────────────────────────────
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameAncestors: ["'none'"]
+    }
+  }
 }));
 // ─── CORS: orígenes permitidos ─────────────────────────────────
 const corsOrigins = (() => {
@@ -103,8 +122,31 @@ initializePassport();
 app.use(passport.initialize());
 
 // ─── Health check ────────────────────────────────────────────
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', env: env.NODE_ENV, timestamp: new Date().toISOString() });
+app.get('/health', async (_req, res) => {
+  try {
+    await checkConnection(); // Verifica PostgreSQL
+    let redisStatus = 'disconnected';
+    if (redis && redis.status === 'ready') {
+      await redis.ping();
+      redisStatus = 'connected';
+    }
+    res.json({
+      status: 'ok',
+      env: env.NODE_ENV,
+      timestamp: new Date().toISOString(),
+      services: {
+        database: 'connected',
+        redis: redisStatus
+      }
+    });
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
 });
 
 // ─── API v1 ──────────────────────────────────────────────────
@@ -161,6 +203,9 @@ app.use(`${API}/reports`,     reportsRoutes);
 app.use(`${API}/informes`,    informesRoutes);
 app.use(`${API}/budget`,      budgetRoutes);
 app.use(`${API}/mantenimientos-programados`, mantenimientosProgramadosRoutes);
+
+// ─── Prompt Specs (bajo /api/prompt-specs, no /api/v1) ────
+app.use('/api/prompt-specs', promptSpecsRoutes);
 
 // ─── 404 y manejo de errores ─────────────────────────────────
 app.use(notFoundHandler);

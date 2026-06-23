@@ -2,12 +2,12 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { generateTokenPair } from '../../utils/jwt.js';
 import { query } from '../../config/database.js';
+import { redis, isRedisAvailable } from '../../config/redis.js';
 import { AppError } from '../../utils/errors.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { obtenerPermisosUsuario } from '../../middleware/auth.js';
 import { setAuthCookies, clearAuthCookies, getRefreshToken, parseMaxAge } from '../../utils/cookies.js';
-import { redis, isRedisAvailable } from '../../config/redis.js';
 
 /**
  * Login de usuario
@@ -148,8 +148,23 @@ async function me(req, res, next) {
 }
 
 async function logout(req, res) {
-  clearAuthCookies(res);
-  res.json({ success: true, message: 'Sesión cerrada' });
+  try {
+    const token = getAccessToken(req);
+    if (token && redis && redis.status === 'ready') {
+      const decoded = jwt.decode(token);
+      if (decoded && decoded.exp) {
+        const expiresIn = decoded.exp - Math.floor(Date.now() / 1000);
+        if (expiresIn > 0) {
+          await redis.set(`bl_${token}`, 'revoked', 'EX', expiresIn);
+        }
+      }
+    }
+    clearAuthCookies(res);
+    res.json({ success: true, message: 'Sesión cerrada' });
+  } catch (err) {
+    clearAuthCookies(res);
+    res.json({ success: true, message: 'Sesión cerrada (con errores menores)' });
+  }
 }
 
 async function refreshToken(req, res, next) {
@@ -270,7 +285,7 @@ async function uploadProfilePhoto(req, res, next) {
     }
 
     const { guardarArchivo } = await import('../../services/fileStorageService.js');
-    const metadata = await guardarArchivo(file.buffer, 'avatars', file.originalname);
+    const metadata = await guardarArchivo(file.path, 'avatars', file.originalname);
 
     // Construir URL pública
     const baseUrl = env.API_BASE_URL || `http://localhost:${env.PORT}`;

@@ -6,8 +6,8 @@ const { Pool } = pg;
 
 export const db = new Pool({
   connectionString: env.DATABASE_URL,
-  max: 20,                    // máximo de conexiones en el pool
-  idleTimeoutMillis: 30000,   // cierra conexiones inactivas tras 30s
+  max: parseInt(env.DB_POOL_MAX || '20', 10),
+  idleTimeoutMillis: parseInt(env.DB_POOL_IDLE_TIMEOUT || '10000', 10),
   connectionTimeoutMillis: 5000,
   ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,
 });

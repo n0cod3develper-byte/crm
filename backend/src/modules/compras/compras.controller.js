@@ -107,7 +107,8 @@ export const getOrdenCompra = async (req, res) => {
 
 export const enviarParaAprobacion = async (req, res) => {
   try {
-    await db.query("UPDATE ordenes_compra SET estado = 'EN_APROBACION', updated_at = NOW() WHERE id = $1 AND estado = 'BORRADOR'", [req.params.id]);
+    const updated = await comprasRepository.updateEstadoOc(req.params.id, 'EN_APROBACION', 'BORRADOR');
+    if (!updated) return res.status(400).json({ error: 'La OC no se encuentra en estado BORRADOR' });
     res.json({ success: true });
   } catch (e) {
     console.error('Error enviarParaAprobacion:', e);
@@ -137,7 +138,8 @@ export const rechazarOc = async (req, res) => {
 
 export const emitirOc = async (req, res) => {
   try {
-    await db.query("UPDATE ordenes_compra SET estado = 'EMITIDA', updated_at = NOW() WHERE id = $1 AND estado = 'APROBADA'", [req.params.id]);
+    const updated = await comprasRepository.updateEstadoOc(req.params.id, 'EMITIDA', 'APROBADA');
+    if (!updated) return res.status(400).json({ error: 'La OC no se encuentra en estado APROBADA' });
     res.json({ success: true });
   } catch (e) {
     console.error('Error emitirOc:', e);
