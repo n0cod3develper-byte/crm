@@ -44,9 +44,9 @@ export const companiesController = {
 
   async remove(req, res, next) {
     try {
-      const result = await repo.softDelete(req.params.id);
+      const result = await repo.hardDelete(req.params.id);
       if (!result) throw new NotFoundError('Empresa');
-      res.json({ success: true, message: 'Empresa eliminada correctamente' });
+      res.json({ success: true, message: 'Empresa eliminada correctamente de forma permanente' });
     } catch (err) { next(err); }
   },
 
