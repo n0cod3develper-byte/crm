@@ -168,7 +168,9 @@ export class CompaniesRepository {
     for (const key of allowed) {
       if (key in data) {
         fields.push(`${key} = $${i++}`);
-        values.push(data[key]);
+        let val = data[key];
+        if (val === '') val = null;
+        values.push(val);
       }
     }
     return await withTransaction(async (client) => {
@@ -208,6 +210,21 @@ export class CompaniesRepository {
       [id]
     );
     return result.rows[0] || null;
+  }
+
+  async hardDelete(id) {
+    try {
+      const result = await query(
+        `DELETE FROM companies WHERE id = $1 RETURNING id`,
+        [id]
+      );
+      return result.rows[0] || null;
+    } catch (err) {
+      if (err.code === '23503') {
+        throw new Error('No se puede eliminar la empresa permanentemente porque ya tiene registros asociados (ej. equipos).');
+      }
+      throw err;
+    }
   }
 
   async importCompanies(rows, userId) {

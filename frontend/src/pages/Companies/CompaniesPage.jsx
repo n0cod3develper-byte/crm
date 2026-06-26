@@ -300,7 +300,7 @@ export function CompaniesPage() {
           maxWidth="400px"
         >
           <p style={{ color: 'var(--text-secondary)' }}>
-            ¿Estás seguro de que deseas eliminar esta empresa? Esta acción se reflejará en el sistema, aunque no eliminará los datos históricos permanentemente (soft delete).
+            ¿Estás seguro de que deseas eliminar esta empresa permanentemente? Esta acción borrará la empresa de la base de datos para que puedas volver a crearla (Hard Delete). Si la empresa tiene registros asociados importantes (ej. equipos), la eliminación no será permitida.
           </p>
           <div className="flex gap-3 justify-end mt-6">
             <button className="btn btn--secondary" onClick={() => setDeletingId(null)}>
