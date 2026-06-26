@@ -7,6 +7,7 @@ import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 import { usePermissions } from '../../contexts/PermissionsContext';
 import { LiquidacionHorasModal } from './LiquidacionHorasModal';
+import { RegistroDiasFijoPanel } from './RegistroDiasFijoPanel';
 
 const labelStyle = { fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 };
 const valueStyle = { fontWeight: 500, fontSize: '13px' };
@@ -70,6 +71,12 @@ export function RemisionDetailPage() {
     mutationFn: (hid) => api.delete(`/servicios/${id}/horas-laborales/${hid}`),
     onSuccess: () => { toast.success('Liquidación eliminada'); qc.invalidateQueries({ queryKey: ['horas-laborales', id] }); },
     onError: (err) => toast.error(err.response?.data?.message || 'Error al eliminar liquidación'),
+  });
+
+  const toggleServicioFijo = useMutation({
+    mutationFn: (is_servicio_fijo) => api.put(`/servicios/${id}`, { is_servicio_fijo }),
+    onSuccess: () => { toast.success('Servicio Fijo actualizado'); qc.invalidateQueries({ queryKey: ['servicios', id] }); },
+    onError: (err) => toast.error('Error al actualizar tipo de servicio'),
   });
 
   const handleDownloadPDF = async () => {
@@ -137,6 +144,11 @@ export function RemisionDetailPage() {
           <span className={`badge badge--${ESTADO_BADGE[remision.estado] || 'gray'}`} style={{ fontSize: '12px', padding: '4px 12px' }}>
             {remision.estado}
           </span>
+          {remision.is_servicio_fijo && (
+            <span className="badge" style={{ background: 'var(--clr-primary-100)', color: 'var(--clr-primary-700)', fontSize: '12px', padding: '4px 12px', fontWeight: 800 }}>
+              FIJO
+            </span>
+          )}
           <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>Fecha: {formatDate(remision.fecha_servicio)}</span>
           {remision.hora_acordada && (
             <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
@@ -172,15 +184,32 @@ export function RemisionDetailPage() {
               <div><span style={labelStyle}>Valor Hora</span><span style={valueStyle}>{formatCOP(remision.valor_hora)}</span></div>
             </div>
 
-            <p style={sectionTitle}>Tiempos — Operario Inicial</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem 1.5rem' }}>
-              <div><span style={labelStyle}>Salida CARGAR</span><span style={valueStyle}>{formatTime(remision.hora_salida_cargar)}</span></div>
-              <div><span style={labelStyle}>Llegada Cliente</span><span style={valueStyle}>{formatTime(remision.hora_llegada_cliente)}</span></div>
-              <div><span style={labelStyle}>Salida Cliente</span><span style={valueStyle}>{formatTime(remision.hora_salida_cliente)}</span></div>
-              <div><span style={labelStyle}>Llegada CARGAR</span><span style={valueStyle}>{formatTime(remision.hora_llegada_cargar)}</span></div>
-              <div><span style={labelStyle}>Horómetro Salida</span><span style={valueStyle}>{remision.horometro_salida ?? '—'}</span></div>
-              <div><span style={labelStyle}>Horómetro Regreso</span><span style={valueStyle}>{remision.horometro_regreso ?? '—'}</span></div>
+            <div style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <p style={{ ...sectionTitle, margin: 0, border: 'none', padding: 0 }}>Tiempos — Operario Inicial</p>
+              {(remision.estado === 'BORRADOR' || remision.estado === 'PENDIENTE' || esAdmin()) && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: 'var(--bg-secondary)', padding: '4px 10px', borderRadius: 20 }}>
+                  <input type="checkbox" checked={!!remision.is_servicio_fijo} onChange={e => {
+                    if (window.confirm('¿Cambiar modalidad de servicio fijo?')) {
+                      toggleServicioFijo.mutate(e.target.checked);
+                    }
+                  }} />
+                  Servicio Fijo
+                </label>
+              )}
             </div>
+            
+            {remision.is_servicio_fijo ? (
+              <RegistroDiasFijoPanel remision={remision} />
+            ) : (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem 1.5rem', marginTop: '0.75rem' }}>
+                  <div><span style={labelStyle}>Salida CARGAR</span><span style={valueStyle}>{formatTime(remision.hora_salida_cargar)}</span></div>
+                  <div><span style={labelStyle}>Llegada Cliente</span><span style={valueStyle}>{formatTime(remision.hora_llegada_cliente)}</span></div>
+                  <div><span style={labelStyle}>Salida Cliente</span><span style={valueStyle}>{formatTime(remision.hora_salida_cliente)}</span></div>
+                  <div><span style={labelStyle}>Llegada CARGAR</span><span style={valueStyle}>{formatTime(remision.hora_llegada_cargar)}</span></div>
+                  <div><span style={labelStyle}>Horómetro Salida</span><span style={valueStyle}>{remision.horometro_salida ?? '—'}</span></div>
+                  <div><span style={labelStyle}>Horómetro Regreso</span><span style={valueStyle}>{remision.horometro_regreso ?? '—'}</span></div>
+                </div>
 
             {operariosAsignados.length > 1 && (
               <>
@@ -294,6 +323,9 @@ export function RemisionDetailPage() {
                 </div>
               );
             })()}
+            
+            </> // Cierre de la condición is_servicio_fijo
+            )}
 
             {remision.observaciones && (
               <>

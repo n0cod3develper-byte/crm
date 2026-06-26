@@ -95,5 +95,51 @@ export const informesController = {
       logger.error('Error en getHoursByOperatorDetail', { error: error.message });
       next(error);
     }
-  }
+  },
+
+  // ── GESTIÓN HUMANA: Liquidación Bonificación por Horas ──
+  async getLiquidacionBonificacion(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      if (!fecha_inicio || !fecha_fin) {
+        return res.status(400).json({ error: 'fecha_inicio y fecha_fin son requeridos' });
+      }
+
+      // Calcular período de quincena anterior automáticamente
+      const d1 = new Date(fecha_inicio + 'T00:00:00');
+      const d2 = new Date(fecha_fin + 'T00:00:00');
+      let prevInicio, prevFin;
+
+      if (d1.getDate() === 1 && d2.getDate() === 15) {
+        // Quincena 1 actual (1-15) → anterior: 16-último del mes anterior
+        const mesAnterior = new Date(d1.getFullYear(), d1.getMonth() - 1, 1);
+        const ultimoDia = new Date(mesAnterior.getFullYear(), mesAnterior.getMonth() + 1, 0).getDate();
+        const mStr = String(mesAnterior.getMonth() + 1).padStart(2, '0');
+        prevInicio = `${mesAnterior.getFullYear()}-${mStr}-16`;
+        prevFin    = `${mesAnterior.getFullYear()}-${mStr}-${ultimoDia}`;
+      } else {
+        // Quincena 2 actual (16-fin) → anterior: 1-15 del mismo mes
+        const mStr = String(d1.getMonth() + 1).padStart(2, '0');
+        prevInicio = `${d1.getFullYear()}-${mStr}-01`;
+        prevFin    = `${d1.getFullYear()}-${mStr}-15`;
+      }
+
+      const [principal, anterior] = await Promise.all([
+        informesRepository.getLiquidacionBonificacion(fecha_inicio, fecha_fin),
+        informesRepository.getLiquidacionBonificacionPorOperario(prevInicio, prevFin),
+      ]);
+
+      res.json({
+        ...principal,
+        quincena_anterior: {
+          fecha_inicio: prevInicio,
+          fecha_fin:    prevFin,
+          por_operario: anterior,
+        },
+      });
+    } catch (error) {
+      logger.error('Error en getLiquidacionBonificacion', { error: error.message });
+      next(error);
+    }
+  },
 };

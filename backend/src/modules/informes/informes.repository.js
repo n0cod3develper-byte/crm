@@ -445,6 +445,234 @@ export class InformesRepository {
       hours_formatted: formatHours(parseFloat(r.hours))
     }));
   }
+  // =============================================
+  // INFORME: LIQUIDACIÓN BONIFICACIÓN POR HORAS
+  // =============================================
+
+  /**
+   * Detalle de servicios LIQUIDADOS/REALIZADOS en el período, con operarios asignados.
+   * Bonificación: usa la de la remisión; si es 0, toma la del equipo.
+   * Alerta si ambas son 0.
+   */
+  async getLiquidacionBonificacion(fecha_inicio, fecha_fin) {
+    const params = [fecha_inicio, fecha_fin];
+
+    const detalleSql = `
+      SELECT
+        r.id,
+        r.numero_remision,
+        r.fecha_servicio,
+        r.hora_salida_cargar,
+        r.hora_llegada_cargar,
+        r.estado,
+        -- Bonificación: toma la de la remisión; fallback al equipo si es 0 o NULL
+        COALESCE(
+          NULLIF(r.bonificacion_hora, 0),
+          e.bonificacion_hora,
+          0
+        ) AS bonificacion_hora,
+        -- Flag para alerta: ambas fuentes en 0
+        CASE
+          WHEN (r.bonificacion_hora IS NULL OR r.bonificacion_hora = 0)
+            AND (e.bonificacion_hora IS NULL OR e.bonificacion_hora = 0)
+          THEN true ELSE false
+        END AS bonificacion_es_cero,
+        r.numero_maquina,
+        em.id        AS operario_id,
+        em.full_name AS operario_nombre,
+        em.numero_documento AS cedula,
+        em.tipo_documento   AS tipo_doc,
+        COALESCE(e.marca || ' ' || e.modelo, r.numero_maquina, 'Sin equipo') AS maquina_nombre,
+        e.serial      AS equipo_serial,
+        e.capacidad_carga,
+        false         AS is_servicio_fijo,
+        CASE
+          WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
+            CASE
+              WHEN r.hora_llegada_cargar::time >= r.hora_salida_cargar::time
+              THEN EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time)) / 3600.0
+              ELSE EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time + INTERVAL '24 hours')) / 3600.0
+            END
+          ELSE 0
+        END AS horas_efectivas
+      FROM remisiones r
+      JOIN  remision_operarios ro ON ro.remision_id = r.id
+      JOIN  employees em ON em.id = ro.empleado_id
+      LEFT JOIN equipos e ON e.id = r.equipo_id
+      WHERE r.deleted_at IS NULL
+        AND r.estado IN ('LIQUIDADA', 'REALIZADA')
+        AND r.is_servicio_fijo = false
+        AND r.fecha_servicio >= $1
+        AND r.fecha_servicio <= $2
+
+      UNION ALL
+
+      SELECT
+        r.id,
+        r.numero_remision,
+        rdf.fecha AS fecha_servicio,
+        rdf.hora_entrada AS hora_salida_cargar,
+        rdf.hora_salida  AS hora_llegada_cargar,
+        r.estado,
+        COALESCE(
+          NULLIF(rdf.bonificacion_hora, 0),
+          e.bonificacion_hora,
+          0
+        ) AS bonificacion_hora,
+        false AS bonificacion_es_cero,
+        r.numero_maquina,
+        em.id        AS operario_id,
+        em.full_name AS operario_nombre,
+        em.numero_documento AS cedula,
+        em.tipo_documento   AS tipo_doc,
+        COALESCE(e.marca || ' ' || e.modelo, r.numero_maquina, 'Sin equipo') AS maquina_nombre,
+        e.serial      AS equipo_serial,
+        e.capacidad_carga,
+        true          AS is_servicio_fijo,
+        rdf.horas_netas AS horas_efectivas
+      FROM remision_dias_fijo rdf
+      JOIN remisiones r ON r.id = rdf.remision_id
+      JOIN employees em ON em.id = rdf.empleado_id
+      LEFT JOIN equipos e ON e.id = r.equipo_id
+      WHERE r.deleted_at IS NULL
+        AND r.estado IN ('LIQUIDADA', 'REALIZADA')
+        AND rdf.fecha >= $1
+        AND rdf.fecha <= $2
+      ORDER BY operario_nombre ASC, fecha_servicio ASC, numero_remision ASC
+    `;
+
+    // Alerta 1: sin operario asignado
+    const sinOperarioSql = `
+      SELECT r.numero_remision, r.fecha_servicio, r.estado,
+             COALESCE(r.numero_maquina, 'S/N') AS numero_maquina
+      FROM remisiones r
+      WHERE r.deleted_at IS NULL
+        AND r.estado IN ('LIQUIDADA', 'REALIZADA')
+        AND r.fecha_servicio >= $1
+        AND r.fecha_servicio <= $2
+        AND NOT EXISTS (SELECT 1 FROM remision_operarios ro WHERE ro.remision_id = r.id)
+      ORDER BY r.fecha_servicio ASC
+    `;
+
+    // Alerta 2: con operario pero sin horas registradas
+    const sinHorasSql = `
+      SELECT DISTINCT r.numero_remision, r.fecha_servicio, r.estado
+      FROM remisiones r
+      JOIN remision_operarios ro ON ro.remision_id = r.id
+      WHERE r.deleted_at IS NULL
+        AND r.estado IN ('LIQUIDADA', 'REALIZADA')
+        AND r.fecha_servicio >= $1
+        AND r.fecha_servicio <= $2
+        AND (r.hora_salida_cargar IS NULL OR r.hora_llegada_cargar IS NULL)
+      ORDER BY r.fecha_servicio ASC
+    `;
+
+    // Alerta 3: bonificación = 0 en AMBAS fuentes (remisión Y equipo)
+    const bonificacionCeroSql = `
+      SELECT DISTINCT r.numero_remision, r.fecha_servicio, r.estado,
+             COALESCE(r.numero_maquina, 'S/N') AS numero_maquina
+      FROM remisiones r
+      JOIN remision_operarios ro ON ro.remision_id = r.id
+      LEFT JOIN equipos e ON e.id = r.equipo_id
+      WHERE r.deleted_at IS NULL
+        AND r.estado IN ('LIQUIDADA', 'REALIZADA')
+        AND r.fecha_servicio >= $1
+        AND r.fecha_servicio <= $2
+        AND (r.bonificacion_hora IS NULL OR r.bonificacion_hora = 0)
+        AND (e.bonificacion_hora IS NULL OR e.bonificacion_hora = 0)
+      ORDER BY r.fecha_servicio ASC
+    `;
+
+    const [detalleRes, sinOperarioRes, sinHorasRes, bonCeroRes] = await Promise.all([
+      query(detalleSql, params),
+      query(sinOperarioSql, params),
+      query(sinHorasSql, params),
+      query(bonificacionCeroSql, params),
+    ]);
+
+    const detalleRows = detalleRes.rows.map(r => {
+      const horas = parseFloat(parseFloat(r.horas_efectivas || 0).toFixed(2));
+      const bonif = parseFloat(r.bonificacion_hora || 0);
+      return {
+        ...r,
+        horas_efectivas: horas,
+        bonificacion_hora: bonif,
+        comision: parseFloat((horas * bonif).toFixed(0)),
+      };
+    });
+
+    // Alerta 4: horas = 0 aunque tienen timestamps (posible error)
+    const horasInvalidas = detalleRows
+      .filter(r => r.hora_salida_cargar && r.hora_llegada_cargar && r.horas_efectivas <= 0)
+      .map(r => ({ numero_remision: r.numero_remision, fecha_servicio: r.fecha_servicio }));
+
+    return {
+      fecha_inicio,
+      fecha_fin,
+      detalle: detalleRows,
+      alertas: {
+        sin_operario:      sinOperarioRes.rows,
+        sin_horas:         sinHorasRes.rows,
+        bonificacion_cero: bonCeroRes.rows,
+        horas_invalidas:   horasInvalidas,
+      },
+    };
+  }
+
+  /**
+   * Resumen de horas totales por operario en un período (quincena anterior).
+   * Incluye LIQUIDADA y REALIZADA.
+   */
+  async getLiquidacionBonificacionPorOperario(fecha_inicio, fecha_fin) {
+    const sql = `
+      SELECT
+        operario_id,
+        operario_nombre,
+        cedula,
+        COALESCE(marca || ' ' || modelo, 'Sin equipo') AS maquina_nombre,
+        SUM(horas_efectivas) AS horas_total
+      FROM (
+        SELECT em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
+               e.marca, e.modelo,
+               CASE
+                 WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
+                   CASE
+                     WHEN r.hora_llegada_cargar::time >= r.hora_salida_cargar::time
+                     THEN EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time)) / 3600.0
+                     ELSE EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time + INTERVAL '24 hours')) / 3600.0
+                   END
+                 ELSE 0
+               END AS horas_efectivas
+        FROM remisiones r
+        JOIN remision_operarios ro ON ro.remision_id = r.id
+        JOIN employees em ON em.id = ro.empleado_id
+        LEFT JOIN equipos e ON e.id = r.equipo_id
+        WHERE r.deleted_at IS NULL AND r.estado IN ('LIQUIDADA', 'REALIZADA')
+          AND r.is_servicio_fijo = false
+          AND r.fecha_servicio >= $1 AND r.fecha_servicio <= $2
+
+        UNION ALL
+
+        SELECT em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
+               e.marca, e.modelo,
+               rdf.horas_netas AS horas_efectivas
+        FROM remision_dias_fijo rdf
+        JOIN remisiones r ON r.id = rdf.remision_id
+        JOIN employees em ON em.id = rdf.empleado_id
+        LEFT JOIN equipos e ON e.id = r.equipo_id
+        WHERE r.deleted_at IS NULL AND r.estado IN ('LIQUIDADA', 'REALIZADA')
+          AND rdf.fecha >= $1 AND rdf.fecha <= $2
+      ) base
+      GROUP BY operario_id, operario_nombre, cedula, marca, modelo
+      ORDER BY operario_nombre ASC
+    `;
+    const result = await query(sql, [fecha_inicio, fecha_fin]);
+    return result.rows.map(r => ({
+      ...r,
+      horas_total: parseFloat(parseFloat(r.horas_total || 0).toFixed(2)),
+    }));
+  }
+
 }
 
 // Utility: format decimal hours to "Xh Ym"

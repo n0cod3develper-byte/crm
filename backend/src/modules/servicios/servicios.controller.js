@@ -41,7 +41,8 @@ export const serviciosController = {
       const liquidacionFields = new Set([
         'hora_salida_cargar', 'hora_llegada_cargar',
         'segundo_hora_salida_cargar', 'segundo_hora_llegada_cargar',
-        'cantidad_horas', 'total_bruto', 'iva_valor', 'total_neto', 'estado'
+        'cantidad_horas', 'total_bruto', 'iva_valor', 'total_neto', 'estado',
+        'is_servicio_fijo'
       ]);
       const incomingKeys = Object.keys(req.body);
       const isLiquidacionPatch = incomingKeys.length > 0 && incomingKeys.every(k => liquidacionFields.has(k));
@@ -150,6 +151,33 @@ export const serviciosController = {
     try {
       await repo.deleteHorasLaborales(req.params.id, req.params.hid);
       res.json({ success: true, message: 'Liquidación eliminada' });
+    } catch (err) { next(err); }
+  },
+
+  // ─── Registro de Días (Servicio Fijo) ────────────────────────────
+
+  async getDiasFijo(req, res, next) {
+    try {
+      const data = await repo.findDiasFijo(req.params.id);
+      res.json({ success: true, data });
+    } catch (err) { next(err); }
+  },
+
+  async upsertDiaFijo(req, res, next) {
+    try {
+      const { empleado_id, fecha, hora_entrada, hora_salida } = req.body;
+      if (!empleado_id || !fecha || !hora_entrada || !hora_salida) {
+        throw new BadRequestError('empleado_id, fecha, hora_entrada y hora_salida son requeridos');
+      }
+      const result = await repo.upsertDiaFijo(req.params.id, req.body);
+      res.status(201).json({ success: true, data: result });
+    } catch (err) { next(err); }
+  },
+
+  async deleteDiaFijo(req, res, next) {
+    try {
+      await repo.deleteDiaFijo(req.params.id, req.params.did);
+      res.json({ success: true, message: 'Día de servicio fijo eliminado' });
     } catch (err) { next(err); }
   },
 };

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
-import { BarChart3, Wrench, ArrowRight } from 'lucide-react';
+import { BarChart3, Wrench, ArrowRight, Users } from 'lucide-react';
 
 export function InformesIndexPage() {
   return (
@@ -17,7 +17,7 @@ export function InformesIndexPage() {
       }}>
         
         {/* Tarjeta de Servicios */}
-        <Link to="/informes/servicios" style={{ textDecoration: 'none' }}>
+        <Link to="/informes/servicios" style={{ textDecoration: 'none', display: 'flex', height: '100%' }}>
           <div className="card" style={{
             padding: '2.5rem 2rem',
             display: 'flex',
@@ -30,6 +30,7 @@ export function InformesIndexPage() {
             border: '1px solid var(--border-color)',
             borderRadius: '16px',
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            width: '100%',
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = 'translateY(-5px)';
@@ -64,7 +65,7 @@ export function InformesIndexPage() {
         </Link>
 
         {/* Tarjeta de Mantenimiento */}
-        <Link to="/informes/mantenimiento" style={{ textDecoration: 'none' }}>
+        <Link to="/informes/mantenimiento" style={{ textDecoration: 'none', display: 'flex', height: '100%' }}>
           <div className="card" style={{
             padding: '2.5rem 2rem',
             display: 'flex',
@@ -77,6 +78,7 @@ export function InformesIndexPage() {
             border: '1px solid var(--border-color)',
             borderRadius: '16px',
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            width: '100%',
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = 'translateY(-5px)';
@@ -105,6 +107,54 @@ export function InformesIndexPage() {
               Analice los costos, tiempos de ejecución y rentabilidad de las órdenes de trabajo de mantenimiento.
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontWeight: 600, fontSize: '0.95rem' }}>
+              Ver informes <ArrowRight size={18} />
+            </div>
+          </div>
+        </Link>
+
+        {/* Tarjeta de Gestión Humana */}
+        <Link to="/informes/gestion-humana" style={{ textDecoration: 'none', display: 'flex', height: '100%' }}>
+          <div className="card" style={{
+            padding: '2.5rem 2rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            background: 'linear-gradient(145deg, var(--bg-elevated) 0%, rgba(245, 158, 11, 0.05) 100%)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '16px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            width: '100%',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-5px)';
+            e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(245, 158, 11, 0.15), 0 10px 10px -5px rgba(245, 158, 11, 0.04)';
+            e.currentTarget.style.borderColor = 'rgba(245, 158, 11, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'none';
+            e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+            e.currentTarget.style.borderColor = 'var(--border-color)';
+          }}
+          >
+            <div style={{
+              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              borderRadius: '50%',
+              padding: '1.25rem',
+              marginBottom: '1.5rem',
+              boxShadow: '0 8px 16px -4px rgba(245, 158, 11, 0.4)'
+            }}>
+              <Users size={32} color="white" />
+            </div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
+              Gestión Humana
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.5, marginBottom: '1.5rem', flex: 1 }}>
+              Liquidación quincenal de bonificación por horas para operarios de montacargas. Incluye resumen de productividad y auditoría de alertas.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b', fontWeight: 600, fontSize: '0.95rem' }}>
               Ver informes <ArrowRight size={18} />
             </div>
           </div>

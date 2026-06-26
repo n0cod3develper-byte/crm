@@ -82,6 +82,7 @@ const MantenimientosProgramados = lazy(() => import('./pages/MantenimientosProgr
 const InformesIndexPage = lazy(() => import('./pages/Informes/InformesIndexPage').then(m => ({ default: m.InformesIndexPage })));
 const InformesServiciosPage = lazy(() => import('./pages/Informes/InformesServiciosPage').then(m => ({ default: m.InformesServiciosPage })));
 const InformesMantenimientoPage = lazy(() => import('./pages/Informes/InformesMantenimientoPage').then(m => ({ default: m.InformesMantenimientoPage })));
+const InformesGestionHumanaPage = lazy(() => import('./pages/Informes/InformesGestionHumanaPage').then(m => ({ default: m.InformesGestionHumanaPage })));
 
 const BudgetIndexPage = lazy(() => import('./pages/Presupuestos/BudgetIndexPage').then(m => ({ default: m.BudgetIndexPage })));
 const BudgetFormPage = lazy(() => import('./pages/Presupuestos/BudgetFormPage').then(m => ({ default: m.BudgetFormPage })));
@@ -205,6 +206,7 @@ function App() {
                 <Route path="/informes" element={<ProtectedRoute><InformesIndexPage /></ProtectedRoute>} />
                 <Route path="/informes/servicios" element={<ProtectedRoute><InformesServiciosPage /></ProtectedRoute>} />
                 <Route path="/informes/mantenimiento" element={<ProtectedRoute><InformesMantenimientoPage /></ProtectedRoute>} />
+                <Route path="/informes/gestion-humana" element={<ProtectedRoute><InformesGestionHumanaPage /></ProtectedRoute>} />
 
                 {/* Presupuestos */}
                 <Route path="/presupuestos" element={<ProtectedRoute><BudgetIndexPage /></ProtectedRoute>} />

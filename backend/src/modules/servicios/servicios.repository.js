@@ -73,6 +73,7 @@ export class ServiciosRepository {
         c.phone_2 AS empresa_telefono2,
         e.marca AS equipo_marca, e.modelo AS equipo_modelo,
         e.serial AS equipo_serial, e.serie AS equipo_serie, e.capacidad_carga AS equipo_capacidad,
+        e.bonificacion_hora AS equipo_bonificacion_hora,
         COALESCE(inv.nombre_comercial, cs_old.nombre)       AS servicio_nombre,
         COALESCE(inv.codigo_interno,   cs_old.codigo)        AS servicio_codigo,
         COALESCE(inv.descripcion_corta, cs_old.descripcion)  AS servicio_descripcion,
@@ -317,7 +318,7 @@ export class ServiciosRepository {
         'horas_otras', 'valor_hora_otras',
         'horas_ordinarias', 'valor_hora_ordinaria', 'horas_recargo', 'valor_hora_recargo',
         'total_bruto', 'iva_pct', 'iva_valor', 'descuentos', 'total_neto',
-        'estado', 'observaciones', 'bonificacion_hora'
+        'estado', 'observaciones', 'bonificacion_hora', 'is_servicio_fijo'
       ];
       for (const key of allowed) {
         if (key in data) {
@@ -600,6 +601,154 @@ export class ServiciosRepository {
     await query(
       `DELETE FROM remision_horas_laborales WHERE id = $1 AND remision_id = $2`,
       [hid, remision_id]
+    );
+    return true;
+  }
+
+  // ============================================================
+  // REGISTRO DE DÍAS — SERVICIO FIJO
+  // ============================================================
+
+  /** Minutos de descuento fijos según el sistema */
+  static calcMinutosDescuento(descDesayuno, descAlmuerzo) {
+    return (descDesayuno ? 20 : 0) + (descAlmuerzo ? 30 : 0);
+  }
+
+  /** Horas brutas entre dos tiempos "HH:MM" — maneja cruce de medianoche */
+  static calcHorasBrutas(entrada, salida) {
+    const [eh, em] = entrada.split(':').map(Number);
+    const [sh, sm] = salida.split(':').map(Number);
+    let minBrutas = (sh * 60 + sm) - (eh * 60 + em);
+    if (minBrutas < 0) minBrutas += 24 * 60; // cruce de medianoche
+    return minBrutas / 60;
+  }
+
+  /** true si la fecha (YYYY-MM-DD) cae en el final de una quincena (día 15 o último del mes) */
+  static esFechaLimiteQuincena(fechaStr) {
+    const [, mes, dia] = fechaStr.split('-').map(Number);
+    if (dia === 15) return true;
+    const ultimoDia = new Date(new Date(fechaStr).getFullYear(), mes, 0).getDate();
+    return dia === ultimoDia;
+  }
+
+  /** Partir un registro en dos si cruza medianoche Y esa medianoche es límite de quincena */
+  static partirRegistroSiCruzaQuincena(fecha, entrada, salida, descDesayuno, descAlmuerzo, bonif) {
+    const [eh, em] = entrada.split(':').map(Number);
+    const [sh, sm] = salida.split(':').map(Number);
+    const cruzaMedianoche = (sh * 60 + sm) < (eh * 60 + em);
+
+    if (!cruzaMedianoche || !ServiciosRepository.esFechaLimiteQuincena(fecha)) {
+      // Sin partición
+      const minDesc = ServiciosRepository.calcMinutosDescuento(descDesayuno, descAlmuerzo);
+      const brutas  = ServiciosRepository.calcHorasBrutas(entrada, salida);
+      const netas   = Math.max(0, brutas - minDesc / 60);
+      return [{ fecha, hora_entrada: entrada, hora_salida: salida,
+                horas_brutas: brutas, minutos_descuento: minDesc,
+                horas_netas: netas, descuento_desayuno: descDesayuno,
+                descuento_almuerzo: descAlmuerzo,
+                bonificacion_hora: bonif, comision: netas * bonif }];
+    }
+
+    // Parte 1: desde la entrada hasta "23:59" de fecha original
+    const minParte1 = (23 * 60 + 59) - (eh * 60 + em) + 1; // hasta medianoche
+    const horasParte1 = minParte1 / 60;
+    const minDesc1 = ServiciosRepository.calcMinutosDescuento(descDesayuno, descAlmuerzo);
+    const netas1 = Math.max(0, horasParte1 - minDesc1 / 60);
+
+    // Parte 2: desde "00:00" hasta la hora de salida, día siguiente
+    const fechaDate = new Date(fecha + 'T00:00:00');
+    fechaDate.setDate(fechaDate.getDate() + 1);
+    const fechaStr2 = fechaDate.toISOString().split('T')[0];
+    const horasParte2 = (sh * 60 + sm) / 60;
+    const netas2 = Math.max(0, horasParte2); // sin descuento en la segunda parte
+
+    return [
+      { fecha, hora_entrada: entrada, hora_salida: '23:59',
+        horas_brutas: horasParte1, minutos_descuento: minDesc1,
+        horas_netas: netas1, descuento_desayuno: descDesayuno,
+        descuento_almuerzo: descAlmuerzo,
+        bonificacion_hora: bonif, comision: netas1 * bonif },
+      { fecha: fechaStr2, hora_entrada: '00:00', hora_salida: salida,
+        horas_brutas: horasParte2, minutos_descuento: 0,
+        horas_netas: netas2, descuento_desayuno: false,
+        descuento_almuerzo: false,
+        bonificacion_hora: bonif, comision: netas2 * bonif },
+    ];
+  }
+
+  async findDiasFijo(remision_id) {
+    const res = await query(
+      `SELECT df.*,
+              em.full_name       AS empleado_nombre,
+              em.numero_documento AS empleado_cedula,
+              em.position         AS empleado_rol
+       FROM remision_dias_fijo df
+       JOIN employees em ON em.id = df.empleado_id
+       WHERE df.remision_id = $1
+       ORDER BY df.fecha ASC, df.hora_entrada ASC`,
+      [remision_id]
+    );
+    return res.rows;
+  }
+
+  /**
+   * Inserta o reemplaza un día de servicio fijo.
+   * Si cruza límite de quincena, crea 2 registros automáticamente.
+   */
+  async upsertDiaFijo(remision_id, payload) {
+    const {
+      empleado_id, fecha, hora_entrada, hora_salida,
+      descuento_desayuno = true, descuento_almuerzo = false,
+      bonificacion_hora = 0, notas = null,
+    } = payload;
+
+    const registros = ServiciosRepository.partirRegistroSiCruzaQuincena(
+      fecha, hora_entrada, hora_salida,
+      descuento_desayuno, descuento_almuerzo,
+      parseFloat(bonificacion_hora)
+    );
+
+    const insertados = [];
+    for (const reg of registros) {
+      const r = await query(
+        `INSERT INTO remision_dias_fijo
+           (remision_id, empleado_id, fecha, hora_entrada, hora_salida,
+            descuento_desayuno, descuento_almuerzo, minutos_descuento,
+            horas_brutas, horas_netas, bonificacion_hora, comision, notas)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+         ON CONFLICT (remision_id, empleado_id, fecha) DO UPDATE SET
+           hora_entrada       = EXCLUDED.hora_entrada,
+           hora_salida        = EXCLUDED.hora_salida,
+           descuento_desayuno = EXCLUDED.descuento_desayuno,
+           descuento_almuerzo = EXCLUDED.descuento_almuerzo,
+           minutos_descuento  = EXCLUDED.minutos_descuento,
+           horas_brutas       = EXCLUDED.horas_brutas,
+           horas_netas        = EXCLUDED.horas_netas,
+           bonificacion_hora  = EXCLUDED.bonificacion_hora,
+           comision           = EXCLUDED.comision,
+           notas              = EXCLUDED.notas,
+           updated_at         = NOW()
+         RETURNING *`,
+        [
+          remision_id, empleado_id, reg.fecha, reg.hora_entrada, reg.hora_salida,
+          reg.descuento_desayuno, reg.descuento_almuerzo,
+          reg.minutos_descuento,
+          parseFloat(reg.horas_brutas.toFixed(2)),
+          parseFloat(reg.horas_netas.toFixed(2)),
+          parseFloat(reg.bonificacion_hora.toFixed(2)),
+          parseFloat(reg.comision.toFixed(2)),
+          notas,
+        ]
+      );
+      insertados.push(r.rows[0]);
+    }
+    return insertados;
+  }
+
+  async deleteDiaFijo(remision_id, did) {
+    await query(
+      `DELETE FROM remision_dias_fijo WHERE id = $1 AND remision_id = $2`,
+      [did, remision_id]
     );
     return true;
   }

@@ -28,4 +28,9 @@ router.get('/:id/horas-laborales',        serviciosController.getHorasLaborales)
 router.post('/:id/horas-laborales',       serviciosController.upsertHorasLaborales);
 router.delete('/:id/horas-laborales/:hid', serviciosController.deleteHorasLaborales);
 
+// ─── Registro de Días (Servicio Fijo) ─────────────────────────────
+router.get('/:id/dias-fijo',            serviciosController.getDiasFijo);
+router.post('/:id/dias-fijo',           serviciosController.upsertDiaFijo);
+router.delete('/:id/dias-fijo/:did',    serviciosController.deleteDiaFijo);
+
 export default router;

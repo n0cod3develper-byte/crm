@@ -16,4 +16,7 @@ router.get('/kpi/hours-by-equipment/:equipment_id', informesController.getHoursB
 router.get('/kpi/hours-by-operator', informesController.getHoursByOperator);
 router.get('/kpi/hours-by-operator/:operator_id', informesController.getHoursByOperatorDetail);
 
+// Gestión Humana
+router.get('/gestion-humana/liquidacion-bonificacion', informesController.getLiquidacionBonificacion);
+
 export default router;
