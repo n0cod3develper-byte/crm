@@ -36,6 +36,7 @@ import comprasRoutes from './modules/compras/compras.routes.js';
 import documentosRoutes from './modules/documentos/documentos.routes.js';
 import webhooksRoutes from './modules/webhooks/webhooks.routes.js';
 import adminRoutes from './modules/admin/admin.routes.js';
+import rolesRoutes from './modules/roles/roles.routes.js';
 import backupsRoutes from './modules/admin/backups.routes.js';
 import facturacionRoutes from './modules/facturacion/facturacion.routes.js';
 import catalogRoutes from './modules/inventory/catalog.routes.js';
@@ -152,6 +153,7 @@ app.get('/health', async (_req, res) => {
 // ─── API v1 ──────────────────────────────────────────────────
 const API = '/api/v1';
 app.use(`${API}/webhooks`,      webhooksRoutes);
+app.use(`${API}/admin/roles`,   rolesRoutes);
 app.use(`${API}/admin`,         adminRoutes);
 app.use(`/api/backups`,         backupsRoutes); // Ruta especificada en los requerimientos
 app.use(`${API}/me`,            adminRoutes); // Reutilizamos el router para /me

@@ -53,7 +53,14 @@ export function CompanyForm({ company, onSuccess, onCancel }) {
   const { register, handleSubmit, setValue, control, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(companySchema),
     defaultValues: company
-      ? { ...company, name: company.name ? company.name.toUpperCase() : '', regimen: company.regimen || 'RC' }
+      ? {
+          ...company,
+          name: company.name ? company.name.toUpperCase() : '',
+          regimen: company.regimen || 'RC',
+          correo_facturacion: company.correo_facturacion || '',
+          correo_rut: company.correo_rut || '',
+          website: company.website || '',
+        }
       : { industry: 'logistics', regimen: 'RC' },
   });
 

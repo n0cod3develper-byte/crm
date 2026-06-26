@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Shield, Save, RotateCcw, Info, Users, ChevronRight } from 'lucide-react';
+import { Shield, Save, RotateCcw, Info, Users, ChevronRight, Plus, Edit2, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
+import { rolesService } from '../../services/rolesService';
+import { RolFormModal } from './RolFormModal';
 
 const ACCIONES = [
   { slug: 'puede_ver', label: 'Ver', icon: 'Eye' },
@@ -22,22 +24,31 @@ export function RolesPage() {
   const [originalMatriz, setOriginalMatriz] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
+  const [showModal, setShowModal] = useState(false);
+  const [rolToEdit, setRolToEdit] = useState(null);
 
   useEffect(() => {
-    fetchRoles();
+    cargarRoles();
   }, []);
 
-  async function fetchRoles() {
+  async function cargarRoles(selectId = null) {
     try {
-      const res = await fetch(`${API_URL}/admin/roles`, {
-        credentials: 'include'
-      });
-      const data = await res.json();
+      const data = await rolesService.fetchRoles();
       setRoles(data);
-      if (data.length > 0 && !rolSeleccionado) {
-        seleccionarRol(data[0]);
+      if (data.length > 0) {
+        if (selectId) {
+          const rol = data.find(r => r.id === selectId);
+          if (rol) seleccionarRol(rol);
+        } else if (!rolSeleccionado) {
+          seleccionarRol(data[0]);
+        } else {
+          // Refrescar el rol seleccionado si ya había uno
+          const rol = data.find(r => r.id === rolSeleccionado.id);
+          if (rol) seleccionarRol(rol);
+        }
+      } else {
+        setRolSeleccionado(null);
+        setMatriz([]);
       }
     } catch (err) {
       toast.error('Error cargando roles');
@@ -49,10 +60,7 @@ export function RolesPage() {
   async function seleccionarRol(rol) {
     setRolSeleccionado(rol);
     try {
-      const res = await fetch(`${API_URL}/admin/roles/${rol.id}`, {
-        credentials: 'include'
-      });
-      const data = await res.json();
+      const data = await rolesService.fetchRolDetalle(rol.id);
       setMatriz(data.permisos);
       setOriginalMatriz(JSON.parse(JSON.stringify(data.permisos)));
     } catch (err) {
@@ -84,28 +92,56 @@ export function RolesPage() {
     if (!rolSeleccionado) return;
     setSaving(true);
     try {
-      const res = await fetch(`${API_URL}/admin/roles/${rolSeleccionado.id}/permisos`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ 
-          permisos: matriz,
-          ejecutado_por: user.id
-        })
-      });
-
-      if (res.ok) {
-        toast.success('Permisos actualizados correctamente');
-        setOriginalMatriz(JSON.parse(JSON.stringify(matriz)));
-      } else {
-        throw new Error();
-      }
+      await rolesService.guardarPermisos(rolSeleccionado.id, matriz, user.id);
+      toast.success('Permisos actualizados correctamente');
+      setOriginalMatriz(JSON.parse(JSON.stringify(matriz)));
     } catch (err) {
       toast.error('Error al guardar cambios');
     } finally {
       setSaving(false);
     }
   }
+
+  const handleCrearRol = () => {
+    setRolToEdit(null);
+    setShowModal(true);
+  };
+
+  const handleEditarRol = (rol) => {
+    setRolToEdit(rol);
+    setShowModal(true);
+  };
+
+  const handleEliminarRol = async (rol) => {
+    if (rol.es_sistema) {
+      toast.error('No se puede eliminar un rol del sistema');
+      return;
+    }
+    if (rol.total_usuarios > 0) {
+      toast.error(`No se puede eliminar porque tiene ${rol.total_usuarios} usuarios asignados`);
+      return;
+    }
+    
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar el rol "${rol.nombre}"?`)) {
+      return;
+    }
+
+    try {
+      await rolesService.eliminarRol(rol.id);
+      toast.success('Rol eliminado correctamente');
+      if (rolSeleccionado?.id === rol.id) {
+        setRolSeleccionado(null);
+      }
+      cargarRoles();
+    } catch (err) {
+      toast.error(err.message || 'Error al eliminar el rol');
+    }
+  };
+
+  const handleModalSuccess = () => {
+    setShowModal(false);
+    cargarRoles(); // Recargar la lista después de crear o editar
+  };
 
   if (loading) return (
     <div className="app-layout">
@@ -123,33 +159,37 @@ export function RolesPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '2rem', alignItems: 'start' }}>
         {/* Panel Izquierdo: Lista de Roles */}
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-elevated)' }}>
+          <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-elevated)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 className="text-sm font-semibold flex items-center gap-2">
               <Users size={16} /> Roles del Sistema
             </h2>
+            <button className="btn btn--primary btn--sm flex items-center gap-1" onClick={handleCrearRol}>
+              <Plus size={14} /> Nuevo
+            </button>
           </div>
           <div className="flex flex-col">
             {roles.map(rol => (
-              <button
+              <div 
                 key={rol.id}
-                onClick={() => seleccionarRol(rol)}
                 className={`nav-item ${rolSeleccionado?.id === rol.id ? 'nav-item--active' : ''}`}
                 style={{ 
                   borderRadius: 0, 
                   borderBottom: '1px solid var(--border-subtle)',
-                  padding: '1rem 1.25rem',
-                  display: 'flex',
-                  justifyContent: 'space-between',
                   background: rolSeleccionado?.id === rol.id ? 'var(--clr-primary-50)' : 'transparent',
                   color: rolSeleccionado?.id === rol.id ? 'var(--clr-primary-600)' : 'var(--text-primary)'
                 }}
               >
-                <div className="flex flex-col items-start">
-                  <span className="font-semibold">{rol.nombre}</span>
-                  <span className="text-xs opacity-70">{rol.total_usuarios} usuarios</span>
+                <div 
+                  className="flex-1 p-4 cursor-pointer flex justify-between items-center"
+                  onClick={() => seleccionarRol(rol)}
+                >
+                  <div className="flex flex-col items-start">
+                    <span className="font-semibold">{rol.nombre}</span>
+                    <span className="text-xs opacity-70">{rol.total_usuarios || 0} usuarios</span>
+                  </div>
+                  <ChevronRight size={16} opacity={0.5} />
                 </div>
-                <ChevronRight size={16} opacity={0.5} />
-              </button>
+              </div>
             ))}
           </div>
         </div>
@@ -158,14 +198,34 @@ export function RolesPage() {
         <div className="flex flex-col gap-4">
           {rolSeleccionado && (
             <div className="card" style={{ position: 'relative' }}>
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h3 className="text-lg font-bold">{rolSeleccionado.nombre}</h3>
-                  <p className="text-sm text-muted">{rolSeleccionado.descripcion}</p>
+                  <h3 className="text-lg font-bold flex items-center gap-2">
+                    {rolSeleccionado.nombre}
+                    {rolSeleccionado.es_sistema && (
+                      <span className="badge badge--primary">Rol de Sistema</span>
+                    )}
+                  </h3>
+                  <p className="text-sm text-muted mt-1">{rolSeleccionado.descripcion || 'Sin descripción'}</p>
                 </div>
-                {rolSeleccionado.es_sistema && (
-                  <span className="badge badge--primary">Rol de Sistema</span>
-                )}
+                
+                <div className="flex items-center gap-2">
+                  <button 
+                    className="btn btn--secondary btn--sm flex items-center gap-1"
+                    onClick={() => handleEditarRol(rolSeleccionado)}
+                  >
+                    <Edit2 size={14} /> Editar
+                  </button>
+                  {!rolSeleccionado.es_sistema && (
+                    <button 
+                      className="btn btn--danger btn--sm flex items-center gap-1"
+                      onClick={() => handleEliminarRol(rolSeleccionado)}
+                      title={rolSeleccionado.total_usuarios > 0 ? "No se puede eliminar un rol con usuarios" : "Eliminar rol"}
+                    >
+                      <Trash2 size={14} /> Eliminar
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="table-wrapper">
@@ -260,6 +320,14 @@ export function RolesPage() {
         </div>
       </div>
       </main>
+
+      {showModal && (
+        <RolFormModal 
+          onClose={() => setShowModal(false)} 
+          onSuccess={handleModalSuccess} 
+          rolToEdit={rolToEdit} 
+        />
+      )}
     </div>
   );
 }

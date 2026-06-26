@@ -50,13 +50,26 @@ async function login(req, res, next) {
 
     delete user.password_hash;
 
+    // Obtener rol y permisos completos (para evitar fetch extra desde el frontend)
+    let permisosData = {};
+    try {
+      permisosData = await obtenerPermisosUsuario(user.id);
+    } catch (err) {
+      logger.warn('No se pudieron cargar permisos en login', { userId: user.id, error: err.message });
+      permisosData = { rol: { slug: user.role, nombre: null }, permisos: {} };
+    }
+
     // Establecer cookies httpOnly (seguro contra XSS)
     setAuthCookies(res, accessToken, refreshToken);
 
     res.json({
       success: true,
       data: {
-        user
+        user: {
+          ...user,
+          rol_slug: user.role,
+          ...permisosData
+        }
       }
     });
   } catch (err) {

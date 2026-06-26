@@ -82,10 +82,23 @@ export function EquiposPage() {
   const handleEdit = (eq) => { setEditingEquipo(eq); setIsModalOpen(true); };
   const handleClose = () => { setIsModalOpen(false); setEditingEquipo(null); };
 
+  const PLACEHOLDER_SVG = 'data:image/svg+xml,' + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 48" width="64" height="48">
+      <rect fill="#1e293b" width="64" height="48" rx="4"/>
+      <text x="50%" y="55%" text-anchor="middle" font-size="24" fill="#475569">🏭</text>
+    </svg>`.trim()
+  );
+
   const getEquipoThumbUrl = (eq) => {
     const path = eq.foto_thumb_url || `/api/v1/equipos/${eq.id}/foto?thumb=true`;
     if (path.startsWith('http')) return path;
     return path;
+  };
+
+  const handleImgError = (e) => {
+    e.target.src = PLACEHOLDER_SVG;
+    e.target.style.objectFit = 'contain';
+    e.target.style.padding = '4px';
   };
 
   return (
@@ -290,6 +303,7 @@ export function EquiposPage() {
                               }}
                               onClick={() => handleEdit(eq)}
                               title="Ver / Editar Equipo"
+                              onError={handleImgError}
                               onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
                               onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                             />

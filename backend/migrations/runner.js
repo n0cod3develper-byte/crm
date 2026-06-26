@@ -95,7 +95,8 @@ const MIGRATION_FILES = [
   '063_servicios_equipo_optional.sql',
   '064_servicios_bonificacion_hora.sql',
   '065_soat_email_notifications.sql',
-  '066_prompt_specs.sql'
+  '066_prompt_specs.sql',
+  '067_roles_dinamicos.sql'
 ];
 
 async function ensureMigrationsTable(client) {

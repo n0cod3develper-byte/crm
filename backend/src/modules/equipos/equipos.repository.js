@@ -266,7 +266,7 @@ export class EquiposRepository {
         }
 
         // Sanitizar campos numéricos: string vacío → null
-        const numericFields = ['capacidad_carga', 'capacidad_nominal', 'altura_maxima'];
+        const numericFields = ['capacidad_carga', 'capacidad_nominal', 'altura_maxima', 'bonificacion_hora'];
         if (numericFields.includes(key)) {
           val = val === '' || val === null || val === undefined ? null : parseFloat(val);
           if (val !== null && isNaN(val)) val = null;

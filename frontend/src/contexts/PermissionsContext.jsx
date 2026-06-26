@@ -19,6 +19,14 @@ export function PermissionsProvider({ children }) {
         return;
       }
 
+      // Si el user ya trae rol y permisos desde el login (o /auth/me),
+      // usarlos directamente para evitar un fetch extra de 2-3s
+      if (user.rol && user.permisos) {
+        setData({ rol: user.rol, permisos: user.permisos });
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
