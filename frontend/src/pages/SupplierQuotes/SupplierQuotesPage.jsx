@@ -3,22 +3,25 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Plus, Search, FileText, Trash2, Eye, Edit2,
-  ChevronLeft, ChevronRight, Filter, Package, Download, CheckCircle
+  ChevronLeft, ChevronRight, Filter, Package, Download
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
-import { QuoteForm } from '../../components/Quotes/QuoteForm';
 import api from '../../lib/api';
-import { generateQuotePDF } from '../../lib/pdfGenerator';
+import { generateSupplierQuotePDF } from '../../lib/pdfGenerator';
 
-const STATUS_COLORS = {
-  draft:    { bg: 'var(--badge-draft-bg, #f1f5f9)',   color: 'var(--badge-draft-color, #475569)',   label: 'Borrador' },
-  sent:     { bg: 'var(--badge-info-bg, #e0f2fe)',     color: 'var(--badge-info-color, #0284c7)',    label: 'Enviada' },
-  viewed:   { bg: '#fef08a',                           color: '#854d0e',                             label: 'Vista' },
-  accepted: { bg: 'var(--badge-success-bg, #dcfce7)',  color: 'var(--badge-success-color, #166534)', label: 'Aceptada' },
-  rejected: { bg: 'var(--badge-danger-bg, #fee2e2)',   color: 'var(--badge-danger-color, #991b1b)',  label: 'Rechazada' },
-  expired:  { bg: '#f4f4f5',                           color: '#52525b',                             label: 'Expirada' },
+const ESTADO_BADGE = {
+  BORRADOR:  { bg: 'var(--badge-draft-bg, #f1f5f9)',   color: 'var(--badge-draft-color, #475569)',   label: 'Borrador' },
+  CREADO:    { bg: 'var(--badge-info-bg, #e0f2fe)',     color: 'var(--badge-info-color, #0284c7)',    label: 'Creado' },
+  APROBADO:  { bg: 'var(--badge-success-bg, #dcfce7)',  color: 'var(--badge-success-color, #166534)', label: 'Aprobado' },
+  ANULADO:   { bg: 'var(--badge-danger-bg, #fee2e2)',   color: 'var(--badge-danger-color, #991b1b)',  label: 'Anulado' },
+};
+
+const ESTADO_COMERCIAL_BADGE = {
+  EN_ESPERA: { bg: '#fef9c3', color: '#92400e', label: 'En espera' },
+  ACEPTADO:  { bg: '#dcfce7', color: '#166534', label: 'Aceptado' },
+  RECHAZADO: { bg: '#fee2e2', color: '#991b1b', label: 'Rechazado' },
 };
 
 function formatCurrency(val) {
@@ -32,14 +35,10 @@ function formatDate(d) {
 
 const PAGE_SIZE = 15;
 
-export function QuotesPage() {
+export function SupplierQuotesPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-
-  // ─── Estado para crear cotización ───────────────────────
-  const [isModalOpen, setIsModalOpen] = useState(!!location.state?.prefillQuote);
-  const [editingQuote, setEditingQuote] = useState(location.state?.prefillQuote || null);
 
   // ─── Filtros ─────────────────────────────────────────────
   const [search, setSearch] = useState(() => {
@@ -50,62 +49,40 @@ export function QuotesPage() {
   const [page, setPage] = useState(1);
   const [isGroupedModalOpen, setIsGroupedModalOpen] = useState(false);
 
-  // Clear state so it doesn't reopen on reload
-  React.useEffect(() => {
-    if (location.state?.prefillQuote) {
-      window.history.replaceState({}, document.title);
-    }
-  }, [location.state]);
-
   // ─── Fetch ───────────────────────────────────────────────
   const { data, isLoading } = useQuery({
-    queryKey: ['quotes', search, statusFilter, page],
+    queryKey: ['supplier-quotes', search, statusFilter, page],
     queryFn: async () => {
       const params = { limit: PAGE_SIZE };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
-      const { data } = await api.get('/quotes', { params });
+      const { data } = await api.get('/supplier-quotes', { params });
       return data;
     },
   });
 
   // ─── Eliminar ────────────────────────────────────────────
   const deleteMutation = useMutation({
-    mutationFn: async (id) => api.delete(`/quotes/${id}`),
+    mutationFn: async (id) => api.delete(`/supplier-quotes/${id}`),
     onSuccess: () => {
       toast.success('Cotización eliminada');
-      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['supplier-quotes'] });
     },
     onError: (err) => {
       toast.error(err.response?.data?.message || 'Error al eliminar');
     },
   });
 
-  // ─── Aprobar ─────────────────────────────────────────────
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }) => api.patch(`/quotes/${id}/status`, { status }),
-    onSuccess: () => {
-      toast.success('Estado actualizado correctamente');
-      queryClient.invalidateQueries({ queryKey: ['quotes'] });
-    },
-    onError: (err) => {
-      toast.error(err.response?.data?.message || 'Error al actualizar el estado');
-    }
-  });
-
-  const handleDownloadPDF = async (q) => {
+  const handleDownloadPDF = async (id) => {
     const loadingToast = toast.loading('Generando PDF...');
     try {
-      const { data } = await api.get(`/quotes/${q.id}`);
-      generateQuotePDF(data.data, 'download');
+      const { data } = await api.get(`/supplier-quotes/${id}`);
+      generateSupplierQuotePDF(data.data, 'download');
       toast.success('PDF generado exitosamente', { id: loadingToast });
-    } catch {
+    } catch (err) {
       toast.error('Error al generar PDF', { id: loadingToast });
     }
   };
-
-  const handleCreate = () => { setEditingQuote(null); setIsModalOpen(true); };
-  const handleClose = () => { setIsModalOpen(false); setEditingQuote(null); };
 
   const quotes = data?.data || [];
   const hasMore = data?.pagination?.hasMore || false;
@@ -113,15 +90,15 @@ export function QuotesPage() {
   return (
     <div className="app-layout">
       <Topbar
-        title="Cotizaciones"
-        subtitle="Gestiona propuestas y presupuestos comerciales"
+        title="Cotizaciones a Proveedores"
+        subtitle="Gestiona cotizaciones de compra a proveedores"
         rightContent={
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button className="btn btn--secondary" onClick={() => setIsGroupedModalOpen(true)}>
-              <FileText size={16} /> Ver por Empresa
+              <FileText size={16} /> Ver por Proveedor
             </button>
-            <button className="btn btn--primary" onClick={handleCreate}>
-              <Plus size={16} /> Nueva cotización
+            <button className="btn btn--primary" onClick={() => navigate('/supplier-quotes/new')}>
+              <Plus size={16} /> Nueva Cotización
             </button>
           </div>
         }
@@ -135,7 +112,7 @@ export function QuotesPage() {
             <input
               className="input"
               style={{ paddingLeft: '2.5rem' }}
-              placeholder="Buscar por número o empresa…"
+              placeholder="Buscar por consecutivo o proveedor…"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
@@ -149,12 +126,10 @@ export function QuotesPage() {
               onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
             >
               <option value="">Todos los estados</option>
-              <option value="draft">Borrador</option>
-              <option value="sent">Enviada</option>
-              <option value="viewed">Vista</option>
-              <option value="accepted">Aceptada</option>
-              <option value="rejected">Rechazada</option>
-              <option value="expired">Expirada</option>
+              <option value="BORRADOR">Borrador</option>
+              <option value="CREADO">Creado</option>
+              <option value="APROBADO">Aprobado</option>
+              <option value="ANULADO">Anulado</option>
             </select>
           </div>
         </div>
@@ -165,85 +140,77 @@ export function QuotesPage() {
         ) : quotes.length === 0 ? (
           <div className="empty-state">
             <Package size={48} className="empty-state__icon" />
-            <h2 className="empty-state__title">Sin cotizaciones</h2>
-            <p className="empty-state__desc">Aún no has creado ninguna cotización. Genera la primera propuesta.</p>
-            <button className="btn btn--primary" onClick={handleCreate}>
+            <h2 className="empty-state__title">Sin cotizaciones a proveedores</h2>
+            <p className="empty-state__desc">Aún no has creado ninguna cotización a proveedores. Genera la primera.</p>
+            <button className="btn btn--primary" onClick={() => navigate('/supplier-quotes/new')}>
               <Plus size={16} /> Crear cotización
             </button>
           </div>
         ) : (
           <>
             <div className="table-container">
-              <table className="table" style={{ minWidth: 900 }}>
+              <table className="table" style={{ minWidth: 800 }}>
                 <thead>
                   <tr>
-                    <th>N° Cotización</th>
-                    <th>Empresa</th>
-                    <th>Oportunidad</th>
-                    <th>Subtotal</th>
+                    <th>Consecutivo</th>
+                    <th>Nº Prov</th>
+                    <th>Proveedor</th>
                     <th>Total</th>
                     <th>Estado</th>
+                    <th>Estado Comercial</th>
                     <th>Fecha</th>
-                    <th>Vigencia</th>
                     <th style={{ textAlign: 'right' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {quotes.map((q) => {
-                    const badge = STATUS_COLORS[q.status] || STATUS_COLORS.draft;
-                    const isExpired = q.valid_until && new Date(q.valid_until) < new Date() && q.status !== 'accepted';
-                    const displayBadge = isExpired ? STATUS_COLORS.expired : badge;
-
+                    const badge = ESTADO_BADGE[q.estado] || ESTADO_BADGE.BORRADOR;
+                    const ecb = ESTADO_COMERCIAL_BADGE[q.estado_comercial];
                     return (
                       <tr key={q.id}>
-                        <td style={{ fontWeight: 600, color: 'var(--clr-primary-500)' }}>{q.quote_number}</td>
-                        <td>
-                          <div style={{ fontWeight: 600 }}>{q.company_name || '—'}</div>
-                          {q.contact_name && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{q.contact_name}</div>}
+                        <td style={{ fontWeight: 600, color: 'var(--clr-primary-500)' }}>
+                          {q.consecutivo}
                         </td>
-                        <td style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
-                          {q.opportunity_title || '—'}
+                        <td style={{ color: 'var(--text-secondary)' }}>
+                          {q.numero_cotizacion || '—'}
                         </td>
-                        <td>{formatCurrency(q.subtotal)}</td>
-                        <td style={{ fontWeight: 700 }}>{formatCurrency(q.total)}</td>
+                        <td style={{ fontWeight: 600 }}>{q.provider_name || '—'}</td>
+                        <td style={{ fontWeight: 700 }}>{formatCurrency(q.subtotal)}</td>
                         <td>
                           <span style={{
                             padding: '0.25rem 0.625rem',
                             borderRadius: '6px',
                             fontSize: '0.75rem',
                             fontWeight: 600,
-                            background: displayBadge.bg,
-                            color: displayBadge.color,
+                            background: badge.bg,
+                            color: badge.color,
                           }}>
-                            {isExpired ? 'Expirada' : displayBadge.label}
+                            {badge.label}
                           </span>
+                        </td>
+                        <td>
+                          {ecb ? (
+                            <span style={{
+                              padding: '0.25rem 0.625rem',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: ecb.bg,
+                              color: ecb.color,
+                            }}>
+                              {ecb.label}
+                            </span>
+                          ) : '—'}
                         </td>
                         <td style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                           {formatDate(q.created_at)}
                         </td>
-                        <td style={{ fontSize: 'var(--text-xs)', color: isExpired ? 'var(--clr-danger)' : 'var(--text-secondary)' }}>
-                          {q.valid_until ? formatDate(q.valid_until) : '—'}
-                        </td>
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.375rem' }}>
-                            {q.status !== 'accepted' && (
-                              <button
-                                className="btn btn--ghost btn--sm"
-                                style={{ padding: '0.375rem', color: '#16a34a' }}
-                                onClick={() => {
-                                  if (window.confirm('¿Aprobar esta cotización?')) {
-                                    updateStatusMutation.mutate({ id: q.id, status: 'accepted' });
-                                  }
-                                }}
-                                title="Aprobar"
-                              >
-                                <CheckCircle size={16} />
-                              </button>
-                            )}
                             <button
                               className="btn btn--ghost btn--sm"
                               style={{ padding: '0.375rem', color: 'var(--clr-primary-500)' }}
-                              onClick={() => navigate(`/quotes/${q.id}`)}
+                              onClick={() => navigate(`/supplier-quotes/${q.id}`)}
                               title="Ver detalle"
                             >
                               <Eye size={16} />
@@ -251,7 +218,7 @@ export function QuotesPage() {
                             <button
                               className="btn btn--ghost btn--sm"
                               style={{ padding: '0.375rem', color: 'var(--text-secondary)' }}
-                              onClick={() => handleDownloadPDF(q)}
+                              onClick={() => handleDownloadPDF(q.id)}
                               title="Descargar PDF"
                             >
                               <Download size={16} />
@@ -259,7 +226,7 @@ export function QuotesPage() {
                             <button
                               className="btn btn--ghost btn--sm"
                               style={{ padding: '0.375rem', color: 'var(--clr-primary-500)' }}
-                              onClick={() => navigate(`/quotes/${q.id}`)}
+                              onClick={() => navigate(`/supplier-quotes/${q.id}/edit`)}
                               title="Editar"
                             >
                               <Edit2 size={16} />
@@ -268,7 +235,7 @@ export function QuotesPage() {
                               className="btn btn--ghost btn--sm"
                               style={{ padding: '0.375rem', color: 'var(--clr-danger)' }}
                               onClick={() => {
-                                if (window.confirm('¿Seguro de eliminar esta cotización?')) {
+                                if (window.confirm('¿Seguro que deseas eliminar esta cotización?')) {
                                   deleteMutation.mutate(q.id);
                                 }
                               }}
@@ -312,23 +279,9 @@ export function QuotesPage() {
         )}
       </main>
 
-      {/* ── Modal: Nueva cotización ────────────────────── */}
-      {isModalOpen && !editingQuote && (
-        <Modal 
-             title="Nueva Cotización" 
-             onClose={handleClose}
-             maxWidth="1100px"
-        >
-          <div style={{ width: '100%', minWidth: 'min(90vw, 800px)' }}>
-            <QuoteForm onSuccess={handleClose} onCancel={handleClose} />
-          </div>
-        </Modal>
-      )}
-
-      {/* ── Modal: Ver por Empresa ─────────────────────── */}
       {isGroupedModalOpen && (
         <Modal
-          title="Cotizaciones por Empresa"
+          title="Cotizaciones por Proveedor"
           onClose={() => setIsGroupedModalOpen(false)}
           maxWidth="800px"
         >
@@ -338,32 +291,32 @@ export function QuotesPage() {
             ) : (
               Object.entries(
                 quotes.reduce((acc, q) => {
-                  const company = q.company_name || 'Sin empresa';
-                  if (!acc[company]) acc[company] = [];
-                  acc[company].push(q);
+                  const provider = q.provider_name || 'Sin proveedor';
+                  if (!acc[provider]) acc[provider] = [];
+                  acc[provider].push(q);
                   return acc;
                 }, {})
-              ).map(([companyName, companyQuotes]) => (
-                <div key={companyName} style={{ marginBottom: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+              ).map(([providerName, providerQuotes]) => (
+                <div key={providerName} style={{ marginBottom: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
                   <div style={{ background: 'var(--bg-subtle)', padding: '0.75rem 1rem', fontWeight: 700, borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{companyName}</span>
-                    <span className="badge badge--primary">{companyQuotes.length}</span>
+                    <span>{providerName}</span>
+                    <span className="badge badge--primary">{providerQuotes.length}</span>
                   </div>
                   <div style={{ padding: '0.5rem' }}>
                     <table style={{ background: 'transparent', margin: 0, fontSize: 'var(--text-sm)' }}>
                       <thead>
                         <tr>
-                          <th>N° Cotización</th>
+                          <th>Consecutivo</th>
                           <th>Total</th>
                           <th>Estado</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {companyQuotes.map(q => {
-                          const badge = STATUS_COLORS[q.status] || STATUS_COLORS.draft;
+                        {providerQuotes.map(q => {
+                          const badge = ESTADO_BADGE[q.estado] || ESTADO_BADGE.BORRADOR;
                           return (
                             <tr key={q.id}>
-                              <td style={{ fontWeight: 600, color: 'var(--clr-primary-500)' }}>{q.quote_number}</td>
+                              <td style={{ fontWeight: 600, color: 'var(--clr-primary-500)' }}>{q.consecutivo}</td>
                               <td>{formatCurrency(q.total)}</td>
                               <td>
                                 <span style={{

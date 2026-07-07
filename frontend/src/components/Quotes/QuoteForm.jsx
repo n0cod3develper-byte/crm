@@ -11,7 +11,8 @@ const itemSchema = z.object({
   description: z.string().min(1, 'Descripción obligatoria'),
   quantity: z.coerce.number().min(0.01),
   unit_price: z.coerce.number().min(0),
-  discount: z.coerce.number().min(0).max(100).default(0),
+  discount: z.coerce.number().min(0).max(200).default(23),
+  proveedor_id: z.string().optional().nullable(),
 });
 
 const quoteSchema = z.object({
@@ -38,11 +39,11 @@ export function QuoteForm({ quote, onSuccess, onCancel }) {
           opportunity_id: quote.opportunity_id?.toString() || '',
           valid_until: quote.valid_until?.split('T')[0] || '',
           tax_rate: Number(quote.tax_rate) || 19,
-          items: quote.items?.length ? quote.items : [{ description: '', quantity: 1, unit_price: 0, discount: 0 }]
+          items: quote.items?.length ? quote.items : [{ description: '', quantity: 1, unit_price: 0, discount: 0, proveedor_id: '' }]
         }
       : {
           currency: 'COP', status: 'draft', tax_rate: 19,
-          items: [{ description: '', quantity: 1, unit_price: 0, discount: 0 }]
+          items: [{ description: '', quantity: 1, unit_price: 0, discount: 23, proveedor_id: '' }]
         },
   });
 
@@ -66,6 +67,11 @@ export function QuoteForm({ quote, onSuccess, onCancel }) {
     queryFn: async () => { const { data } = await api.get('/inventory', { params: { limit: 200, isActive: true } }); return data.data; },
   });
 
+  const { data: proveedores } = useQuery({
+    queryKey: ['proveedores-select'],
+    queryFn: async () => { const { data } = await api.get('/proveedores', { params: { limit: 100 } }); return data.data; },
+  });
+
   // Calculate totals
   const items = watch('items');
   const taxRate = parseFloat(watch('tax_rate')) || 0;
@@ -74,7 +80,7 @@ export function QuoteForm({ quote, onSuccess, onCancel }) {
     const qty = parseFloat(item.quantity) || 0;
     const price = parseFloat(item.unit_price) || 0;
     const disc = parseFloat(item.discount) || 0;
-    return sum + (qty * price * (1 - disc / 100));
+    return sum + (qty * price * (1 + disc / 100));
   }, 0);
 
   const taxAmount = subtotal * (taxRate / 100);
@@ -177,7 +183,7 @@ export function QuoteForm({ quote, onSuccess, onCancel }) {
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 600, paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
             <span>Artículos</span>
-            <button type="button" className="btn btn--sm btn--ghost" onClick={() => append({ description: '', quantity: 1, unit_price: 0, discount: 0 })}>
+            <button type="button" className="btn btn--sm btn--ghost" onClick={() => append({ description: '', quantity: 1, unit_price: 0, discount: 0, proveedor_id: '' })}>
               <Plus size={14} /> Añadir
             </button>
           </h3>
@@ -200,15 +206,23 @@ export function QuoteForm({ quote, onSuccess, onCancel }) {
                   </select>
                   <input {...register(`items.${index}.description`)} className="input" placeholder="Descripción manual..." />
                   {errors.items?.[index]?.description && <span className="input-error" style={{ fontSize: '10px' }}>Req.</span>}
+                  
+                  <select {...register(`items.${index}.proveedor_id`)} className="input" style={{ fontSize: '0.8rem', padding: '0.25rem' }} title="Asignar Proveedor">
+                    <option value="">— Sin proveedor —</option>
+                    {proveedores?.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
+                  </select>
                 </div>
                 <div className="input-group" style={{ flex: 1 }}>
+                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Cantidad</label>
                   <input {...register(`items.${index}.quantity`)} className="input" type="number" step="0.01" min="0.01" placeholder="Cant." title="Cantidad" />
                 </div>
                 <div className="input-group" style={{ flex: 1 }}>
-                  <input {...register(`items.${index}.unit_price`)} className="input" type="number" step="100" min="0" placeholder="P. Unit." title="Precio Unitario" />
+                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Costo (Precio)</label>
+                  <input {...register(`items.${index}.unit_price`)} className="input" type="number" step="100" min="0" placeholder="Costo" title="Costo o Precio Base" />
                 </div>
                 <div className="input-group" style={{ flex: 1 }}>
-                  <input {...register(`items.${index}.discount`)} className="input" type="number" step="1" min="0" max="100" placeholder="% Dto" title="Descuento (%)" />
+                  <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>% Ganancia</label>
+                  <input {...register(`items.${index}.discount`)} className="input" type="number" step="1" min="0" max="200" placeholder="% Ganancia" title="Porcentaje Ganancia" />
                 </div>
                 <button type="button" className="btn btn--ghost" style={{ padding: '0.5rem', color: 'var(--clr-danger)' }} onClick={() => remove(index)} disabled={fields.length === 1}>
                   <Trash2 size={16} />

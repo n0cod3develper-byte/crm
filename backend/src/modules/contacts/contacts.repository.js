@@ -1,19 +1,25 @@
 import { query } from '../../config/database.js';
 
 export class ContactsRepository {
-  async findAll({ companyId, search, limit = 50, cursor }) {
+  async findAll({ companyId, proveedorId, search, limit = 50, cursor }) {
     const conditions = ['c.deleted_at IS NULL'];
     const params = [];
     let i = 1;
 
-    // Solo filtrar por empresa si el ID es válido
+    // Filtrar por empresa si el ID es válido
     if (companyId && companyId !== 'undefined' && companyId !== 'null') {
       conditions.push(`c.company_id = $${i++}`);
       params.push(companyId);
     }
+
+    // Filtrar por proveedor si el ID es válido
+    if (proveedorId && proveedorId !== 'undefined' && proveedorId !== 'null') {
+      conditions.push(`c.proveedor_id = $${i++}`);
+      params.push(proveedorId);
+    }
     
     if (search && search.trim() !== '') {
-      conditions.push(`(c.first_name ILIKE $${i} OR c.last_name ILIKE $${i} OR c.email ILIKE $${i})`);
+      conditions.push(`(c.first_name ILIKE $${i} OR c.last_name ILIKE $${i} OR c.email ILIKE $${i} OR prov.razon_social ILIKE $${i} OR comp.name ILIKE $${i})`);
       params.push(`%${search.trim()}%`);
       i++;
     }
@@ -28,10 +34,12 @@ export class ContactsRepository {
     const sql = `
       SELECT c.*,
         (u.nombre || ' ' || u.apellido) AS assigned_to_name,
-        comp.name AS company_name
+        comp.name AS company_name,
+        prov.razon_social AS proveedor_name
       FROM contacts c
       LEFT JOIN users u ON u.id = c.assigned_to
       LEFT JOIN companies comp ON comp.id = c.company_id
+      LEFT JOIN proveedores prov ON prov.id = c.proveedor_id
       WHERE ${conditions.join(' AND ')}
       ORDER BY c.created_at DESC
       LIMIT $${i}
@@ -54,10 +62,13 @@ export class ContactsRepository {
     const result = await query(
       `SELECT c.*, 
         (u.nombre || ' ' || u.apellido) AS assigned_to_name,
-        comp.name AS company_name
+        comp.name AS company_name,
+        prov.razon_social AS proveedor_name,
+        prov.telefono_principal AS proveedor_telefono
        FROM contacts c
        LEFT JOIN users u ON u.id = c.assigned_to
        LEFT JOIN companies comp ON comp.id = c.company_id
+       LEFT JOIN proveedores prov ON prov.id = c.proveedor_id
        WHERE c.id = $1 AND c.deleted_at IS NULL`,
       [id]
     );
@@ -65,14 +76,14 @@ export class ContactsRepository {
   }
 
   async create(data, userId) {
-    const { company_id, first_name, last_name, email, phone, whatsapp, position, is_primary, assigned_to, tags, notes } = data;
+    const { company_id, proveedor_id, first_name, last_name, email, phone, whatsapp, position, is_primary, assigned_to, tags, notes } = data;
     
     const result = await query(
       `INSERT INTO contacts
-         (company_id, first_name, last_name, email, phone, whatsapp, position, is_primary, assigned_to, tags, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         (company_id, proveedor_id, first_name, last_name, email, phone, whatsapp, position, is_primary, assigned_to, tags, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING *`,
-      [company_id || null, first_name, last_name || null, email || null, phone || null, whatsapp || null,
+      [company_id || null, proveedor_id || null, first_name, last_name || null, email || null, phone || null, whatsapp || null,
        position || null, is_primary || false, assigned_to || userId,
        tags || [], notes || null]
     );
@@ -84,7 +95,7 @@ export class ContactsRepository {
     const values = [];
     let i = 1;
 
-    const allowed = ['company_id', 'first_name', 'last_name', 'email', 'phone', 'whatsapp', 'position', 'is_primary', 'assigned_to', 'tags', 'notes'];
+    const allowed = ['company_id', 'proveedor_id', 'first_name', 'last_name', 'email', 'phone', 'whatsapp', 'position', 'is_primary', 'assigned_to', 'tags', 'notes'];
     for (const key of allowed) {
       if (key in data) {
         fields.push(`${key} = $${i++}`);

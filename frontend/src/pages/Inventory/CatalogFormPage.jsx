@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { catalogApi } from '../../services/catalogApi';
+import api from '../../lib/api';
 import { Package, Wrench, Save, ArrowLeft, Info, DollarSign, Database, Tag, MapPin, Image as ImageIcon, Upload, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
@@ -56,6 +57,14 @@ export function CatalogFormPage() {
   const { data: ubicacionesData } = useQuery({
     queryKey: ['ubicaciones'],
     queryFn: () => catalogApi.getUbicaciones()
+  });
+
+  const { data: empleadosData } = useQuery({
+    queryKey: ['empleados-lista'],
+    queryFn: async () => {
+      const res = await api.get('/employees?limit=200');
+      return res.data;
+    }
   });
 
   const { data: itemData, isLoading } = useQuery({
@@ -244,17 +253,19 @@ export function CatalogFormPage() {
                       </div>
 
                       <div className="input-group">
-                        <label className="input-label">Responsable / Especialista</label>
+                        <label className="input-label">Responsable / Especialista (Opcional)</label>
                         <select 
                           name="responsable_id" 
                           value={formData.responsable_id || ''} 
                           onChange={handleChange} 
                           className="input"
                         >
-                          <option value="">Seleccione responsable...</option>
-                          <option value="20ab5dea-8d8a-4439-8c12-728235dd265e">Robinson (Administrador)</option>
-                          <option value="cd87f065-25d7-40c3-bbdb-9db840e1bb70">Emily (Administrador)</option>
-                          <option value="3a1cedee-11da-4e1c-bb6b-591cf779c1ac">Alveiro (Especialista)</option>
+                          <option value="">Ninguno / Sin asignar</option>
+                          {empleadosData?.data?.map(emp => (
+                            <option key={emp.id} value={emp.id}>
+                              {emp.nombre_completo}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </>

@@ -1,7 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { Plus, Search, Users, Mail, Phone, Building2, ExternalLink } from 'lucide-react';
+import { Plus, Search, Users, Mail, Phone, Building2, Truck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
@@ -12,8 +11,15 @@ function getInitials(firstName, lastName) {
   return `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase() || '?';
 }
 
+const TIPOS = [
+  { value: 'todos',    label: 'Todos' },
+  { value: 'empresa',  label: 'Empresa' },
+  { value: 'proveedor', label: 'Proveedor' },
+];
+
 export function ContactsPage() {
   const [search, setSearch] = React.useState('');
+  const [tipo, setTipo] = React.useState('todos');
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingContact, setEditingContact] = React.useState(null);
   const [deletingId, setDeletingId] = React.useState(null);
@@ -21,9 +27,11 @@ export function ContactsPage() {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['contacts', search],
+    queryKey: ['contacts', search, tipo],
     queryFn: async () => {
-      const { data } = await api.get('/contacts', { params: { search, limit: 50 } });
+      const params = { search, limit: 50 };
+      // No filtramos por ID aquí; filtramos en cliente por tipo para mantener la misma API
+      const { data } = await api.get('/contacts', { params });
       return data;
     },
     enabled: true,
@@ -42,7 +50,14 @@ export function ContactsPage() {
     },
   });
 
-  const contacts = data?.data || [];
+  const allContacts = data?.data || [];
+
+  // Filtro de tipo en cliente
+  const contacts = allContacts.filter(c => {
+    if (tipo === 'empresa')   return !!c.company_id && !c.proveedor_id;
+    if (tipo === 'proveedor') return !!c.proveedor_id;
+    return true;
+  });
 
   const handleCreate = () => { setEditingContact(null); setIsModalOpen(true); };
   const handleEdit = (c) => { setEditingContact(c); setIsModalOpen(true); };
@@ -51,28 +66,46 @@ export function ContactsPage() {
   return (
     <div className="app-layout">
 
-      <Topbar 
-        title="Contactos" 
-        subtitle={`${contacts.length} contactos registrados`} 
+      <Topbar
+        title="Contactos"
+        subtitle={`${contacts.length} contacto${contacts.length !== 1 ? 's' : ''} registrado${contacts.length !== 1 ? 's' : ''}`}
         rightContent={
           <button className="btn btn--primary" onClick={handleCreate}>
             <Plus size={16} />
             Nuevo contacto
           </button>
-        } 
+        }
       />
 
       <main className="main-content">
-        {/* Buscador */}
-        <div style={{ position: 'relative', marginBottom: '1.5rem', maxWidth: 420 }}>
-          <Search size={16} style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          <input
-            className="input"
-            style={{ paddingLeft: '2.5rem' }}
-            placeholder="Buscar por nombre, email…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+        {/* Filtros */}
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Buscador */}
+          <div style={{ position: 'relative', flex: '1', minWidth: 240, maxWidth: 420 }}>
+            <Search size={16} style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              className="input"
+              style={{ paddingLeft: '2.5rem' }}
+              placeholder="Buscar por nombre, email…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+
+          {/* Filtro de tipo */}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {TIPOS.map(t => (
+              <button
+                key={t.value}
+                className={`btn btn--sm ${tipo === t.value ? 'btn--primary' : 'btn--secondary'}`}
+                onClick={() => setTipo(t.value)}
+              >
+                {t.value === 'proveedor' && <Truck size={13} style={{ marginRight: '0.25rem' }} />}
+                {t.value === 'empresa'   && <Building2 size={13} style={{ marginRight: '0.25rem' }} />}
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {isLoading ? (
@@ -84,7 +117,11 @@ export function ContactsPage() {
             <Users size={48} className="empty-state__icon" />
             <h2 className="empty-state__title">Sin contactos aún</h2>
             <p className="empty-state__desc">
-              Agrega personas de contacto y vincúlalas a sus empresas.
+              {tipo === 'proveedor'
+                ? 'No hay contactos vinculados a proveedores.'
+                : tipo === 'empresa'
+                ? 'No hay contactos vinculados a empresas.'
+                : 'Agrega personas de contacto y vincúlalas a sus empresas o proveedores.'}
             </p>
             <button className="btn btn--primary" onClick={handleCreate}>
               <Plus size={16} />
@@ -100,7 +137,9 @@ export function ContactsPage() {
                   <div style={{ display: 'flex', gap: '0.875rem', alignItems: 'center' }}>
                     <div style={{
                       width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
-                      background: 'linear-gradient(135deg, var(--clr-primary-500), #7c3aed)',
+                      background: contact.proveedor_id
+                        ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+                        : 'linear-gradient(135deg, var(--clr-primary-500), #7c3aed)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       color: 'white', fontWeight: 700, fontSize: 'var(--text-sm)',
                     }}>
@@ -115,9 +154,16 @@ export function ContactsPage() {
                       )}
                     </div>
                   </div>
-                  {contact.is_primary && (
-                    <span className="badge badge--primary" style={{ fontSize: '10px' }}>Principal</span>
-                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-end' }}>
+                    {contact.is_primary && (
+                      <span className="badge badge--primary" style={{ fontSize: '10px' }}>Principal</span>
+                    )}
+                    {contact.proveedor_id && (
+                      <span className="badge badge--warning" style={{ fontSize: '10px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <Truck size={10} /> Proveedor
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Datos de contacto */}
@@ -134,12 +180,17 @@ export function ContactsPage() {
                       {contact.phone}
                     </a>
                   )}
-                  {contact.company_name && (
+                  {contact.proveedor_name ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                      <Truck size={13} style={{ flexShrink: 0 }} />
+                      {contact.proveedor_name}
+                    </div>
+                  ) : contact.company_name ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
                       <Building2 size={13} style={{ flexShrink: 0 }} />
                       {contact.company_name}
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* Acciones */}

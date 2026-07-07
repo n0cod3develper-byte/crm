@@ -26,7 +26,6 @@ const CompanyDetailPage = lazy(() => import('./pages/Companies/CompanyDetailPage
 const ContactsPage = lazy(() => import('./pages/Contacts/ContactsPage').then(m => ({ default: m.ContactsPage })));
 const PipelinePage = lazy(() => import('./pages/Pipeline/PipelinePage').then(m => ({ default: m.PipelinePage })));
 const TasksPage = lazy(() => import('./pages/Tasks/TasksPage').then(m => ({ default: m.TasksPage })));
-const QuotesPage = lazy(() => import('./pages/Quotes/QuotesPage').then(m => ({ default: m.QuotesPage })));
 const LeadsPage = lazy(() => import('./pages/Leads/LeadsPage').then(m => ({ default: m.LeadsPage })));
 const InventoryPage = lazy(() => import('./pages/Inventory/InventoryPage').then(m => ({ default: m.InventoryPage })));
 const CampaignsPage = lazy(() => import('./pages/Campaigns/CampaignsPage').then(m => ({ default: m.CampaignsPage })));
@@ -62,6 +61,7 @@ const FacturacionDashboard = lazy(() => import('./pages/Facturacion/DashboardFac
 const OtsPendientesPage = lazy(() => import('./pages/Facturacion/OtsPendientesPage').then(m => ({ default: m.OtsPendientesPage })));
 const FacturasListPage = lazy(() => import('./pages/Facturacion/FacturasListPage').then(m => ({ default: m.FacturasListPage })));
 const FacturaDetailPage = lazy(() => import('./pages/Facturacion/FacturaDetailPage').then(m => ({ default: m.FacturaDetailPage })));
+const CentrosCostosPage = lazy(() => import('./pages/CentrosCostos/CentrosCostosPage').then(m => ({ default: m.CentrosCostosPage })));
 const RolesPage = lazy(() => import('./pages/Admin/RolesPage').then(m => ({ default: m.RolesPage })));
 const UsersPage = lazy(() => import('./pages/Admin/UsersPage').then(m => ({ default: m.UsersPage })));
 const ModulesPage = lazy(() => import('./pages/Admin/ModulesPage').then(m => ({ default: m.ModulesPage })));
@@ -88,6 +88,10 @@ const BudgetIndexPage = lazy(() => import('./pages/Presupuestos/BudgetIndexPage'
 const BudgetFormPage = lazy(() => import('./pages/Presupuestos/BudgetFormPage').then(m => ({ default: m.BudgetFormPage })));
 
 const PromptGeneratorPage = lazy(() => import('./pages/Sistemas/PromptGeneratorPage').then(m => ({ default: m.PromptGeneratorPage })));
+
+const SupplierQuotesPage = lazy(() => import('./pages/SupplierQuotes/SupplierQuotesPage').then(m => ({ default: m.SupplierQuotesPage })));
+const SupplierQuoteForm = lazy(() => import('./pages/SupplierQuotes/SupplierQuoteForm').then(m => ({ default: m.SupplierQuoteForm })));
+const SupplierQuoteDetail = lazy(() => import('./pages/SupplierQuotes/SupplierQuoteDetail').then(m => ({ default: m.SupplierQuoteDetail })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -166,7 +170,12 @@ function App() {
                 <Route path="/contacts" element={<ProtectedRoute modulo="contactos" accion="ver"><ContactsPage /></ProtectedRoute>} />
                 <Route path="/pipeline" element={<ProtectedRoute modulo="pipeline" accion="ver"><PipelinePage /></ProtectedRoute>} />
                 <Route path="/tasks" element={<ProtectedRoute modulo="tareas" accion="ver"><TasksPage /></ProtectedRoute>} />
-                <Route path="/quotes" element={<ProtectedRoute modulo="cotizaciones" accion="ver"><QuotesPage /></ProtectedRoute>} />
+
+                {/* Cotizaciones a Proveedores */}
+                <Route path="/supplier-quotes" element={<ProtectedRoute><SupplierQuotesPage /></ProtectedRoute>} />
+                <Route path="/supplier-quotes/new" element={<ProtectedRoute><SupplierQuoteForm /></ProtectedRoute>} />
+                <Route path="/supplier-quotes/:id" element={<ProtectedRoute><SupplierQuoteDetail /></ProtectedRoute>} />
+                <Route path="/supplier-quotes/:id/edit" element={<ProtectedRoute><SupplierQuoteForm /></ProtectedRoute>} />
 
                 {/* Marketing */}
                 <Route path="/leads" element={<ProtectedRoute modulo="leads" accion="ver"><LeadsPage /></ProtectedRoute>} />
@@ -191,6 +200,9 @@ function App() {
                 <Route path="/facturacion/pendientes" element={<ProtectedRoute modulo="facturacion" accion="ver"><OtsPendientesPage /></ProtectedRoute>} />
                 <Route path="/facturacion/facturas" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturasListPage /></ProtectedRoute>} />
                 <Route path="/facturacion/facturas/:id" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturaDetailPage /></ProtectedRoute>} />
+
+                {/* Centros de Costos */}
+                <Route path="/centros-costos" element={<ProtectedRoute modulo="centros_costos" accion="ver"><CentrosCostosPage /></ProtectedRoute>} />
 
                 {/* Logística */}
                 <Route path="/proveedores" element={<ProtectedRoute modulo="proveedores" accion="ver"><ProveedoresListPage /></ProtectedRoute>} />

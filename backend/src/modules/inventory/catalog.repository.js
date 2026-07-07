@@ -229,7 +229,7 @@ export class CatalogRepository {
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
       RETURNING *
     `;
-    const res = await query(sql, [
+    const params = [
       tipo,
       codigo,
       name || codigo,
@@ -254,8 +254,16 @@ export class CatalogRepository {
       JSON.stringify(equipos_compatibles || []),
       userId,
       area || 'MANTENIMIENTO',
-    ]);
-    return res.rows[0];
+    ];
+    try {
+      const res = await query(sql, params);
+      return res.rows[0];
+    } catch (err) {
+      console.error("CREATE ITEM ERROR:", err.message);
+      console.error("Constraint:", err.constraint);
+      console.error("Params:", params);
+      throw err;
+    }
   }
 
   async update(id, data, userId) {

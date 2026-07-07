@@ -23,7 +23,7 @@ import contactsRoutes from './modules/contacts/contacts.routes.js';
 import pipelineRoutes from './modules/pipeline/pipeline.routes.js';
 import opportunitiesRoutes from './modules/opportunities/opportunities.routes.js';
 import tasksRoutes from './modules/tasks/tasks.routes.js';
-import quotesRoutes from './modules/quotes/quotes.routes.js';
+import supplierQuotesRoutes from './modules/supplier_quotes/supplier_quotes.routes.js';
 import leadsRoutes from './modules/leads/leads.routes.js';
 import inventoryRoutes from './modules/inventory/inventory.routes.js';
 import campaignsRoutes from './modules/campaigns/campaigns.routes.js';
@@ -163,7 +163,7 @@ app.use(`${API}/contacts`,      contactsRoutes);
 app.use(`${API}/pipeline`,      pipelineRoutes);
 app.use(`${API}/opportunities`, opportunitiesRoutes);
 app.use(`${API}/tasks`,         tasksRoutes);
-app.use(`${API}/quotes`,        quotesRoutes);
+app.use(`${API}/supplier-quotes`, supplierQuotesRoutes);
 app.use(`${API}/leads`,         leadsRoutes);
 app.use(`${API}/inventory`,     inventoryRoutes);
 app.use(`${API}/catalogo`,      catalogRoutes);
@@ -206,8 +206,10 @@ app.use(`${API}/informes`,    informesRoutes);
 app.use(`${API}/budget`,      budgetRoutes);
 app.use(`${API}/mantenimientos-programados`, mantenimientosProgramadosRoutes);
 
+import centrosCostosRoutes from './modules/centros_costos/centros_costos.routes.js';
 // ─── Prompt Specs (bajo /api/prompt-specs, no /api/v1) ────
 app.use('/api/prompt-specs', promptSpecsRoutes);
+app.use(`${API}/centros-costos`, centrosCostosRoutes);
 
 // ─── 404 y manejo de errores ─────────────────────────────────
 app.use(notFoundHandler);

@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { 
   ArrowLeft, Save, Building2, User, 
@@ -9,6 +10,7 @@ import {
   Briefcase, Mail, Phone, Info
 } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
+import { catalogApi } from '../../services/catalogApi';
 import api from '../../lib/api';
 
 // Note: Importing from backend might fail in some build setups. I'll define a local version if needed.
@@ -32,15 +34,23 @@ const localProveedorSchema = z.object({
   ciudad: z.string().optional().nullable(),
   direccion: z.string().optional().nullable(),
   telefono_principal: z.string().min(5, 'Teléfono principal requerido'),
+  telefono_secundario: z.string().optional().nullable(),
   email_principal: z.string().email('Email principal inválido'),
   condicion_pago: z.enum(['CONTADO', '15_DIAS', '30_DIAS', '45_DIAS', '60_DIAS', '90_DIAS', 'CREDITO_ESPECIAL']).default('30_DIAS'),
   estado: z.enum(['ACTIVO', 'INACTIVO', 'BLOQUEADO', 'EN_EVALUACION']).default('ACTIVO'),
+  especialidad_familia: z.string().uuid('Familia inválida').optional().nullable().or(z.literal('')),
 });
 
 export function ProveedorFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
+
+  const { data: familiasRes } = useQuery({
+    queryKey: ['catalog-categories'],
+    queryFn: () => catalogApi.getCategorias()
+  });
+  const familias = familiasRes?.data || [];
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(localProveedorSchema),
@@ -164,6 +174,16 @@ export function ProveedorFormPage() {
                     <option value="REGIMEN_SIMPLE">Régimen Simple</option>
                   </select>
                 </div>
+
+                <div className="input-group">
+                  <label className="input-label">Especialidad en Familia</label>
+                  <select {...register('especialidad_familia')} className="input">
+                    <option value="">-- Seleccionar Familia --</option>
+                    {familias.map(f => (
+                      <option key={f.id} value={f.id}>{f.nombre}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </section>
 
@@ -191,6 +211,10 @@ export function ProveedorFormPage() {
                   <label className="input-label">Teléfono Principal *</label>
                   <input {...register('telefono_principal')} className="input" />
                   {errors.telefono_principal && <span className="input-error">{errors.telefono_principal.message}</span>}
+                </div>
+                <div className="input-group">
+                  <label className="input-label">Teléfono 2 (Opcional)</label>
+                  <input {...register('telefono_secundario')} className="input" />
                 </div>
                 <div className="input-group">
                   <label className="input-label">Email de Contacto *</label>

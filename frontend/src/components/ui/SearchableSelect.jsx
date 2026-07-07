@@ -186,12 +186,7 @@ export function SearchableSelect({
       width: '100%',
     }}>
       <div>
-        <div style={{ fontWeight: 600 }}>{item.name}</div>
-        {item.nit && (
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '0.125rem' }}>
-            NIT: {item.nit}
-          </div>
-        )}
+        <div style={{ fontWeight: 600 }}>{getOptionLabel(item)}</div>
       </div>
       {isSelected && (
         <Check size={16} style={{ color: 'var(--clr-primary-500)', flexShrink: 0 }} />
@@ -388,6 +383,7 @@ export function SearchableSelect({
                     padding: '0.625rem 0.75rem',
                     cursor: 'pointer',
                     fontSize: '13px',
+                    color: 'var(--text-primary)',
                     borderBottom: '1px solid var(--border-color)',
                     background: isHighlighted
                       ? 'var(--bg-elevated)'

@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
+import { useAuth } from '../../contexts/AuthContext';
 import { OTFirmadaUploader } from '../../components/documentos/OTFirmadaUploader';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import api from '../../lib/api';
@@ -15,6 +16,7 @@ export function OTFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const isEditing = Boolean(id);
 
   // ─── Estado del formulario ──────────────────────────────
@@ -23,6 +25,7 @@ export function OTFormPage() {
     pm_frecuencia_id: '',
     empresa_id: '',
     equipo_id: '',
+    tecnico_id: '',
     horometro_inicial: '',
     horometro_final: '',
     responsable: '',
@@ -74,17 +77,19 @@ export function OTFormPage() {
         equipo_id: otData.equipo_id,
         horometro_inicial: otData.horometro_inicial || '',
         horometro_final: otData.horometro_final || '',
-        responsable: otData.responsable || '',
         contacto_empresa: otData.contacto_empresa || '',
         telefono_contacto: otData.telefono_contacto || '',
+        responsable: otData.responsable || '',
         detalle_servicio: otData.detalle_servicio || '',
         observaciones: otData.observaciones || '',
       });
       setTecnicos(otData.tecnicos_asignados || []);
       setRepuestos(otData.repuestos_insumos || []);
       setActividadesPM(otData.pm_actividades || []);
+    } else if (!isEditing && user && !form.responsable) {
+      setForm(prev => ({ ...prev, responsable: `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.full_name || '' }));
     }
-  }, [otData]);
+  }, [otData, isEditing, user]);
 
   // ─── Frecuencias PM ─────────────────────────────────────
   const { data: frecuenciasData } = useQuery({
@@ -113,7 +118,7 @@ export function OTFormPage() {
     if (isEditing && form.empresa_id && !selectedCompany) {
       api.get(`/companies/${form.empresa_id}`)
         .then(r => setSelectedCompany(r.data.data))
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [isEditing, form.empresa_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -142,6 +147,17 @@ export function OTFormPage() {
     enabled: !!form.empresa_id,
   });
   const equipos = equiposData || [];
+
+  // --- Carga de contactos de la empresa ---
+  const { data: contactosData, isLoading: loadingContactos } = useQuery({
+    queryKey: ['contactos-empresa', form.empresa_id],
+    queryFn: async () => {
+      const { data } = await api.get('/contacts', { params: { companyId: form.empresa_id, limit: 100 } });
+      return data.data || [];
+    },
+    enabled: !!form.empresa_id,
+  });
+  const contactos = contactosData || [];
 
   // ─── Técnicos disponibles ──────────────────────────────
   const { data: tecnicosDisponibles } = useQuery({
@@ -253,8 +269,26 @@ export function OTFormPage() {
     const { name, value } = e.target;
     setForm(prev => {
       const next = { ...prev, [name]: value };
-      if (name === 'empresa_id') next.equipo_id = '';
-      if (name === 'tipo_mantenimiento' && value === 'CORRECTIVO') next.pm_frecuencia_id = '';
+      if (name === 'empresa_id') {
+        next.equipo_id = '';
+        next.contacto_empresa = '';
+        next.telefono_contacto = '';
+      }
+      if (name === 'tipo_mantenimiento' && value === 'CORRECTIVO') {
+        next.pm_frecuencia_id = '';
+      }
+      if (name === 'equipo_id') {
+        const equipoSeleccionado = equipos.find(eq => eq.id === value);
+        if (equipoSeleccionado && equipoSeleccionado.horometro_actual != null) {
+          next.horometro_inicial = equipoSeleccionado.horometro_actual;
+        }
+      }
+      if (name === 'contacto_empresa') {
+        const contactoSeleccionado = contactos.find(c => `${c.first_name} ${c.last_name || ''}`.trim() === value || c.id === value);
+        if (contactoSeleccionado) {
+          next.telefono_contacto = contactoSeleccionado.phone || contactoSeleccionado.phone1 || contactoSeleccionado.telefono || '';
+        }
+      }
       return next;
     });
   };
@@ -269,6 +303,9 @@ export function OTFormPage() {
   const handleSave = () => {
     if (!form.empresa_id || !form.equipo_id || !form.tipo_mantenimiento) {
       return toast.error('Empresa, equipo y tipo de mantenimiento son requeridos');
+    }
+    if (!isEditing && !form.tecnico_id) {
+      return toast.error('Debes seleccionar un técnico principal (mecánico)');
     }
     if (form.tipo_mantenimiento === 'PREVENTIVO' && !form.pm_frecuencia_id) {
       return toast.error('Debes seleccionar una frecuencia para el mantenimiento preventivo');
@@ -292,12 +329,14 @@ export function OTFormPage() {
   const handleSaveTecTimes = (tid) => {
     const t = tecnicos.find(x => x.id === tid);
     const timers = tecTimers[tid] || {};
-    updateTecMut.mutate({ tid, body: {
-      fecha_salida: timers.fecha_salida || t.fecha_salida,
-      hora_salida: timers.hora_salida || t.hora_salida,
-      fecha_regreso: timers.fecha_regreso || t.fecha_regreso,
-      hora_regreso: timers.hora_regreso || t.hora_regreso,
-    }});
+    updateTecMut.mutate({
+      tid, body: {
+        fecha_salida: timers.fecha_salida || t.fecha_salida,
+        hora_salida: timers.hora_salida || t.hora_salida,
+        fecha_regreso: timers.fecha_regreso || t.fecha_regreso,
+        hora_regreso: timers.hora_regreso || t.hora_regreso,
+      }
+    });
   };
 
   // Repuestos
@@ -321,10 +360,12 @@ export function OTFormPage() {
   const handleSaveRep = (rid) => {
     const r = repuestos.find(x => x.id === rid);
     const edits = repEdits[rid] || {};
-    updateRepMut.mutate({ rid, body: {
-      cantidad: edits.cantidad !== undefined ? parseFloat(edits.cantidad) : r.cantidad,
-      precio_unitario: edits.precio_unitario !== undefined ? parseFloat(edits.precio_unitario) : r.precio_unitario,
-    }});
+    updateRepMut.mutate({
+      rid, body: {
+        cantidad: edits.cantidad !== undefined ? parseFloat(edits.cantidad) : r.cantidad,
+        precio_unitario: edits.precio_unitario !== undefined ? parseFloat(edits.precio_unitario) : r.precio_unitario,
+      }
+    });
   };
 
   // Actividades PM (marcar completada)
@@ -335,11 +376,13 @@ export function OTFormPage() {
   const handleSaveActividad = (aid, estado) => {
     const edits = actEdits[aid] || {};
     if (!edits.completada_por) return toast.error('Selecciona el técnico que realizó la tarea');
-    updateActividadMut.mutate({ aid, body: {
-      estado,
-      completada_por: edits.completada_por,
-      observacion: edits.observacion || ''
-    }});
+    updateActividadMut.mutate({
+      aid, body: {
+        estado,
+        completada_por: edits.completada_por,
+        observacion: edits.observacion || ''
+      }
+    });
   };
 
   const totalMO = tecnicos.reduce((s, t) => s + parseFloat(t.total_mano_obra || 0), 0);
@@ -355,9 +398,9 @@ export function OTFormPage() {
   // ─── Render ────────────────────────────────────────────
   return (
     <div className="app-layout">
-      <Topbar 
-        title={isEditing ? `Editar OT ${otData?.consecutivo || ''}` : 'Nueva Orden de Trabajo'} 
-        subtitle={isEditing ? 'Modifica los datos de la orden' : 'Completa los datos para crear una nueva OT'} 
+      <Topbar
+        title={isEditing ? `Editar OT ${otData?.consecutivo || ''}` : 'Nueva Orden de Trabajo'}
+        subtitle={isEditing ? 'Modifica los datos de la orden' : 'Completa los datos para crear una nueva OT'}
         rightContent={
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <button className="btn btn--ghost" onClick={() => navigate('/mantenimiento')}>
@@ -374,7 +417,7 @@ export function OTFormPage() {
               </button>
             )}
           </div>
-        } 
+        }
       />
 
       <main className="main-content" style={{ maxWidth: 1100 }}>
@@ -395,7 +438,7 @@ export function OTFormPage() {
                     type="button"
                     className={`btn ${form.tipo_mantenimiento === t ? 'btn--primary' : 'btn--secondary'}`}
                     style={{ flex: 1 }}
-                    onClick={() => handleChange({ target: { name: 'tipo_mantenimiento', value: t }})}
+                    onClick={() => handleChange({ target: { name: 'tipo_mantenimiento', value: t } })}
                     disabled={isLiqOrClosed || (isEditing && form.tipo_mantenimiento !== t)}
                   >
                     {t}
@@ -436,8 +479,8 @@ export function OTFormPage() {
                   {frecuencias.map(f => {
                     const isActive = form.pm_frecuencia_id === f.id;
                     return (
-                      <label 
-                        key={f.id} 
+                      <label
+                        key={f.id}
                         className={`selectable-card ${isActive ? 'selectable-card--active' : ''}`}
                         style={{ cursor: isLiqOrClosed || isEditing ? 'default' : 'pointer' }}
                       >
@@ -487,11 +530,19 @@ export function OTFormPage() {
               )}
             </div>
 
-            {/* Responsable */}
-            <div className="input-group">
-              <label className="input-label">Responsable</label>
-              <input className="input" name="responsable" value={form.responsable} onChange={handleChange} placeholder="Nombre del responsable" disabled={isLiqOrClosed} />
-            </div>
+            {/* Técnico Principal (Solo Creación) */}
+            {!isEditing && (
+              <div className="input-group">
+                <label className="input-label">Técnico (Mecánico) *</label>
+                <select className="input" name="tecnico_id" value={form.tecnico_id || ''} onChange={handleChange} required>
+                  <option value="">Seleccionar técnico...</option>
+                  {(tecnicosDisponibles || []).map(t => (
+                    <option key={t.id} value={t.id}>{t.full_name || t.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
 
             {/* Horómetros */}
             <div className="input-group">
@@ -506,8 +557,36 @@ export function OTFormPage() {
             {/* Contacto */}
             <div className="input-group">
               <label className="input-label">Contacto empresa</label>
-              <input className="input" name="contacto_empresa" value={form.contacto_empresa} onChange={handleChange} placeholder="Nombre del contacto" disabled={isLiqOrClosed} />
+              {!form.empresa_id ? (
+                <select className="input" disabled>
+                  <option>Selecciona primero una empresa</option>
+                </select>
+              ) : loadingContactos ? (
+                <div className="input" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)' }}>
+                  <div className="spinner" style={{ width: 14, height: 14 }} /> Cargando contactos...
+                </div>
+              ) : contactos.length === 0 ? (
+                <input className="input" name="contacto_empresa" value={form.contacto_empresa} onChange={handleChange} placeholder="Nombre del contacto" disabled={isLiqOrClosed} />
+              ) : (
+                <select className="input" name="contacto_empresa" value={form.contacto_empresa} onChange={handleChange} disabled={isLiqOrClosed}>
+                  <option value="">Seleccionar contacto...</option>
+                  {form.contacto_empresa && !contactos.some(c => `${c.first_name} ${c.last_name || ''}`.trim() === form.contacto_empresa) && (
+                    <option value={form.contacto_empresa}>{form.contacto_empresa}</option>
+                  )}
+                  {contactos.map(c => {
+                    const nombreCompleto = `${c.first_name} ${c.last_name || ''}`.trim();
+                    return <option key={c.id} value={nombreCompleto}>{nombreCompleto}</option>;
+                  })}
+                </select>
+              )}
             </div>
+
+            {/* Responsable */}
+            <div className="input-group">
+              <label className="input-label">Responsable</label>
+              <input className="input" name="responsable" value={form.responsable} onChange={handleChange} placeholder="Nombre del responsable" disabled={true} />
+            </div>
+
             <div className="input-group">
               <label className="input-label">Teléfono contacto</label>
               <input className="input" name="telefono_contacto" value={form.telefono_contacto} onChange={handleChange} placeholder="Teléfono" disabled={isLiqOrClosed} />
@@ -524,6 +603,8 @@ export function OTFormPage() {
             <textarea className="input" rows={2} name="observaciones" value={form.observaciones} onChange={handleChange} placeholder="Notas adicionales..." disabled={isLiqOrClosed} />
           </div>
         </div>
+
+
 
         {/* ═══ SECCIÓN B: Técnicos (solo en edición) ═══ */}
         {isEditing && (
@@ -572,12 +653,12 @@ export function OTFormPage() {
                       return (
                         <tr key={t.id}>
                           <td style={{ fontWeight: 600 }}>{t.full_name}</td>
-                          <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} defaultValue={t.fecha_salida?.substring(0,10)||''} onChange={e => handleTecTimeChange(t.id, 'fecha_salida', e.target.value)} disabled={isLiqOrClosed} /></td>
-                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} defaultValue={t.hora_salida?.substring(0,5)||''} onChange={e => handleTecTimeChange(t.id, 'hora_salida', e.target.value)} disabled={isLiqOrClosed} /></td>
-                          <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} defaultValue={t.fecha_regreso?.substring(0,10)||''} onChange={e => handleTecTimeChange(t.id, 'fecha_regreso', e.target.value)} disabled={isLiqOrClosed} /></td>
-                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} defaultValue={t.hora_regreso?.substring(0,5)||''} onChange={e => handleTecTimeChange(t.id, 'hora_regreso', e.target.value)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} defaultValue={t.fecha_salida?.substring(0, 10) || ''} onChange={e => handleTecTimeChange(t.id, 'fecha_salida', e.target.value)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} defaultValue={t.hora_salida?.substring(0, 5) || ''} onChange={e => handleTecTimeChange(t.id, 'hora_salida', e.target.value)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} defaultValue={t.fecha_regreso?.substring(0, 10) || ''} onChange={e => handleTecTimeChange(t.id, 'fecha_regreso', e.target.value)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} defaultValue={t.hora_regreso?.substring(0, 5) || ''} onChange={e => handleTecTimeChange(t.id, 'hora_regreso', e.target.value)} disabled={isLiqOrClosed} /></td>
                           <td style={{ textAlign: 'right', fontSize: '12px' }}>
-                            {t.tiempo_total_min != null ? `${Math.floor(t.tiempo_total_min/60)}h ${t.tiempo_total_min%60}m` : '—'}
+                            {t.tiempo_total_min != null ? `${Math.floor(t.tiempo_total_min / 60)}h ${t.tiempo_total_min % 60}m` : '—'}
                           </td>
                           <td style={{ textAlign: 'right', fontSize: '12px' }}>{fmt(t.tarifa_hora)}</td>
                           <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '12px' }}>{fmt(t.total_mano_obra)}</td>
@@ -663,8 +744,8 @@ export function OTFormPage() {
                             </span>
                           </td>
                           <td>
-                            <select 
-                              className="input" 
+                            <select
+                              className="input"
                               style={{ padding: '4px 6px', fontSize: '12px' }}
                               value={edit.completada_por !== undefined ? edit.completada_por : (a.completada_por || '')}
                               onChange={e => handleActChange(a.id, 'completada_por', e.target.value)}
@@ -677,9 +758,9 @@ export function OTFormPage() {
                             </select>
                           </td>
                           <td>
-                            <input 
-                              type="text" 
-                              className="input" 
+                            <input
+                              type="text"
+                              className="input"
                               style={{ padding: '4px 6px', fontSize: '12px' }}
                               placeholder="Notas (opcional)"
                               value={edit.observacion !== undefined ? edit.observacion : (a.observacion || '')}
@@ -890,66 +971,66 @@ export function OTFormPage() {
             background: 'linear-gradient(135deg, var(--bg-surface), rgba(34,197,94,0.03))',
             display: 'flex', flexDirection: 'column', gap: '1.5rem'
           }}>
-            <OTFirmadaUploader 
-              otId={id} 
+            <OTFirmadaUploader
+              otId={id}
               otConsecutivo={otData?.consecutivo}
               otFirmadaActual={otFirmadaData}
               onUploadSuccess={() => qc.invalidateQueries({ queryKey: ['ot-firmada', id] })}
             />
-            
+
             <div>
               <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <DollarSign size={18} color="#22c55e" /> Resumen de Liquidación
               </h2>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.375rem 2rem', fontSize: '14px', maxWidth: 400 }}>
-              <span style={{ color: 'var(--text-secondary)' }}>Total Mano de Obra</span>
-              <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(totalMO)}</span>
-              <span style={{ color: 'var(--text-secondary)' }}>Total Repuestos</span>
-              <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(totalRep)}</span>
-              <span style={{ color: 'var(--text-secondary)' }}>Subtotal</span>
-              <span style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(subtotal)}</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.375rem 2rem', fontSize: '14px', maxWidth: 400 }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Total Mano de Obra</span>
+                <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(totalMO)}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Total Repuestos</span>
+                <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(totalRep)}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Subtotal</span>
+                <span style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(subtotal)}</span>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text-secondary)' }}>
-                Impuesto
-                <input type="number" className="input" style={{ width: 60, padding: '2px 6px', fontSize: '12px' }} value={liqImpuesto} onChange={e => setLiqImpuesto(parseFloat(e.target.value) || 0)} /> %
-              </div>
-              <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(impValor)}</span>
-
-              <span style={{ fontSize: '18px', fontWeight: 800, color: '#22c55e' }}>TOTAL FINAL</span>
-              <span style={{ textAlign: 'right', fontSize: '18px', fontWeight: 800, color: '#22c55e' }}>{fmt(totalFinal)}</span>
-            </div>
-
-            <div className="input-group" style={{ marginTop: '1rem' }}>
-              <label className="input-label">Notas de liquidación</label>
-              <textarea className="input" rows={2} value={liqNotas} onChange={e => setLiqNotas(e.target.value)} placeholder="Observaciones del proceso de liquidación..." />
-            </div>
-
-            <div style={{ marginTop: '1.25rem' }}>
-              {!showLiquidar ? (
-                <button className="btn btn--lg" style={{ background: '#22c55e', color: 'white', fontWeight: 700, width: '100%' }} onClick={() => setShowLiquidar(true)}>
-                  <DollarSign size={18} /> Liquidar Servicio
-                </button>
-              ) : (
-                <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-md)', padding: '1rem', textAlign: 'center' }}>
-                  <p style={{ fontWeight: 600, marginBottom: '0.75rem' }}>
-                    ⚠️ ¿Confirmar liquidación? Esta acción descargará el inventario y no podrá revertirse.
-                  </p>
-                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                    <button className="btn btn--secondary" onClick={() => setShowLiquidar(false)}>Cancelar</button>
-                    <button
-                      className="btn btn--lg"
-                      style={{ background: '#22c55e', color: 'white', fontWeight: 700 }}
-                      onClick={() => liquidarMut.mutate({ notas_liquidacion: liqNotas, impuesto_pct: liqImpuesto })}
-                      disabled={liquidarMut.isPending}
-                    >
-                      {liquidarMut.isPending ? 'Liquidando...' : '✓ Confirmar Liquidación'}
-                    </button>
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text-secondary)' }}>
+                  Impuesto
+                  <input type="number" className="input" style={{ width: 60, padding: '2px 6px', fontSize: '12px' }} value={liqImpuesto} onChange={e => setLiqImpuesto(parseFloat(e.target.value) || 0)} /> %
                 </div>
-              )}
+                <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(impValor)}</span>
+
+                <span style={{ fontSize: '18px', fontWeight: 800, color: '#22c55e' }}>TOTAL FINAL</span>
+                <span style={{ textAlign: 'right', fontSize: '18px', fontWeight: 800, color: '#22c55e' }}>{fmt(totalFinal)}</span>
+              </div>
+
+              <div className="input-group" style={{ marginTop: '1rem' }}>
+                <label className="input-label">Notas de liquidación</label>
+                <textarea className="input" rows={2} value={liqNotas} onChange={e => setLiqNotas(e.target.value)} placeholder="Observaciones del proceso de liquidación..." />
+              </div>
+
+              <div style={{ marginTop: '1.25rem' }}>
+                {!showLiquidar ? (
+                  <button className="btn btn--lg" style={{ background: '#22c55e', color: 'white', fontWeight: 700, width: '100%' }} onClick={() => setShowLiquidar(true)}>
+                    <DollarSign size={18} /> Liquidar Servicio
+                  </button>
+                ) : (
+                  <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--radius-md)', padding: '1rem', textAlign: 'center' }}>
+                    <p style={{ fontWeight: 600, marginBottom: '0.75rem' }}>
+                      ⚠️ ¿Confirmar liquidación? Esta acción descargará el inventario y no podrá revertirse.
+                    </p>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                      <button className="btn btn--secondary" onClick={() => setShowLiquidar(false)}>Cancelar</button>
+                      <button
+                        className="btn btn--lg"
+                        style={{ background: '#22c55e', color: 'white', fontWeight: 700 }}
+                        onClick={() => liquidarMut.mutate({ notas_liquidacion: liqNotas, impuesto_pct: liqImpuesto })}
+                        disabled={liquidarMut.isPending}
+                      >
+                        {liquidarMut.isPending ? 'Liquidando...' : '✓ Confirmar Liquidación'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
           </div>
         )}
       </main>

@@ -59,7 +59,7 @@ function formatMinutes(mins) {
 function buildActividadesSection(ot) {
   const actividades = ot.pm_actividades || [];
   const hasActividades = actividades.length > 0;
-  
+
   const estadoColors = {
     'COMPLETADA': '#22c55e',
     'OMITIDA': '#f59e0b',
@@ -78,8 +78,8 @@ function buildActividadesSection(ot) {
           </td>
           <td>${a.completada_por_nombre || '—'}</td>
           <td style="font-size:9px;color:#64748b">${a.observacion || ''}</td>
-        </tr>`).join('') 
-        : Array(6).fill(0).map((_, i) => `
+        </tr>`).join('')
+    : Array(6).fill(0).map((_, i) => `
         <tr>
           <td style="text-align:center;height:24px;">${i + 1}</td>
           <td></td>
@@ -132,7 +132,7 @@ function buildPMHeaderSection(ot) {
  */
 function buildNextMaintenanceSection(ot) {
   if (ot.tipo_mantenimiento !== 'PREVENTIVO') return '';
-  
+
   const horoFinal = ot.horometro_final ? parseFloat(ot.horometro_final) : null;
   const freqHoras = ot.frecuencia_horas;
   const nextHoro = horoFinal && freqHoras ? horoFinal + freqHoras : null;
@@ -204,13 +204,13 @@ function buildOTHtml(ot) {
       justify-content: space-between;
       align-items: flex-start;
       border-bottom: 3px solid #4338ca;
-      padding-bottom: 15px;
-      margin-bottom: 20px;
+      padding-bottom: 8px;
+      margin-bottom: 12px;
     }
     .header-left { display: flex; align-items: center; gap: 15px; }
     .header-right { text-align: right; }
     .ot-number {
-      font-size: 22px;
+      font-size: 16px;
       font-weight: 800;
       color: #4338ca;
       letter-spacing: 1px;
@@ -260,6 +260,11 @@ function buildOTHtml(ot) {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
       gap: 6px 20px;
+    }
+    .grid4 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      gap: 2px 10px;
     }
     .field label {
       font-size: 9px;
@@ -380,11 +385,7 @@ function buildOTHtml(ot) {
     <div class="header-right">
       <div class="ot-label">Orden de Trabajo</div>
       <div class="ot-number">${ot.consecutivo}</div>
-      <div style="margin-top: 4px; display:flex; gap:6px; justify-content:flex-end;">
-        <span class="estado-badge" style="background:${estadoBadge[ot.estado] || '#64748b'}">${ot.estado}</span>
-        <span class="tipo-badge" style="background:${isPM ? 'rgba(67,56,202,0.15);color:#4338ca' : 'rgba(245,158,11,0.15);color:#f59e0b'}">${ot.tipo_mantenimiento}</span>
-      </div>
-      <div style="margin-top: 6px; font-size: 10px; color: #64748b;">
+      <div style="margin-top: 4px; font-size: 9px; color: #64748b;">
         Fecha: ${formatDate(ot.created_at)}
       </div>
     </div>
@@ -396,16 +397,19 @@ function buildOTHtml(ot) {
   <!-- Datos Generales -->
   <div class="section">
     <div class="section-title">Datos Generales</div>
-    <div class="grid3">
+    <div class="grid4">
+      <div class="field"><label>Tipo mantenimiento</label><div class="value">${ot.tipo_mantenimiento}</div></div>
       <div class="field"><label>Empresa</label><div class="value">${ot.empresa_nombre || '—'}</div></div>
       <div class="field"><label>NIT</label><div class="value">${ot.empresa_nit || '—'}</div></div>
-      <div class="field"><label>Tipo mantenimiento</label><div class="value">${ot.tipo_mantenimiento}</div></div>
+      <div class="field"><label>Dirección servicio</label><div class="value">${ot.empresa_direccion || '—'}</div></div>  
+      <div class="field"><label>Contacto</label><div class="value">${ot.contacto_empresa || '—'}</div></div>
+      <div class="field"><label>Teléfono contacto</label><div class="value">${ot.telefono_contacto || '—'}</div></div>
+      <div class="field"><label>Correo contacto</label><div class="value">${ot.contacto_email || '—'}</div></div>
       <div class="field"><label>Equipo</label><div class="value">${ot.equipo_marca} ${ot.equipo_modelo}</div></div>
-      <div class="field"><label>Serial</label><div class="value">${ot.equipo_serial}</div></div>
-      <div class="field"><label>Responsable</label><div class="value">${ot.responsable || '—'}</div></div>
+      <div class="field"><label>Serial</label><div class="value">${ot.equipo_serial || '—'}</div></div> 
       <div class="field"><label>Horómetro inicial</label><div class="value">${ot.horometro_inicial ?? '—'}</div></div>
       <div class="field"><label>Horómetro final</label><div class="value">${ot.horometro_final ?? '—'}</div></div>
-      <div class="field"><label>Contacto</label><div class="value">${ot.contacto_empresa || '—'} ${ot.telefono_contacto ? '(' + ot.telefono_contacto + ')' : ''}</div></div>
+      <div class="field"><label>Responsable</label><div class="value">${ot.responsable || '—'}</div></div>
     </div>
   </div>
 
@@ -542,7 +546,7 @@ import { logger } from './logger.js';
 export async function generateOTPdf(ot) {
   try {
     const html = buildOTHtml(ot);
-    
+
     const launchOptions = {
       headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
@@ -759,7 +763,7 @@ export async function generatePrefacturaPdf(factura) {
     try {
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'domcontentloaded' });
-      
+
       const pdfBuffer = await page.pdf({
         format: 'Letter',
         printBackground: true,

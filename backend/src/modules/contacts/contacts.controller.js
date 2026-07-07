@@ -6,9 +6,10 @@ const repo = new ContactsRepository();
 export const contactsController = {
   async list(req, res, next) {
     try {
-      const { companyId, search, limit, cursor } = req.query;
+      const { companyId, proveedorId, search, limit, cursor } = req.query;
       const result = await repo.findAll({
         companyId,
+        proveedorId,
         search,
         limit: parseInt(limit) || 50,
         cursor,

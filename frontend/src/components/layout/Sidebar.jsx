@@ -7,7 +7,7 @@ import {
   ShoppingCart, ShoppingBag, Receipt, Clock, BookOpen, MapPin, History,
   Bookmark, ClipboardList, Shield, Sun, Moon, Monitor,
   CalendarClock, Database, PieChart, DollarSign,
-  MessageSquareCode
+  MessageSquareCode, Briefcase
 } from 'lucide-react';
 import { useSidebarStore } from '../../stores/sidebarStore';
 import { useThemeStore } from '../../stores/themeStore';
@@ -24,7 +24,7 @@ const navItems = [
   { label: 'Contactos', icon: Users, to: '/contacts', modulo: 'contactos' },
   { label: 'Pipeline', icon: TrendingUp, to: '/pipeline', modulo: 'pipeline' },
   { label: 'Tareas', icon: CheckSquare, to: '/tasks', modulo: 'tareas' },
-  { label: 'Cotizaciones', icon: FileText, to: '/quotes', modulo: 'cotizaciones' },
+  { label: 'Cotizaciones', icon: FileText, to: '/supplier-quotes', modulo: 'cotizaciones' },
   { section: 'Marketing' },
   { label: 'Leads', icon: Megaphone, to: '/leads', modulo: 'leads' },
   { label: 'Campañas', icon: Zap, to: '/campaigns', modulo: 'campanas' },
@@ -48,6 +48,7 @@ const navItems = [
   { label: 'Facturación', icon: Receipt, to: '/facturacion', modulo: 'facturacion' },
   { label: 'Pendientes', icon: Clock, to: '/facturacion/pendientes', modulo: 'facturacion', indent: true },
   { label: 'Facturas', icon: FileText, to: '/facturacion/facturas', modulo: 'facturacion', indent: true },
+  { label: 'Centros de Costos', icon: Briefcase, to: '/centros-costos', modulo: 'centros_costos' },
   { label: 'Compras', icon: ShoppingCart, to: '/compras', modulo: 'ordenes_compra' },
   { label: 'Solicitudes', icon: FileText, to: '/compras/solicitudes', modulo: 'ordenes_compra', indent: true },
   { label: 'Órdenes Compra', icon: ShoppingCart, to: '/compras/oc', modulo: 'ordenes_compra', indent: true },
@@ -158,7 +159,7 @@ export function Sidebar() {
             const Icon = item.icon;
             return (
               <NavLink
-                key={item.to}
+                key={item.to + item.label}
                 to={item.to}
                 end={!item.indent}
                 title={isCollapsed ? item.label : undefined}

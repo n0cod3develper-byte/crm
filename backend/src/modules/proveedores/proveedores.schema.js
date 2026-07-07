@@ -23,6 +23,7 @@ export const createProveedorSchema = z.object({
   contacto_cargo: z.string().optional().nullable(),
   contacto_telefono: z.string().optional().nullable(),
   contacto_email: z.string().email().optional().nullable().or(z.literal('')),
+  especialidad_familia: z.string().uuid().optional().nullable(),
   condicion_pago: z.enum(['CONTADO', '15_DIAS', '30_DIAS', '45_DIAS', '60_DIAS', '90_DIAS', 'CREDITO_ESPECIAL']).default('30_DIAS'),
   dias_entrega_promedio: z.number().int().default(0),
   moneda: z.enum(['COP', 'USD', 'EUR']).default('COP'),

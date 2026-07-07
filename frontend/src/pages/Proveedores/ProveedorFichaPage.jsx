@@ -1,12 +1,12 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { 
+import {
   ArrowLeft, Edit, Star, Phone, Mail, 
   MapPin, CreditCard, History, FileCheck,
   Building2, Globe, ShieldCheck, MoreVertical,
   Briefcase, CheckCircle2, AlertTriangle, Plus,
-  Info, User
+  Info, User, FileText
 } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
@@ -19,13 +19,31 @@ export function ProveedorFichaPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = React.useState('info');
   const [isDocumentoModalOpen, setIsDocumentoModalOpen] = React.useState(false);
+  const [isSupplierQuoteModalOpen, setIsSupplierQuoteModalOpen] = React.useState(false);
+  const [selectedSupplierQuoteId, setSelectedSupplierQuoteId] = React.useState(null);
 
   const { data: proveedor, isLoading } = useQuery({
     queryKey: ['proveedor', id],
     queryFn: async () => {
       const { data } = await api.get(`/proveedores/${id}`);
       return data.data || data;
-    },
+    }
+  });
+
+  const { data: quotesData, isLoading: isQuotesLoading } = useQuery({
+    queryKey: ['provider-quotes', id],
+    queryFn: async () => {
+      const { data } = await api.get('/supplier-quotes', { params: { providerId: id, limit: 100 } });
+      return data.data;
+    }
+  });
+
+  const { data: contactsData, isLoading: isContactsLoading } = useQuery({
+    queryKey: ['provider-contacts', id],
+    queryFn: async () => {
+      const { data } = await api.get('/contacts', { params: { proveedorId: id, limit: 100 } });
+      return data.data || [];
+    }
   });
 
   if (isLoading) return <div className="app-layout"><div className="main-content flex justify-center items-center"><div className="spinner" /></div></div>;
@@ -84,6 +102,8 @@ export function ProveedorFichaPage() {
               <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-elevated)' }}>
                 {[
                   { id: 'info', label: 'Información General', icon: Info },
+                  { id: 'contactos', label: 'Contactos', icon: User },
+                  { id: 'cotizaciones', label: 'Cotizaciones', icon: FileText },
                   { id: 'compras', label: 'Historial de Compras', icon: History },
                   { id: 'documentos', label: 'Documentación', icon: FileCheck },
                 ].map(tab => (
@@ -139,6 +159,13 @@ export function ProveedorFichaPage() {
                               <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{proveedor.pais}</div>
                            </div>
                         </div>
+                        <div className="flex gap-3">
+                           <Briefcase size={18} className="text-muted" />
+                           <div>
+                              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>NIT</div>
+                              <div style={{ fontWeight: 500 }}>{proveedor.numero_documento}-{proveedor.digito_verificacion || '0'}</div>
+                           </div>
+                        </div>
                       </div>
                     </div>
 
@@ -176,6 +203,108 @@ export function ProveedorFichaPage() {
                     <History size={48} className="empty-state__icon" />
                     <h3 className="empty-state__title">Sin historial de compras</h3>
                     <p className="empty-state__desc">Aún no se han emitido órdenes de compra a este proveedor.</p>
+                  </div>
+                )}
+
+                {activeTab === 'contactos' && (
+                  <div className="card" style={{ padding: '1.5rem' }}>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Contactos Vinculados</h3>
+                      <button className="btn btn--primary btn--sm" onClick={() => navigate('/contacts')}>
+                        <Plus size={14} /> Ir a Contactos
+                      </button>
+                    </div>
+
+                    {isContactsLoading ? (
+                      <div className="spinner" />
+                    ) : contactsData?.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                        No hay contactos registrados para este proveedor.
+                      </div>
+                    ) : (
+                      <div className="table-wrapper">
+                        <table style={{ background: 'transparent' }}>
+                          <thead>
+                            <tr>
+                              <th>Nombre</th>
+                              <th>Cargo</th>
+                              <th>Teléfono</th>
+                              <th>Email</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {contactsData.map(c => (
+                              <tr key={c.id}>
+                                <td style={{ fontWeight: 600, color: 'var(--clr-primary-500)', cursor: 'pointer' }} onClick={() => navigate('/contacts')}>
+                                  {c.first_name} {c.last_name || ''}
+                                </td>
+                                <td>{c.position || '—'}</td>
+                                <td>{c.phone || c.whatsapp || '—'}</td>
+                                <td>{c.email || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'cotizaciones' && (
+                  <div className="card" style={{ padding: '1.5rem' }}>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Cotizaciones Solicitadas</h3>
+                      <button className="btn btn--primary btn--sm" onClick={() => navigate('/supplier-quotes')}>
+                        <Plus size={14} /> Ir a Cotizaciones
+                      </button>
+                    </div>
+
+                    {isQuotesLoading ? (
+                      <div className="spinner" />
+                    ) : quotesData?.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                        No hay cotizaciones registradas para este proveedor.
+                      </div>
+                    ) : (
+                      <div className="table-wrapper">
+                        <table style={{ background: 'transparent' }}>
+                          <thead>
+                            <tr>
+                              <th>Consecutivo</th>
+                              <th>Fecha</th>
+                              <th>Total</th>
+                              <th>Estado</th>
+                              <th>Estado Comercial</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {quotesData.map(q => (
+                              <tr key={q.id}>
+                                <td style={{ fontWeight: 600, color: 'var(--clr-primary-500)', cursor: 'pointer' }} onClick={() => { setSelectedSupplierQuoteId(q.id); setIsSupplierQuoteModalOpen(true); }}>
+                                  {q.consecutivo}
+                                </td>
+                                <td>{new Date(q.created_at).toLocaleDateString()}</td>
+                                <td style={{ fontWeight: 600 }}>
+                                  {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(q.total || 0)}
+                                </td>
+                                <td>
+                                  <span style={{ fontSize: '12px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', background: 'var(--bg-elevated)' }}>
+                                    {q.estado}
+                                  </span>
+                                </td>
+                                <td>
+                                  {q.estado_comercial ? (
+                                    <span style={{ fontSize: '12px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', background: 'var(--bg-elevated)' }}>
+                                      {q.estado_comercial}
+                                    </span>
+                                  ) : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -253,6 +382,117 @@ export function ProveedorFichaPage() {
           />
         </Modal>
       )}
+
+      {isSupplierQuoteModalOpen && selectedSupplierQuoteId && (
+        <Modal 
+          title="Detalles de Cotización de Proveedor" 
+          onClose={() => setIsSupplierQuoteModalOpen(false)}
+          maxWidth="800px"
+        >
+          <SupplierQuoteDetailView quoteId={selectedSupplierQuoteId} onClose={() => setIsSupplierQuoteModalOpen(false)} />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function SupplierQuoteDetailView({ quoteId, onClose }) {
+  const { data: quoteResponse, isLoading } = useQuery({
+    queryKey: ['supplier-quote-detail', quoteId],
+    queryFn: async () => {
+      const { data } = await api.get(`/supplier-quotes/${quoteId}`);
+      return data.data || data;
+    }
+  });
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(amount || 0);
+  };
+
+  if (isLoading) return <div className="spinner" style={{ margin: 'auto' }} />;
+  if (!quoteResponse) return <div>Cotización no encontrada.</div>;
+
+  const quote = quoteResponse;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxHeight: '70vh', overflowY: 'auto' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'var(--bg-subtle)', padding: '1rem', borderRadius: '8px' }}>
+        <div>
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Consecutivo</div>
+          <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{quote.consecutivo}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Estado</div>
+          <div><span className="badge badge--primary">{quote.estado}</span></div>
+        </div>
+        <div>
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Fecha</div>
+          <div style={{ fontWeight: 500 }}>{new Date(quote.created_at).toLocaleDateString()}</div>
+        </div>
+      </div>
+      
+      <div>
+        <h4 style={{ fontWeight: 700, marginBottom: '0.75rem' }}>Ítems Solicitados</h4>
+        <table style={{ background: 'transparent', margin: 0, fontSize: 'var(--text-sm)' }}>
+          <thead>
+            <tr>
+              <th>Descripción</th>
+              <th style={{ textAlign: 'center' }}>Cant.</th>
+              <th style={{ textAlign: 'right' }}>V. Unitario</th>
+              <th style={{ textAlign: 'right' }}>Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {quote.items?.map(item => {
+              const qty = parseFloat(item.cantidad || item.quantity) || 0;
+              const price = parseFloat(item.precio_unitario || item.unit_price) || 0;
+              const subtotal = qty * price;
+              return (
+                <tr key={item.id}>
+                  <td>{item.descripcion || item.description}</td>
+                  <td style={{ textAlign: 'center' }}>{qty}</td>
+                  <td style={{ textAlign: 'right' }}>{formatCurrency(price)}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatCurrency(subtotal)}</td>
+                </tr>
+              );
+            })}
+            {!quote.items?.length && (
+              <tr>
+                <td colSpan="4" style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)' }}>No hay ítems registrados</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+          <div style={{ minWidth: '200px' }}>
+            <div className="flex justify-between" style={{ padding: '0.25rem 0', color: 'var(--text-secondary)' }}>
+              <span>Subtotal:</span>
+              <span>{formatCurrency(quote.subtotal)}</span>
+            </div>
+            <div className="flex justify-between" style={{ padding: '0.25rem 0', color: 'var(--text-secondary)' }}>
+              <span>Impuestos:</span>
+              <span>{formatCurrency(quote.impuestos || quote.tax_amount)}</span>
+            </div>
+            <div className="flex justify-between" style={{ padding: '0.5rem 0', fontWeight: 700, fontSize: '1.1rem', borderTop: '1px solid var(--border-color)', marginTop: '0.25rem' }}>
+              <span>Total Sugerido:</span>
+              <span style={{ color: 'var(--clr-primary-500)' }}>{formatCurrency(quote.total)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {quote.notas && (
+        <div style={{ background: 'var(--bg-subtle)', padding: '1rem', borderRadius: '8px' }}>
+          <h4 style={{ fontWeight: 700, marginBottom: '0.5rem', fontSize: 'var(--text-sm)' }}>Notas</h4>
+          <p style={{ fontSize: 'var(--text-sm)', whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>{quote.notas}</p>
+        </div>
+      )}
+      
+      <div className="flex justify-end mt-4">
+        <button className="btn btn--primary" onClick={onClose}>
+          Cerrar
+        </button>
+      </div>
     </div>
   );
 }

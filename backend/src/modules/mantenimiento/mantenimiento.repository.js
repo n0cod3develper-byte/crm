@@ -77,7 +77,8 @@ export class MantenimientoRepository {
              c.name AS empresa_nombre, c.nit AS empresa_nit, c.phone as empresa_telefono, c.address as empresa_direccion,
              e.marca AS equipo_marca, e.modelo AS equipo_modelo, e.serial AS equipo_serial,
              f.nombre AS frecuencia_nombre, f.horas AS frecuencia_horas, f.version AS frecuencia_version,
-             fac.consecutivo_interno AS factura_consecutivo, fac.numero_factura AS factura_numero_externo
+             fac.consecutivo_interno AS factura_consecutivo, fac.numero_factura AS factura_numero_externo,
+             (SELECT email FROM contacts cnt WHERE cnt.company_id = ot.empresa_id AND (cnt.first_name || ' ' || COALESCE(cnt.last_name, '')) = ot.contacto_empresa LIMIT 1) as contacto_email
       FROM ordenes_trabajo ot
       JOIN companies c ON c.id = ot.empresa_id
       JOIN equipos e ON e.id = ot.equipo_id
@@ -197,6 +198,16 @@ export class MantenimientoRepository {
         // Si es preventivo con frecuencia, copiar plantilla (snapshot atómico)
         if (tipo_mantenimiento === 'PREVENTIVO' && pm_frecuencia_id) {
           await pmRepo.copiarPlantillaAOT(client, ot.id, pm_frecuencia_id);
+        }
+
+        // Si se envió un tecnico_id desde la creación, agregarlo como técnico asignado inicial
+        if (data.tecnico_id) {
+          const techRes = await client.query(`SELECT hourly_rate FROM employees WHERE id = $1`, [data.tecnico_id]);
+          const tarifa = techRes.rows[0] ? (techRes.rows[0].hourly_rate || 0) : 0;
+          await client.query(
+            `INSERT INTO ot_tecnicos (orden_trabajo_id, empleado_id, tarifa_hora) VALUES ($1, $2, $3)`,
+            [ot.id, data.tecnico_id, tarifa]
+          );
         }
 
         return ot;
