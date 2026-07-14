@@ -28,6 +28,14 @@ export const inventoryController = {
     } catch (err) { next(err); }
   },
 
+  async getAvailability(req, res, next) {
+    try {
+      const availability = await repo.getAvailability(req.params.id);
+      if (!availability) throw new NotFoundError('Item de inventario');
+      res.json({ success: true, data: availability });
+    } catch (err) { next(err); }
+  },
+
   async create(req, res, next) {
     try {
       const item = await repo.create(req.body);

@@ -62,6 +62,22 @@ export class InventoryRepository {
     return result.rows[0] || null;
   }
 
+  async getAvailability(id) {
+    const sql = `
+      SELECT 
+        i.id AS inventario_id,
+        COALESCE(i.stock_actual, 0) AS stock_fisico,
+        COALESCE(SUM(r.cantidad_reservada), 0) AS reservas_activas,
+        (COALESCE(i.stock_actual, 0) - COALESCE(SUM(r.cantidad_reservada), 0)) AS stock_disponible
+      FROM inventario i
+      LEFT JOIN inventario_reservas r ON i.id = r.inventario_id AND r.estado = 'activa'
+      WHERE i.id = $1
+      GROUP BY i.id, i.stock_actual
+    `;
+    const result = await query(sql, [id]);
+    return result.rows[0] || null;
+  }
+
   async create(data) {
     const { sku, name, description, categoria_id, ubicacion_id, marca, unit, costo_reposicion, unit_price, stock_actual, stock_minimum, is_active, tipo, area } = data;
     const result = await query(

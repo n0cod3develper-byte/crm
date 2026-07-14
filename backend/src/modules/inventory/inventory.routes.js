@@ -13,6 +13,7 @@ router.get('/export/resumen', inventoryExportController.exportResumen);
 
 router.get('/',       inventoryController.list);
 router.get('/search', inventoryController.search);  // Buscador para formulario OT
+router.get('/:id/availability', inventoryController.getAvailability);
 router.post('/',      inventoryController.create);
 router.get('/:id',    inventoryController.get);
 router.patch('/:id',  inventoryController.update);
