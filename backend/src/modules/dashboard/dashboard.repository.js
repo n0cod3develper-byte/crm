@@ -10,7 +10,19 @@ export class DashboardRepository {
    * - pipeline_por_etapa: resumen por pipeline_stages
    * - actividad_reciente: últimas 5 comunicaciones
    */
-  async getKpis() {
+  async getKpis(userId, userRole) {
+    let tareasVencidasQuery = `
+      SELECT COUNT(*)::int AS count
+      FROM tasks t
+      WHERE t.status != 'completed'
+        AND t.due_date <= (NOW() + INTERVAL '24 hours')
+    `;
+    const tareasParams = [];
+    if (userRole && userRole !== 'admin') {
+      tareasVencidasQuery += ` AND (t.assigned_to = $1 OR t.created_by = $1 OR t.supervisor_id = $1)`;
+      tareasParams.push(userId);
+    }
+
     const [oportunidades, empresas, pipelineTotal, tareasVencidas, pipelineEtapas, actividad, soatAlertas, sstAlertas] =
       await Promise.all([
         // 1. Oportunidades activas (en etapas NO cerradas)
@@ -40,12 +52,7 @@ export class DashboardRepository {
         `),
 
         // 4. Tareas vencidas (no completadas, fecha vencida)
-        query(`
-          SELECT COUNT(*)::int AS count
-          FROM tasks
-          WHERE status != 'completed'
-            AND due_date < NOW()
-        `),
+        query(tareasVencidasQuery, tareasParams),
 
         // 5. Pipeline por etapa
         query(`
