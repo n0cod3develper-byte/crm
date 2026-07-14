@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../../middleware/auth.js';
 import { informesController } from './informes.controller.js';
+import mantenimientoRoutes from './informes-mantenimiento.routes.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -18,5 +19,8 @@ router.get('/kpi/hours-by-operator/:operator_id', informesController.getHoursByO
 
 // Gestión Humana
 router.get('/gestion-humana/liquidacion-bonificacion', informesController.getLiquidacionBonificacion);
+
+// Mantenimiento
+router.use('/mantenimiento', mantenimientoRoutes);
 
 export default router;
