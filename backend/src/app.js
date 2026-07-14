@@ -52,6 +52,7 @@ import mantenimientosProgramadosRoutes from './modules/mantenimientos-programado
 import informesRoutes from './modules/informes/informes.routes.js';
 import budgetRoutes from './modules/budget/budget.routes.js';
 import promptSpecsRoutes from './modules/prompt-specs/promptSpecs.routes.js';
+import certificadosRoutes from './modules/certificados/certificados.routes.js';
 import { iniciarJobCierreAutomatico } from './jobs/turnosCierreAutomatico.job.js';
 import { iniciarJobSoatEmail } from './jobs/soatEmailNotifier.js';
 import { inicializarFestivos } from './services/calendarioService.js';
@@ -183,6 +184,7 @@ app.use(`${API}/facturacion`, facturacionRoutes);
 app.use(`${API}/catalogo-servicios`, catalogoServiciosRoutes);
 app.use(`${API}/servicios`, serviciosRoutes);
 app.use(`${API}/turnos`,   turnosRoutes);
+app.use(`${API}/certificados`, certificadosRoutes);
 // ─── Archivos estáticos públicos (avatares) ───────────────────
 // Los avatares se sirven sin autenticación para que <img> tags funcionen
 app.use('/uploads/avatars', express.static('uploads/avatars'));

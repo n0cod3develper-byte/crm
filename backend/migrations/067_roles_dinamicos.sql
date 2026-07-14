@@ -27,7 +27,14 @@ CREATE TRIGGER set_roles_updated_at
   EXECUTE FUNCTION trigger_set_updated_at();
 
 -- 4. Corregir slug de campañas: campanias → campanas (alinear con frontend)
+<<<<<<< HEAD
 UPDATE modulos_sistema SET slug = 'campanas' WHERE slug = 'campanias' AND NOT EXISTS (SELECT 1 FROM modulos_sistema WHERE slug = 'campanas');
+=======
+-- Solo si no existe ya un registro con slug = 'campanas'
+UPDATE modulos_sistema SET slug = 'campanas'
+WHERE slug = 'campanias'
+  AND NOT EXISTS (SELECT 1 FROM modulos_sistema WHERE slug = 'campanas');
+>>>>>>> f1c4b09 (fix: ajustes app.js, App.jsx y migración roles dinámicos (módulo certificados))
 
 -- Actualizar también roles_permisos que apunten al módulo renombrado
 -- (no es necesario porque la FK es por modulo_id, no por slug)
