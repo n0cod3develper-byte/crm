@@ -14,7 +14,8 @@ export function CatalogListPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['catalog-items', tipo, categoria, search],
     queryFn: () => catalogApi.getItems({ tipo, categoria, search }),
-    keepPreviousData: true
+    keepPreviousData: true,
+    staleTime: 0
   });
 
   const { data: catData } = useQuery({
@@ -119,7 +120,7 @@ export function CatalogListPage() {
                         <div style={{ width: '3rem', height: '3rem', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                           {item.imagen_thumb_url ? (
                             <img 
-                              src={`${import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:4000'}/uploads/${item.imagen_thumb_url}`} 
+                              src={`/uploads/${item.imagen_thumb_url}`} 
                               alt={item.nombre_comercial} 
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                             />

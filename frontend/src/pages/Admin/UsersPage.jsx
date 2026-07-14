@@ -53,7 +53,7 @@ export function UsersPage() {
       const employeesData = await employeesRes.json();
 
       setUsuarios(usersData.data);
-      setRoles(rolesData);
+      setRoles(rolesData.data || rolesData || []);
       setEmployees(employeesData.data || []);
     } catch (err) {
       toast.error('Error cargando datos');

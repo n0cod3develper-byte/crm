@@ -66,6 +66,8 @@
   --bg-app:       #E8EDF2; /* Fondo gris-azulado suave para descanso visual */
   --bg-surface:   #FFFFFF;
   --bg-elevated:  #FFFFFF;
+  --bg-card:      #FFFFFF;
+  --bg-secondary: #F5F7FA;
   --bg-overlay:   rgba(232, 237, 242, 0.95);
 
   --text-primary:   #1A202C;
@@ -91,6 +93,8 @@
   --bg-app:       #0a0b10;
   --bg-surface:   #12141c;
   --bg-elevated:  #1e212d;
+  --bg-card:      #12141c;
+  --bg-secondary: #1a1c23;
   --bg-overlay:   rgba(10, 11, 16, 0.9);
 
   --text-primary:   #f1f5f9;

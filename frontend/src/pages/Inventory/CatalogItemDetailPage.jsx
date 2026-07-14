@@ -94,7 +94,7 @@ export function CatalogItemDetailPage() {
                     {item.imagen_url ? (
                       <>
                         <img 
-                          src={`${import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:4000'}/uploads/${item.imagen_url}`} 
+                          src={`/uploads/${item.imagen_url}`} 
                           alt={item.name} 
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                         />
@@ -365,7 +365,7 @@ export function CatalogItemDetailPage() {
             <X size={24} />
           </button>
           <img 
-            src={`${import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:4000'}/uploads/${item.imagen_url}`} 
+            src={`/uploads/${item.imagen_url}`} 
             alt={item.name} 
             style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 'var(--radius-lg)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} 
             onClick={(e) => e.stopPropagation()}

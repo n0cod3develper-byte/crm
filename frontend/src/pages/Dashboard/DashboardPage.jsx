@@ -5,8 +5,18 @@ import { toast } from 'react-hot-toast';
 import { TrendingUp, Users, DollarSign, CheckSquare, ArrowUpRight, ArrowDownRight, Wrench, ShieldCheck, Activity, Calendar, RotateCcw, AlertTriangle, HardHat } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
+import { usePermissions } from '../../contexts/PermissionsContext';
+import DashboardComercial from './dashboards/DashboardComercial';
+import DashboardMantenimiento from './dashboards/DashboardMantenimiento';
+import DashboardEnConstruccion from './dashboards/DashboardEnConstruccion';
 
-function KpiCard({ label, value, delta, deltaType, icon: Icon, color, href }) {
+const DASHBOARD_POR_ROL = {
+  'comercial':      DashboardComercial,
+  'mantenimiento':  DashboardMantenimiento,
+  'sst':            DashboardEnConstruccion,
+};
+
+export function KpiCard({ label, value, delta, deltaType, icon: Icon, color, href }) {
   const isUp = deltaType === 'up';
   const navigate = useNavigate();
   const Comp = href ? 'a' : 'div';
@@ -534,7 +544,7 @@ function MantenimientoKpiCard({ kpis, isLoading, isError, periodo, onChangePerio
   );
 }
 
-export function DashboardPage() {
+function DashboardAdminOriginal() {
   const [periodo, setPeriodo] = useState(12);
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
@@ -846,6 +856,26 @@ export function DashboardPage() {
             {!dashLoading && !dashError && (dashKpis?.actividad_reciente || []).map((item, i) => <ActivityItem key={item.id || i} item={item} />)}
           </div>
         </div>
+      </main>
+    </div>
+  );
+}
+
+export function DashboardPage() {
+  const { rolActual } = usePermissions();
+  const rolSlug = rolActual?.slug;
+
+  if (rolSlug === 'admin' || !rolSlug || rolActual?.nombre === 'Administrador') {
+    return <DashboardAdminOriginal />;
+  }
+
+  const DashboardComponente = DASHBOARD_POR_ROL[rolSlug] || DashboardEnConstruccion;
+
+  return (
+    <div className="page-container">
+      <Topbar title={`Dashboard ${rolActual?.nombre || ''}`} />
+      <main className="main-content" style={{ marginTop: '2rem' }}>
+        <DashboardComponente nombreModulo={rolActual?.nombre} />
       </main>
     </div>
   );

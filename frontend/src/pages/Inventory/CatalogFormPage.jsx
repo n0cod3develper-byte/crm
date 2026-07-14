@@ -94,8 +94,7 @@ export function CatalogFormPage() {
         equipos_compatibles: Array.isArray(item.equipos_compatibles) ? item.equipos_compatibles : []
       }));
       if (item.imagen_url) {
-        const API_URL = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:4000';
-        setPreviewUrl(`${API_URL}/uploads/${item.imagen_url}`);
+        setPreviewUrl(`/uploads/${item.imagen_url}`);
       }
     }
   }, [isEdit, itemData]);

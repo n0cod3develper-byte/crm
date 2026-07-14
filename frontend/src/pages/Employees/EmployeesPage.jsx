@@ -1,10 +1,10 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, User, Phone, Mail, Filter, Trash2, Edit, Link, Unlink } from 'lucide-react';
+import { Plus, Search, User, Phone, Mail, Filter, Trash2, Edit, Link, Unlink, FileDown } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
-import { EmployeeForm } from '../../components/Employees/EmployeeForm';
+import { EmployeeTabs } from '../../components/Employees/EmployeeTabs';
 import api from '../../lib/api';
 
 const STATUS_COLORS = {
@@ -159,9 +159,12 @@ export function EmployeesPage() {
                   )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem', flexWrap: 'wrap' }}>
                   <button className="btn btn--ghost btn--sm" style={{ flex: 1 }} onClick={() => handleEdit(emp)}>
                     <Edit size={14} /> Editar
+                  </button>
+                  <button className="btn btn--ghost btn--sm" style={{ flex: 1, color: 'var(--clr-primary-600)' }} onClick={() => window.open(`/api/v1/certificados/admin/${emp.id}`, '_blank')}>
+                    <FileDown size={14} /> Certificado
                   </button>
                   <button className="btn btn--ghost btn--sm" style={{ flex: 1, color: 'var(--clr-danger)' }} onClick={() => {
                     if (window.confirm('¿Eliminar empleado?')) deleteMutation.mutate(emp.id);
@@ -176,8 +179,8 @@ export function EmployeesPage() {
       </main>
 
       {isModalOpen && (
-        <Modal title={editingEmployee ? 'Editar Empleado' : 'Nuevo Empleado'} onClose={handleClose}>
-          <EmployeeForm
+        <Modal title={editingEmployee ? 'Ficha del Empleado' : 'Nuevo Empleado'} onClose={handleClose} size="lg">
+          <EmployeeTabs
             employee={editingEmployee}
             onSuccess={handleClose}
             onCancel={handleClose}

@@ -7,7 +7,7 @@ import { Layout } from '../../components/Layout';
 import api from '../../lib/api';
 import {
   User, Mail, Lock, Camera, Save, CheckCircle, Loader2, Upload,
-  Shield, AtSign, Eye, EyeOff
+  Shield, AtSign, Eye, EyeOff, FileDown
 } from 'lucide-react';
 
 export function ProfilePage() {
@@ -437,6 +437,26 @@ export function ProfilePage() {
               </button>
             </div>
           </form>
+        </div>
+
+        {/* ════════════════════════════════════════════════
+            SECCIÓN 4: Mi Certificado Laboral
+           ════════════════════════════════════════════════ */}
+        <div className="card" style={{ position: 'relative', overflow: 'visible' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <FileDown size={18} /> Mi Certificado Laboral
+          </h3>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+            Puedes descargar tu certificado laboral actualizado en formato PDF en cualquier momento.
+          </p>
+          <button
+            onClick={() => {
+              window.open('/api/v1/certificados/mi-certificado', '_blank');
+            }}
+            className="btn btn--primary"
+          >
+            Descargar Certificado
+          </button>
         </div>
 
       </div>

@@ -20,6 +20,20 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
     tipo_documento: employee?.tipo_documento || '',
     numero_documento: employee?.numero_documento || '',
     departamento: employee?.departamento || '',
+    fecha_nacimiento: employee?.fecha_nacimiento ? employee.fecha_nacimiento.substring(0, 10) : '',
+    direccion: employee?.direccion || '',
+    contacto_emergencia_nombre: employee?.contacto_emergencia_nombre || '',
+    contacto_emergencia_telefono: employee?.contacto_emergencia_telefono || '',
+    eps: employee?.eps || '',
+    arl: employee?.arl || '',
+    fondo_pension: employee?.fondo_pension || '',
+    tipo_sangre: employee?.tipo_sangre || '',
+    tipo_contrato: employee?.tipo_contrato || '',
+    salario: employee?.salario || 0,
+    jornada: employee?.jornada || '',
+    fecha_ingreso: employee?.fecha_ingreso ? employee.fecha_ingreso.substring(0, 10) : '',
+    fecha_retiro: employee?.fecha_retiro ? employee.fecha_retiro.substring(0, 10) : '',
+    motivo_retiro: employee?.motivo_retiro || '',
   });
 
   // Obtener usuarios disponibles para vincular
@@ -42,6 +56,14 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
       if (cleanPayload.user_id === '' || cleanPayload.user_id === 'ninguno') {
         cleanPayload.user_id = null;
       }
+      
+      // Sanitizar campos de fecha vacíos a null para evitar errores en base de datos
+      const dateFields = ['fecha_nacimiento', 'fecha_ingreso', 'fecha_retiro'];
+      dateFields.forEach(field => {
+        if (cleanPayload[field] === '') {
+          cleanPayload[field] = null;
+        }
+      });
       if (employee) return api.patch(`/employees/${employee.id}`, cleanPayload);
       return api.post('/employees', cleanPayload);
     },
@@ -168,6 +190,73 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
           onChange={handleChange}
         />
       </div>
+
+      {/* ─── Sección de Gestión Humana (Oculta por defecto para no saturar) ── */}
+      <details style={{ background: 'var(--bg-app)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+        <summary style={{ fontWeight: 600, cursor: 'pointer', outline: 'none' }}>Datos de Gestión Humana</summary>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+          <div>
+            <label style={labelStyle}>Fecha de Nacimiento</label>
+            <input type="date" name="fecha_nacimiento" className="input" style={{ width: '100%' }} value={form.fecha_nacimiento} onChange={handleChange} />
+          </div>
+          <div>
+            <label style={labelStyle}>Dirección</label>
+            <input name="direccion" className="input" style={{ width: '100%' }} value={form.direccion} onChange={handleChange} />
+          </div>
+          <div>
+            <label style={labelStyle}>Contacto Emergencia (Nombre)</label>
+            <input name="contacto_emergencia_nombre" className="input" style={{ width: '100%' }} value={form.contacto_emergencia_nombre} onChange={handleChange} />
+          </div>
+          <div>
+            <label style={labelStyle}>Contacto Emergencia (Teléfono)</label>
+            <input name="contacto_emergencia_telefono" className="input" style={{ width: '100%' }} value={form.contacto_emergencia_telefono} onChange={handleChange} />
+          </div>
+          <div>
+            <label style={labelStyle}>EPS</label>
+            <input name="eps" className="input" style={{ width: '100%' }} value={form.eps} onChange={handleChange} />
+          </div>
+          <div>
+            <label style={labelStyle}>ARL</label>
+            <input name="arl" className="input" style={{ width: '100%' }} value={form.arl} onChange={handleChange} />
+          </div>
+          <div>
+            <label style={labelStyle}>Fondo de Pensión</label>
+            <input name="fondo_pension" className="input" style={{ width: '100%' }} value={form.fondo_pension} onChange={handleChange} />
+          </div>
+          <div>
+            <label style={labelStyle}>Tipo de Sangre</label>
+            <input name="tipo_sangre" className="input" style={{ width: '100%' }} value={form.tipo_sangre} onChange={handleChange} placeholder="Ej: O+" />
+          </div>
+          <div>
+            <label style={labelStyle}>Tipo de Contrato</label>
+            <input name="tipo_contrato" className="input" style={{ width: '100%' }} value={form.tipo_contrato} onChange={handleChange} placeholder="Término Indefinido, Fijo..." />
+          </div>
+          <div>
+            <label style={labelStyle}>Salario Mensual</label>
+            <input type="number" name="salario" className="input" style={{ width: '100%' }} value={form.salario} onChange={handleChange} />
+          </div>
+          <div>
+            <label style={labelStyle}>Jornada</label>
+            <input name="jornada" className="input" style={{ width: '100%' }} value={form.jornada} onChange={handleChange} placeholder="Completa, Medio tiempo..." />
+          </div>
+          <div>
+            <label style={labelStyle}>Fecha de Ingreso</label>
+            <input type="date" name="fecha_ingreso" className="input" style={{ width: '100%' }} value={form.fecha_ingreso} onChange={handleChange} />
+          </div>
+          {form.status === 'Inactivo' && (
+            <>
+              <div>
+                <label style={labelStyle}>Fecha de Retiro</label>
+                <input type="date" name="fecha_retiro" className="input" style={{ width: '100%' }} value={form.fecha_retiro} onChange={handleChange} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>Motivo de Retiro</label>
+                <input name="motivo_retiro" className="input" style={{ width: '100%' }} value={form.motivo_retiro} onChange={handleChange} />
+              </div>
+            </>
+          )}
+        </div>
+      </details>
 
       {/* ─── Vinculación con usuario del sistema ──────────────── */}
       <div style={{

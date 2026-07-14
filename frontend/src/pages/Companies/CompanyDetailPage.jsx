@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { 
   Building2, Phone, Globe, MapPin, Calendar, 
   Users, TrendingUp, History, ArrowLeft, 
-  Edit2, Plus, Mail, MessageSquare, Truck, FileText, Receipt
+  Edit2, Plus, Mail, MessageSquare, Truck, FileText, Receipt, CheckSquare
 } from 'lucide-react';
 import { facturacionApi } from '../../services/facturacionApi';
 import { formatCurrency } from '../../utils/formatters';
@@ -12,6 +12,7 @@ import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { ContactForm } from '../../components/Contacts/ContactForm';
 import { EquipoForm } from '../../components/Equipos/EquipoForm';
+import { TaskForm } from '../../components/Tasks/TaskForm';
 import { DocumentosList } from '../../components/documentos/DocumentosList';
 import { DocumentoUploader } from '../../components/documentos/DocumentoUploader';
 import api from '../../lib/api';
@@ -23,8 +24,6 @@ export function CompanyDetailPage() {
   const [isContactModalOpen, setIsContactModalOpen] = React.useState(false);
   const [isEquipoModalOpen, setIsEquipoModalOpen] = React.useState(false);
   const [isDocumentoModalOpen, setIsDocumentoModalOpen] = React.useState(false);
-  const [selectedQuoteId, setSelectedQuoteId] = React.useState(null);
-  const [isQuoteModalOpen, setIsQuoteModalOpen] = React.useState(false);
 
   const { data: company, isLoading } = useQuery({
     queryKey: ['company', id],
@@ -66,14 +65,6 @@ export function CompanyDetailPage() {
     }
   });
 
-  const { data: quotesData, isLoading: isQuotesLoading } = useQuery({
-    queryKey: ['company-quotes', id],
-    queryFn: async () => {
-      const { data } = await api.get('/quotes', { params: { companyId: id } });
-      return data.data;
-    }
-  });
-
   if (isLoading) return (
     <div className="app-layout">
       <div className="main-content flex items-center justify-center">
@@ -95,6 +86,7 @@ export function CompanyDetailPage() {
 
   const tabs = [
     { id: 'timeline', label: 'Actividad', icon: History },
+    { id: 'tasks', label: 'Tareas', icon: CheckSquare },
     { id: 'contacts', label: 'Contactos', icon: Users },
     { id: 'equipos', label: 'Equipos', icon: Truck },
     { id: 'facturacion', label: 'Facturación', icon: Receipt },
@@ -210,6 +202,54 @@ export function CompanyDetailPage() {
                       </div>
                     </div>
                   ))
+                )}
+              </div>
+            )}
+
+            {activeTab === 'tasks' && (
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 style={{ fontWeight: 700 }}>Tareas de la Empresa</h3>
+                  <button className="btn btn--primary btn--sm" onClick={() => setIsTaskModalOpen(true)}>
+                    <Plus size={14} /> Nueva tarea
+                  </button>
+                </div>
+                
+                {isTasksLoading ? (
+                  <div className="spinner" />
+                ) : tasksData?.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                    No hay tareas relacionadas con esta empresa.
+                  </div>
+                ) : (
+                  <div className="table-wrapper">
+                    <table style={{ background: 'transparent' }}>
+                      <thead>
+                        <tr>
+                          <th>Código</th>
+                          <th>Título</th>
+                          <th>Estado</th>
+                          <th>Fecha Límite</th>
+                          <th>Responsable</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tasksData.map(t => (
+                          <tr key={t.id} className="cursor-pointer hover:bg-subtle/30" onClick={() => navigate(`/tasks?id=${t.id}`)}>
+                            <td style={{ fontWeight: 600, color: 'var(--clr-primary-500)' }}>{t.codigo}</td>
+                            <td>{t.title}</td>
+                            <td>
+                              <span className={`badge badge--${t.status === 'completed' ? 'green' : t.status === 'pending' ? 'orange' : 'gray'}`}>
+                                {t.status}
+                              </span>
+                            </td>
+                            <td>{t.due_date ? new Date(t.due_date).toLocaleDateString() : '—'}</td>
+                            <td>{t.assigned_to_name || 'Sin asignar'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             )}
@@ -545,112 +585,6 @@ export function CompanyDetailPage() {
           />
         </Modal>
       )}
-
-      {isQuoteModalOpen && selectedQuoteId && (
-        <Modal 
-          title="Detalles de Cotización" 
-          onClose={() => setIsQuoteModalOpen(false)}
-          maxWidth="800px"
-        >
-          <QuoteDetailView quoteId={selectedQuoteId} onClose={() => setIsQuoteModalOpen(false)} />
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-function QuoteDetailView({ quoteId, onClose }) {
-  const { data: quoteResponse, isLoading } = useQuery({
-    queryKey: ['quote-detail', quoteId],
-    queryFn: async () => {
-      const { data } = await api.get(`/quotes/${quoteId}`);
-      return data;
-    }
-  });
-
-  if (isLoading) return <div className="spinner" style={{ margin: 'auto' }} />;
-  if (!quoteResponse?.data) return <div>Cotización no encontrada.</div>;
-
-  const quote = quoteResponse.data;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxHeight: '70vh', overflowY: 'auto' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'var(--bg-subtle)', padding: '1rem', borderRadius: '8px' }}>
-        <div>
-          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>N° Cotización</div>
-          <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{quote.quote_number}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Estado</div>
-          <div><span className="badge badge--primary">{quote.status}</span></div>
-        </div>
-        <div>
-          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Fecha</div>
-          <div style={{ fontWeight: 500 }}>{new Date(quote.created_at).toLocaleDateString()}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Válida hasta</div>
-          <div style={{ fontWeight: 500 }}>{quote.valid_until ? new Date(quote.valid_until).toLocaleDateString() : '—'}</div>
-        </div>
-      </div>
-      
-      <div>
-        <h4 style={{ fontWeight: 700, marginBottom: '0.75rem' }}>Ítems</h4>
-        <table style={{ background: 'transparent', margin: 0, fontSize: 'var(--text-sm)' }}>
-          <thead>
-            <tr>
-              <th>Descripción</th>
-              <th style={{ textAlign: 'center' }}>Cant.</th>
-              <th style={{ textAlign: 'right' }}>V. Unitario</th>
-              <th style={{ textAlign: 'right' }}>Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {quote.items?.map(item => {
-              const qty = parseFloat(item.quantity) || 0;
-              const price = parseFloat(item.unit_price) || 0;
-              const subtotal = qty * price;
-              return (
-                <tr key={item.id}>
-                  <td>{item.description}</td>
-                  <td style={{ textAlign: 'center' }}>{qty}</td>
-                  <td style={{ textAlign: 'right' }}>{formatCurrency(price)}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatCurrency(subtotal)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
-          <div style={{ minWidth: '200px' }}>
-            <div className="flex justify-between" style={{ padding: '0.25rem 0', color: 'var(--text-secondary)' }}>
-              <span>Subtotal:</span>
-              <span>{formatCurrency(quote.subtotal)}</span>
-            </div>
-            <div className="flex justify-between" style={{ padding: '0.25rem 0', color: 'var(--text-secondary)' }}>
-              <span>Impuestos:</span>
-              <span>{formatCurrency(quote.tax_amount)}</span>
-            </div>
-            <div className="flex justify-between" style={{ padding: '0.5rem 0', fontWeight: 700, fontSize: '1.1rem', borderTop: '1px solid var(--border-color)', marginTop: '0.25rem' }}>
-              <span>Total:</span>
-              <span style={{ color: 'var(--clr-primary-500)' }}>{formatCurrency(quote.total)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {quote.notes && (
-        <div style={{ background: 'var(--bg-subtle)', padding: '1rem', borderRadius: '8px' }}>
-          <h4 style={{ fontWeight: 700, marginBottom: '0.5rem', fontSize: 'var(--text-sm)' }}>Notas y Condiciones</h4>
-          <p style={{ fontSize: 'var(--text-sm)', whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>{quote.notes}</p>
-        </div>
-      )}
-      
-      <div className="flex justify-end mt-4">
-        <button className="btn btn--primary" onClick={onClose}>
-          Cerrar
-        </button>
-      </div>
     </div>
   );
 }
