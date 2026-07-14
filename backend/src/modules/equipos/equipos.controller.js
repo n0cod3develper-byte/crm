@@ -351,6 +351,7 @@ export const equiposController = {
       const mapIconos = {
         MONTACARGAS: '🏭',
         ELEVADOR: '⬆️',
+        ESTIBADOR: '🏗️',
         CAMIONETA: '🚐',
         AMBULANCIA: '🚑',
         VEHICULO: '🚗'
@@ -359,6 +360,7 @@ export const equiposController = {
       const mapLabels = {
         MONTACARGAS: 'Montacargas',
         ELEVADOR: 'Elevador',
+        ESTIBADOR: 'Estibador',
         CAMIONETA: 'Camioneta',
         AMBULANCIA: 'Ambulancia',
         VEHICULO: 'Vehículo'

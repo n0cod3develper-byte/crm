@@ -47,6 +47,7 @@ export const ESTADOS_EQUIPO = [
 export const TIPOS_EQUIPO = [
   { valor: 'MONTACARGAS', label: 'Montacargas', icono: '🏭' },
   { valor: 'ELEVADOR',    label: 'Elevador',    icono: '⬆️'  },
+  { valor: 'ESTIBADOR',   label: 'Estibador',   icono: '🏗️' },
   { valor: 'CAMIONETA',   label: 'Camioneta',   icono: '🚐'  },
   { valor: 'AMBULANCIA',  label: 'Ambulancia',  icono: '🚑'  },
   { valor: 'VEHICULO',    label: 'Vehículo',    icono: '🚗'  },

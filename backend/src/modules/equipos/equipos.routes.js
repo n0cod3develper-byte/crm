@@ -9,7 +9,12 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
-// Todas las rutas requieren autenticación
+// ─── Rutas públicas (no requieren autenticación) ────────
+// GET /:id/foto es público para que el <img> del navegador pueda
+// cargar la foto sin necesidad de enviar cookies de autenticación
+router.get('/:id/foto',            equiposController.servirFoto);
+
+// ─── Todas las rutas debajo requieren autenticación ─────
 router.use(authenticate);
 
 // ⚠️ IMPORTANTE: /by-company/:id debe estar ANTES de /:id para que Express
@@ -27,7 +32,6 @@ router.delete('/:id',              equiposController.remove);
 router.patch('/:id/estado',        equiposController.cambiarEstado);
 router.patch('/:id/horometro',     equiposController.actualizarHorometro);
 router.post('/:id/foto',           upload.single('foto'), equiposController.subirFoto);
-router.get('/:id/foto',            equiposController.servirFoto);
 router.delete('/:id/foto',         equiposController.eliminarFoto);
 router.get('/:id/historial-estado', equiposController.historialEstado);
 
