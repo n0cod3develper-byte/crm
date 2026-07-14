@@ -62,11 +62,28 @@ export class EmployeesRepository {
   }
 
   async create(data) {
-    const { full_name, phone, email, position, status, user_id, hourly_rate, tipo_documento, numero_documento, departamento } = data;
+    const { 
+      full_name, phone, email, position, status, user_id, 
+      hourly_rate, tipo_documento, numero_documento, departamento,
+      fecha_nacimiento, direccion, contacto_emergencia_nombre, contacto_emergencia_telefono,
+      eps, arl, fondo_pension, tipo_sangre, tipo_contrato, salario,
+      jornada, fecha_ingreso, fecha_retiro, motivo_retiro
+    } = data;
+
     const result = await query(
-      `INSERT INTO employees (full_name, phone, email, position, status, user_id, hourly_rate, tipo_documento, numero_documento, departamento)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [full_name, phone, email, position, status || 'Activo', user_id || null, hourly_rate || 0, tipo_documento || null, numero_documento || null, departamento || null]
+      `INSERT INTO employees (
+         full_name, phone, email, position, status, user_id, hourly_rate, tipo_documento, numero_documento, departamento,
+         fecha_nacimiento, direccion, contacto_emergencia_nombre, contacto_emergencia_telefono,
+         eps, arl, fondo_pension, tipo_sangre, tipo_contrato, salario,
+         jornada, fecha_ingreso, fecha_retiro, motivo_retiro
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING *`,
+      [
+        full_name, phone, email, position, status || 'Activo', user_id || null, hourly_rate || 0, tipo_documento || null, numero_documento || null, departamento || null,
+        fecha_nacimiento || null, direccion || null, contacto_emergencia_nombre || null, contacto_emergencia_telefono || null,
+        eps || null, arl || null, fondo_pension || null, tipo_sangre || null, tipo_contrato || null, salario || 0,
+        jornada || null, fecha_ingreso || null, fecha_retiro || null, motivo_retiro || null
+      ]
     );
     return result.rows[0];
   }
@@ -75,12 +92,18 @@ export class EmployeesRepository {
     const fields = [];
     const values = [];
     let i = 1;
-    const allowed = ['full_name', 'phone', 'email', 'position', 'status', 'user_id', 'hourly_rate', 'tipo_documento', 'numero_documento', 'departamento'];
-    
+    const allowed = [
+      'full_name', 'phone', 'email', 'position', 'status', 'user_id', 
+      'hourly_rate', 'tipo_documento', 'numero_documento', 'departamento',
+      'fecha_nacimiento', 'direccion', 'contacto_emergencia_nombre', 'contacto_emergencia_telefono',
+      'eps', 'arl', 'fondo_pension', 'tipo_sangre', 'tipo_contrato', 'salario',
+      'jornada', 'fecha_ingreso', 'fecha_retiro', 'motivo_retiro'
+    ];
+
     for (const key of allowed) {
       if (key in data) {
         fields.push(`${key} = $${i++}`);
-        values.push(data[key]);
+        values.push(data[key] === '' ? null : data[key]);
       }
     }
     
@@ -98,4 +121,58 @@ export class EmployeesRepository {
     const result = await query(`DELETE FROM employees WHERE id = $1 RETURNING id`, [id]);
     return result.rows[0] || null;
   }
+
+  // ─── Historial Laboral ────────────────────────────────────────
+
+  async getHistorial(empleadoId) {
+    const result = await query(
+      `SELECT * FROM employees_historial_laboral WHERE empleado_id = $1 ORDER BY fecha_inicio DESC`,
+      [empleadoId]
+    );
+    return result.rows;
+  }
+
+  async addHistorial(empleadoId, data) {
+    const { empresa, cargo, fecha_inicio, fecha_fin, descripcion } = data;
+    const result = await query(
+      `INSERT INTO employees_historial_laboral (empleado_id, empresa, cargo, fecha_inicio, fecha_fin, descripcion)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [empleadoId, empresa, cargo, fecha_inicio, fecha_fin || null, descripcion || null]
+    );
+    return result.rows[0];
+  }
+
+  async removeHistorial(id) {
+    const result = await query(`DELETE FROM employees_historial_laboral WHERE id = $1 RETURNING id`, [id]);
+    return result.rows[0] || null;
+  }
+
+  // ─── Documentos ───────────────────────────────────────────────
+
+  async getDocumentos(empleadoId) {
+    const result = await query(
+      `SELECT d.*, u.nombre as subido_por_nombre, u.apellido as subido_por_apellido 
+       FROM employees_documentos d
+       LEFT JOIN users u ON u.id = d.subido_por
+       WHERE d.empleado_id = $1 ORDER BY d.created_at DESC`,
+      [empleadoId]
+    );
+    return result.rows;
+  }
+
+  async addDocumento(empleadoId, data) {
+    const { tipo_documento, nombre_archivo, url_archivo, subido_por } = data;
+    const result = await query(
+      `INSERT INTO employees_documentos (empleado_id, tipo_documento, nombre_archivo, url_archivo, subido_por)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [empleadoId, tipo_documento, nombre_archivo, url_archivo, subido_por || null]
+    );
+    return result.rows[0];
+  }
+
+  async removeDocumento(id) {
+    const result = await query(`DELETE FROM employees_documentos WHERE id = $1 RETURNING *`, [id]);
+    return result.rows[0] || null;
+  }
 }
+

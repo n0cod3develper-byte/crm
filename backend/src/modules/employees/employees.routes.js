@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { employeesController } from './employees.controller.js';
 import { authenticate } from '../../middleware/auth.js';
+import { uploadSingle } from '../../config/storage.js';
 
 const router = Router();
 
@@ -21,5 +22,15 @@ router.delete('/:id', employeesController.remove);
 // ─── Vinculación con usuarios (por :id) ────────────────────
 // GET  /api/v1/employees/:id/usuarios
 router.get('/:id/usuarios', employeesController.listUsuariosParaEmpleado);
+
+// ─── Historial Laboral ─────────────────────────────────────
+router.get('/:id/historial', employeesController.getHistorial);
+router.post('/:id/historial', employeesController.addHistorial);
+router.delete('/:id/historial/:historialId', employeesController.removeHistorial);
+
+// ─── Documentos ────────────────────────────────────────────
+router.get('/:id/documentos', employeesController.getDocumentos);
+router.post('/:id/documentos', uploadSingle, employeesController.addDocumento);
+router.delete('/:id/documentos/:docId', employeesController.removeDocumento);
 
 export default router;

@@ -112,4 +112,79 @@ export const employeesController = {
       res.json({ success: true, data: result.rows });
     } catch (err) { next(err); }
   },
+
+  // ─── Historial Laboral ────────────────────────────────────────
+
+  async getHistorial(req, res, next) {
+    try {
+      const historial = await repo.getHistorial(req.params.id);
+      res.json({ success: true, data: historial });
+    } catch (err) { next(err); }
+  },
+
+  async addHistorial(req, res, next) {
+    try {
+      const newHistorial = await repo.addHistorial(req.params.id, req.body);
+      res.status(201).json({ success: true, data: newHistorial });
+    } catch (err) { next(err); }
+  },
+
+  async removeHistorial(req, res, next) {
+    try {
+      const result = await repo.removeHistorial(req.params.historialId);
+      if (!result) throw new NotFoundError('Registro de historial');
+      res.json({ success: true, message: 'Registro eliminado' });
+    } catch (err) { next(err); }
+  },
+
+  // ─── Documentos ───────────────────────────────────────────────
+
+  async getDocumentos(req, res, next) {
+    try {
+      const documentos = await repo.getDocumentos(req.params.id);
+      res.json({ success: true, data: documentos });
+    } catch (err) { next(err); }
+  },
+
+  async addDocumento(req, res, next) {
+    try {
+      if (!req.file) throw new Error('No se ha subido ningún archivo');
+      const { tipo_documento } = req.body;
+      const subido_por = req.user?.id;
+      
+      const fs = await import('fs');
+      const path = await import('path');
+      
+      const uploadDir = path.resolve('uploads/employees');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const fileName = `${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const destPath = path.join(uploadDir, fileName);
+      
+      fs.copyFileSync(req.file.path, destPath);
+      fs.unlinkSync(req.file.path); // Eliminar de tmp
+
+      const fileUrl = `/uploads/employees/${fileName}`;
+
+      const newDoc = await repo.addDocumento(req.params.id, {
+        tipo_documento: tipo_documento || 'Documento',
+        nombre_archivo: req.file.originalname,
+        url_archivo: fileUrl,
+        subido_por
+      });
+      res.status(201).json({ success: true, data: newDoc });
+    } catch (err) { next(err); }
+  },
+
+  async removeDocumento(req, res, next) {
+    try {
+      const doc = await repo.removeDocumento(req.params.docId);
+      if (!doc) throw new NotFoundError('Documento');
+      // Podríamos eliminar el archivo físico aquí si es necesario usando fs.unlink
+      res.json({ success: true, message: 'Documento eliminado' });
+    } catch (err) { next(err); }
+  }
 };
+
