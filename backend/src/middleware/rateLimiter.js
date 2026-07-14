@@ -50,3 +50,17 @@ export const uploadLimiter = rateLimit({
     next(new AppError('Demasiadas subidas. Intenta en 1 minuto.', 429));
   },
 });
+
+/**
+ * Rate limiter agresivo para el endpoint público de certificados (evita enumeración y ataques de fuerza bruta)
+ * Permite máximo 5 intentos por IP cada hora.
+ */
+export const certificadoLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hora
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, _res, next) => {
+    next(new AppError('Demasiados intentos de solicitud de certificado. Por favor, intenta de nuevo en 1 hora.', 429));
+  },
+});
