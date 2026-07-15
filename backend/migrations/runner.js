@@ -83,6 +83,7 @@ const MIGRATION_FILES = [
   '051_seed_areas_inventario.sql',
   '052_add_invitation_columns.sql',
   '053_drop_fullname_notnull.sql',
+<<<<<<< Updated upstream
   '054_add_missing_modules.sql',
   '055_add_email_fields_to_companies.sql',
   '056_company_service_addresses_and_remision_relations.sql',
@@ -97,6 +98,9 @@ const MIGRATION_FILES = [
   '065_soat_email_notifications.sql',
   '066_prompt_specs.sql',
   '067_roles_dinamicos.sql'
+=======
+  '054_add_missing_modules.sql'
+>>>>>>> Stashed changes
 ];
 
 async function ensureMigrationsTable(client) {

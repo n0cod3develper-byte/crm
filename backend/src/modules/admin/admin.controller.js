@@ -5,6 +5,95 @@ import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { invalidarCacheUsuario, invalidarTodoElCache, obtenerPermisosUsuario } from '../../middleware/auth.js';
 
+<<<<<<< Updated upstream
+=======
+// ─── Roles ───────────────────────────────────────────────────
+
+export async function listarRoles(req, res) {
+  try {
+    const sql = `SELECT id, nombre, slug, descripcion, activo FROM roles ORDER BY nombre ASC`;
+    const result = await query(sql);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error listando roles' });
+  }
+}
+
+export async function obtenerDetalleRol(req, res) {
+  const { id } = req.params;
+  try {
+    const rolSql = `SELECT id, nombre, slug, descripcion, activo FROM roles WHERE id = $1`;
+    const permisosSql = `
+      SELECT ms.id as modulo_id, ms.nombre as modulo_nombre, ms.slug as modulo_slug,
+             COALESCE(rp.puede_ver, false) as puede_ver,
+             COALESCE(rp.puede_crear, false) as puede_crear,
+             COALESCE(rp.puede_editar, false) as puede_editar,
+             COALESCE(rp.puede_eliminar, false) as puede_eliminar,
+             COALESCE(rp.puede_exportar, false) as puede_exportar,
+             COALESCE(rp.puede_aprobar, false) as puede_aprobar,
+             COALESCE(rp.puede_liquidar, false) as puede_liquidar
+      FROM modulos_sistema ms
+      LEFT JOIN roles_permisos rp ON rp.modulo_id = ms.id AND rp.rol_id = $1
+      ORDER BY ms.orden_menu, ms.nombre
+    `;
+    
+    const [rolResult, permisosResult] = await Promise.all([
+      query(rolSql, [id]),
+      query(permisosSql, [id])
+    ]);
+
+    if (rolResult.rows.length === 0) return res.status(404).json({ error: 'Rol no encontrado' });
+
+    res.json({
+      ...rolResult.rows[0],
+      permisos: permisosResult.rows
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error obteniendo detalle del rol' });
+  }
+}
+
+export async function actualizarPermisosRol(req, res) {
+  const { id } = req.params;
+  const { permisos, ejecutado_por } = req.body;
+
+  try {
+    await withTransaction(async (client) => {
+      // 1. Eliminar permisos actuales
+      await client.query('DELETE FROM roles_permisos WHERE rol_id = $1', [id]);
+
+      // 2. Insertar nuevos permisos
+      for (const p of permisos) {
+        const sql = `
+          INSERT INTO roles_permisos (
+            rol_id, modulo_id, puede_ver, puede_crear, puede_editar, puede_eliminar,
+            puede_exportar, puede_aprobar, puede_liquidar
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `;
+        await client.query(sql, [
+          id, p.modulo_id, p.puede_ver, p.puede_crear, p.puede_editar, p.puede_eliminar,
+          p.puede_exportar, p.puede_aprobar, p.puede_liquidar
+        ]);
+      }
+
+      // 3. Auditoría
+      const auditSql = `
+        INSERT INTO auditoria_permisos (accion, ejecutado_por, entidad_tipo, entidad_id, detalle)
+        VALUES ('UPDATE_PERMISSIONS', $1, 'ROL', $2, $3)
+      `;
+      await client.query(auditSql, [ejecutado_por, id, JSON.stringify(permisos)]);
+    });
+
+    // 4. Invalidar caché global de permisos
+    invalidarTodoElCache();
+
+    res.json({ success: true, message: 'Permisos actualizados correctamente' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error actualizando permisos' });
+  }
+}
+
+>>>>>>> Stashed changes
 // ─── Usuarios ─────────────────────────────────────────────────
 
 export async function invitarUsuario(req, res) {
