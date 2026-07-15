@@ -5,8 +5,7 @@ import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { invalidarCacheUsuario, invalidarTodoElCache, obtenerPermisosUsuario } from '../../middleware/auth.js';
 
-<<<<<<< Updated upstream
-=======
+
 // ─── Roles ───────────────────────────────────────────────────
 
 export async function listarRoles(req, res) {
@@ -93,7 +92,7 @@ export async function actualizarPermisosRol(req, res) {
   }
 }
 
->>>>>>> Stashed changes
+
 // ─── Usuarios ─────────────────────────────────────────────────
 
 export async function invitarUsuario(req, res) {

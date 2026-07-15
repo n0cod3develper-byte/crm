@@ -89,14 +89,11 @@ const BudgetFormPage = lazy(() => import('./pages/Presupuestos/BudgetFormPage').
 
 const PromptGeneratorPage = lazy(() => import('./pages/Sistemas/PromptGeneratorPage').then(m => ({ default: m.PromptGeneratorPage })));
 
-<<<<<<< HEAD
 const SupplierQuotesPage = lazy(() => import('./pages/SupplierQuotes/SupplierQuotesPage').then(m => ({ default: m.SupplierQuotesPage })));
 const SupplierQuoteForm = lazy(() => import('./pages/SupplierQuotes/SupplierQuoteForm').then(m => ({ default: m.SupplierQuoteForm })));
 const SupplierQuoteDetail = lazy(() => import('./pages/SupplierQuotes/SupplierQuoteDetail').then(m => ({ default: m.SupplierQuoteDetail })));
-=======
 const SolicitarCertificadoPage = lazy(() => import('./pages/CertificadosPublico/SolicitarCertificadoPage').then(m => ({ default: m.SolicitarCertificadoPage })));
 const DescargarCertificadoPage = lazy(() => import('./pages/CertificadosPublico/DescargarCertificadoPage').then(m => ({ default: m.DescargarCertificadoPage })));
->>>>>>> f1c4b09 (fix: ajustes app.js, App.jsx y migración roles dinámicos (módulo certificados))
 
 const queryClient = new QueryClient({
   defaultOptions: {
