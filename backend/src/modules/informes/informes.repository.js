@@ -673,6 +673,130 @@ export class InformesRepository {
     }));
   }
 
+
+  /**
+   * Ventas reales vs presupuesto agrupadas por equipo en un rango de fechas.
+   * Devuelve [{ nombre, real, presupuesto }] para el gráfico del frontend.
+   */
+  /**
+   * Top 10 clientes/empresas por volumen de ventas en un rango de fechas.
+   * Devuelve [{ nombre, total_ventas, total_remisiones }].
+   */
+  async getTop10Clientes(fecha_inicio, fecha_fin) {
+    const conditions = ['r.deleted_at IS NULL', "r.estado != 'ANULADO'"];
+    const params = [];
+    let i = 1;
+
+    if (fecha_inicio) {
+      conditions.push(`r.fecha_servicio >= $${i++}`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`r.fecha_servicio <= $${i++}`);
+      params.push(fecha_fin);
+    }
+
+    const sql = `
+      SELECT
+        COALESCE(c.name, 'Sin Cliente') AS nombre,
+        SUM(r.total_bruto)              AS total_ventas,
+        COUNT(r.id)                     AS total_remisiones
+      FROM remisiones r
+      LEFT JOIN companies c ON c.id = r.company_id
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY c.name
+      ORDER BY total_ventas DESC
+      LIMIT 10
+    `;
+
+    const result = await query(sql, params);
+    return result.rows.map(r => ({
+      nombre:            r.nombre,
+      total_ventas:      parseFloat(r.total_ventas || 0),
+      total_remisiones:  parseInt(r.total_remisiones || 0),
+    }));
+  }
+
+  /**
+   * Ventas reales vs presupuesto mensual del área de Servicios (area_id = 2).
+   * Devuelve un punto por mes del rango: [{ mes, real, presupuesto, cumplimiento_pct }].
+   */
+  async getVentasVsPresupuestoSimple(fecha_inicio, fecha_fin) {
+    // 1. Ventas reales agrupadas por mes
+    const salesConditions = ['r.deleted_at IS NULL', "r.estado != 'ANULADO'"];
+    const salesParams = [];
+    let i = 1;
+
+    if (fecha_inicio) {
+      salesConditions.push(`r.fecha_servicio >= $${i++}`);
+      salesParams.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      salesConditions.push(`r.fecha_servicio <= $${i++}`);
+      salesParams.push(fecha_fin);
+    }
+
+    const salesSql = `
+      SELECT
+        to_char(date_trunc('month', r.fecha_servicio), 'YYYY-MM') AS mes,
+        SUM(r.total_bruto) AS real
+      FROM remisiones r
+      WHERE ${salesConditions.join(' AND ')}
+      GROUP BY date_trunc('month', r.fecha_servicio)
+      ORDER BY mes ASC
+    `;
+    const salesRes = await query(salesSql, salesParams);
+    const salesMap = new Map(salesRes.rows.map(r => [r.mes, parseFloat(r.real || 0)]));
+
+    // 2. Presupuesto mensual del área de Servicios (area_id = 2)
+    //    Sumamos todos los budget_monthly_detail de equipos de esa área
+    const yearFrom  = fecha_inicio ? parseInt(fecha_inicio.substring(0, 4)) : new Date().getFullYear();
+    const yearTo    = fecha_fin    ? parseInt(fecha_fin.substring(0, 4))    : new Date().getFullYear();
+    const monthFrom = fecha_inicio ? parseInt(fecha_inicio.substring(5, 7)) : 1;
+    const monthTo   = fecha_fin    ? parseInt(fecha_fin.substring(5, 7))   : 12;
+
+    const budgetSql = `
+      SELECT
+        ba.year,
+        bmd.month,
+        SUM(bmd.amount) AS presupuesto
+      FROM budget_monthly_detail bmd
+      JOIN budget_equipment be ON be.id = bmd.budget_equipment_id
+      JOIN budget_annual ba    ON ba.id = be.budget_annual_id
+      JOIN budget_areas  ar    ON ar.id = ba.area_id
+      WHERE ar.name ILIKE 'Servicios'
+        AND ba.year >= $1 AND ba.year <= $2
+        AND (
+          (ba.year = $1 AND bmd.month >= $3)
+          OR (ba.year > $1 AND ba.year < $2)
+          OR (ba.year = $2 AND bmd.month <= $4)
+        )
+      GROUP BY ba.year, bmd.month
+      ORDER BY ba.year ASC, bmd.month ASC
+    `;
+    const budgetRes = await query(budgetSql, [yearFrom, yearTo, monthFrom, monthTo]);
+    const budgetMap = new Map(
+      budgetRes.rows.map(r => [
+        `${r.year}-${String(r.month).padStart(2, '0')}`,
+        parseFloat(r.presupuesto || 0)
+      ])
+    );
+
+    // 3. Combinar: todos los meses que aparezcan en ventas o presupuesto
+    const allMonths = Array.from(
+      new Set([...salesMap.keys(), ...budgetMap.keys()])
+    ).sort();
+
+    return allMonths.map(mes => {
+      const real        = salesMap.get(mes)  || 0;
+      const presupuesto = budgetMap.get(mes) || 0;
+      const cumplimiento_pct = presupuesto > 0
+        ? Math.round((real / presupuesto) * 100)
+        : null;
+      return { mes, real, presupuesto, cumplimiento_pct };
+    });
+  }
+
 }
 
 // Utility: format decimal hours to "Xh Ym"

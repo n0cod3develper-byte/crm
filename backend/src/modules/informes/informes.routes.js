@@ -11,6 +11,12 @@ router.get('/servicios/ventas-mensuales', informesController.getVentasMensuales)
 router.get('/servicios/ventas-equipos', informesController.getVentasPorEquipo);
 router.get('/servicios/sales-vs-budget', informesController.getSalesVsBudget);
 
+// Rutas usadas por InformesServiciosPage (nuevos gráficos)
+router.get('/servicios/ventas-por-equipo', informesController.getVentasPorEquipoV2);
+router.get('/servicios/ventas-por-linea', informesController.getVentasPorLineaV2);
+router.get('/servicios/ventas-vs-presupuesto', informesController.getVentasVsPresupuestoV2);
+router.get('/servicios/top-clientes', informesController.getTop10Clientes);
+
 // KPI: Horas trabajadas
 router.get('/kpi/hours-by-equipment', informesController.getHoursByEquipment);
 router.get('/kpi/hours-by-equipment/:equipment_id', informesController.getHoursByEquipmentDetail);

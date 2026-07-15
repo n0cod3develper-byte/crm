@@ -142,4 +142,54 @@ export const informesController = {
       next(error);
     }
   },
+
+  async getTop10Clientes(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getTop10Clientes(fecha_inicio, fecha_fin);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getTop10Clientes', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── Nuevos endpoints para InformesServiciosPage ──
+
+  async getVentasPorEquipoV2(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const rows = await informesRepository.getVentasPorEquipo(fecha_inicio, fecha_fin);
+      // Adaptar campo equipo_nombre → nombre
+      const data = rows.map(r => ({ nombre: r.equipo_nombre, total_ventas: parseFloat(r.total_ventas || 0) }));
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getVentasPorEquipoV2', { error: error.message });
+      next(error);
+    }
+  },
+
+  async getVentasPorLineaV2(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const rows = await informesRepository.getVentasPorLineaNegocio(fecha_inicio, fecha_fin);
+      // Adaptar campo linea_negocio → nombre
+      const data = rows.map(r => ({ nombre: r.linea_negocio, total_ventas: parseFloat(r.total_ventas || 0) }));
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getVentasPorLineaV2', { error: error.message });
+      next(error);
+    }
+  },
+
+  async getVentasVsPresupuestoV2(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const rows = await informesRepository.getVentasVsPresupuestoSimple(fecha_inicio, fecha_fin);
+      res.json({ data: rows });
+    } catch (error) {
+      logger.error('Error en getVentasVsPresupuestoV2', { error: error.message });
+      next(error);
+    }
+  },
 };

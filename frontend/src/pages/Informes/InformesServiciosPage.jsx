@@ -6,6 +6,7 @@ import GraficoVentasPorLinea from './components/servicios/GraficoVentasPorLinea'
 import GraficoVentasMensuales from './components/servicios/GraficoVentasMensuales';
 import GraficoVentasPorEquipo from './components/servicios/GraficoVentasPorEquipo';
 import GraficoVentasVsPresupuesto from './components/servicios/GraficoVentasVsPresupuesto';
+import GraficoTop10Clientes from './components/servicios/GraficoTop10Clientes';
 
 const getLocalDateString = (date) => {
   const year = date.getFullYear();
@@ -83,6 +84,10 @@ export function InformesServiciosPage() {
 
           <div style={{ gridColumn: '1 / -1' }}>
             <GraficoVentasPorEquipo appliedFilters={appliedFilters} />
+          </div>
+
+          <div style={{ gridColumn: '1 / -1' }}>
+            <GraficoTop10Clientes appliedFilters={appliedFilters} />
           </div>
         </div>
       </div>
