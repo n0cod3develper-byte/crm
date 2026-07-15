@@ -83,7 +83,6 @@ const MIGRATION_FILES = [
   '051_seed_areas_inventario.sql',
   '052_add_invitation_columns.sql',
   '053_drop_fullname_notnull.sql',
-<<<<<<< Updated upstream
   '054_add_missing_modules.sql',
   '055_add_email_fields_to_companies.sql',
   '056_company_service_addresses_and_remision_relations.sql',
@@ -97,10 +96,20 @@ const MIGRATION_FILES = [
   '064_servicios_bonificacion_hora.sql',
   '065_soat_email_notifications.sql',
   '066_prompt_specs.sql',
-  '067_roles_dinamicos.sql'
-=======
-  '054_add_missing_modules.sql'
->>>>>>> Stashed changes
+  '067_roles_dinamicos.sql',
+  '068_proveedores_nuevos_campos.sql',
+  '069_centros_costos_module.sql',
+  '070_centros_costos_permissions.sql',
+  '071_centro_costo_items.sql',
+  '072_supplier_quotes_module.sql',
+  '073_quote_items_proveedor.sql',
+  '074_supplier_quote_items_proveedor.sql',
+  '075_supplier_quote_items_empresa.sql',
+  '076_add_estibador_tipo_equipo.sql',
+  '076_supplier_quotes_reestructura.sql',
+  '077_supplier_quotes_numero.sql',
+  '078_supplier_quote_items_iva.sql',
+  '079_supplier_quotes_global_iva.sql'
 ];
 
 async function ensureMigrationsTable(client) {
