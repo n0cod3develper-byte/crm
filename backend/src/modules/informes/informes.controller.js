@@ -17,7 +17,7 @@ export const informesController = {
     try {
       const { fecha_inicio, fecha_fin } = req.query;
       const data = await informesRepository.getVentasMensuales(fecha_inicio, fecha_fin);
-      res.json(data);
+      res.json({ data });
     } catch (error) {
       logger.error('Error en getVentasMensuales', { error: error.message });
       next(error);
@@ -189,6 +189,42 @@ export const informesController = {
       res.json({ data: rows });
     } catch (error) {
       logger.error('Error en getVentasVsPresupuestoV2', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── MANTENIMIENTO: Órdenes por Estado ──
+  async getOrdenesPorEstado(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getOrdenesPorEstado(fecha_inicio, fecha_fin);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getOrdenesPorEstado', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── MANTENIMIENTO: Equipos con más Mantenimientos ──
+  async getEquiposMasMantenimientos(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getEquiposMasMantenimientos(fecha_inicio, fecha_fin);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getEquiposMasMantenimientos', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── MANTENIMIENTO: Distribución por Tipo de Mantenimiento ──
+  async getTipoMantenimiento(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getTipoMantenimiento(fecha_inicio, fecha_fin);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getTipoMantenimiento', { error: error.message });
       next(error);
     }
   },
