@@ -404,7 +404,10 @@ export function RemisionFormPage() {
     }
   }, [form.equipo_id, equiposFiltrados, isEditing, existingData]);
 
-  // ─── Auto-calcular horas por tiempos (Ambos operarios) ─────────────────────
+  // ─── Auto-calcular horas por tiempos (Ambos operarios) ──────────────────
+  // IMPORTANTE: Las horas se calculan EXCLUSIVAMENTE a partir de las horas de tiempos.
+  // Los horómetros son informativos y NO afectan el cálculo de horas.
+  // Los items con unidad distinta a 'hora' (ej: 'día') NUNCA se modifican automáticamente.
   React.useEffect(() => {
     if (horasManual) return;
 
@@ -418,20 +421,16 @@ export function RemisionFormPage() {
       return Math.max(0, (l - s) / (1000 * 60 * 60));
     };
 
-    // Horas operario 1
+    // Horas operario 1: SOLO por tiempos (hora_salida_cargar → hora_llegada_cargar)
     let horas1 = 0;
     if (form.hora_salida_cargar && form.hora_llegada_cargar) {
       horas1 = calcHorasFromTimes(form.hora_salida_cargar, form.hora_llegada_cargar);
-    } else if (form.horometro_salida && form.horometro_regreso) {
-      horas1 = Math.max(0, parseFloat(form.horometro_regreso) - parseFloat(form.horometro_salida));
     }
 
-    // Horas operario 2
+    // Horas operario 2: SOLO por tiempos (segundo_hora_salida_cargar → segundo_hora_llegada_cargar)
     let horas2 = 0;
     if (form.operario_2_id && form.segundo_hora_salida_cargar && form.segundo_hora_llegada_cargar) {
       horas2 = calcHorasFromTimes(form.segundo_hora_salida_cargar, form.segundo_hora_llegada_cargar);
-    } else if (form.operario_2_id && form.segundo_horometro_salida && form.segundo_horometro_regreso) {
-      horas2 = Math.max(0, parseFloat(form.segundo_horometro_regreso) - parseFloat(form.segundo_horometro_salida));
     }
 
     const totalHoras = parseFloat((horas1 + horas2).toFixed(2));
@@ -450,13 +449,16 @@ export function RemisionFormPage() {
       if (totalHorasCalc !== null && updated.items) {
         let indexHora = 0;
         updated.items = updated.items.map(it => {
-          if ((it.unidad || '').trim().toLowerCase() === 'hora') {
+          // SOLO actualizar items con unidad 'hora' — nunca modificar 'día' ni otras unidades
+          const unidadNorm = (it.unidad || '').trim().toLowerCase();
+          if (unidadNorm === 'hora') {
             let h = 1;
             if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.round(horas1 * 100) / 100) : 1;
             else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.round(horas2 * 100) / 100) : 1;
             indexHora++;
             return { ...it, cantidad: h };
           }
+          // Items con unidad 'día' u otras: NO modificar la cantidad
           return it;
         });
       }
@@ -465,9 +467,7 @@ export function RemisionFormPage() {
     });
   }, [
     form.hora_salida_cargar, form.hora_llegada_cargar,
-    form.horometro_salida, form.horometro_regreso,
     form.segundo_hora_salida_cargar, form.segundo_hora_llegada_cargar,
-    form.segundo_horometro_salida, form.segundo_horometro_regreso,
     form.operario_2_id, horasManual, form.fecha_servicio
   ]);
 
@@ -594,8 +594,8 @@ export function RemisionFormPage() {
 
     // Al cambiar campos de hora de inicio/fin, resetear el flag manual
     // para que el auto-cálculo de estado pueda actuar (BORRADOR → PENDIENTE → REALIZADA)
-    if (['hora_salida_cargar', 'hora_llegada_cargar', 'horometro_salida', 'horometro_regreso',
-      'segundo_hora_salida_cargar', 'segundo_hora_llegada_cargar', 'segundo_horometro_salida', 'segundo_horometro_regreso'].includes(name)) {
+    if (['hora_salida_cargar', 'hora_llegada_cargar',
+      'segundo_hora_salida_cargar', 'segundo_hora_llegada_cargar'].includes(name)) {
       setHorasManual(false);
     }
     // Al cambiar CUALQUIER campo de tiempo (los 4 de tiempos del servicio),
@@ -613,7 +613,8 @@ export function RemisionFormPage() {
     }
 
     // ── Cálculo inline de horas al cambiar hora_salida_cargar o hora_llegada_cargar ──
-    // Actualiza cantidad_horas Y la cantidad de ítems con unidad "hora" en un solo setState
+    // Actualiza cantidad_horas Y la cantidad de ítems con unidad "hora" en un solo setState.
+    // NUNCA modifica items con unidad "día" u otras unidades.
     if (name === 'hora_salida_cargar' || name === 'hora_llegada_cargar') {
       setForm(prev => {
         const updated = { ...prev, [name]: value };
@@ -637,14 +638,16 @@ export function RemisionFormPage() {
             if (updated.items) {
               let indexHora = 0;
               updated.items = updated.items.map(it => {
-                if ((it.unidad || '').trim().toLowerCase() === 'hora') {
+                // SOLO modificar items con unidad 'hora', nunca 'día' u otras
+                const unidadNorm = (it.unidad || '').trim().toLowerCase();
+                if (unidadNorm === 'hora') {
                   let h = 1;
                   if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.round(horas1 * 100) / 100) : 1;
                   else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.round(horas2 * 100) / 100) : 1;
                   indexHora++;
                   return { ...it, cantidad: h };
                 }
-                return it;
+                return it; // items 'día' u otros: sin cambios
               });
             }
           }
@@ -656,6 +659,7 @@ export function RemisionFormPage() {
     }
 
     // ── Cálculo inline para horas del segundo operario ──
+    // SOLO por tiempos, nunca por horómetro. NUNCA modifica items con unidad 'día'.
     if (name === 'segundo_hora_salida_cargar' || name === 'segundo_hora_llegada_cargar') {
       setForm(prev => {
         const updated = { ...prev, [name]: value };
@@ -681,14 +685,16 @@ export function RemisionFormPage() {
           if (updated.items) {
             let indexHora = 0;
             updated.items = updated.items.map(it => {
-              if ((it.unidad || '').trim().toLowerCase() === 'hora') {
+              // SOLO modificar items con unidad 'hora', nunca 'día' u otras
+              const unidadNorm = (it.unidad || '').trim().toLowerCase();
+              if (unidadNorm === 'hora') {
                 let h = 1;
                 if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.round(horas1 * 100) / 100) : 1;
                 else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.round(horas2 * 100) / 100) : 1;
                 indexHora++;
                 return { ...it, cantidad: h };
               }
-              return it;
+              return it; // items 'día' u otros: sin cambios
             });
           }
         }
@@ -724,7 +730,8 @@ export function RemisionFormPage() {
 
   const handleHorometroChange = (e) => {
     const { name, value } = e.target;
-    setHorasManual(false); // resetear para que recalcule al cambiar horómetros
+    // Los horómetros son sólo informativos: se guardan pero NO disparan el recalculo de horas.
+    // El cálculo de horas se realiza exclusivamente a partir de los tiempos (hora_salida_cargar, hora_llegada_cargar).
     setForm(prev => ({ ...prev, [name]: value }));
   };
 

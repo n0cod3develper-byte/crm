@@ -24,6 +24,10 @@ export function CompanyDetailPage() {
   const [isContactModalOpen, setIsContactModalOpen] = React.useState(false);
   const [isEquipoModalOpen, setIsEquipoModalOpen] = React.useState(false);
   const [isDocumentoModalOpen, setIsDocumentoModalOpen] = React.useState(false);
+  const [selectedQuoteId, setSelectedQuoteId] = React.useState(null);
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = React.useState(false);
+  const [editingContact, setEditingContact] = React.useState(null);
+  const [isEditContactModalOpen, setIsEditContactModalOpen] = React.useState(false);
 
   const { data: company, isLoading } = useQuery({
     queryKey: ['company', id],
@@ -278,6 +282,7 @@ export function CompanyDetailPage() {
                           <th>Cargo</th>
                           <th>Email</th>
                           <th>Teléfono</th>
+                          <th style={{ textAlign: 'center', width: '80px' }}>Acciones</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -287,6 +292,19 @@ export function CompanyDetailPage() {
                             <td style={{ color: 'var(--text-secondary)' }}>{c.position || '—'}</td>
                             <td>{c.email || '—'}</td>
                             <td>{c.phone || '—'}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                title="Editar contacto"
+                                style={{ color: 'var(--clr-primary-500)', padding: '0.25rem 0.5rem' }}
+                                onClick={() => {
+                                  setEditingContact(c);
+                                  setIsEditContactModalOpen(true);
+                                }}
+                              >
+                                <Edit2 size={13} />
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -557,6 +575,27 @@ export function CompanyDetailPage() {
             fixedCompany={true}
             onSuccess={() => setIsContactModalOpen(false)}
             onCancel={() => setIsContactModalOpen(false)}
+          />
+        </Modal>
+      )}
+
+      {isEditContactModalOpen && editingContact && (
+        <Modal
+          title={`Editar Contacto: ${editingContact.first_name} ${editingContact.last_name || ''}`.trim()}
+          onClose={() => { setIsEditContactModalOpen(false); setEditingContact(null); }}
+        >
+          <ContactForm
+            contact={editingContact}
+            fixedCompany={true}
+            defaultCompanyId={id}
+            onSuccess={() => {
+              setIsEditContactModalOpen(false);
+              setEditingContact(null);
+            }}
+            onCancel={() => {
+              setIsEditContactModalOpen(false);
+              setEditingContact(null);
+            }}
           />
         </Modal>
       )}

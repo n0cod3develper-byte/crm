@@ -376,7 +376,7 @@ export class ServiciosRepository {
       const old_estado = current.estado;
       const new_estado = 'estado' in data ? data.estado : old_estado;
 
-      const is_released_state = ['LIQUIDADA', 'FACTURADA', 'ANULADO'].includes(new_estado);
+      const is_released_state = ['REALIZADA', 'LIQUIDADA', 'FACTURADA', 'ANULADO'].includes(new_estado);
 
       // A. Garantizar que el equipo actual esté en el estado correspondiente
       if (new_equipo_id) {
@@ -385,27 +385,48 @@ export class ServiciosRepository {
         const current_eq_state = eqRes.rows[0]?.estado;
 
         if (current_eq_state && current_eq_state !== target_estado) {
-          const motivo = is_released_state
-            ? `Liberado por estado ${new_estado} de remisión ${current.numero_remision}`
-            : `Alquilado por remisión ${current.numero_remision} (Estado: ${new_estado})`;
+          // Si el estado objetivo es OPERATIVO, verificar que no haya otras remisiones activas del mismo equipo
+          // para no liberar prematuramente un equipo con múltiples remisiones en curso
+          let canReleaseEquipo = true;
+          if (is_released_state) {
+            const otrasActivasRes = await client.query(
+              `SELECT COUNT(*) AS total
+               FROM remisiones
+               WHERE equipo_id = $1
+                 AND id != $2
+                 AND estado NOT IN ('REALIZADA', 'LIQUIDADA', 'FACTURADA', 'ANULADO')
+                 AND deleted_at IS NULL`,
+              [new_equipo_id, id]
+            );
+            const otrasActivas = parseInt(otrasActivasRes.rows[0]?.total || 0);
+            if (otrasActivas > 0) {
+              canReleaseEquipo = false; // Hay otras remisiones activas → mantener ALQUILADO
+            }
+          }
 
-          await client.query(
-            `UPDATE equipos SET 
-              estado = $1, 
-              motivo_estado = $2, 
-              fecha_cambio_estado = CURRENT_DATE, 
-              actualizado_por = $3,
-              updated_at = NOW()
-             WHERE id = $4`,
-            [target_estado, motivo, userStr, new_equipo_id]
-          );
+          if (canReleaseEquipo) {
+            const motivo = is_released_state
+              ? `Liberado por estado ${new_estado} de remisión ${current.numero_remision}`
+              : `Alquilado por remisión ${current.numero_remision} (Estado: ${new_estado})`;
 
-          await client.query(
-            `INSERT INTO equipos_historial_estado (
-              equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
-            ) VALUES ($1, $2, $3, $4, $5)`,
-            [new_equipo_id, current_eq_state, target_estado, motivo, userStr]
-          );
+            await client.query(
+              `UPDATE equipos SET 
+                estado = $1, 
+                motivo_estado = $2, 
+                fecha_cambio_estado = CURRENT_DATE, 
+                actualizado_por = $3,
+                updated_at = NOW()
+               WHERE id = $4`,
+              [target_estado, motivo, userStr, new_equipo_id]
+            );
+
+            await client.query(
+              `INSERT INTO equipos_historial_estado (
+                equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
+              ) VALUES ($1, $2, $3, $4, $5)`,
+              [new_equipo_id, current_eq_state, target_estado, motivo, userStr]
+            );
+          }
         }
       }
 
@@ -454,22 +475,36 @@ export class ServiciosRepository {
         const eqRes = await client.query('SELECT estado FROM equipos WHERE id = $1', [current.equipo_id]);
         const state = eqRes.rows[0]?.estado;
         if (state && state !== 'OPERATIVO') {
-          await client.query(
-            `UPDATE equipos SET 
-              estado = 'OPERATIVO',
-              motivo_estado = $1,
-              fecha_cambio_estado = CURRENT_DATE,
-              actualizado_por = $2,
-              updated_at = NOW()
-             WHERE id = $3`,
-            [`Liberado por anulación de remisión ${current.numero_remision}`, userStr, current.equipo_id]
+          // Verificar que no haya otras remisiones activas del mismo equipo antes de liberar
+          const otrasActivasRes = await client.query(
+            `SELECT COUNT(*) AS total
+             FROM remisiones
+             WHERE equipo_id = $1
+               AND id != $2
+               AND estado NOT IN ('LIQUIDADA', 'FACTURADA', 'ANULADO')
+               AND deleted_at IS NULL`,
+            [current.equipo_id, id]
           );
-          await client.query(
-            `INSERT INTO equipos_historial_estado (
-              equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
-            ) VALUES ($1, $2, $3, $4, $5)`,
-            [current.equipo_id, state, 'OPERATIVO', `Liberado por anulación de remisión ${current.numero_remision}`, userStr]
-          );
+          const otrasActivas = parseInt(otrasActivasRes.rows[0]?.total || 0);
+
+          if (otrasActivas === 0) {
+            await client.query(
+              `UPDATE equipos SET 
+                estado = 'OPERATIVO',
+                motivo_estado = $1,
+                fecha_cambio_estado = CURRENT_DATE,
+                actualizado_por = $2,
+                updated_at = NOW()
+               WHERE id = $3`,
+              [`Liberado por anulación de remisión ${current.numero_remision}`, userStr, current.equipo_id]
+            );
+            await client.query(
+              `INSERT INTO equipos_historial_estado (
+                equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
+              ) VALUES ($1, $2, $3, $4, $5)`,
+              [current.equipo_id, state, 'OPERATIVO', `Liberado por anulación de remisión ${current.numero_remision}`, userStr]
+            );
+          }
         }
       }
 
