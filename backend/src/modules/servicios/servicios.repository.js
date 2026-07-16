@@ -376,7 +376,7 @@ export class ServiciosRepository {
       const old_estado = current.estado;
       const new_estado = 'estado' in data ? data.estado : old_estado;
 
-      const is_released_state = ['LIQUIDADA', 'FACTURADA', 'ANULADO'].includes(new_estado);
+      const is_released_state = ['REALIZADA', 'LIQUIDADA', 'FACTURADA', 'ANULADO'].includes(new_estado);
 
       // A. Garantizar que el equipo actual esté en el estado correspondiente
       if (new_equipo_id) {
@@ -394,7 +394,7 @@ export class ServiciosRepository {
                FROM remisiones
                WHERE equipo_id = $1
                  AND id != $2
-                 AND estado NOT IN ('LIQUIDADA', 'FACTURADA', 'ANULADO')
+                 AND estado NOT IN ('REALIZADA', 'LIQUIDADA', 'FACTURADA', 'ANULADO')
                  AND deleted_at IS NULL`,
               [new_equipo_id, id]
             );
