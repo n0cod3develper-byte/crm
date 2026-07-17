@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
+import { Modal } from '../../components/common/Modal';
+import { QuoteForm } from '../../components/Quotes/QuoteForm';
 import { useAuth } from '../../contexts/AuthContext';
 import { generateQuotePDF } from '../../lib/pdfGenerator';
 import api from '../../lib/api';
@@ -34,6 +36,7 @@ export function QuoteDetailPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = user?.roles?.includes('admin') || user?.rol_nombre === 'Administrador';
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // ─── Fetch ───────────────────────────────────────────────
   const { data: quote, isLoading } = useQuery({
@@ -64,6 +67,22 @@ export function QuoteDetailPage() {
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Error al eliminar'),
   });
+
+  const handleDownloadPDF = async () => {
+    const loadingToast = toast.loading('Generando y descargando PDF...');
+    try {
+      const response = await api.get(`/quotes/${id}/pdf`, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(blob);
+      link.download = `cotizacion-${quote.quote_number || id}.pdf`;
+      link.click();
+      toast.success('PDF descargado con éxito', { id: loadingToast });
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al descargar el PDF', { id: loadingToast });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -107,6 +126,15 @@ export function QuoteDetailPage() {
               {quote.status !== 'accepted' && (
                 <button
                   className="btn btn--sm"
+                  style={{ background: '#d97706', color: 'white', border: 'none' }}
+                  onClick={() => setIsEditModalOpen(true)}
+                >
+                  <Edit2 size={16} /> Editar
+                </button>
+              )}
+              {quote.status !== 'accepted' && (
+                <button
+                  className="btn btn--sm"
                   style={{ background: '#16a34a', color: 'white', border: 'none' }}
                   disabled={updateStatusMutation.isPending}
                   onClick={() => {
@@ -131,7 +159,7 @@ export function QuoteDetailPage() {
             </div>
             {/* Fila 2: PDF */}
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <button className="btn btn--secondary btn--sm" onClick={() => generateQuotePDF(quote, 'download')}>
+              <button className="btn btn--secondary btn--sm" onClick={handleDownloadPDF}>
                 <Download size={16} /> Descargar PDF
               </button>
             </div>
@@ -296,6 +324,25 @@ export function QuoteDetailPage() {
 
         </div>
       </main>
+      {isEditModalOpen && quote && (
+        <Modal
+          title={`Editar Cotización ${quote.quote_number}`}
+          onClose={() => setIsEditModalOpen(false)}
+          maxWidth="1100px"
+        >
+          <div style={{ width: '100%', minWidth: 'min(90vw, 800px)' }}>
+            <QuoteForm
+              quote={quote}
+              onSuccess={() => {
+                setIsEditModalOpen(false);
+                queryClient.invalidateQueries({ queryKey: ['quote', id] });
+                queryClient.invalidateQueries({ queryKey: ['quotes'] });
+              }}
+              onCancel={() => setIsEditModalOpen(false)}
+            />
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

@@ -109,7 +109,11 @@ const MIGRATION_FILES = [
   '076_supplier_quotes_reestructura.sql',
   '077_supplier_quotes_numero.sql',
   '078_supplier_quote_items_iva.sql',
-  '079_supplier_quotes_global_iva.sql'
+  '079_supplier_quotes_global_iva.sql',
+  '080_quote_items_extended_fields.sql',
+  '081_fix_autorizado_por_fk.sql',
+  '082_add_supplier_quote_id.sql',
+  '083_ot_liquidacion_quotes.sql'
 ];
 
 async function ensureMigrationsTable(client) {

@@ -72,6 +72,38 @@ export function OTDetailPage() {
     }
   };
 
+  const quoteItems = React.useMemo(() => {
+    const liq = ot?.liquidacion;
+    if (!liq || !liq.quote_snapshot) return [];
+    try {
+      const snap = typeof liq.quote_snapshot === 'string' ? JSON.parse(liq.quote_snapshot) : liq.quote_snapshot;
+      return snap.items || [];
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  }, [ot]);
+
+  const repuestosDisplay = React.useMemo(() => {
+    let list = ot?.repuestos_insumos || [];
+    if (quoteItems.length > 0) {
+      list = [
+        ...list,
+        ...quoteItems.map(it => ({
+          id: `quote-item-${it.id}`,
+          descripcion: it.description,
+          origen: 'COTIZACION',
+          cantidad: it.quantity,
+          unidad: it.unit || 'unidad',
+          precio_unitario: it.unit_price,
+          total: (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0) * (1 - (parseFloat(it.discount) || 0) / 100),
+          descargado: true
+        }))
+      ];
+    }
+    return list;
+  }, [ot, quoteItems]);
+
   if (isLoading) {
     return (
       <div className="app-layout">
@@ -106,9 +138,11 @@ export function OTDetailPage() {
   const actividadesPM = ot.pm_actividades || [];
   const liq = ot.liquidacion;
   const isPM = ot.tipo_mantenimiento === 'PREVENTIVO';
+
+  const showOrigenCol = isPM || quoteItems.length > 0;
   
   const totalMO = tecnicos.reduce((s, t) => s + parseFloat(t.total_mano_obra || 0), 0);
-  const totalRep = repuestos.reduce((s, r) => s + parseFloat(r.total || 0), 0);
+  const totalRep = repuestosDisplay.reduce((s, r) => s + parseFloat(r.total || 0), 0);
   const canEdit = ot.estado === 'ABIERTA' || ot.estado === 'EN_PROCESO';
 
   return (
@@ -268,9 +302,9 @@ export function OTDetailPage() {
         {/* ─── Repuestos ───────────────────────────────── */}
         <div className="card" style={{ marginBottom: '1.5rem' }}>
           <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Package size={18} color="var(--clr-primary-400)" /> Repuestos e Insumos ({repuestos.length})
+            <Package size={18} color="var(--clr-primary-400)" /> Repuestos e Insumos ({repuestosDisplay.length})
           </h2>
-          {repuestos.length === 0 ? (
+          {repuestosDisplay.length === 0 ? (
             <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem' }}>Sin repuestos o insumos</p>
           ) : (
             <div className="table-wrapper">
@@ -278,7 +312,7 @@ export function OTDetailPage() {
                 <thead>
                   <tr>
                     <th>Item</th>
-                    {isPM && <th style={{ width: 80 }}>Origen</th>}
+                    {showOrigenCol && <th style={{ width: 100 }}>Origen</th>}
                     <th style={{ textAlign: 'right' }}>Cantidad</th>
                     <th>Unidad</th>
                     <th style={{ textAlign: 'right' }}>Precio Unit.</th>
@@ -287,13 +321,20 @@ export function OTDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {repuestos.map(r => (
+                  {repuestosDisplay.map(r => (
                     <tr key={r.id}>
                       <td style={{ fontWeight: 500 }}>{r.descripcion}</td>
-                      {isPM && (
+                      {showOrigenCol && (
                         <td>
-                          <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: 8, background: r.origen === 'PLANTILLA_PM' ? 'rgba(67,56,202,0.1)' : 'rgba(245,158,11,0.1)', color: r.origen === 'PLANTILLA_PM' ? '#4338ca' : '#f59e0b', fontWeight: 700 }}>
-                            {r.origen === 'PLANTILLA_PM' ? 'PLANTILLA' : 'MANUAL'}
+                          <span style={{ 
+                            fontSize: '10px', 
+                            padding: '2px 6px', 
+                            borderRadius: 8, 
+                            background: r.origen === 'PLANTILLA_PM' ? 'rgba(67,56,202,0.1)' : r.origen === 'COTIZACION' ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)', 
+                            color: r.origen === 'PLANTILLA_PM' ? '#4338ca' : r.origen === 'COTIZACION' ? '#22c55e' : '#f59e0b', 
+                            fontWeight: 700 
+                          }}>
+                            {r.origen === 'PLANTILLA_PM' ? 'PLANTILLA' : r.origen === 'COTIZACION' ? 'COTIZACIÓN' : 'MANUAL'}
                           </span>
                         </td>
                       )}

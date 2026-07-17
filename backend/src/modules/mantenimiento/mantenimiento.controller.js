@@ -104,8 +104,8 @@ export const removeRepuesto = async (req, res, next) => {
 // ─── Liquidación ───────────────────────────────────────
 export const liquidar = async (req, res, next) => {
   try {
-    const { notas_liquidacion, impuesto_pct } = req.body;
-    const result = await repo.liquidarOT(req.params.id, notas_liquidacion, impuesto_pct, req.user.id);
+    const { notas_liquidacion, impuesto_pct, quote_id, quote_snapshot } = req.body;
+    const result = await repo.liquidarOT(req.params.id, notas_liquidacion, impuesto_pct, req.user.id, quote_id, quote_snapshot);
     res.json({ success: true, ...result });
   } catch (err) {
     if (err.codigo === 'OT_FIRMADA_REQUERIDA') {

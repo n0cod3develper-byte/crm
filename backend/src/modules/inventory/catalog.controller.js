@@ -6,6 +6,23 @@ import { logger } from '../../utils/logger.js';
 
 const repo = new CatalogRepository();
 
+/**
+ * Map legacy frontend field names to current DB column names.
+ * After migration 019, unit_cost → costo_reposicion, stock_current → stock_actual.
+ */
+function mapFrontendFields(body) {
+  const data = { ...body };
+  if ('unit_cost' in data) {
+    data.costo_reposicion = data.unit_cost;
+    delete data.unit_cost;
+  }
+  if ('stock_current' in data) {
+    data.stock_actual = data.stock_current;
+    delete data.stock_current;
+  }
+  return data;
+}
+
 export const getItems = async (req, res, next) => {
   try {
     const filters = req.query;
@@ -54,7 +71,7 @@ export const getUnidades = async (req, res, next) => {
 export const createItem = async (req, res, next) => {
   try {
     logger.debug('[CatalogController] Creating item', { userId: req.user?.id });
-    const item = await repo.create(req.body, req.user.id);
+    const item = await repo.create(mapFrontendFields(req.body), req.user.id);
     res.status(201).json({ success: true, data: item });
   } catch (err) { 
     logger.error('[CatalogController] Error creating item', { error: err.message });
@@ -64,7 +81,7 @@ export const createItem = async (req, res, next) => {
 
 export const updateItem = async (req, res, next) => {
   try {
-    const item = await repo.update(req.params.id, req.body, req.user.id);
+    const item = await repo.update(req.params.id, mapFrontendFields(req.body), req.user.id);
     if (!item) throw new NotFoundError('Item de catálogo');
     res.json({ success: true, data: item });
   } catch (err) { next(err); }
