@@ -4,6 +4,7 @@ import { uploadSingle, uploadMultiple, buildUploadPath, rutaSegura, getUploadsBa
 import { authenticate } from '../../middleware/auth.js';
 import { uploadLimiter } from '../../middleware/rateLimiter.js';
 import { query } from '../../config/database.js';
+import { logger } from '../../utils/logger.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -312,6 +313,7 @@ router.post('/ot/:otId/firmada', uploadLimiter, (req, res, next) => {
         message: 'OT firmada subida. La liquidación está habilitada.',
       });
     } catch (error) {
+      logger.error('[OTFirmada] Error al subir documento firmado', { error: error.message, otId });
       if (error.message.includes('no permitido') || error.message.includes('identificar')) {
         return res.status(422).json({ error: error.message });
       }

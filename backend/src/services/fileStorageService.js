@@ -36,8 +36,21 @@ export async function guardarArchivo(tempFilePath, carpetaRel, nombreOriginal) {
   const nombreDisco = `${idArchivo}.${tipoDetectado.ext}`;
   const rutaFinal = path.join(carpetaAbs, nombreDisco);
 
-  // Paso 4: Mover el archivo temporal al destino final
-  fs.renameSync(tempFilePath, rutaFinal);
+  // Paso 4: Copiar (funciona entre diferentes filesystems en Docker)
+  // Usamos copyFileSync + unlinkSync en lugar de renameSync porque
+  // renameSync falla con EXDEV (Cross-device link) cuando /tmp y el destino
+  // están en sistemas de archivos diferentes (común en contenedores Docker).
+  try {
+    fs.renameSync(tempFilePath, rutaFinal);
+  } catch (renameErr) {
+    if (renameErr.code === 'EXDEV') {
+      // Fallback: copiar y eliminar
+      fs.copyFileSync(tempFilePath, rutaFinal);
+      fs.unlinkSync(tempFilePath);
+    } else {
+      throw renameErr;
+    }
+  }
 
   const stats = fs.statSync(rutaFinal);
 
