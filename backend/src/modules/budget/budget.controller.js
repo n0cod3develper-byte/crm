@@ -91,5 +91,89 @@ export const budgetController = {
     } catch (error) {
       next(error);
     }
-  }
+  },
+
+  // ══════════════════════════════════════════════════════
+  // ÁREA 1 — MANTENIMIENTO: Líneas de Negocio
+  // ══════════════════════════════════════════════════════
+
+  /** GET /budget/business-lines — catálogo de líneas de negocio */
+  async getBusinessLines(req, res, next) {
+    try {
+      const lines = await budgetRepository.getBusinessLines();
+      res.json({ success: true, data: lines });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * GET /budget/mantenimiento?year=2025
+   * Retorna el presupuesto mensual de todas las líneas para el año dado.
+   */
+  async getMantenimientoPresupuesto(req, res, next) {
+    try {
+      const { year } = req.query;
+      if (!year) {
+        return res.status(400).json({ error: 'El parámetro year es obligatorio' });
+      }
+      const yearInt = parseInt(year);
+      if (isNaN(yearInt) || yearInt < 2020 || yearInt > 2099) {
+        return res.status(400).json({ error: 'El año debe estar entre 2020 y 2099' });
+      }
+      const rows = await budgetRepository.getMantenimientoPresupuesto(yearInt);
+      res.json({ success: true, data: rows });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * POST /budget/mantenimiento
+   * Body: { year, rows: [{ linea_negocio_id, month, amount }] }
+   * Guarda todos los valores de la tabla en una transacción.
+   */
+  async upsertMantenimientoPresupuesto(req, res, next) {
+    try {
+      const { year, rows } = req.body;
+
+      if (!year || !Array.isArray(rows) || rows.length === 0) {
+        return res.status(400).json({ error: 'Se requiere year y rows[]' });
+      }
+
+      const yearInt = parseInt(year);
+      if (isNaN(yearInt) || yearInt < 2020 || yearInt > 2099) {
+        return res.status(400).json({ error: 'El año debe estar entre 2020 y 2099' });
+      }
+
+      // Validar cada fila antes de persistir
+      for (const row of rows) {
+        const { linea_negocio_id, month, amount } = row;
+        if (!linea_negocio_id || !month || amount === undefined || amount === null) {
+          return res.status(400).json({ error: 'Cada fila requiere linea_negocio_id, month y amount' });
+        }
+        const monthInt = parseInt(month);
+        if (isNaN(monthInt) || monthInt < 1 || monthInt > 12) {
+          return res.status(400).json({ error: `Mes inválido: ${month}` });
+        }
+        const amountNum = parseFloat(amount);
+        if (isNaN(amountNum) || amountNum < 0) {
+          return res.status(400).json({ error: `El monto no puede ser negativo (mes ${month})` });
+        }
+      }
+
+      const payload = rows.map(r => ({
+        linea_negocio_id: parseInt(r.linea_negocio_id),
+        year: yearInt,
+        month: parseInt(r.month),
+        amount: parseFloat(r.amount),
+      }));
+
+      const result = await budgetRepository.upsertMantenimientoPresupuestoBulk(payload);
+      res.json({ success: true, data: result });
+    } catch (error) {
+      logger.error('Error guardando presupuesto de mantenimiento', { error: error.message });
+      next(error);
+    }
+  },
 };

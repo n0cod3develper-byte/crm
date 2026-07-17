@@ -128,6 +128,94 @@ export class BudgetRepository {
     const result = await query(sql, [budgetEquipmentId]);
     return result.rows;
   }
+
+  // ══════════════════════════════════════════════════════
+  // ÁREA 1 — MANTENIMIENTO: Presupuesto por Línea de Negocio
+  // ══════════════════════════════════════════════════════
+
+  /** Retorna todas las líneas de negocio activas (catálogo editable). */
+  async getBusinessLines() {
+    const result = await query(
+      `SELECT * FROM budget_business_lines WHERE is_active = true ORDER BY id ASC`
+    );
+    return result.rows;
+  }
+
+  /**
+   * Retorna el presupuesto mensual de todas las líneas de negocio para un año dado.
+   * Formato: [{ linea_negocio_id, nombre, month, amount }]
+   */
+  async getMantenimientoPresupuesto(year) {
+    const sql = `
+      SELECT
+        bl.id   AS linea_negocio_id,
+        bl.nombre,
+        bl.descripcion,
+        bl.is_active,
+        bmm.month,
+        COALESCE(bmm.amount, 0)::NUMERIC AS amount,
+        bmm.id AS registro_id
+      FROM budget_business_lines bl
+      LEFT JOIN budget_mantenimiento_mensual bmm
+             ON bmm.linea_negocio_id = bl.id
+            AND bmm.year = $1
+      WHERE bl.is_active = true
+      ORDER BY bl.id ASC, bmm.month ASC
+    `;
+    const result = await query(sql, [year]);
+    return result.rows;
+  }
+
+  /**
+   * Upsert de un presupuesto mensual para una línea de negocio.
+   * Si ya existe el registro (linea_negocio_id, year, month), lo actualiza.
+   * @param {{ linea_negocio_id: number, year: number, month: number, amount: number }} data
+   */
+  async upsertMantenimientoPresupuesto(data) {
+    const { linea_negocio_id, year, month, amount } = data;
+
+    // Validar que la línea de negocio existe
+    const lineaRes = await query(
+      `SELECT id FROM budget_business_lines WHERE id = $1 AND is_active = true`,
+      [linea_negocio_id]
+    );
+    if (!lineaRes.rows[0]) {
+      throw new Error('La línea de negocio no existe o está inactiva');
+    }
+
+    const sql = `
+      INSERT INTO budget_mantenimiento_mensual (linea_negocio_id, year, month, amount, updated_at)
+      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+      ON CONFLICT (linea_negocio_id, year, month)
+      DO UPDATE SET amount = EXCLUDED.amount, updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `;
+    const result = await query(sql, [linea_negocio_id, year, month, amount]);
+    return result.rows[0];
+  }
+
+  /**
+   * Upsert masivo: guarda todos los valores de la tabla para un año.
+   * Recibe un array de { linea_negocio_id, year, month, amount }.
+   * Ejecuta todo en una sola transacción para garantizar consistencia.
+   */
+  async upsertMantenimientoPresupuestoBulk(rows) {
+    return await withTransaction(async (client) => {
+      const results = [];
+      for (const row of rows) {
+        const { linea_negocio_id, year, month, amount } = row;
+        const res = await client.query(`
+          INSERT INTO budget_mantenimiento_mensual (linea_negocio_id, year, month, amount, updated_at)
+          VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+          ON CONFLICT (linea_negocio_id, year, month)
+          DO UPDATE SET amount = EXCLUDED.amount, updated_at = CURRENT_TIMESTAMP
+          RETURNING *
+        `, [linea_negocio_id, year, month, amount]);
+        results.push(res.rows[0]);
+      }
+      return results;
+    });
+  }
 }
 
 export const budgetRepository = new BudgetRepository();
