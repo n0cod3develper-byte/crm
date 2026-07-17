@@ -23,6 +23,7 @@ export function OTFormPage() {
   const [form, setForm] = React.useState({
     tipo_mantenimiento: 'CORRECTIVO',
     pm_frecuencia_id: '',
+    componente_id: '',
     empresa_id: '',
     equipo_id: '',
     tecnico_id: '',
@@ -114,6 +115,7 @@ export function OTFormPage() {
       setForm({
         tipo_mantenimiento: otData.tipo_mantenimiento,
         pm_frecuencia_id: otData.pm_frecuencia_id || '',
+        componente_id: otData.componente_id || '',
         empresa_id: otData.empresa_id,
         equipo_id: otData.equipo_id,
         horometro_inicial: otData.horometro_inicial || '',
@@ -131,6 +133,16 @@ export function OTFormPage() {
       setForm(prev => ({ ...prev, responsable: `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.full_name || '' }));
     }
   }, [otData, isEditing, user]);
+
+  // ─── Componentes (Para Correctivos) ─────────────────────
+  const { data: componentesData } = useQuery({
+    queryKey: ['mantenimiento-componentes-activos'],
+    queryFn: async () => {
+      const { data } = await api.get('/mantenimiento/componentes/activos');
+      return data.data || [];
+    },
+  });
+  const componentes = componentesData || [];
 
   // ─── Frecuencias PM ─────────────────────────────────────
   const { data: frecuenciasData } = useQuery({
@@ -344,6 +356,9 @@ export function OTFormPage() {
     if (!form.empresa_id || !form.equipo_id || !form.tipo_mantenimiento) {
       return toast.error('Empresa, equipo y tipo de mantenimiento son requeridos');
     }
+    if (form.tipo_mantenimiento === 'CORRECTIVO' && !form.componente_id) {
+      return toast.error('Debes seleccionar el Componente / Sistema afectado para ordenes correctivas');
+    }
     if (!isEditing && !form.tecnico_id) {
       return toast.error('Debes seleccionar un técnico principal (mecánico)');
     }
@@ -513,6 +528,27 @@ export function OTFormPage() {
                 noOptionsMessage="No se encontraron empresas con ese nombre o NIT"
               />
             </div>
+
+            {/* Componente / Sistema afectado (Solo si es CORRECTIVO) */}
+            {form.tipo_mantenimiento === 'CORRECTIVO' && (
+              <div className="input-group">
+                <label className="input-label" style={{ color: 'var(--clr-primary-400)', fontWeight: 700 }}>
+                  Componente / Sistema Afectado <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <select
+                  name="componente_id"
+                  className="input"
+                  value={form.componente_id}
+                  onChange={handleChange}
+                  disabled={isLiqOrClosed}
+                >
+                  <option value="">Seleccione el componente...</option>
+                  {componentes.map(c => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Frecuencia (Solo si es PREVENTIVO) */}
             {form.tipo_mantenimiento === 'PREVENTIVO' && (

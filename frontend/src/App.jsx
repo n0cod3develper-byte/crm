@@ -41,6 +41,7 @@ const CatalogFormPage = lazy(() => import('./pages/Inventory/CatalogFormPage').t
 const CatalogItemDetailPage = lazy(() => import('./pages/Inventory/CatalogItemDetailPage').then(m => ({ default: m.CatalogItemDetailPage })));
 const MovementsPage = lazy(() => import('./pages/Inventory/MovementsPage').then(m => ({ default: m.MovementsPage })));
 const PMAdminPage = lazy(() => import('./pages/Mantenimiento/PMAdminPage').then(m => ({ default: m.PMAdminPage })));
+const ComponentesPage = lazy(() => import('./pages/Mantenimiento/ComponentesPage').then(m => ({ default: m.ComponentesPage })));
 const UbicacionesPage = lazy(() => import('./pages/Inventory/UbicacionesPage').then(m => ({ default: m.UbicacionesPage })));
 const FamiliesPage = lazy(() => import('./pages/Inventory/FamiliesPage').then(m => ({ default: m.FamiliesPage })));
 
@@ -154,6 +155,9 @@ function App() {
                 <Route path="/catalogo/:id/editar" element={<SafeModule context="inventario" modulo="catalogo" accion="editar"><CatalogFormPage /></SafeModule>} />
                 <Route path="/mantenimiento" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="ver"><MantenimientoPage /></SafeModule>} />
                 <Route path="/mantenimiento/nueva" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="crear"><OTFormPage /></SafeModule>} />
+                <Route path="/mantenimiento/ot/:id" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="ver"><OTDetailPage /></SafeModule>} />
+                <Route path="/mantenimiento/pm-config" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="crear"><PMAdminPage /></SafeModule>} />
+                <Route path="/mantenimiento/componentes" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="crear"><ComponentesPage /></SafeModule>} />
                 <Route path="/mantenimiento/configuracion" element={<SafeModule context="mantenimiento" adminOnly><PMAdminPage /></SafeModule>} />
                 <Route path="/mantenimiento/:id/editar" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="editar"><OTFormPage /></SafeModule>} />
                 <Route path="/mantenimiento/:id" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="ver"><OTDetailPage /></SafeModule>} />
