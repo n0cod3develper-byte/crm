@@ -9,6 +9,7 @@ export const catalogApi = {
   createCategoria: (data) => api.post('/catalogo/categorias', data).then(res => res.data),
   updateCategoria: (id, data) => api.put(`/catalogo/categorias/${id}`, data).then(res => res.data),
   deleteCategoria: (id) => api.delete(`/catalogo/categorias/${id}`).then(res => res.data),
+  adjustStock: (id, body) => api.patch(`/catalogo/${id}/stock`, body).then(res => res.data),
   getUnidades: () => api.get('/catalogo/unidades').then(res => res.data),
   create: (data) => api.post('/catalogo', data).then(res => res.data),
   update: (id, data) => api.put(`/catalogo/${id}`, data).then(res => res.data),

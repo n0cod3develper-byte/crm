@@ -1,4 +1,5 @@
 import { query } from '../../config/database.js';
+import * as movimientoService from '../../services/inventoryMovements.service.js';
 
 /** Returns value if it's a valid UUID, otherwise null */
 const toUuid = (v) => {
@@ -265,6 +266,53 @@ export class CatalogRepository {
       throw err;
     }
   }
+
+  /**
+   * Adjust stock for a given inventory item.
+   * @param {string} id - UUID of the inventory item.
+   * @param {number} nuevoStock - Desired stock quantity (non‑negative).
+   * @param {string} userId - ID of the user performing the adjustment.
+   * @param {string} [motivo] - Optional reason for the adjustment.
+   * @returns Updated inventory row.
+   */
+  async adjustStock(id, nuevoStock, userId, motivo = null) {
+    // Begin transaction
+    await query('BEGIN');
+    try {
+      // Lock the row to avoid race conditions
+      const lockRes = await query('SELECT stock_actual FROM inventario WHERE id = $1 FOR UPDATE', [id]);
+      if (lockRes.rowCount === 0) {
+        throw new Error('Item not found');
+      }
+      const stockActual = parseFloat(lockRes.rows[0].stock_actual);
+      const delta = parseFloat(nuevoStock) - stockActual;
+
+      // Update stock
+      await query('UPDATE inventario SET stock_actual = $1, updated_by = $2, updated_at = NOW() WHERE id = $3', [nuevoStock, userId, id]);
+
+      // Register movement if there is a change
+      if (delta !== 0) {
+        const tipoMovimiento = delta > 0 ? 'ENTRADA_AJUSTE' : 'SALIDA_AJUSTE';
+        await movimientoService.registrarMovimiento({
+          itemId: id,
+          tipoMovimiento,
+          cantidad: Math.abs(delta),
+          motivo: motivo || (tipoMovimiento === 'ENTRADA_AJUSTE' ? 'Ajuste de stock +': 'Ajuste de stock -'),
+          registradoPor: userId,
+        });
+      }
+
+      await query('COMMIT');
+      // Return updated row
+      const res = await query('SELECT * FROM inventario WHERE id = $1', [id]);
+      return res.rows[0];
+    } catch (err) {
+      await query('ROLLBACK');
+      throw err;
+    }
+  }
+
+  
 
   async update(id, data, userId) {
     const fields = ['updated_by = $1', 'updated_at = NOW()'];

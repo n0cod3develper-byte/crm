@@ -87,11 +87,29 @@ export const updateItem = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+export const patchStock = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { nuevo_stock, motivo } = req.body;
+    if (nuevo_stock === undefined || isNaN(nuevo_stock) || Number(nuevo_stock) < 0) {
+  return res.status(422).json({ success: false, message: 'nuevo_stock debe ser un número no negativo' });
+}
+const item = await repo.adjustStock(id, Number(nuevo_stock), req.user.id, motivo);
+if (!item) throw new NotFoundError('Item de catálogo');
+res.json({ success: true, data: item });
+} catch (err) {
+  next(err);
+}
+};
+
+
 export const deleteItem = async (req, res, next) => {
   try {
     await repo.delete(req.params.id);
     res.json({ success: true, message: 'Item eliminado del catálogo' });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 };
 
 export const uploadImagen = async (req, res, next) => {
