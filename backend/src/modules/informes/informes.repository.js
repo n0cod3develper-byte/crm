@@ -717,6 +717,94 @@ export class InformesRepository {
     }));
   }
 
+  // =============================================
+  // MANTENIMIENTO: Órdenes por Estado
+  // =============================================
+  async getOrdenesPorEstado(fecha_inicio, fecha_fin) {
+    const conditions = ['ot.deleted_at IS NULL'];
+    const params = [];
+    let i = 1;
+
+    if (fecha_inicio) {
+      conditions.push(`ot.created_at >= $${i++}::date`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`ot.created_at <= $${i++}::date + interval '1 day'`);
+      params.push(fecha_fin);
+    }
+
+    const sql = `
+      SELECT ot.estado, COUNT(*)::int AS cantidad
+      FROM ordenes_trabajo ot
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY ot.estado
+      ORDER BY cantidad DESC
+    `;
+    const result = await query(sql, params);
+    return result.rows;
+  }
+
+  // =============================================
+  // MANTENIMIENTO: Equipos con más Mantenimientos
+  // =============================================
+  async getEquiposMasMantenimientos(fecha_inicio, fecha_fin) {
+    const conditions = ['ot.deleted_at IS NULL'];
+    const params = [];
+    let i = 1;
+
+    if (fecha_inicio) {
+      conditions.push(`ot.created_at >= $${i++}::date`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`ot.created_at <= $${i++}::date + interval '1 day'`);
+      params.push(fecha_fin);
+    }
+
+    const sql = `
+      SELECT
+        COALESCE(e.marca || ' - ' || COALESCE(e.modelo, e.serie), 'Sin Equipo') AS nombre,
+        COUNT(ot.id)::int AS total_ordenes
+      FROM ordenes_trabajo ot
+      LEFT JOIN equipos e ON e.id = ot.equipo_id
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY e.marca, e.modelo, e.serie
+      ORDER BY total_ordenes DESC
+      LIMIT 10
+    `;
+    const result = await query(sql, params);
+    return result.rows;
+  }
+
+  // =============================================
+  // MANTENIMIENTO: Distribución por Tipo de Mantenimiento
+  // =============================================
+  async getTipoMantenimiento(fecha_inicio, fecha_fin) {
+    const conditions = ['ot.deleted_at IS NULL'];
+    const params = [];
+    let i = 1;
+
+    if (fecha_inicio) {
+      conditions.push(`ot.created_at >= $${i++}::date`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`ot.created_at <= $${i++}::date + interval '1 day'`);
+      params.push(fecha_fin);
+    }
+
+    const sql = `
+      SELECT ot.tipo_mantenimiento AS tipo, COUNT(*)::int AS cantidad
+      FROM ordenes_trabajo ot
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY ot.tipo_mantenimiento
+      ORDER BY cantidad DESC
+    `;
+    const result = await query(sql, params);
+    return result.rows;
+  }
+
   /**
    * Ventas reales vs presupuesto mensual del área de Servicios (area_id = 2).
    * Devuelve un punto por mes del rango: [{ mes, real, presupuesto, cumplimiento_pct }].

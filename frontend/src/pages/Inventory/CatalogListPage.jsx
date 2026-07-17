@@ -4,6 +4,9 @@ import { catalogApi } from '../../services/catalogApi';
 import { Search, Filter, Plus, Package, Wrench, MoreHorizontal, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '../../utils/formatters';
+import { usePermissions } from '../../contexts/PermissionsContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { StockAdjustModal } from '../../components/Inventory/StockAdjustModal';
 import { Topbar } from '../../components/layout/Topbar';
 
 export function CatalogListPage() {
@@ -11,11 +14,27 @@ export function CatalogListPage() {
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { puede } = usePermissions();
+  const queryClient = useQueryClient();
+  const [stockModalItem, setStockModalItem] = useState(null);
+
+  const handleStockAdjustSuccess = () => {
+    queryClient.invalidateQueries(['catalog-items', tipo, categoria, search]);
+  };
+
+  const openStockModal = (item) => {
+    setStockModalItem(item);
+  };
+
+  const closeStockModal = () => {
+    setStockModalItem(null);
+  };
+
+  const { data: itemsData, isLoading } = useQuery({
     queryKey: ['catalog-items', tipo, categoria, search],
     queryFn: () => catalogApi.getItems({ tipo, categoria, search }),
     keepPreviousData: true,
-    staleTime: 0
+    staleTime: 0,
   });
 
   const { data: catData } = useQuery({
@@ -113,7 +132,7 @@ export function CatalogListPage() {
                       </div>
                     </td>
                   </tr>
-                ) : data?.items?.length > 0 ? data.items.map(item => (
+                ) : itemsData?.items?.length > 0 ? itemsData.items.map(item => (
                   <tr key={item.id}>
                     <td>
                       <div className="flex items-center gap-4">
@@ -191,6 +210,11 @@ export function CatalogListPage() {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                        {puede('catalogo', 'editar') && (
+                          <button onClick={() => openStockModal(item)} className="btn btn--primary btn--sm" title="Ajustar stock">
+                            Ajustar
+                          </button>
+                        )}
                         <Link 
                           to={`/catalogo/${item.id}/editar`}
                           className="btn btn--ghost btn--sm"
@@ -209,14 +233,15 @@ export function CatalogListPage() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan="5" style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
+                    <td colSpan="6" style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
                       No se encontraron items con los filtros aplicados.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
-          </div>
+                      </div>
+            <StockAdjustModal item={stockModalItem} isOpen={!!stockModalItem} onClose={closeStockModal} onSuccess={handleStockAdjustSuccess} />
         </div>
       </main>
     </div>

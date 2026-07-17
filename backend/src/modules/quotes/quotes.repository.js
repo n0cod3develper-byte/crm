@@ -97,9 +97,9 @@ export class QuotesRepository {
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         await query(
-          `INSERT INTO quote_items (quote_id, description, quantity, unit_price, discount, order_index, origen, inventario_id, costo_base, porcentaje_incremento, autorizado_por, justificacion_descuento)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-          [quote.id, item.description, item.quantity, item.unit_price, item.discount || 0, i, item.origen || 'inventario', item.inventario_id || null, item.costo_base || 0, item.porcentaje_incremento || 23, item.autorizado_por || null, item.justificacion_descuento || null]
+          `INSERT INTO quote_items (quote_id, description, quantity, unit_price, discount, order_index, origen, inventario_id, proveedor_id, supplier_quote_id, costo_base, porcentaje_incremento, autorizado_por, justificacion_descuento)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+          [quote.id, item.description, item.quantity, item.unit_price, item.discount || 0, i, item.origen || 'inventario', item.inventario_id || null, item.proveedor_id || null, item.supplier_quote_id || null, item.costo_base || 0, item.porcentaje_incremento || 23, item.autorizado_por || null, item.justificacion_descuento || null]
         );
       }
     }
@@ -131,9 +131,9 @@ export class QuotesRepository {
       for (let j = 0; j < data.items.length; j++) {
         const item = data.items[j];
         await query(
-          `INSERT INTO quote_items (quote_id, description, quantity, unit_price, discount, order_index, origen, inventario_id, costo_base, porcentaje_incremento, autorizado_por, justificacion_descuento)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-          [id, item.description, item.quantity, item.unit_price, item.discount || 0, j, item.origen || 'inventario', item.inventario_id || null, item.costo_base || 0, item.porcentaje_incremento || 23, item.autorizado_por || null, item.justificacion_descuento || null]
+          `INSERT INTO quote_items (quote_id, description, quantity, unit_price, discount, order_index, origen, inventario_id, proveedor_id, supplier_quote_id, costo_base, porcentaje_incremento, autorizado_por, justificacion_descuento)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+          [id, item.description, item.quantity, item.unit_price, item.discount || 0, j, item.origen || 'inventario', item.inventario_id || null, item.proveedor_id || null, item.supplier_quote_id || null, item.costo_base || 0, item.porcentaje_incremento || 23, item.autorizado_por || null, item.justificacion_descuento || null]
         );
       }
     }
@@ -145,5 +145,27 @@ export class QuotesRepository {
     // quote_items se eliminan en cascada según la constraint de la DB
     const result = await query(`DELETE FROM quotes WHERE id = $1 RETURNING id`, [id]);
     return result.rows[0] || null;
+  }
+
+  async findSupplierQuotesPending() {
+    const res = await query(
+      `SELECT sq.*, prov.razon_social AS provider_name
+       FROM supplier_quotes sq
+       LEFT JOIN proveedores prov ON prov.id = sq.proveedor_id
+       WHERE sq.estado_comercial = 'EN_ESPERA'
+       ORDER BY sq.created_at DESC`
+    );
+    const quotes = res.rows;
+    for (const q of quotes) {
+      const itemsRes = await query(
+        `SELECT sqi.*, i.name AS item_name, i.codigo_interno
+         FROM supplier_quote_items sqi
+         LEFT JOIN inventario i ON i.id = sqi.inventario_id
+         WHERE sqi.supplier_quote_id = $1 ORDER BY sqi.id ASC`,
+        [q.id]
+      );
+      q.items = itemsRes.rows;
+    }
+    return quotes;
   }
 }

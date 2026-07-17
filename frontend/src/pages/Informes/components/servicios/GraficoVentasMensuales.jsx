@@ -28,7 +28,8 @@ export default function GraficoVentasMensuales({ appliedFilters }) {
     </div>
   );
 
-  const chartData = data?.data || [];
+  // Backend returns array directly (not wrapped in { data: ... })
+  const chartData = Array.isArray(data) ? data : (data?.data || []);
 
   return (
     <div className="card" style={{ padding: '1.5rem' }}>

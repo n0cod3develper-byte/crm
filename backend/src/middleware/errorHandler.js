@@ -26,9 +26,10 @@ export function errorHandler(err, req, res, _next) {
     });
   }
   if (err.code === '23503') {   // foreign_key_violation
+    logger.error('FK violation', { detail: err.detail, constraint: err.constraint, table: err.table });
     return res.status(400).json({
       success: false,
-      error: { message: 'Referencia a recurso inexistente', code: 'FK_VIOLATION' },
+      error: { message: `Referencia a recurso inexistente: ${err.detail || err.constraint || ''}`, code: 'FK_VIOLATION' },
     });
   }
 

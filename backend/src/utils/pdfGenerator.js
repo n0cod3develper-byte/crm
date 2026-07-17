@@ -60,33 +60,29 @@ function buildActividadesSection(ot) {
   const actividades = ot.pm_actividades || [];
   const hasActividades = actividades.length > 0;
 
-  const estadoColors = {
-    'COMPLETADA': '#22c55e',
-    'OMITIDA': '#f59e0b',
-    'EN_PROCESO': '#3b82f6',
-    'PENDIENTE': '#94a3b8',
+  const estadoMap = {
+    'COMPLETADA': { text: 'OK', bg: '#e6f4ea', color: '#1a7a3c' },
+    'OMITIDA': { text: 'N/A', bg: '#f7f9fc', color: '#64748b' },
+    'EN_PROCESO': { text: 'N/A', bg: '#f7f9fc', color: '#64748b' },
+    'PENDIENTE': { text: 'N/A', bg: '#f7f9fc', color: '#64748b' }
   };
 
-  const rows = hasActividades ? actividades.map(a => `
+  const rows = hasActividades ? actividades.map(a => {
+    const st = estadoMap[a.estado] || { text: 'N/A', bg: '#f7f9fc', color: '#64748b' };
+    return `
         <tr>
           <td style="text-align:center">${a.orden}</td>
           <td style="font-weight:600">${a.codigo || ''} - ${a.nombre}</td>
           <td>
-            <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;color:white;background:${estadoColors[a.estado] || '#94a3b8'}">
-              ${a.estado}
+            <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;color:${st.color};background:${st.bg}">
+              ${st.text}
             </span>
           </td>
           <td>${a.completada_por_nombre || '—'}</td>
           <td style="font-size:9px;color:#64748b">${a.observacion || ''}</td>
-        </tr>`).join('')
-    : Array(6).fill(0).map((_, i) => `
-        <tr>
-          <td style="text-align:center;height:24px;">${i + 1}</td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-        </tr>`).join('');
+        </tr>`;
+  }).join('')
+    : `<tr><td colspan="5" style="text-align:center;padding:15px;color:#64748b;font-style:italic;">Sin actividades registradas por código para esta orden</td></tr>`;
 
   return `
   <div class="section">
@@ -119,11 +115,19 @@ function buildPMHeaderSection(ot) {
     <div class="section-title" style="background:#4338ca;color:white;padding:8px 12px;border-radius:6px;border:none;margin-bottom:12px;">
       MANTENIMIENTO PREVENTIVO — ${ot.frecuencia_nombre || 'N/A'}
     </div>
-    <div class="grid3">
-      <div class="field"><label>Frecuencia</label><div class="value" style="font-weight:700;color:#4338ca">${ot.frecuencia_nombre || '—'}</div></div>
-      <div class="field"><label>Horómetro inicio</label><div class="value">${ot.horometro_inicial ?? '—'}</div></div>
-      <div class="field"><label>Próximo preventivo (horómetro)</label><div class="value" style="font-weight:700;color:#f59e0b">${ot.horometro_frecuencia ?? '—'}</div></div>
-    </div>
+    <table style="width:100%;border:none;">
+      <tr>
+        <td style="border:none;padding:0;width:33%;">
+          <div class="field"><label>Frecuencia</label><div class="value" style="font-weight:700;color:#4338ca">${ot.frecuencia_nombre || '—'}</div></div>
+        </td>
+        <td style="border:none;padding:0;width:33%;">
+          <div class="field"><label>Horómetro inicio</label><div class="value">${ot.horometro_inicial ?? '—'}</div></div>
+        </td>
+        <td style="border:none;padding:0;width:33%;">
+          <div class="field"><label>Próximo preventivo (horómetro)</label><div class="value" style="font-weight:700;color:#f59e0b">${ot.horometro_frecuencia ?? '—'}</div></div>
+        </td>
+      </tr>
+    </table>
   </div>`;
 }
 
@@ -140,20 +144,28 @@ function buildNextMaintenanceSection(ot) {
   return `
   <div class="section">
     <div class="section-title">Próximo Mantenimiento</div>
-    <div class="grid3">
-      <div class="field">
-        <label>Horómetro final registrado</label>
-        <div class="value">${horoFinal ?? '—'}</div>
-      </div>
-      <div class="field">
-        <label>Horómetro proyectado próximo PM</label>
-        <div class="value" style="font-weight:700;color:#4338ca;font-size:14px">${nextHoro ?? '—'}</div>
-      </div>
-      <div class="field">
-        <label>Frecuencia</label>
-        <div class="value">${ot.frecuencia_nombre || '—'}</div>
-      </div>
-    </div>
+    <table style="width:100%;border:none;">
+      <tr>
+        <td style="border:none;padding:0;width:33%;">
+          <div class="field">
+            <label>Horómetro final registrado</label>
+            <div class="value">${horoFinal ?? '—'}</div>
+          </div>
+        </td>
+        <td style="border:none;padding:0;width:33%;">
+          <div class="field">
+            <label>Horómetro proyectado próximo PM</label>
+            <div class="value" style="font-weight:700;color:#4338ca;font-size:14px">${nextHoro ?? '—'}</div>
+          </div>
+        </td>
+        <td style="border:none;padding:0;width:33%;">
+          <div class="field">
+            <label>Frecuencia</label>
+            <div class="value">${ot.frecuencia_nombre || '—'}</div>
+          </div>
+        </td>
+      </tr>
+    </table>
   </div>`;
 }
 
@@ -297,6 +309,33 @@ function buildOTHtml(ot) {
   const repPlantilla = repuestos.filter(r => r.origen === 'PLANTILLA_PM');
   const repManual = repuestos.filter(r => r.origen !== 'PLANTILLA_PM');
 
+  let quoteItems = [];
+  if (liq && liq.quote_snapshot) {
+    try {
+      const snap = typeof liq.quote_snapshot === 'string' ? JSON.parse(liq.quote_snapshot) : liq.quote_snapshot;
+      quoteItems = snap.items || [];
+    } catch (e) {
+      logger.error('Error parsing quote_snapshot in PDF generator', { error: e.message });
+    }
+  }
+
+  let repuestosDisplay = [...repuestos];
+  if (quoteItems.length > 0) {
+    repuestosDisplay = [
+      ...repuestosDisplay,
+      ...quoteItems.map(it => ({
+        descripcion: it.description,
+        origen: 'COTIZACION',
+        cantidad: it.quantity,
+        unidad: it.unit || 'unidad',
+        precio_unitario: it.unit_price,
+        total: (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0) * (1 - (parseFloat(it.discount) || 0) / 100)
+      }))
+    ];
+  }
+
+  const showOrigenCol = isPM || quoteItems.length > 0;
+
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -305,7 +344,7 @@ function buildOTHtml(ot) {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', Arial, sans-serif;
-      font-size: 11px;
+      font-size: 10px;
       color: #1e293b;
       line-height: 1.4;
       padding: ${isPM ? '8px 15px' : '30px 40px'};
@@ -314,53 +353,53 @@ function buildOTHtml(ot) {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      border-bottom: 3px solid #4338ca;
-      padding-bottom: 8px;
-      margin-bottom: 12px;
+      border-bottom: 2px solid #4338ca;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
     }
     .header-left { display: flex; align-items: center; gap: 15px; }
     .header-right { text-align: right; }
     .ot-number {
-      font-size: 16px;
+      font-size: 14px;
       font-weight: 800;
       color: #4338ca;
       letter-spacing: 1px;
     }
     .ot-label {
-      font-size: 13px;
+      font-size: 11px;
       color: #64748b;
       font-weight: 600;
       text-transform: uppercase;
     }
     .estado-badge {
       display: inline-block;
-      padding: 3px 10px;
+      padding: 2px 6px;
       border-radius: 12px;
       color: white;
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 700;
       text-transform: uppercase;
     }
     .tipo-badge {
       display: inline-block;
-      padding: 3px 10px;
+      padding: 2px 6px;
       border-radius: 12px;
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 700;
       text-transform: uppercase;
     }
     .section {
-      margin-bottom: ${isPM ? '6px' : '18px'};
+      margin-bottom: ${isPM ? '6px' : '12px'};
     }
     .section-title {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       color: #4338ca;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       border-bottom: 1px solid #e2e8f0;
-      padding-bottom: 4px;
-      margin-bottom: 10px;
+      padding-bottom: 2px;
+      margin-bottom: 6px;
     }
     .grid2 {
       display: grid;
@@ -378,32 +417,32 @@ function buildOTHtml(ot) {
       gap: 2px 10px;
     }
     .field label {
-      font-size: 9px;
+      font-size: 8px;
       font-weight: 600;
       color: #94a3b8;
       text-transform: uppercase;
       letter-spacing: 0.3px;
     }
     .field .value {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 500;
       color: #1e293b;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 10px;
+      font-size: 9px;
     }
     thead { background: #f1f5f9; }
     th {
-      padding: 6px 8px;
+      padding: 3px 6px;
       text-align: left;
       font-weight: 700;
       color: #475569;
-      font-size: 9px;
+      font-size: 8px;
       text-transform: uppercase;
       letter-spacing: 0.3px;
-      border-bottom: 2px solid #e2e8f0;
+      border-bottom: 1px solid #e2e8f0;
     }
     td {
       padding: ${isPM ? '3px 6px' : '5px 8px'};
@@ -419,35 +458,44 @@ function buildOTHtml(ot) {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: 15px;
-      margin-top: 10px;
+      padding: 0;
+      margin-top: 6px;
+      width: 250px;
+      float: right;
     }
-    .liq-grid {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 4px 20px;
-      font-size: 11px;
+    .liq-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+    }
+    .liq-table td {
+      padding: 4px 10px;
+      border: none;
     }
     .liq-label { color: #64748b; font-weight: 500; }
     .liq-value { text-align: right; font-weight: 600; }
-    .liq-total {
-      font-size: 16px;
+    .liq-total-row td {
+      background: #0b2f6b;
+      color: white;
+      font-size: 12px;
       font-weight: 800;
-      color: #4338ca;
     }
+    .liq-total-row td:first-child { border-bottom-left-radius: 8px; }
+    .liq-total-row td:last-child { border-bottom-right-radius: 8px; }
     .detail-text {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 6px;
-      padding: 10px;
-      font-size: 11px;
+      padding: 6px;
+      font-size: 10px;
       white-space: pre-wrap;
-      line-height: 1.5;
+      line-height: 1.3;
     }
     .footer {
       margin-top: 15px;
       border-top: 1px solid #e2e8f0;
       padding-top: 10px;
+      clear: both;
     }
     .signatures {
       display: grid;
@@ -462,16 +510,18 @@ function buildOTHtml(ot) {
       font-size: 10px;
       color: #64748b;
       font-weight: 600;
+      text-transform: uppercase;
     }
     .origin-badge {
       display: inline-block;
-      padding: 1px 6px;
+      padding: 2px 6px;
       border-radius: 8px;
       font-size: 8px;
       font-weight: 700;
     }
     .origin-plantilla { background: rgba(67,56,202,0.1); color: #4338ca; }
-    .origin-manual { background: rgba(245,158,11,0.1); color: #f59e0b; }
+    .origin-manual { background: #fdf1e2; color: #9a5b00; }
+    .origin-cotizacion { background: #e0e7ff; color: #0b2f6b; }
     .page-footer {
       position: fixed;
       bottom: 20px;
@@ -512,8 +562,13 @@ function buildOTHtml(ot) {
     <div class="header-right">
       <div class="ot-label">Orden de Trabajo</div>
       <div class="ot-number">${ot.consecutivo}</div>
-      <div style="margin-top: 4px; font-size: 9px; color: #64748b;">
+      <div style="margin-top: 4px; font-size: 9px; color: #64748b; margin-bottom: 4px;">
         Fecha: ${formatDate(ot.created_at)}
+      </div>
+      <div>
+        <span class="tipo-badge" style="${isPM ? 'background:#e6f4ea;color:#1a7a3c;' : 'background:#fef2f2;color:#ef4444;'}">
+          MANTENIMIENTO ${ot.tipo_mantenimiento}
+        </span>
       </div>
     </div>
   </div>
@@ -522,35 +577,46 @@ function buildOTHtml(ot) {
   ${buildPMHeaderSection(ot)}
 
   <!-- Datos Generales -->
-  <div class="section">
-    <div class="section-title">Datos Generales</div>
-    <div class="grid4">
-      <div class="field"><label>Tipo mantenimiento</label><div class="value">${ot.tipo_mantenimiento}</div></div>
-      <div class="field"><label>Empresa</label><div class="value">${ot.empresa_nombre || '—'}</div></div>
-      <div class="field"><label>NIT</label><div class="value">${ot.empresa_nit || '—'}</div></div>
-      <div class="field"><label>Dirección servicio</label><div class="value">${ot.empresa_direccion || '—'}</div></div>  
-      <div class="field"><label>Contacto</label><div class="value">${ot.contacto_empresa || '—'}</div></div>
-      <div class="field"><label>Teléfono contacto</label><div class="value">${ot.telefono_contacto || '—'}</div></div>
-      <div class="field"><label>Correo contacto</label><div class="value">${ot.contacto_email || '—'}</div></div>
-      <div class="field"><label>Equipo</label><div class="value">${ot.equipo_marca} ${ot.equipo_modelo}</div></div>
-      <div class="field"><label>Serial</label><div class="value">${ot.equipo_serial || '—'}</div></div> 
-      <div class="field"><label>Horómetro inicial</label><div class="value">${ot.horometro_inicial ?? '—'}</div></div>
-      <div class="field"><label>Horómetro final</label><div class="value">${ot.horometro_final ?? '—'}</div></div>
-      <div class="field"><label>Responsable</label><div class="value">${ot.responsable || '—'}</div></div>
-    </div>
+  <div class="section" style="background: #f7f9fc; padding: 8px 12px; border-radius: 8px;">
+    <div class="section-title" style="margin-bottom: 2px;">Datos Generales</div>
+    <table style="width:100%; border:none;">
+      <tr>
+        <td style="border:none; padding: 4px; width:33%; vertical-align: top;">
+          <div class="field" style="margin-bottom: 8px;"><label>Empresa</label><div class="value">${ot.empresa_nombre || '—'}</div></div>
+          <div class="field" style="margin-bottom: 8px;"><label>NIT</label><div class="value">${ot.empresa_nit || '—'}</div></div>
+          <div class="field"><label>Equipo</label><div class="value">${ot.equipo_marca || ''} ${ot.equipo_modelo || ''}</div></div>
+        </td>
+        <td style="border:none; padding: 4px; width:33%; vertical-align: top;">
+          <div class="field" style="margin-bottom: 8px;"><label>Serial</label><div class="value">${ot.equipo_serial || '—'}</div></div> 
+          <div class="field" style="margin-bottom: 8px;"><label>Contacto</label><div class="value">${ot.contacto_empresa || '—'}</div></div>
+          <div class="field"><label>Teléfono contacto</label><div class="value">${ot.telefono_contacto || '—'}</div></div>
+        </td>
+        <td style="border:none; padding: 4px; width:33%; vertical-align: top;">
+          <div class="field" style="margin-bottom: 8px;"><label>Correo contacto</label><div class="value">${ot.contacto_email || '—'}</div></div>
+          <div class="field" style="margin-bottom: 8px;"><label>Responsable</label><div class="value">${ot.responsable || '—'}</div></div>
+          <div class="field"><label>Horómetro</label><div class="value">${ot.horometro_inicial ?? '—'} ${ot.horometro_final ? `→ ${ot.horometro_final}` : ''}</div></div>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="3" style="border:none; padding: 4px; padding-top: 12px;">
+          <div class="field"><label>Dirección de servicio</label><div class="value">${ot.empresa_direccion || '—'}</div></div>  
+        </td>
+      </tr>
+    </table>
   </div>
 
   <!-- Detalle del servicio -->
   ${ot.detalle_servicio ? `
   <div class="section">
     <div class="section-title">Detalle del Servicio</div>
-    <div class="detail-text">${ot.detalle_servicio}</div>
+    <div class="detail-text" style="border-left: 4px solid #a41e1e;">${ot.detalle_servicio}</div>
   </div>` : ''}
 
+  <!-- Observaciones -->
   ${ot.observaciones ? `
   <div class="section">
     <div class="section-title">Observaciones</div>
-    <div class="detail-text">${ot.observaciones}</div>
+    <div class="detail-text" style="border-left: 4px solid #4338ca;">${ot.observaciones}</div>
   </div>` : ''}
 
   <!-- Actividades del mantenimiento -->
@@ -583,14 +649,14 @@ function buildOTHtml(ot) {
   </div>` : ''}
 
   <!-- Repuestos e insumos -->
-  ${repuestos.length > 0 ? `
+  ${repuestosDisplay.length > 0 ? `
   <div class="section">
     <div class="section-title">Repuestos e Insumos</div>
     <table>
       <thead>
         <tr>
           <th>Item</th>
-          ${isPM ? '<th>Origen</th>' : ''}
+          ${showOrigenCol ? '<th>Origen</th>' : ''}
           <th class="text-right">Cantidad</th>
           <th>Unidad</th>
           <th class="text-right">P.Unit.</th>
@@ -598,18 +664,18 @@ function buildOTHtml(ot) {
         </tr>
       </thead>
       <tbody>
-        ${repuestos.map(r => `
+        ${repuestosDisplay.map(r => `
         <tr>
           <td>${r.descripcion}</td>
-          ${isPM ? `<td><span class="origin-badge ${r.origen === 'PLANTILLA_PM' ? 'origin-plantilla' : 'origin-manual'}">${r.origen === 'PLANTILLA_PM' ? 'PLANTILLA' : 'MANUAL'}</span></td>` : ''}
+          ${showOrigenCol ? `<td><span class="origin-badge ${r.origen === 'PLANTILLA_PM' ? 'origin-plantilla' : r.origen === 'COTIZACION' ? 'origin-cotizacion' : 'origin-manual'}">${r.origen === 'PLANTILLA_PM' ? 'PLANTILLA' : r.origen === 'COTIZACION' ? 'COTIZACIÓN' : 'MANUAL'}</span></td>` : ''}
           <td class="text-right">${r.cantidad}</td>
           <td>${r.unidad}</td>
           <td class="text-right">${formatCOP(r.precio_unitario)}</td>
           <td class="text-right">${formatCOP(r.total)}</td>
         </tr>`).join('')}
         <tr class="total-row">
-          <td colspan="${isPM ? 5 : 4}" class="text-right">Total Repuestos</td>
-          <td class="text-right">${formatCOP(totalRep)}</td>
+          <td colspan="${showOrigenCol ? 5 : 4}" class="text-right">Total Repuestos</td>
+          <td class="text-right">${formatCOP(repuestosDisplay.reduce((s, r) => s + parseFloat(r.total || 0), 0))}</td>
         </tr>
       </tbody>
     </table>
@@ -617,23 +683,33 @@ function buildOTHtml(ot) {
 
   <!-- Liquidación -->
   ${liq ? `
-  <div class="section">
+  <div class="section" style="overflow:hidden;">
     <div class="section-title">Resumen de Liquidación</div>
     <div class="liq-box">
-      <div class="liq-grid">
-        <div class="liq-label">Total Mano de Obra</div>
-        <div class="liq-value">${formatCOP(liq.total_mano_obra)}</div>
-        <div class="liq-label">Total Repuestos</div>
-        <div class="liq-value">${formatCOP(liq.total_repuestos)}</div>
-        <div class="liq-label">Subtotal</div>
-        <div class="liq-value">${formatCOP(liq.subtotal)}</div>
-        <div class="liq-label">Impuesto (${liq.impuesto_pct}%)</div>
-        <div class="liq-value">${formatCOP(liq.impuesto_valor)}</div>
-        <div class="liq-label liq-total">TOTAL FINAL</div>
-        <div class="liq-value liq-total">${formatCOP(liq.total_final)}</div>
-      </div>
-      ${liq.notas_liquidacion ? `<div style="margin-top:10px;font-size:10px;color:#64748b;">Notas: ${liq.notas_liquidacion}</div>` : ''}
+      <table class="liq-table">
+        <tr>
+          <td class="liq-label">Total Mano de Obra</td>
+          <td class="liq-value">${formatCOP(liq.total_mano_obra)}</td>
+        </tr>
+        <tr>
+          <td class="liq-label">Total Repuestos</td>
+          <td class="liq-value">${formatCOP(liq.total_repuestos)}</td>
+        </tr>
+        <tr>
+          <td class="liq-label">Subtotal</td>
+          <td class="liq-value">${formatCOP(liq.subtotal)}</td>
+        </tr>
+        <tr>
+          <td class="liq-label">Impuesto (${liq.impuesto_pct}%)</td>
+          <td class="liq-value">${formatCOP(liq.impuesto_valor)}</td>
+        </tr>
+        <tr class="liq-total-row">
+          <td class="liq-label" style="border-bottom-left-radius:8px;">TOTAL FINAL</td>
+          <td class="liq-value" style="border-bottom-right-radius:8px;">${formatCOP(liq.total_final)}</td>
+        </tr>
+      </table>
     </div>
+    ${liq.notas_liquidacion ? `<div style="clear:both;text-align:right;margin-top:10px;font-size:10px;color:#64748b;">Notas: ${liq.notas_liquidacion}</div>` : ''}
   </div>` : ''}
 
   <!-- Próximo Mantenimiento (solo OT estándar, no en PM nuevo diseño) -->
@@ -641,17 +717,19 @@ function buildOTHtml(ot) {
 
   <!-- Firmas -->
   <div class="footer">
-    <div class="signatures">
-      <div>
-        <div class="sig-line">Técnico Responsable</div>
-      </div>
-      ${isPM ? `<div>
-        <div class="sig-line">Visto Bueno Supervisor</div>
-      </div>` : ''}
-      <div>
-        <div class="sig-line">Recibido a Conformidad</div>
-      </div>
-    </div>
+    <table style="width:100%; border:none; margin-top:15px;">
+      <tr>
+        <td style="border:none; padding:0; width:${isPM ? '33.33%' : '50%'}; vertical-align:top;">
+          <div class="sig-line" style="margin-right:20px;">Técnico Responsable</div>
+        </td>
+        ${isPM ? `<td style="border:none; padding:0; width:33.33%; vertical-align:top;">
+          <div class="sig-line" style="margin-right:20px;">Visto Bueno Supervisor</div>
+        </td>` : ''}
+        <td style="border:none; padding:0; width:${isPM ? '33.33%' : '50%'}; vertical-align:top;">
+          <div class="sig-line" style="${isPM ? '' : 'margin-left:20px;'}">Recibido a Conformidad</div>
+        </td>
+      </tr>
+    </table>
   </div>
 
   <!-- Pie de página -->

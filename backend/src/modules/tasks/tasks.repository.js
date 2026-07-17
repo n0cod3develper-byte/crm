@@ -80,7 +80,7 @@ export class TasksRepository {
       params.push(relatedId);
     }
     if (search && search.trim() !== '') {
-      conditions.push(`(t.title ILIKE $${i} OR t.codigo ILIKE $${i})`);
+      conditions.push(`t.title ILIKE $${i}`);
       params.push(`%${search.trim()}%`);
       i++;
     }
@@ -225,7 +225,7 @@ export class TasksRepository {
     }
 
     const sql = `
-      SELECT t.id, t.title, t.due_date, t.codigo, t.status, t.priority
+      SELECT t.id, t.title, t.due_date, t.status, t.priority
       FROM tasks t
       ${whereClause}
       ORDER BY t.due_date ASC

@@ -3,6 +3,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { uploadSingle } from '../../config/storage.js';
 import { uploadLimiter } from '../../middleware/rateLimiter.js';
 import * as ctrl from './catalog.controller.js';
+import { verificarPermiso } from '../../middleware/auth.js';
 
 const router = Router();
 router.use(authenticate);
@@ -17,7 +18,7 @@ router.get('/:id',            ctrl.getItem);
 router.post('/',              ctrl.createItem);
 router.post('/:id/imagen',     uploadLimiter, uploadSingle, ctrl.uploadImagen);
 router.put('/:id',            ctrl.updateItem);
-router.delete('/:id',         ctrl.deleteItem);
+router.patch('/:id/stock', verificarPermiso('catalogo', 'editar'), ctrl.patchStock);
 
 // Categorías
 router.post('/categorias',    ctrl.createCategoria);

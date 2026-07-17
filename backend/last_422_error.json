@@ -1,0 +1,5 @@
+{
+  "message": "Error de validación",
+  "details": "El ítem \"BOMBILLA ESTROBOSCOPICA\" no cuenta con suficiente stock disponible (0 unidades disponibles) y debe ser cotizado a través de un proveedor.",
+  "status": 422
+}

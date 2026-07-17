@@ -37,9 +37,10 @@ export function QuotesPage() {
   const location = useLocation();
   const queryClient = useQueryClient();
 
-  // ─── Estado para crear cotización ───────────────────────
+  // ─── Estado para crear / editar cotización ─────────────
   const [isModalOpen, setIsModalOpen] = useState(!!location.state?.prefillQuote);
   const [editingQuote, setEditingQuote] = useState(location.state?.prefillQuote || null);
+  const [isLoadingEdit, setIsLoadingEdit] = useState(false);
 
   // ─── Filtros ─────────────────────────────────────────────
   const [search, setSearch] = useState(() => {
@@ -94,17 +95,38 @@ export function QuotesPage() {
   });
 
   const handleDownloadPDF = async (q) => {
-    const loadingToast = toast.loading('Generando PDF...');
+    const loadingToast = toast.loading('Generando y descargando PDF...');
     try {
-      const { data } = await api.get(`/quotes/${q.id}`);
-      generateQuotePDF(data.data, 'download');
-      toast.success('PDF generado exitosamente', { id: loadingToast });
-    } catch {
-      toast.error('Error al generar PDF', { id: loadingToast });
+      const response = await api.get(`/quotes/${q.id}/pdf`, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(blob);
+      link.download = `cotizacion-${q.quote_number || q.id}.pdf`;
+      link.click();
+      toast.success('PDF descargado con éxito', { id: loadingToast });
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al descargar el PDF', { id: loadingToast });
     }
   };
 
   const handleCreate = () => { setEditingQuote(null); setIsModalOpen(true); };
+
+  // Carga el detalle completo (con items) antes de abrir el modal
+  const handleEdit = async (q) => {
+    setIsLoadingEdit(true);
+    try {
+      const { data } = await api.get(`/quotes/${q.id}`);
+      const fullQuote = data.data;
+      setEditingQuote(fullQuote);
+      setIsModalOpen(true);
+    } catch (err) {
+      toast.error('No se pudo cargar la cotización para editar');
+    } finally {
+      setIsLoadingEdit(false);
+    }
+  };
+
   const handleClose = () => { setIsModalOpen(false); setEditingQuote(null); };
 
   const quotes = data?.data || [];
@@ -256,14 +278,17 @@ export function QuotesPage() {
                             >
                               <Download size={16} />
                             </button>
-                            <button
-                              className="btn btn--ghost btn--sm"
-                              style={{ padding: '0.375rem', color: 'var(--clr-primary-500)' }}
-                              onClick={() => navigate(`/quotes/${q.id}`)}
-                              title="Editar"
-                            >
-                              <Edit2 size={16} />
-                            </button>
+                            {q.status !== 'accepted' && (
+                              <button
+                                className="btn btn--ghost btn--sm"
+                                style={{ padding: '0.375rem', color: '#d97706', opacity: isLoadingEdit ? 0.5 : 1 }}
+                                onClick={() => handleEdit(q)}
+                                disabled={isLoadingEdit}
+                                title="Editar cotización"
+                              >
+                                {isLoadingEdit ? <span className="spinner" style={{ width: 14, height: 14 }} /> : <Edit2 size={16} />}
+                              </button>
+                            )}
                             <button
                               className="btn btn--ghost btn--sm"
                               style={{ padding: '0.375rem', color: 'var(--clr-danger)' }}
@@ -312,15 +337,19 @@ export function QuotesPage() {
         )}
       </main>
 
-      {/* ── Modal: Nueva cotización ────────────────────── */}
-      {isModalOpen && !editingQuote && (
-        <Modal 
-             title="Nueva Cotización" 
-             onClose={handleClose}
-             maxWidth="1100px"
+      {/* ── Modal: Nueva / Editar cotización ───────────── */}
+      {isModalOpen && (
+        <Modal
+          title={editingQuote ? `Editar Cotización ${editingQuote.quote_number}` : 'Nueva Cotización'}
+          onClose={handleClose}
+          maxWidth="1100px"
         >
           <div style={{ width: '100%', minWidth: 'min(90vw, 800px)' }}>
-            <QuoteForm onSuccess={handleClose} onCancel={handleClose} />
+            <QuoteForm
+              quote={editingQuote || undefined}
+              onSuccess={handleClose}
+              onCancel={handleClose}
+            />
           </div>
         </Modal>
       )}

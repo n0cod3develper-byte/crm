@@ -2,6 +2,7 @@ import { query, withTransaction } from '../../config/database.js';
 import { env } from '../../config/env.js';
 import { PMRepository } from './pm.repository.js';
 import { registrarMovimiento } from '../../services/inventoryMovements.service.js';
+import { quotesService } from '../quotes/quotes.service.js';
 
 const pmRepo = new PMRepository();
 
@@ -493,7 +494,7 @@ export class MantenimientoRepository {
   // ==========================================
   // LIQUIDACION (ATÓMICA)
   // ==========================================
-  async liquidarOT(ot_id, notas_liquidacion, impuesto_pct, user_id) {
+  async liquidarOT(ot_id, notas_liquidacion, impuesto_pct, user_id, quote_id = null, quote_snapshot = null) {
       return await withTransaction(async (client) => {
           // 1. Verificar estado actual
           const otRes = await client.query(`SELECT estado, consecutivo, tipo_mantenimiento, equipo_id, horometro_final FROM ordenes_trabajo WHERE id = $1 FOR UPDATE`, [ot_id]);
@@ -560,6 +561,17 @@ export class MantenimientoRepository {
               await client.query(`UPDATE ot_repuestos_insumos SET descargado = TRUE, fecha_descargo = NOW() WHERE id = $1`, [rep.id]);
           }
 
+          // Sumar repuestos de la cotización si existe
+          if (quote_id && quote_snapshot && Array.isArray(quote_snapshot.items)) {
+              const quoteSubtotal = quote_snapshot.items.reduce((acc, it) => {
+                  const qty = parseFloat(it.quantity) || 0;
+                  const price = parseFloat(it.unit_price) || 0;
+                  const discount = parseFloat(it.discount) || 0;
+                  return acc + (qty * price * (1 - discount / 100));
+              }, 0);
+              total_repuestos += quoteSubtotal;
+          }
+
           // 5. Crear Registro Liquidación
           const subtotal = total_mano_obra + total_repuestos;
           const pct = impuesto_pct || 19.0;
@@ -567,9 +579,9 @@ export class MantenimientoRepository {
           const total_final = subtotal + impuesto_valor;
 
           await client.query(`
-              INSERT INTO ot_liquidacion (orden_trabajo_id, total_mano_obra, total_repuestos, subtotal, impuesto_pct, impuesto_valor, total_final, liquidado_por, notas_liquidacion)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-          `, [ot_id, total_mano_obra, total_repuestos, subtotal, pct, impuesto_valor, total_final, user_id, notas_liquidacion]);
+              INSERT INTO ot_liquidacion (orden_trabajo_id, total_mano_obra, total_repuestos, subtotal, impuesto_pct, impuesto_valor, total_final, liquidado_por, notas_liquidacion, quote_id, quote_snapshot)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          `, [ot_id, total_mano_obra, total_repuestos, subtotal, pct, impuesto_valor, total_final, user_id, notas_liquidacion, quote_id, quote_snapshot ? JSON.stringify(quote_snapshot) : null]);
 
           // 6. Cambiar estado
           await client.query(`UPDATE ordenes_trabajo SET estado = 'LIQUIDADA', updated_at = NOW() WHERE id = $1`, [ot_id]);
@@ -587,6 +599,11 @@ export class MantenimientoRepository {
                       WHERE id = $2;
                   `, [finalHoro, equipo_id]);
               }
+          }
+
+          // 7. Si hay cotización, aceptar atómicamente la cotización (deduce su stock interno)
+          if (quote_id) {
+              await quotesService.changeStatus(quote_id, 'accepted', user_id, client);
           }
 
           return { success: true, message: 'La OT fue liquidada y el inventario descargado con éxito y el horómetro del equipo actualizado.' };

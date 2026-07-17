@@ -90,6 +90,8 @@ const BudgetFormPage = lazy(() => import('./pages/Presupuestos/BudgetFormPage').
 const PromptGeneratorPage = lazy(() => import('./pages/Sistemas/PromptGeneratorPage').then(m => ({ default: m.PromptGeneratorPage })));
 
 const SupplierQuotesPage = lazy(() => import('./pages/SupplierQuotes/SupplierQuotesPage').then(m => ({ default: m.SupplierQuotesPage })));
+const QuotesPage = lazy(() => import('./pages/Quotes/QuotesPage').then(m => ({ default: m.QuotesPage })));
+const QuoteDetailPage = lazy(() => import('./pages/Quotes/QuoteDetailPage').then(m => ({ default: m.QuoteDetailPage })));
 const SupplierQuoteForm = lazy(() => import('./pages/SupplierQuotes/SupplierQuoteForm').then(m => ({ default: m.SupplierQuoteForm })));
 const SupplierQuoteDetail = lazy(() => import('./pages/SupplierQuotes/SupplierQuoteDetail').then(m => ({ default: m.SupplierQuoteDetail })));
 const SolicitarCertificadoPage = lazy(() => import('./pages/CertificadosPublico/SolicitarCertificadoPage').then(m => ({ default: m.SolicitarCertificadoPage })));
@@ -174,6 +176,8 @@ function App() {
                 <Route path="/contacts" element={<ProtectedRoute modulo="contactos" accion="ver"><ContactsPage /></ProtectedRoute>} />
                 <Route path="/pipeline" element={<ProtectedRoute modulo="pipeline" accion="ver"><PipelinePage /></ProtectedRoute>} />
                 <Route path="/tasks" element={<ProtectedRoute modulo="tareas" accion="ver"><TasksPage /></ProtectedRoute>} />
+                <Route path="/quotes" element={<ProtectedRoute modulo="cotizaciones" accion="ver"><QuotesPage /></ProtectedRoute>} />
+                <Route path="/quotes/:id" element={<ProtectedRoute modulo="cotizaciones" accion="ver"><QuoteDetailPage /></ProtectedRoute>} />
 
                 {/* Cotizaciones a Proveedores */}
                 <Route path="/supplier-quotes" element={<ProtectedRoute><SupplierQuotesPage /></ProtectedRoute>} />

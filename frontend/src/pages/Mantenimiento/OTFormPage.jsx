@@ -48,6 +48,7 @@ export function OTFormPage() {
   const [showLiquidar, setShowLiquidar] = React.useState(false);
   const [liqNotas, setLiqNotas] = React.useState('');
   const [liqImpuesto, setLiqImpuesto] = React.useState(19);
+  const [selectedQuoteId, setSelectedQuoteId] = React.useState('');
 
   // ─── Cargar datos si estamos editando ───────────────────
   const { data: otData } = useQuery({
@@ -58,6 +59,46 @@ export function OTFormPage() {
     },
     enabled: isEditing,
   });
+
+  const { data: clientQuotesAll } = useQuery({
+    queryKey: ['quotes-by-client', form.empresa_id],
+    queryFn: async () => {
+      const { data } = await api.get('/quotes', { params: { companyId: form.empresa_id, limit: 100 } });
+      return data.data;
+    },
+    enabled: Boolean(form.empresa_id) && !(otData?.estado === 'LIQUIDADA' || otData?.estado === 'CERRADA'),
+  });
+
+  const clientQuotes = React.useMemo(() => {
+    return clientQuotesAll?.filter(q => ['draft', 'sent', 'viewed'].includes(q.status)) || [];
+  }, [clientQuotesAll]);
+
+  const [selectedQuoteDetails, setSelectedQuoteDetails] = React.useState(null);
+
+  React.useEffect(() => {
+    if (selectedQuoteId) {
+      api.get(`/quotes/${selectedQuoteId}`)
+        .then(res => {
+          setSelectedQuoteDetails(res.data.data);
+        })
+        .catch(err => {
+          toast.error("Error al cargar detalles de la cotización");
+          setSelectedQuoteDetails(null);
+        });
+    } else {
+      setSelectedQuoteDetails(null);
+    }
+  }, [selectedQuoteId]);
+
+  const quoteSubtotal = React.useMemo(() => {
+    if (!selectedQuoteDetails || !selectedQuoteDetails.items) return 0;
+    return selectedQuoteDetails.items.reduce((acc, it) => {
+      const qty = parseFloat(it.quantity) || 0;
+      const price = parseFloat(it.unit_price) || 0;
+      const discount = parseFloat(it.discount) || 0;
+      return acc + (qty * price * (1 - discount / 100));
+    }, 0);
+  }, [selectedQuoteDetails]);
 
   const { data: otFirmadaData } = useQuery({
     queryKey: ['ot-firmada', id],
@@ -341,12 +382,15 @@ export function OTFormPage() {
 
   // Repuestos
   const handleSelectItem = (item) => {
+    const costo = parseFloat(item.unit_price || 0);
+    const precioConMarkup = Math.round(costo * 1.23);
+
     addRepMut.mutate({
       item_inventario_id: item.id,
       descripcion: item.nombre_comercial || item.name,
       cantidad: 1,
       unidad: item.unit || 'unidad',
-      precio_unitario: item.unit_price || 0,
+      precio_unitario: precioConMarkup,
       origen: 'MANUAL'
     });
     setInvSearch('');
@@ -386,7 +430,8 @@ export function OTFormPage() {
   };
 
   const totalMO = tecnicos.reduce((s, t) => s + parseFloat(t.total_mano_obra || 0), 0);
-  const totalRep = repuestos.reduce((s, r) => s + parseFloat(r.total || 0), 0);
+  const totalRepManual = repuestos.reduce((s, r) => s + parseFloat(r.total || 0), 0);
+  const totalRep = totalRepManual + quoteSubtotal;
   const subtotal = totalMO + totalRep;
   const impValor = subtotal * (liqImpuesto / 100);
   const totalFinal = subtotal + impValor;
@@ -978,6 +1023,33 @@ export function OTFormPage() {
               onUploadSuccess={() => qc.invalidateQueries({ queryKey: ['ot-firmada', id] })}
             />
 
+            {clientQuotes && clientQuotes.length > 0 && (
+              <div className="input-group">
+                <label className="input-label" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <DollarSign size={16} color="#4338ca" /> Cotización Cliente Asociada (Opcional)
+                </label>
+                <select className="input" value={selectedQuoteId} onChange={(e) => setSelectedQuoteId(e.target.value)}>
+                  <option value="">-- Sin Cotización (Usar repuestos manuales y catálogo) --</option>
+                  {clientQuotes.map(q => (
+                    <option key={q.id} value={q.id}>{q.quote_number} - {fmt(q.total_amount)}</option>
+                  ))}
+                </select>
+                {selectedQuoteDetails && (
+                  <div style={{ background: 'var(--bg-surface)', padding: '1rem', borderRadius: '8px', marginTop: '0.5rem', border: '1px solid var(--border-color)', fontSize: '12px' }}>
+                    <strong>Ítems de la Cotización (Snapshot):</strong>
+                    <ul style={{ marginTop: '0.5rem', paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {selectedQuoteDetails.items?.map(it => (
+                        <li key={it.id}>{it.quantity}x {it.description} - {fmt(it.unit_price)}</li>
+                      ))}
+                    </ul>
+                    <div style={{ marginTop: '0.5rem', color: '#64748b' }}>
+                      * Al liquidar, estos ítems se descontarán automáticamente del inventario y la cotización pasará a estado Aceptada.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div>
               <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <DollarSign size={18} color="#22c55e" /> Resumen de Liquidación
@@ -1021,7 +1093,7 @@ export function OTFormPage() {
                       <button
                         className="btn btn--lg"
                         style={{ background: '#22c55e', color: 'white', fontWeight: 700 }}
-                        onClick={() => liquidarMut.mutate({ notas_liquidacion: liqNotas, impuesto_pct: liqImpuesto })}
+                        onClick={() => liquidarMut.mutate({ notas_liquidacion: liqNotas, impuesto_pct: liqImpuesto, quote_id: selectedQuoteId || null, quote_snapshot: selectedQuoteDetails || null })}
                         disabled={liquidarMut.isPending}
                       >
                         {liquidarMut.isPending ? 'Liquidando...' : '✓ Confirmar Liquidación'}

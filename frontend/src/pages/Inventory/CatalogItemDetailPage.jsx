@@ -7,9 +7,10 @@ import { Topbar } from '../../components/layout/Topbar';
 import { 
   ArrowLeft, Edit2, Package, Wrench, MapPin, 
   Tag, Info, DollarSign, Database, FileText,
-  CheckCircle2, AlertCircle, History, ZoomIn, X
+  CheckCircle2, AlertCircle, History, ZoomIn, X, PlusCircle, MinusCircle
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
+import { StockMovementModal } from '../../components/catalog/StockMovementModal';
 
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -17,14 +18,15 @@ import { es } from 'date-fns/locale';
 export function CatalogItemDetailPage() {
   const { id } = useParams();
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [isMovementModalOpen, setIsMovementModalOpen] = React.useState(false);
   const navigate = useNavigate();
 
-  const { data: itemData, isLoading, error } = useQuery({
+  const { data: itemData, isLoading, error, refetch } = useQuery({
     queryKey: ['catalog-item', id],
     queryFn: () => catalogApi.getItem(id)
   });
 
-  const { data: movementsData, isLoading: movementsLoading } = useQuery({
+  const { data: movementsData, isLoading: movementsLoading, refetch: refetchMovements } = useQuery({
     queryKey: ['item-movements', id],
     queryFn: async () => {
       const { data } = await api.get('/movements', { params: { inventario_id: id, limit: 100 } });
@@ -45,6 +47,11 @@ export function CatalogItemDetailPage() {
   );
 
   const item = itemData.data;
+
+  const handleMovementSuccess = () => {
+    refetch();
+    refetchMovements();
+  };
 
   return (
     <div className="app-layout">
@@ -327,11 +334,11 @@ export function CatalogItemDetailPage() {
 
               {/* Acciones de Negocio */}
               <div className="flex flex-col gap-2">
-                <button className="btn btn--secondary flex items-center justify-center gap-2 w-full">
-                  <History size={18} /> Ver Historial de Movimientos
+                <button onClick={() => setIsMovementModalOpen(true)} className="btn btn--primary flex items-center justify-center gap-2 w-full">
+                  <PlusCircle size={18} /> Registrar Movimiento
                 </button>
-                <button className="btn btn--ghost flex items-center justify-center gap-2 w-full">
-                  <FileText size={18} /> Imprimir Ficha Técnica
+                <button className="btn btn--secondary flex items-center justify-center gap-2 w-full">
+                  <History size={18} /> Ver Historial Completo
                 </button>
               </div>
 
@@ -339,6 +346,15 @@ export function CatalogItemDetailPage() {
           </div>
         </div>
       </main>
+
+      {/* Modal de Movimientos */}
+      {isMovementModalOpen && (
+        <StockMovementModal
+          item={item}
+          onClose={() => setIsMovementModalOpen(false)}
+          onSuccess={handleMovementSuccess}
+        />
+      )}
 
       {/* Modal de Imagen Ampliada */}
       {isModalOpen && (
