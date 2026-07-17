@@ -3,6 +3,23 @@ import { NotFoundError } from '../../utils/errors.js';
 
 const repo = new InventoryRepository();
 
+/**
+ * Map legacy frontend field names to current DB column names.
+ * After migration 019, unit_cost → costo_reposicion, stock_current → stock_actual.
+ */
+function mapFrontendFields(body) {
+  const data = { ...body };
+  if ('unit_cost' in data) {
+    data.costo_reposicion = data.unit_cost;
+    delete data.unit_cost;
+  }
+  if ('stock_current' in data) {
+    data.stock_actual = data.stock_current;
+    delete data.stock_current;
+  }
+  return data;
+}
+
 export const inventoryController = {
   async list(req, res, next) {
     try {
@@ -38,7 +55,7 @@ export const inventoryController = {
 
   async create(req, res, next) {
     try {
-      const item = await repo.create(req.body);
+      const item = await repo.create(mapFrontendFields(req.body));
       res.status(201).json({ success: true, data: item });
     } catch (err) { 
       if (err.code === '23505') { // unique violation (SKU)
@@ -50,7 +67,7 @@ export const inventoryController = {
 
   async update(req, res, next) {
     try {
-      const item = await repo.update(req.params.id, req.body);
+      const item = await repo.update(req.params.id, mapFrontendFields(req.body));
       if (!item) throw new NotFoundError('Item de inventario');
       res.json({ success: true, data: item });
     } catch (err) { 
