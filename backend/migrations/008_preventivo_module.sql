@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS pm_actividades (
   nombre          VARCHAR(200) NOT NULL,
   descripcion     TEXT,
   requiere_firma  BOOLEAN      NOT NULL DEFAULT FALSE,
-  activo          BOOLEAN      NOT NULL DEFAULT TRUE
+  activo          BOOLEAN      NOT NULL DEFAULT TRUE,
+  UNIQUE(frecuencia_id, nombre)
 );
 
 -- 3. Insumos/repuestos estándar por frecuencia (vinculados al inventario)
@@ -112,7 +113,7 @@ INSERT INTO pm_actividades (frecuencia_id, orden, nombre) VALUES
   ('a0000000-0000-0000-0000-000000000250', 7, 'FILTRO MOTOR'),
   ('a0000000-0000-0000-0000-000000000250', 8, 'FILTRO BOMBA GASOLINA'),
   ('a0000000-0000-0000-0000-000000000250', 9, 'MANO DE OBRA')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (frecuencia_id, nombre) DO NOTHING;
 
 -- Actividades de la frecuencia 2500 horas
 INSERT INTO pm_actividades (frecuencia_id, orden, nombre) VALUES
@@ -127,7 +128,7 @@ INSERT INTO pm_actividades (frecuencia_id, orden, nombre) VALUES
   ('a0000000-0000-0000-0000-000000002500', 9, 'ACEITE DIFERENCIAL'),
   ('a0000000-0000-0000-0000-000000002500', 10, 'ACEITE CAJA'),
   ('a0000000-0000-0000-0000-000000002500', 11, 'MANO DE OBRA')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (frecuencia_id, nombre) DO NOTHING;
 
 -- Actividades de la frecuencia 1250 horas
 INSERT INTO pm_actividades (frecuencia_id, orden, nombre) VALUES
@@ -142,4 +143,4 @@ INSERT INTO pm_actividades (frecuencia_id, orden, nombre) VALUES
   ('a0000000-0000-0000-0000-000000001250', 9, 'FILTRO BOMBA GASOLINA'),
   ('a0000000-0000-0000-0000-000000001250', 10, 'ACEITE CAJA'),
   ('a0000000-0000-0000-0000-000000001250', 11, 'MANO DE OBRA')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (frecuencia_id, nombre) DO NOTHING;

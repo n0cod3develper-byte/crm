@@ -133,14 +133,9 @@ export function OTFormPage() {
   // --- Carga de equipos (solo OPERATIVOS de la empresa seleccionada) ---
 
   const { data: equiposData, isLoading: loadingEquipos } = useQuery({
-    queryKey: ['equipos-empresa-operativos', form.empresa_id, isEditing ? form.equipo_id : null],
+    queryKey: ['equipos-empresa', form.empresa_id, isEditing ? form.equipo_id : null],
     queryFn: async () => {
-      const params = { estado: 'OPERATIVO' };
-      // En edicion: incluir el equipo actual aunque no sea OPERATIVO
-      // para no romper OTs ya creadas con equipos en otro estado
-      if (isEditing && form.equipo_id) {
-        params.include_id = form.equipo_id;
-      }
+      const params = {};
       const { data } = await api.get(`/equipos/by-company/${form.empresa_id}`, { params });
       return data.data || [];
     },
@@ -212,7 +207,11 @@ export function OTFormPage() {
 
   const updateTecMut = useMutation({
     mutationFn: ({ tid, body }) => api.put(`/mantenimiento/ot/${id}/tecnicos/${tid}`, body),
-    onSuccess: () => { toast.success('Técnico actualizado'); qc.invalidateQueries({ queryKey: ['ot-detail', id] }); },
+    onSuccess: () => { 
+      toast.success('Técnico actualizado'); 
+      qc.invalidateQueries({ queryKey: ['ot-detail', id] }); 
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Error al actualizar técnico'),
   });
 
   const delTecMut = useMutation({
@@ -278,7 +277,7 @@ export function OTFormPage() {
         next.pm_frecuencia_id = '';
       }
       if (name === 'equipo_id') {
-        const equipoSeleccionado = equipos.find(eq => eq.id === value);
+        const equipoSeleccionado = equipos.find(eq => String(eq.id) === String(value));
         if (equipoSeleccionado && equipoSeleccionado.horometro_actual != null) {
           next.horometro_inicial = equipoSeleccionado.horometro_actual;
         }
@@ -310,6 +309,7 @@ export function OTFormPage() {
     if (form.tipo_mantenimiento === 'PREVENTIVO' && !form.pm_frecuencia_id) {
       return toast.error('Debes seleccionar una frecuencia para el mantenimiento preventivo');
     }
+    // Guardamos la OT sin interferir con los tiempos de los técnicos
     saveMut.mutate(form);
   };
 
@@ -653,10 +653,10 @@ export function OTFormPage() {
                       return (
                         <tr key={t.id}>
                           <td style={{ fontWeight: 600 }}>{t.full_name}</td>
-                          <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} defaultValue={t.fecha_salida?.substring(0, 10) || ''} onChange={e => handleTecTimeChange(t.id, 'fecha_salida', e.target.value)} disabled={isLiqOrClosed} /></td>
-                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} defaultValue={t.hora_salida?.substring(0, 5) || ''} onChange={e => handleTecTimeChange(t.id, 'hora_salida', e.target.value)} disabled={isLiqOrClosed} /></td>
-                          <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} defaultValue={t.fecha_regreso?.substring(0, 10) || ''} onChange={e => handleTecTimeChange(t.id, 'fecha_regreso', e.target.value)} disabled={isLiqOrClosed} /></td>
-                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} defaultValue={t.hora_regreso?.substring(0, 5) || ''} onChange={e => handleTecTimeChange(t.id, 'hora_regreso', e.target.value)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.fecha_salida ?? (t.fecha_salida?.substring(0, 10) || '')} onChange={e => handleTecTimeChange(t.id, 'fecha_salida', e.target.value)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.hora_salida ?? (t.hora_salida?.substring(0, 5) || '')} onChange={e => handleTecTimeChange(t.id, 'hora_salida', e.target.value)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.fecha_regreso ?? (t.fecha_regreso?.substring(0, 10) || '')} onChange={e => handleTecTimeChange(t.id, 'fecha_regreso', e.target.value)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.hora_regreso ?? (t.hora_regreso?.substring(0, 5) || '')} onChange={e => handleTecTimeChange(t.id, 'hora_regreso', e.target.value)} disabled={isLiqOrClosed} /></td>
                           <td style={{ textAlign: 'right', fontSize: '12px' }}>
                             {t.tiempo_total_min != null ? `${Math.floor(t.tiempo_total_min / 60)}h ${t.tiempo_total_min % 60}m` : '—'}
                           </td>

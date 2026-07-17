@@ -158,6 +158,117 @@ function buildNextMaintenanceSection(ot) {
 }
 
 /**
+ * Genera la parte superior del PDF para Mantenimiento Preventivo
+ * con el formato exacto solicitado.
+ */
+function buildPMTop(ot, logoHtml) {
+  return `
+  <!-- Top PM Header according to Image -->
+  <table style="width: 100%; font-family: Arial, sans-serif; font-size: 11px; margin-bottom: 2px;">
+    <tr>
+      <td style="width: 25%; vertical-align: middle;">
+        ${logoHtml}
+      </td>
+      <td style="width: 25%; vertical-align: middle; font-size: 9px;">
+        <b>CARGAR S.A.S</b><br/>
+        NIT: 890919352-2<br/>
+        TEL: 444 7773 EXT 113<br/>
+        CALLE 31 No. 41 51 ITAGUI -<br/>
+        ANTIOQUIA
+      </td>
+      <td style="width: 25%; vertical-align: middle; text-align: center;">
+        <b style="font-size: 14px;">ORDEN DE TRABAJO</b><br/>
+        <b style="font-size: 14px;">No. ${ot.consecutivo || ''}</b><br/><br/>
+        <span style="font-size: 10px;">MANTENIMIENTO PREVENTIVO</span><br/>
+        <span style="font-size: 10px;">CADA ${ot.frecuencia_nombre ? ot.frecuencia_nombre.toUpperCase() : ''}</span>
+      </td>
+      <td style="width: 25%; vertical-align: middle; text-align: right; font-size: 12px;">
+        FECHA: ${formatDate(ot.created_at)}<br/><br/>
+        FECHA ENTREGA: ___/___/___
+      </td>
+    </tr>
+  </table>
+  <hr style="border: 1px solid black; margin-bottom: 5px; margin-top: 2px;" />
+
+  <table style="width: 100%; font-family: Arial, sans-serif; font-size: 11px; margin-bottom: 5px;">
+    <tr>
+      <td style="width: 50%; vertical-align: top;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr><td style="text-align: right; width: 120px; padding-right: 10px; color: #555; height: 18px;">CLIENTE</td><td style="text-transform: uppercase;">${ot.empresa_nombre || ''} - ${ot.empresa_nit || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">EQUIPO:</td><td style="text-transform: uppercase;">MONTACARGAS</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">MARCA:</td><td style="text-transform: uppercase;">${ot.equipo_marca || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">MODELO:</td><td style="text-transform: uppercase;">${ot.equipo_modelo || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">SERIE</td><td style="text-transform: uppercase;">${ot.equipo_serial || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">CÓDIGO</td><td style="text-transform: uppercase;">${ot.equipo_serial || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">HOROMETRO:</td><td style="border-bottom: 1px solid black;">${ot.horometro_inicial || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">AUTORIZADO POR:</td><td style="text-transform: uppercase;">${ot.responsable || ''}</td></tr>
+        </table>
+      </td>
+      <td style="width: 50%; vertical-align: bottom;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr><td style="text-align: right; width: 140px; padding-right: 10px; color: #555; height: 18px;">COTIZACIÓN No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">ORDEN DE COMPRA No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">SDC No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Salida Cargar.:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Llegada Cliente:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Salida Cliente:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Llegada Cargar:</td><td style="border-bottom: 1px solid black;"></td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+  `;
+}
+
+function buildPMActividadesSection(ot) {
+  const actividades = ot.pm_actividades || [];
+  
+  const rows = actividades.map(a => `
+    <tr>
+      <td style="border: 1px solid #ccc; padding: 2px 4px; text-transform: uppercase; font-weight: 500;">${a.nombre}</td>
+      <td style="border: 1px solid #ccc; padding: 2px 4px;"></td>
+      <td style="border: 1px solid #ccc; padding: 2px 4px;"></td>
+      <td style="border: 1px solid #ccc; padding: 2px 4px;"></td>
+      <td style="border: 1px solid #ccc; padding: 2px 4px;"></td>
+    </tr>`).join('');
+
+  // 1 fila en blanco al final para no ocupar tanto espacio
+  const blankRows = Array(1).fill(0).map(() => `
+    <tr>
+      <td style="border: 1px solid #ccc; padding: 6px 4px;"></td>
+      <td style="border: 1px solid #ccc; padding: 6px 4px;"></td>
+      <td style="border: 1px solid #ccc; padding: 6px 4px;"></td>
+      <td style="border: 1px solid #ccc; padding: 6px 4px;"></td>
+      <td style="border: 1px solid #ccc; padding: 6px 4px;"></td>
+    </tr>`).join('');
+
+  return `
+  <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10px; margin-bottom: 5px;">
+    <thead>
+      <tr>
+        <th colspan="5" style="text-align: center; border: 1px solid #ccc; padding: 4px; color: #555; background-color: #f8fafc; font-size: 11px; text-transform: uppercase;">DESCRIPCIÓN DEL SERVICIO Y REPUESTOS NECESARIOS</th>
+      </tr>
+      <tr>
+        <th style="border: 1px solid #ccc; padding: 3px; text-align: center; color: #555; background-color: #f8fafc; width: 35%;">DETALLE</th>
+        <th style="border: 1px solid #ccc; padding: 3px; text-align: center; color: #555; background-color: #f8fafc; width: 40px;">CANT</th>
+        <th style="border: 1px solid #ccc; padding: 3px; text-align: center; color: #555; background-color: #f8fafc; width: 60px;">ESTADO</th>
+        <th style="border: 1px solid #ccc; padding: 3px; text-align: center; color: #555; background-color: #f8fafc; width: 80px;">TÉCNICO</th>
+        <th style="border: 1px solid #ccc; padding: 3px; text-align: center; color: #555; background-color: #f8fafc;">OBSERVACIÓN</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+      ${blankRows}
+      <tr>
+        <td colspan="4" style="border: 1px solid #ccc; text-align: right; padding: 4px; font-weight: bold; color: #555;">TOTAL</td>
+        <td style="border: 1px solid #ccc; padding: 4px;"></td>
+      </tr>
+    </tbody>
+  </table>
+  `;
+}
+
+/**
  * Genera el HTML completo del PDF de la Orden de Trabajo.
  */
 function buildOTHtml(ot) {
@@ -196,8 +307,8 @@ function buildOTHtml(ot) {
       font-family: 'Segoe UI', Arial, sans-serif;
       font-size: 11px;
       color: #1e293b;
-      line-height: 1.5;
-      padding: 30px 40px;
+      line-height: 1.4;
+      padding: ${isPM ? '8px 15px' : '30px 40px'};
     }
     .header {
       display: flex;
@@ -239,7 +350,7 @@ function buildOTHtml(ot) {
       text-transform: uppercase;
     }
     .section {
-      margin-bottom: 18px;
+      margin-bottom: ${isPM ? '6px' : '18px'};
     }
     .section-title {
       font-size: 12px;
@@ -295,8 +406,8 @@ function buildOTHtml(ot) {
       border-bottom: 2px solid #e2e8f0;
     }
     td {
-      padding: 5px 8px;
-      border-bottom: 1px solid #f1f5f9;
+      padding: ${isPM ? '3px 6px' : '5px 8px'};
+      border-bottom: ${isPM ? 'none' : '1px solid #f1f5f9'};
     }
     .text-right { text-align: right; }
     .total-row {
@@ -334,15 +445,15 @@ function buildOTHtml(ot) {
       line-height: 1.5;
     }
     .footer {
-      margin-top: 40px;
+      margin-top: 15px;
       border-top: 1px solid #e2e8f0;
-      padding-top: 20px;
+      padding-top: 10px;
     }
     .signatures {
       display: grid;
       grid-template-columns: 1fr 1fr ${isPM ? '1fr' : ''};
-      gap: 40px;
-      margin-top: 30px;
+      gap: 20px;
+      margin-top: 15px;
     }
     .sig-line {
       border-top: 1px solid #1e293b;
@@ -376,7 +487,23 @@ function buildOTHtml(ot) {
   </style>
 </head>
 <body>
+  ${isPM ? `
+  ${buildPMTop(ot, logoHtml)}
+  
+  <!-- Detalle del servicio y Observaciones (si las hay) -->
+  ${ot.detalle_servicio ? `
+  <div class="section" style="margin-bottom: 10px;">
+    <div class="section-title" style="font-size:10px;">Detalle del Servicio</div>
+    <div class="detail-text">${ot.detalle_servicio}</div>
+  </div>` : ''}
+  ${ot.observaciones ? `
+  <div class="section" style="margin-bottom: 10px;">
+    <div class="section-title" style="font-size:10px;">Observaciones</div>
+    <div class="detail-text">${ot.observaciones}</div>
+  </div>` : ''}
 
+  ${buildPMActividadesSection(ot)}
+  ` : `
   <!-- Encabezado -->
   <div class="header">
     <div class="header-left">
@@ -428,27 +555,28 @@ function buildOTHtml(ot) {
 
   <!-- Actividades del mantenimiento -->
   ${buildActividadesSection(ot)}
+  `}
 
   <!-- Técnicos asignados -->
   ${tecnicos.length > 0 ? `
   <div class="section">
     <div class="section-title">Técnicos Asignados</div>
-    <table>
+    <table style="${isPM ? 'border-collapse: collapse; border: 1px solid #ccc;' : ''}">
       <thead>
         <tr>
-          <th>Técnico</th>
-          <th>Fecha/Hora Salida</th>
-          <th>Fecha/Hora Regreso</th>
-          <th class="text-right">Tiempo</th>
+          <th style="${isPM ? 'border: 1px solid #ccc; background:#f8fafc;' : ''}">Técnico</th>
+          <th style="${isPM ? 'border: 1px solid #ccc; background:#f8fafc;' : ''}">Fecha/Hora Salida</th>
+          <th style="${isPM ? 'border: 1px solid #ccc; background:#f8fafc;' : ''}">Fecha/Hora Regreso</th>
+          <th class="text-right" style="${isPM ? 'border: 1px solid #ccc; background:#f8fafc;' : ''}">Tiempo</th>
         </tr>
       </thead>
       <tbody>
         ${tecnicos.map(t => `
         <tr>
-          <td>${t.full_name}</td>
-          <td>${formatDate(t.fecha_salida)} ${formatTime(t.hora_salida)}</td>
-          <td>${formatDate(t.fecha_regreso)} ${formatTime(t.hora_regreso)}</td>
-          <td class="text-right">${formatMinutes(t.tiempo_total_min)}</td>
+          <td style="${isPM ? 'border: 1px solid #ccc;' : ''}">${t.full_name}</td>
+          <td style="${isPM ? 'border: 1px solid #ccc;' : ''}">${formatDate(t.fecha_salida)} ${formatTime(t.hora_salida)}</td>
+          <td style="${isPM ? 'border: 1px solid #ccc;' : ''}">${formatDate(t.fecha_regreso)} ${formatTime(t.hora_regreso)}</td>
+          <td class="text-right" style="${isPM ? 'border: 1px solid #ccc;' : ''}">${formatMinutes(t.tiempo_total_min)}</td>
         </tr>`).join('')}
       </tbody>
     </table>
@@ -508,8 +636,8 @@ function buildOTHtml(ot) {
     </div>
   </div>` : ''}
 
-  <!-- Próximo Mantenimiento (solo PM) -->
-  ${isPM ? buildNextMaintenanceSection(ot) : ''}
+  <!-- Próximo Mantenimiento (solo OT estándar, no en PM nuevo diseño) -->
+  ${!isPM && ot.tipo_mantenimiento === 'PREVENTIVO' ? buildNextMaintenanceSection(ot) : ''}
 
   <!-- Firmas -->
   <div class="footer">
@@ -567,10 +695,13 @@ export async function generateOTPdf(ot) {
       await page.setContent(html, { waitUntil: 'domcontentloaded' });
 
       logger.debug('Generating PDF buffer');
+      const isPMOT = ot.tipo_mantenimiento === 'PREVENTIVO';
       const pdfBuffer = await page.pdf({
         format: 'Letter',
         printBackground: true,
-        margin: { top: '20px', bottom: '50px', left: '0', right: '0' },
+        margin: isPMOT
+          ? { top: '5px', bottom: '5px', left: '0', right: '0' }
+          : { top: '20px', bottom: '50px', left: '0', right: '0' },
       });
 
       return Buffer.from(pdfBuffer);

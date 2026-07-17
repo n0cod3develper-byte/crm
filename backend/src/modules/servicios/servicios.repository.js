@@ -296,7 +296,7 @@ export class ServiciosRepository {
     const userStr = user ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.email : 'Sistema';
     return await withTransaction(async (client) => {
       // 1. Obtener estado y equipo actuales
-      const currentRes = await client.query('SELECT equipo_id, estado, numero_remision FROM remisiones WHERE id = $1', [id]);
+      const currentRes = await client.query('SELECT equipo_id, estado, numero_remision, horometro_regreso FROM remisiones WHERE id = $1', [id]);
       const current = currentRes.rows[0];
       if (!current) return null;
 
@@ -427,6 +427,25 @@ export class ServiciosRepository {
               [new_equipo_id, current_eq_state, target_estado, motivo, userStr]
             );
           }
+        }
+      }
+
+      // C. Actualizar horómetro del equipo al pasar a REALIZADA
+      if (new_estado === 'REALIZADA' && new_equipo_id) {
+        // Usar el horometro_regreso del data actualizado o el que ya tenía la remisión
+        const horometro_llegada = data.horometro_regreso !== undefined
+          ? data.horometro_regreso
+          : (updatedRem?.horometro_regreso ?? current.horometro_regreso);
+        const horoVal = parseFloat(horometro_llegada);
+        if (!isNaN(horoVal) && horoVal > 0) {
+          await client.query(
+            `UPDATE equipos SET
+               horometro_actual = GREATEST(horometro_actual, $1),
+               fecha_horometro  = CURRENT_DATE,
+               updated_at       = NOW()
+             WHERE id = $2`,
+            [horoVal, new_equipo_id]
+          );
         }
       }
 
