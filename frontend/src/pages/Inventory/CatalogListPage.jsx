@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { formatCurrency } from '../../utils/formatters';
 import { usePermissions } from '../../contexts/PermissionsContext';
 import { useQueryClient } from '@tanstack/react-query';
-import { StockAdjustModal } from '../../components/inventory/StockAdjustModal';
+import { StockAdjustModal } from '../../components/Inventory/StockAdjustModal';
 import { Topbar } from '../../components/layout/Topbar';
 
 export function CatalogListPage() {
