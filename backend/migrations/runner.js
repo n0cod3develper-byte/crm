@@ -113,7 +113,8 @@ const MIGRATION_FILES = [
   '080_quote_items_extended_fields.sql',
   '081_fix_autorizado_por_fk.sql',
   '082_add_supplier_quote_id.sql',
-  '083_ot_liquidacion_quotes.sql'
+  '083_ot_liquidacion_quotes.sql',
+  '084_fix_tipo_legacy_default.sql'
 ];
 
 async function ensureMigrationsTable(client) {

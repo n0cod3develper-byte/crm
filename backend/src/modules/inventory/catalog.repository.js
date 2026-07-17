@@ -294,11 +294,11 @@ export class CatalogRepository {
       if (delta !== 0) {
         const tipoMovimiento = delta > 0 ? 'ENTRADA_AJUSTE' : 'SALIDA_AJUSTE';
         await movimientoService.registrarMovimiento({
-          itemId: id,
-          tipoMovimiento,
+          inventario_id: id,
+          tipo_movimiento: tipoMovimiento,
           cantidad: Math.abs(delta),
-          motivo: motivo || (tipoMovimiento === 'ENTRADA_AJUSTE' ? 'Ajuste de stock +': 'Ajuste de stock -'),
-          registradoPor: userId,
+          notas: motivo || (tipoMovimiento === 'ENTRADA_AJUSTE' ? 'Ajuste de stock +' : 'Ajuste de stock -'),
+          registrado_por: userId,
         });
       }
 

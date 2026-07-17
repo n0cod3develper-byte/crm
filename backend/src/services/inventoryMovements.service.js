@@ -143,9 +143,24 @@ export async function registrarMovimiento(datos, client = null) {
       ? await obtenerNombreProveedor(conn, datos.proveedor_id)
       : datos.proveedor_nombre_libre || null;
 
+    // Mapear tipo_movimiento a tipo_legacy para compatibilidad
+    const tipoLegacyMap = {
+      'ENTRADA_COMPRA': 'in',
+      'ENTRADA_OC': 'in',
+      'ENTRADA_DEVOLUCION': 'in',
+      'ENTRADA_AJUSTE': 'in',
+      'TRASLADO_ENTRADA': 'in',
+      'SALIDA_OT': 'out',
+      'SALIDA_AJUSTE': 'out',
+      'SALIDA_DEVOLUCION': 'out',
+      'TRASLADO_SALIDA': 'out',
+    };
+    const tipoLegacy = tipoLegacyMap[datos.tipo_movimiento] || 'adjustment';
+
     const movResult = await conn.query(`
       INSERT INTO movimientos_inventario (
         inventario_id,
+        tipo_legacy,
         tipo_movimiento,
         tipo_documento,
         numero_documento,
@@ -168,12 +183,13 @@ export async function registrarMovimiento(datos, client = null) {
         notas,
         registrado_por
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
-        $12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
+        $13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23
       )
       RETURNING *
     `, [
       datos.inventario_id,
+      tipoLegacy,
       datos.tipo_movimiento,
       datos.tipo_documento    || 'FACTURA',
       datos.numero_documento  || null,

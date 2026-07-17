@@ -209,10 +209,10 @@ export const quotesService = {
 
               await client.query(
                 `INSERT INTO movimientos_inventario (
-                  inventario_id, tipo_movimiento, cantidad, numero_documento, notas, registrado_por,
+                  inventario_id, tipo_legacy, tipo_movimiento, cantidad, numero_documento, notas, registrado_por,
                   stock_antes, stock_despues, costo_promedio_antes, costo_promedio_despues,
                   precio_unitario, subtotal
-                ) VALUES ($1, 'SALIDA_OT', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+                ) VALUES ($1, 'out', 'SALIDA_OT', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
                 [
                   item.inventario_id,
                   Math.round(qty),
