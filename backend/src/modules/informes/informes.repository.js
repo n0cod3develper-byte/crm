@@ -885,6 +885,411 @@ export class InformesRepository {
     });
   }
 
+  // =============================================
+  // MANTENIMIENTO KPI 4: Ventas Reales vs Presupuesto por Línea de Negocio
+  // Real = suma de ot_liquidacion.total_final por tipo (mano_obra / repuestos)
+  // Presupuesto = budget_mantenimiento_mensual cruzado con budget_business_lines
+  // =============================================
+  async getVentasVsPresupuestoMantenimiento(fecha_inicio, fecha_fin) {
+    const params = [];
+    let i = 1;
+    const dateConditions = ["ot.estado = 'LIQUIDADA'", "ot.deleted_at IS NULL"];
+
+    if (fecha_inicio) {
+      dateConditions.push(`otl.fecha_liquidacion >= $${i++}::date`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      dateConditions.push(`otl.fecha_liquidacion <= ($${i++}::date + interval '1 day')`);
+      params.push(fecha_fin);
+    }
+
+    // Real: una sola query con SUM(CASE) para evitar duplicar parámetros en UNION ALL
+    const realSql = `
+      SELECT
+        COALESCE(SUM(otl.total_mano_obra), 0)  AS mano_obra_real,
+        COALESCE(SUM(otl.total_repuestos),  0)  AS repuestos_real
+      FROM ordenes_trabajo ot
+      JOIN ot_liquidacion otl ON otl.orden_trabajo_id = ot.id
+      WHERE ${dateConditions.join(' AND ')}
+    `;
+    const realRes = await query(realSql, params);
+
+    // Presupuesto: suma de amounts en budget_mantenimiento_mensual filtrado por año/mes
+    const dIni = fecha_inicio ? new Date(fecha_inicio + 'T00:00:00') : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const dFin = fecha_fin    ? new Date(fecha_fin    + 'T00:00:00') : new Date();
+
+    const startYear  = dIni.getFullYear();
+    const startMonth = dIni.getMonth() + 1;
+    const endYear    = dFin.getFullYear();
+    const endMonth   = dFin.getMonth() + 1;
+
+    const budgetSql = `
+      SELECT
+        bl.nombre AS linea_negocio,
+        COALESCE(SUM(bmm.amount), 0) AS total_presupuesto
+      FROM budget_business_lines bl
+      LEFT JOIN budget_mantenimiento_mensual bmm ON bmm.linea_negocio_id = bl.id
+        AND make_date(bmm.year, bmm.month, 1) >= make_date($1, $2, 1)
+        AND make_date(bmm.year, bmm.month, 1) <= make_date($3, $4, 1)
+      WHERE bl.is_active = true
+      GROUP BY bl.id, bl.nombre
+      ORDER BY bl.id
+    `;
+    const budgetRes = await query(budgetSql, [startYear, startMonth, endYear, endMonth]);
+
+    // Combinar en mapa: realRes es 1 sola fila con ambas columnas
+    const realRow = realRes.rows[0] || {};
+    const dataMap = {
+      'Mano de Obra':        { real: parseFloat(realRow.mano_obra_real || 0), presupuesto: 0 },
+      'Repuestos o Insumos': { real: parseFloat(realRow.repuestos_real  || 0), presupuesto: 0 },
+    };
+
+    budgetRes.rows.forEach(r => {
+      if (dataMap[r.linea_negocio] !== undefined) {
+        dataMap[r.linea_negocio].presupuesto = parseFloat(r.total_presupuesto || 0);
+      }
+    });
+
+    return Object.entries(dataMap).map(([linea_negocio, vals]) => ({
+      linea_negocio,
+      real: vals.real,
+      presupuesto: vals.presupuesto,
+      cumplimiento_pct: vals.presupuesto > 0
+        ? parseFloat(((vals.real / vals.presupuesto) * 100).toFixed(1))
+        : null
+    }));
+  }
+
+  // =============================================
+  // MANTENIMIENTO KPI 4.1: Ventas Reales vs Presupuesto Mensual
+  // Agrupa ventas y presupuesto por mes
+  // =============================================
+  async getVentasVsPresupuestoMensualMantenimiento(fecha_inicio, fecha_fin) {
+    // 1. Ventas reales agrupadas por mes
+    const salesConditions = ["ot.estado = 'LIQUIDADA'", "ot.deleted_at IS NULL"];
+    const salesParams = [];
+    let i = 1;
+
+    if (fecha_inicio) {
+      salesConditions.push(`otl.fecha_liquidacion >= $${i++}::date`);
+      salesParams.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      salesConditions.push(`otl.fecha_liquidacion <= ($${i++}::date + interval '1 day')`);
+      salesParams.push(fecha_fin);
+    }
+
+    const salesSql = `
+      SELECT
+        to_char(date_trunc('month', otl.fecha_liquidacion), 'YYYY-MM') AS mes,
+        COALESCE(SUM(otl.total_mano_obra), 0) + COALESCE(SUM(otl.total_repuestos), 0) AS real
+      FROM ordenes_trabajo ot
+      JOIN ot_liquidacion otl ON otl.orden_trabajo_id = ot.id
+      WHERE ${salesConditions.join(' AND ')}
+      GROUP BY date_trunc('month', otl.fecha_liquidacion)
+      ORDER BY mes ASC
+    `;
+    const salesRes = await query(salesSql, salesParams);
+    const salesMap = new Map(salesRes.rows.map(r => [r.mes, parseFloat(r.real || 0)]));
+
+    // 2. Presupuesto mensual agrupado por año y mes
+    const dIni = fecha_inicio ? new Date(fecha_inicio + 'T00:00:00') : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const dFin = fecha_fin    ? new Date(fecha_fin    + 'T00:00:00') : new Date();
+
+    const startYear  = dIni.getFullYear();
+    const startMonth = dIni.getMonth() + 1;
+    const endYear    = dFin.getFullYear();
+    const endMonth   = dFin.getMonth() + 1;
+
+    const budgetSql = `
+      SELECT
+        bmm.year,
+        bmm.month,
+        COALESCE(SUM(bmm.amount), 0) AS presupuesto
+      FROM budget_mantenimiento_mensual bmm
+      JOIN budget_business_lines bl ON bl.id = bmm.linea_negocio_id
+      WHERE bl.is_active = true
+        AND make_date(bmm.year, bmm.month, 1) >= make_date($1, $2, 1)
+        AND make_date(bmm.year, bmm.month, 1) <= make_date($3, $4, 1)
+      GROUP BY bmm.year, bmm.month
+      ORDER BY bmm.year ASC, bmm.month ASC
+    `;
+    const budgetRes = await query(budgetSql, [startYear, startMonth, endYear, endMonth]);
+    const budgetMap = new Map(
+      budgetRes.rows.map(r => [
+        `${r.year}-${String(r.month).padStart(2, '0')}`,
+        parseFloat(r.presupuesto || 0)
+      ])
+    );
+
+    // 3. Combinar meses
+    const allMonths = Array.from(
+      new Set([...salesMap.keys(), ...budgetMap.keys()])
+    ).sort();
+
+    return allMonths.map(mes => {
+      const real        = salesMap.get(mes)  || 0;
+      const presupuesto = budgetMap.get(mes) || 0;
+      const cumplimiento_pct = presupuesto > 0
+        ? parseFloat(((real / presupuesto) * 100).toFixed(1))
+        : null;
+      return { mes, real, presupuesto, cumplimiento_pct };
+    });
+  }
+
+  // =============================================
+  // MANTENIMIENTO KPI 5: Horas Laboradas por Técnico
+  // Basado en ot_tecnicos.tiempo_total_min de OTs liquidadas
+  // =============================================
+  async getHorasTecnicosMantenimiento(fecha_inicio, fecha_fin) {
+    const conditions = ["ot.estado = 'LIQUIDADA'", "ot.deleted_at IS NULL"];
+    const params = [];
+    let i = 1;
+
+    if (fecha_inicio) {
+      conditions.push(`otl.fecha_liquidacion >= $${i++}::date`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`otl.fecha_liquidacion <= ($${i++}::date + interval '1 day')`);
+      params.push(fecha_fin);
+    }
+
+    const sql = `
+      SELECT
+        em.full_name                                     AS tecnico,
+        COUNT(DISTINCT ot.id)                            AS total_ordenes,
+        SUM(COALESCE(ott.tiempo_total_min, 0)) / 60.0   AS total_horas
+      FROM ordenes_trabajo ot
+      JOIN ot_liquidacion otl ON otl.orden_trabajo_id = ot.id
+      JOIN ot_tecnicos    ott ON ott.orden_trabajo_id  = ot.id
+      JOIN employees       em ON em.id = ott.empleado_id
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY em.id, em.full_name
+      HAVING SUM(COALESCE(ott.tiempo_total_min, 0)) > 0
+      ORDER BY total_horas DESC
+    `;
+    const result = await query(sql, params);
+    return result.rows.map(r => ({
+      tecnico:       r.tecnico,
+      total_ordenes: parseInt(r.total_ordenes),
+      total_horas:   parseFloat(parseFloat(r.total_horas).toFixed(2))
+    }));
+  }
+
+  // =============================================
+  // MANTENIMIENTO KPI 6: Disponibilidad de Flota (Downtime)
+  // =============================================
+  async getDisponibilidadFlotaMantenimiento(fecha_inicio, fecha_fin) {
+    const conditions = ["ot.estado = 'LIQUIDADA'", "ot.deleted_at IS NULL"];
+    const params = [];
+    let i = 1;
+
+    if (fecha_inicio) {
+      conditions.push(`otl.fecha_liquidacion >= $${i++}::date`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`otl.fecha_liquidacion <= ($${i++}::date + interval '1 day')`);
+      params.push(fecha_fin);
+    }
+
+    const sqlDowntime = `
+      SELECT
+        COALESCE(e.marca || ' - ' || COALESCE(e.modelo, e.serial), 'Sin Equipo') AS equipo_nombre,
+        SUM(
+          EXTRACT(EPOCH FROM (otl.fecha_liquidacion - ot.created_at)) / 3600.0
+        )::numeric(10,2) AS downtime_horas
+      FROM ordenes_trabajo ot
+      JOIN ot_liquidacion otl ON otl.orden_trabajo_id = ot.id
+      LEFT JOIN equipos e ON e.id = ot.equipo_id
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY e.id, e.marca, e.modelo, e.serial
+      ORDER BY downtime_horas DESC
+    `;
+    const resDowntime = await query(sqlDowntime, params);
+
+    const downtimeData = resDowntime.rows.map(r => ({
+      equipo_nombre:  r.equipo_nombre,
+      downtime_horas: parseFloat(parseFloat(r.downtime_horas || 0).toFixed(2))
+    }));
+
+    // Calcular % disponibilidad global
+    const dIni = fecha_inicio ? new Date(fecha_inicio + 'T00:00:00')
+                              : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const dFin = fecha_fin    ? new Date(fecha_fin + 'T00:00:00') : new Date();
+    const diffDays    = Math.max(Math.ceil(Math.abs(dFin - dIni) / (1000 * 60 * 60 * 24)), 1);
+    const periodHours = diffDays * 24;
+
+    const resTotalEquipos = await query(`SELECT COUNT(*) AS total FROM equipos WHERE deleted_at IS NULL`);
+    const totalEquipos    = Math.max(parseInt(resTotalEquipos.rows[0]?.total || 0), 1);
+
+    const totalDowntime    = downtimeData.reduce((acc, cur) => acc + cur.downtime_horas, 0);
+    const horasFlotaTotal  = totalEquipos * periodHours;
+    const disponibilidad   = Math.max(
+      parseFloat((((horasFlotaTotal - totalDowntime) / horasFlotaTotal) * 100).toFixed(2)),
+      0
+    );
+
+    return {
+      disponibilidad_porcentaje: disponibilidad,
+      top_equipos_downtime:      downtimeData.slice(0, 5)
+    };
+  }
+
+  // =============================================
+  // MANTENIMIENTO KPI 7: Costo por Equipo
+  // =============================================
+  async getCostoPorEquipo(fecha_inicio, fecha_fin, empresa_id) {
+    const params = [];
+    let i = 1;
+    const conditions = ["ot.estado = 'LIQUIDADA'", "ot.deleted_at IS NULL"];
+
+    if (fecha_inicio) {
+      conditions.push(`otl.fecha_liquidacion >= $${i++}::date`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`otl.fecha_liquidacion <= ($${i++}::date + interval '1 day')`);
+      params.push(fecha_fin);
+    }
+    if (empresa_id) {
+      conditions.push(`ot.empresa_id = $${i++}`);
+      params.push(empresa_id);
+    }
+
+    const sql = `
+      SELECT
+        e.id AS equipo_id,
+        e.marca,
+        e.modelo,
+        e.serial,
+        c.name AS empresa_nombre,
+        COALESCE(SUM(otl.total_mano_obra), 0) AS total_mano_obra,
+        COALESCE(SUM(otl.total_repuestos), 0) AS total_repuestos,
+        COALESCE(SUM(otl.total_mano_obra), 0) + COALESCE(SUM(otl.total_repuestos), 0) AS costo_total
+      FROM ordenes_trabajo ot
+      JOIN ot_liquidacion otl ON ot.id = otl.orden_trabajo_id
+      JOIN equipos e ON ot.equipo_id = e.id
+      JOIN companies c ON ot.empresa_id = c.id
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY e.id, e.marca, e.modelo, e.serial, c.name
+      ORDER BY costo_total DESC
+    `;
+
+    const res = await query(sql, params);
+    return res.rows.map(r => ({
+      ...r,
+      total_mano_obra: parseFloat(r.total_mano_obra),
+      total_repuestos: parseFloat(r.total_repuestos),
+      costo_total: parseFloat(r.costo_total)
+    }));
+  }
+
+  // =============================================
+  // MANTENIMIENTO KPI 8: Reincidencia de Fallas
+  // =============================================
+  async getReincidenciaFallas(fecha_inicio, fecha_fin, empresa_id, dias_ventana = 30) {
+    const params = [];
+    let i = 1;
+    // Solo correctivos liquidado que tengan componente
+    const conditions = [
+      "ot.estado = 'LIQUIDADA'", 
+      "ot.deleted_at IS NULL",
+      "ot.tipo_mantenimiento = 'CORRECTIVO'",
+      "ot.componente_id IS NOT NULL"
+    ];
+
+    if (fecha_inicio) {
+      conditions.push(`otl.fecha_liquidacion >= $${i++}::date`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`otl.fecha_liquidacion <= ($${i++}::date + interval '1 day')`);
+      params.push(fecha_fin);
+    }
+    if (empresa_id) {
+      conditions.push(`ot.empresa_id = $${i++}`);
+      params.push(empresa_id);
+    }
+
+    // Buscamos todas las OTs correctivas en el periodo
+    // y luego agrupamos por equipo_id y componente_id
+    const sql = `
+      SELECT
+        ot.id AS ot_id,
+        ot.equipo_id,
+        ot.componente_id,
+        mc.nombre AS componente_nombre,
+        e.marca,
+        e.modelo,
+        e.serial,
+        c.name AS empresa_nombre,
+        otl.fecha_liquidacion
+      FROM ordenes_trabajo ot
+      JOIN ot_liquidacion otl ON ot.id = otl.orden_trabajo_id
+      JOIN mantenimiento_componentes mc ON ot.componente_id = mc.id
+      JOIN equipos e ON ot.equipo_id = e.id
+      JOIN companies c ON ot.empresa_id = c.id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY ot.equipo_id, ot.componente_id, otl.fecha_liquidacion ASC
+    `;
+
+    const res = await query(sql, params);
+    const OTs = res.rows;
+    
+    // Total de ordenes evaluadas
+    const total_ordenes_correctivas = OTs.length;
+    let ordenes_reincidentes_count = 0;
+    const casos_reincidencia = [];
+
+    // Agrupar por equipo + componente
+    const grupos = {};
+    for (const ot of OTs) {
+      const key = `${ot.equipo_id}_${ot.componente_id}`;
+      if (!grupos[key]) grupos[key] = [];
+      grupos[key].push(ot);
+    }
+
+    for (const key in grupos) {
+      const historial = grupos[key];
+      // Evaluamos pares consecutivos
+      for (let j = 1; j < historial.length; j++) {
+        const prev = historial[j - 1];
+        const curr = historial[j];
+        
+        const diffMs = new Date(curr.fecha_liquidacion) - new Date(prev.fecha_liquidacion);
+        const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        
+        if (diffDias <= dias_ventana) {
+          // Es una reincidencia
+          ordenes_reincidentes_count++;
+          casos_reincidencia.push({
+            equipo: `${curr.marca} ${curr.modelo} (${curr.serial})`,
+            empresa: curr.empresa_nombre,
+            componente: curr.componente_nombre,
+            ot_anterior_id: prev.ot_id,
+            ot_actual_id: curr.ot_id,
+            fecha_anterior: prev.fecha_liquidacion,
+            fecha_actual: curr.fecha_liquidacion,
+            dias_transcurridos: diffDias
+          });
+        }
+      }
+    }
+
+    const reincidencia_pct = total_ordenes_correctivas > 0 
+      ? ((ordenes_reincidentes_count / total_ordenes_correctivas) * 100).toFixed(1)
+      : 0;
+
+    return {
+      total_ordenes_correctivas,
+      ordenes_reincidentes_count,
+      reincidencia_pct: parseFloat(reincidencia_pct),
+      casos: casos_reincidencia
+    };
+  }
 }
 
 // Utility: format decimal hours to "Xh Ym"

@@ -12,4 +12,23 @@ router.get('/equipos-mas-mantenimientos', informesController.getEquiposMasManten
 // Distribución por tipo de mantenimiento (Correctivo / Preventivo)
 router.get('/tipo-mantenimiento', informesController.getTipoMantenimiento);
 
+// ── NUEVOS KPIs ──
+// Ventas reales vs presupuesto
+router.get('/ventas-vs-presupuesto', informesController.getVentasVsPresupuestoMantenimiento);
+
+// Ventas reales vs presupuesto mensual (tendencia)
+router.get('/ventas-vs-presupuesto-mensual', informesController.getVentasVsPresupuestoMensualMantenimiento);
+
+// Horas laboradas por técnico
+router.get('/horas-tecnicos', informesController.getHorasTecnicosMantenimiento);
+
+// Disponibilidad de flota / downtime
+router.get('/disponibilidad-flota', informesController.getDisponibilidadFlotaMantenimiento);
+
+// Costo por Equipo
+router.get('/costo-por-equipo', informesController.getCostoPorEquipoMantenimiento);
+
+// Reincidencia de Fallas
+router.get('/reincidencia-fallas', informesController.getReincidenciaFallasMantenimiento);
+
 export default router;
