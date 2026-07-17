@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import { Plus, Trash2, ShieldAlert, AlertTriangle, Check, Layers, UserCheck } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
+import { SearchableSelect } from '../ui/SearchableSelect';
 
 const itemSchema = z.object({
   description: z.string().min(1, 'Descripción obligatoria'),
@@ -249,10 +250,26 @@ export function QuoteForm({ quote, onSuccess, onCancel }) {
           <div className="flex gap-4">
             <div className="input-group w-full">
               <label className="input-label">Empresa / Cliente</label>
-              <select {...register('company_id')} className="input">
-                <option value="">— Seleccionar cliente —</option>
-                {companies?.map(c => <option key={c.id} value={c.id}>{c.name} {c.nit ? `(${c.nit})` : ''}</option>)}
-              </select>
+              <SearchableSelect
+                placeholder="Buscar cliente por nombre o nit..."
+                value={watch('company_id')}
+                onChange={(val) => setValue('company_id', val ? String(val) : '')}
+                fetchFn={async (searchTerm) => {
+                  const { data } = await api.get('/companies', { params: { search: searchTerm, limit: 50 } });
+                  return data.data || [];
+                }}
+                getOptionLabel={(item) => item.name}
+                renderOption={(item, { isHighlighted, isSelected }) => (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{item.name}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>NIT: {item.nit || 'Sin NIT'}</div>
+                    </div>
+                    {isSelected && <Check size={16} style={{ color: 'var(--clr-primary-500)' }} />}
+                  </div>
+                )}
+                initialItem={companies?.find(c => String(c.id) === String(watch('company_id')))}
+              />
             </div>
             <div className="input-group w-full">
               <label className="input-label">Oportunidad Vinculada</label>
