@@ -11,7 +11,7 @@ import { z } from 'zod';
 const registerSchema = z.object({
   nombre: z.string().min(2),
   apellido: z.string().min(2),
-  email: z.string().email(),
+  token: z.string().min(1, 'Token de invitación requerido'),
   password: z.string().min(6)
 });
 
