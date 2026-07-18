@@ -118,7 +118,8 @@ const MIGRATION_FILES = [
   '085_budget_mantenimiento.sql',
   '086_mantenimiento_componentes.sql',
   '087_add_componente_to_ordenes.sql',
-  '088_add_mime_type_documentos.sql'
+  '088_add_mime_type_documentos.sql',
+  '089_add_employee_missing_columns.sql'
 ];
 
 async function ensureMigrationsTable(client) {
