@@ -117,7 +117,8 @@ const MIGRATION_FILES = [
   '084_fix_tipo_legacy_default.sql',
   '085_budget_mantenimiento.sql',
   '086_mantenimiento_componentes.sql',
-  '087_add_componente_to_ordenes.sql'
+  '087_add_componente_to_ordenes.sql',
+  '088_add_mime_type_documentos.sql'
 ];
 
 async function ensureMigrationsTable(client) {
