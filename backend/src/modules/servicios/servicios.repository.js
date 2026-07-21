@@ -305,7 +305,7 @@ export class ServiciosRepository {
       const values = [];
       let i = 1;
       const allowed = [
-        'fecha_servicio', 'hora_acordada', 'forma_pago',
+        'company_id', 'fecha_servicio', 'hora_acordada', 'forma_pago',
         'catalogo_servicio_id', 'equipo_id', 'solicitado_por', 'solicitado_por_id',
         'direccion_servicio', 'numero_maquina',
         'hora_salida_cargar', 'hora_llegada_cliente', 'hora_salida_cliente', 'hora_llegada_cargar',

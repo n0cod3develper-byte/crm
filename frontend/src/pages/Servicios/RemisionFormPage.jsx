@@ -846,7 +846,7 @@ export function RemisionFormPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>
             <div>
               <label style={label}>Fecha del Servicio *</label>
-              <input type="date" {...inputProps('fecha_servicio')} required />
+              <input type="date" {...inputProps('fecha_servicio', { disabled: isEditing && !esAdmin() })} required />
             </div>
             <div>
               <label style={label}>Hora Acordada</label>
@@ -875,7 +875,7 @@ export function RemisionFormPage() {
                 placeholder="Buscar cliente por nombre o NIT..."
                 noOptionsMessage="No se encontraron empresas con ese nombre o NIT"
                 errorMessage="Error al buscar empresas. Verifica la conexión."
-                disabled={isReadOnly}
+                disabled={isReadOnly || (isEditing && !esAdmin())}
               />
             </div>
             <div>
