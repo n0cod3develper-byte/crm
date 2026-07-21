@@ -281,6 +281,68 @@ function buildPMActividadesSection(ot) {
 }
 
 /**
+ * Genera la parte superior del PDF para Mantenimiento Correctivo
+ * con el mismo formato visual que el Preventivo.
+ */
+function buildCMTop(ot, logoHtml) {
+  return `
+  <!-- Top CM Header - mismo estilo que PM -->
+  <table style="width: 100%; font-family: Arial, sans-serif; font-size: 11px; margin-bottom: 2px;">
+    <tr>
+      <td style="width: 25%; vertical-align: middle;">
+        ${logoHtml}
+      </td>
+      <td style="width: 25%; vertical-align: middle; font-size: 9px;">
+        <b>CARGAR S.A.S</b><br/>
+        NIT: 890919352-2<br/>
+        TEL: 444 7773 EXT 113<br/>
+        CALLE 31 No. 41 51 ITAGUI -<br/>
+        ANTIOQUIA
+      </td>
+      <td style="width: 25%; vertical-align: middle; text-align: center;">
+        <b style="font-size: 14px;">ORDEN DE TRABAJO</b><br/>
+        <b style="font-size: 14px;">No. ${ot.consecutivo || ''}</b><br/><br/>
+        <span style="font-size: 10px;">MANTENIMIENTO CORRECTIVO</span>
+      </td>
+      <td style="width: 25%; vertical-align: middle; text-align: right; font-size: 12px;">
+        FECHA: ${formatDate(ot.created_at)}<br/><br/>
+        FECHA ENTREGA: ___/___/___
+      </td>
+    </tr>
+  </table>
+  <hr style="border: 1px solid black; margin-bottom: 5px; margin-top: 2px;" />
+
+  <table style="width: 100%; font-family: Arial, sans-serif; font-size: 11px; margin-bottom: 5px;">
+    <tr>
+      <td style="width: 50%; vertical-align: top;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr><td style="text-align: right; width: 120px; padding-right: 10px; color: #555; height: 18px;">CLIENTE</td><td style="text-transform: uppercase;">${ot.empresa_nombre || ''} - ${ot.empresa_nit || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">EQUIPO:</td><td style="text-transform: uppercase;">MONTACARGAS</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">MARCA:</td><td style="text-transform: uppercase;">${ot.equipo_marca || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">MODELO:</td><td style="text-transform: uppercase;">${ot.equipo_modelo || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">SERIE</td><td style="text-transform: uppercase;">${ot.equipo_serial || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">CÓDIGO</td><td style="text-transform: uppercase;">${ot.equipo_serial || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">HOROMETRO:</td><td style="border-bottom: 1px solid black;">${ot.horometro_inicial || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">AUTORIZADO POR:</td><td style="text-transform: uppercase;">${ot.responsable || ''}</td></tr>
+        </table>
+      </td>
+      <td style="width: 50%; vertical-align: bottom;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr><td style="text-align: right; width: 140px; padding-right: 10px; color: #555; height: 18px;">COTIZACIÓN No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">ORDEN DE COMPRA No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">SDC No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Salida Cargar.:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Llegada Cliente:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Salida Cliente:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Llegada Cargar:</td><td style="border-bottom: 1px solid black;"></td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+  `;
+}
+
+/**
  * Genera el HTML completo del PDF de la Orden de Trabajo.
  */
 function buildOTHtml(ot) {
@@ -347,7 +409,7 @@ function buildOTHtml(ot) {
       font-size: 10px;
       color: #1e293b;
       line-height: 1.4;
-      padding: ${isPM ? '8px 15px' : '30px 40px'};
+      padding: 8px 15px;
     }
     .header {
       display: flex;
@@ -389,7 +451,7 @@ function buildOTHtml(ot) {
       text-transform: uppercase;
     }
     .section {
-      margin-bottom: ${isPM ? '6px' : '12px'};
+      margin-bottom: 6px;
     }
     .section-title {
       font-size: 11px;
@@ -445,8 +507,8 @@ function buildOTHtml(ot) {
       border-bottom: 1px solid #e2e8f0;
     }
     td {
-      padding: ${isPM ? '3px 6px' : '5px 8px'};
-      border-bottom: ${isPM ? 'none' : '1px solid #f1f5f9'};
+      padding: 3px 6px;
+      border-bottom: none;
     }
     .text-right { text-align: right; }
     .total-row {
@@ -499,7 +561,7 @@ function buildOTHtml(ot) {
     }
     .signatures {
       display: grid;
-      grid-template-columns: 1fr 1fr ${isPM ? '1fr' : ''};
+      grid-template-columns: 1fr 1fr;
       gap: 20px;
       margin-top: 15px;
     }
@@ -554,69 +616,21 @@ function buildOTHtml(ot) {
 
   ${buildPMActividadesSection(ot)}
   ` : `
-  <!-- Encabezado -->
-  <div class="header">
-    <div class="header-left">
-      ${logoHtml}
-    </div>
-    <div class="header-right">
-      <div class="ot-label">Orden de Trabajo</div>
-      <div class="ot-number">${ot.consecutivo}</div>
-      <div style="margin-top: 4px; font-size: 9px; color: #64748b; margin-bottom: 4px;">
-        Fecha: ${formatDate(ot.created_at)}
-      </div>
-      <div>
-        <span class="tipo-badge" style="${isPM ? 'background:#e6f4ea;color:#1a7a3c;' : 'background:#fef2f2;color:#ef4444;'}">
-          MANTENIMIENTO ${ot.tipo_mantenimiento}
-        </span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Sección PM Header (solo preventivo) -->
-  ${buildPMHeaderSection(ot)}
-
-  <!-- Datos Generales -->
-  <div class="section" style="background: #f7f9fc; padding: 8px 12px; border-radius: 8px;">
-    <div class="section-title" style="margin-bottom: 2px;">Datos Generales</div>
-    <table style="width:100%; border:none;">
-      <tr>
-        <td style="border:none; padding: 4px; width:33%; vertical-align: top;">
-          <div class="field" style="margin-bottom: 8px;"><label>Empresa</label><div class="value">${ot.empresa_nombre || '—'}</div></div>
-          <div class="field" style="margin-bottom: 8px;"><label>NIT</label><div class="value">${ot.empresa_nit || '—'}</div></div>
-          <div class="field"><label>Equipo</label><div class="value">${ot.equipo_marca || ''} ${ot.equipo_modelo || ''}</div></div>
-        </td>
-        <td style="border:none; padding: 4px; width:33%; vertical-align: top;">
-          <div class="field" style="margin-bottom: 8px;"><label>Serial</label><div class="value">${ot.equipo_serial || '—'}</div></div> 
-          <div class="field" style="margin-bottom: 8px;"><label>Contacto</label><div class="value">${ot.contacto_empresa || '—'}</div></div>
-          <div class="field"><label>Teléfono contacto</label><div class="value">${ot.telefono_contacto || '—'}</div></div>
-        </td>
-        <td style="border:none; padding: 4px; width:33%; vertical-align: top;">
-          <div class="field" style="margin-bottom: 8px;"><label>Correo contacto</label><div class="value">${ot.contacto_email || '—'}</div></div>
-          <div class="field" style="margin-bottom: 8px;"><label>Responsable</label><div class="value">${ot.responsable || '—'}</div></div>
-          <div class="field"><label>Horómetro</label><div class="value">${ot.horometro_inicial ?? '—'} ${ot.horometro_final ? `→ ${ot.horometro_final}` : ''}</div></div>
-        </td>
-      </tr>
-      <tr>
-        <td colspan="3" style="border:none; padding: 4px; padding-top: 12px;">
-          <div class="field"><label>Dirección de servicio</label><div class="value">${ot.empresa_direccion || '—'}</div></div>  
-        </td>
-      </tr>
-    </table>
-  </div>
+  <!-- Encabezado Correctivo - mismo estilo visual que Preventivo -->
+  ${buildCMTop(ot, logoHtml)}
 
   <!-- Detalle del servicio -->
   ${ot.detalle_servicio ? `
-  <div class="section">
-    <div class="section-title">Detalle del Servicio</div>
-    <div class="detail-text" style="border-left: 4px solid #a41e1e;">${ot.detalle_servicio}</div>
+  <div class="section" style="margin-bottom: 8px;">
+    <div class="section-title" style="font-size:10px;">DETALLE DEL SERVICIO</div>
+    <div class="detail-text" style="border-left: 4px solid #a41e1e; font-family: Arial, sans-serif;">${ot.detalle_servicio}</div>
   </div>` : ''}
 
   <!-- Observaciones -->
   ${ot.observaciones ? `
-  <div class="section">
-    <div class="section-title">Observaciones</div>
-    <div class="detail-text" style="border-left: 4px solid #4338ca;">${ot.observaciones}</div>
+  <div class="section" style="margin-bottom: 8px;">
+    <div class="section-title" style="font-size:10px;">OBSERVACIONES</div>
+    <div class="detail-text" style="border-left: 4px solid #555; font-family: Arial, sans-serif;">${ot.observaciones}</div>
   </div>` : ''}
 
   <!-- Actividades del mantenimiento -->
@@ -627,22 +641,22 @@ function buildOTHtml(ot) {
   ${tecnicos.length > 0 ? `
   <div class="section">
     <div class="section-title">Técnicos Asignados</div>
-    <table style="${isPM ? 'border-collapse: collapse; border: 1px solid #ccc;' : ''}">
+    <table style="border-collapse: collapse; border: 1px solid #ccc;">
       <thead>
         <tr>
-          <th style="${isPM ? 'border: 1px solid #ccc; background:#f8fafc;' : ''}">Técnico</th>
-          <th style="${isPM ? 'border: 1px solid #ccc; background:#f8fafc;' : ''}">Fecha/Hora Salida</th>
-          <th style="${isPM ? 'border: 1px solid #ccc; background:#f8fafc;' : ''}">Fecha/Hora Regreso</th>
-          <th class="text-right" style="${isPM ? 'border: 1px solid #ccc; background:#f8fafc;' : ''}">Tiempo</th>
+          <th style="border: 1px solid #ccc; background:#f8fafc;">Técnico</th>
+          <th style="border: 1px solid #ccc; background:#f8fafc;">Fecha/Hora Salida</th>
+          <th style="border: 1px solid #ccc; background:#f8fafc;">Fecha/Hora Regreso</th>
+          <th class="text-right" style="border: 1px solid #ccc; background:#f8fafc;">Tiempo</th>
         </tr>
       </thead>
       <tbody>
         ${tecnicos.map(t => `
         <tr>
-          <td style="${isPM ? 'border: 1px solid #ccc;' : ''}">${t.full_name}</td>
-          <td style="${isPM ? 'border: 1px solid #ccc;' : ''}">${formatDate(t.fecha_salida)} ${formatTime(t.hora_salida)}</td>
-          <td style="${isPM ? 'border: 1px solid #ccc;' : ''}">${formatDate(t.fecha_regreso)} ${formatTime(t.hora_regreso)}</td>
-          <td class="text-right" style="${isPM ? 'border: 1px solid #ccc;' : ''}">${formatMinutes(t.tiempo_total_min)}</td>
+          <td style="border: 1px solid #ccc;">${t.full_name}</td>
+          <td style="border: 1px solid #ccc;">${formatDate(t.fecha_salida)} ${formatTime(t.hora_salida)}</td>
+          <td style="border: 1px solid #ccc;">${formatDate(t.fecha_regreso)} ${formatTime(t.hora_regreso)}</td>
+          <td class="text-right" style="border: 1px solid #ccc;">${formatMinutes(t.tiempo_total_min)}</td>
         </tr>`).join('')}
       </tbody>
     </table>
@@ -777,9 +791,7 @@ export async function generateOTPdf(ot) {
       const pdfBuffer = await page.pdf({
         format: 'Letter',
         printBackground: true,
-        margin: isPMOT
-          ? { top: '5px', bottom: '5px', left: '0', right: '0' }
-          : { top: '20px', bottom: '50px', left: '0', right: '0' },
+        margin: { top: '5px', bottom: '5px', left: '0', right: '0' },
       });
 
       return Buffer.from(pdfBuffer);

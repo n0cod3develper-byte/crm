@@ -350,7 +350,15 @@ export function OTFormPage() {
     if (form.tipo_mantenimiento === 'PREVENTIVO' && !form.pm_frecuencia_id) {
       return toast.error('Debes seleccionar una frecuencia para el mantenimiento preventivo');
     }
-    // Guardamos la OT sin interferir con los tiempos de los técnicos
+    
+    if (isEditing) {
+      // Guardar automáticamente los tiempos de los técnicos que hayan sido modificados
+      Object.keys(tecTimers).forEach(tid => {
+        handleSaveTecTimes(tid);
+      });
+    }
+
+    // Guardamos la OT
     saveMut.mutate(form);
   };
 
@@ -369,13 +377,18 @@ export function OTFormPage() {
   };
   const handleSaveTecTimes = (tid) => {
     const t = tecnicos.find(x => x.id === tid);
+    if (!t) return;
     const timers = tecTimers[tid] || {};
+    
+    const extractDate = (val, old) => val !== undefined ? val : (old ? old.substring(0, 10) : '');
+    const extractTime = (val, old) => val !== undefined ? val : (old ? old.substring(0, 5) : '');
+    
     updateTecMut.mutate({
       tid, body: {
-        fecha_salida: timers.fecha_salida || t.fecha_salida,
-        hora_salida: timers.hora_salida || t.hora_salida,
-        fecha_regreso: timers.fecha_regreso || t.fecha_regreso,
-        hora_regreso: timers.hora_regreso || t.hora_regreso,
+        fecha_salida: extractDate(timers.fecha_salida, t.fecha_salida) || null,
+        hora_salida: extractTime(timers.hora_salida, t.hora_salida) || null,
+        fecha_regreso: extractDate(timers.fecha_regreso, t.fecha_regreso) || null,
+        hora_regreso: extractTime(timers.hora_regreso, t.hora_regreso) || null,
       }
     });
   };
@@ -698,10 +711,10 @@ export function OTFormPage() {
                       return (
                         <tr key={t.id}>
                           <td style={{ fontWeight: 600 }}>{t.full_name}</td>
-                          <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.fecha_salida ?? (t.fecha_salida?.substring(0, 10) || '')} onChange={e => handleTecTimeChange(t.id, 'fecha_salida', e.target.value)} disabled={isLiqOrClosed} /></td>
-                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.hora_salida ?? (t.hora_salida?.substring(0, 5) || '')} onChange={e => handleTecTimeChange(t.id, 'hora_salida', e.target.value)} disabled={isLiqOrClosed} /></td>
-                          <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.fecha_regreso ?? (t.fecha_regreso?.substring(0, 10) || '')} onChange={e => handleTecTimeChange(t.id, 'fecha_regreso', e.target.value)} disabled={isLiqOrClosed} /></td>
-                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.hora_regreso ?? (t.hora_regreso?.substring(0, 5) || '')} onChange={e => handleTecTimeChange(t.id, 'hora_regreso', e.target.value)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.fecha_salida ?? (t.fecha_salida?.substring(0, 10) || '')} onChange={e => handleTecTimeChange(t.id, 'fecha_salida', e.target.value)} onBlur={() => handleSaveTecTimes(t.id)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.hora_salida ?? (t.hora_salida?.substring(0, 5) || '')} onChange={e => handleTecTimeChange(t.id, 'hora_salida', e.target.value)} onBlur={() => handleSaveTecTimes(t.id)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.fecha_regreso ?? (t.fecha_regreso?.substring(0, 10) || '')} onChange={e => handleTecTimeChange(t.id, 'fecha_regreso', e.target.value)} onBlur={() => handleSaveTecTimes(t.id)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.hora_regreso ?? (t.hora_regreso?.substring(0, 5) || '')} onChange={e => handleTecTimeChange(t.id, 'hora_regreso', e.target.value)} onBlur={() => handleSaveTecTimes(t.id)} disabled={isLiqOrClosed} /></td>
                           <td style={{ textAlign: 'right', fontSize: '12px' }}>
                             {t.tiempo_total_min != null ? `${Math.floor(t.tiempo_total_min / 60)}h ${t.tiempo_total_min % 60}m` : '—'}
                           </td>
