@@ -267,7 +267,7 @@ export class MantenimientoRepository {
   }
 
   async updateTecnico(ot_id, tid, data) {
-      const { fecha_salida, hora_salida, fecha_regreso, hora_regreso } = data;
+      const { fecha_salida, hora_salida, hora_llegada_cliente, hora_salida_cliente, fecha_regreso, hora_regreso } = data;
       
       let tiempo_total_min = null;
       let total_mano_obra = 0;
@@ -288,9 +288,9 @@ export class MantenimientoRepository {
 
       const res = await query(`
           UPDATE ot_tecnicos 
-          SET fecha_salida = $1, hora_salida = $2, fecha_regreso = $3, hora_regreso = $4, tiempo_total_min = $5, total_mano_obra = $6
+          SET fecha_salida = $1, hora_salida = $2, fecha_regreso = $3, hora_regreso = $4, tiempo_total_min = $5, total_mano_obra = $6, hora_llegada_cliente = $9, hora_salida_cliente = $10
           WHERE id = $7 AND orden_trabajo_id = $8 RETURNING *
-      `, [fecha_salida || null, hora_salida || null, fecha_regreso || null, hora_regreso || null, tiempo_total_min, total_mano_obra, tid, ot_id]);
+      `, [fecha_salida || null, hora_salida || null, fecha_regreso || null, hora_regreso || null, tiempo_total_min, total_mano_obra, tid, ot_id, hora_llegada_cliente || null, hora_salida_cliente || null]);
 
       return res.rows[0];
   }

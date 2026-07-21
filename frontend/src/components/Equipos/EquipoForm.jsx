@@ -50,7 +50,7 @@ const inputPremium = {
 
 /* ================================================================ */
 
-export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel }) {
+export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel, isQuickCreate }) {
   const qc = useQueryClient();
   const [companySearch, setCompanySearch] = React.useState(equipo?.empresa_nombre || '');
   const [showCompanyResults, setShowCompanyResults] = React.useState(false);
@@ -498,9 +498,11 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel }) {
             </div>
           </div>
 
-          {/* ══════════════════════════════════════════════════
-              SECCIÓN 2: ESPECIFICACIONES TÉCNICAS
-              ══════════════════════════════════════════════════ */}
+          {!isQuickCreate && (
+            <>
+              {/* ══════════════════════════════════════════════════
+                  SECCIÓN 2: ESPECIFICACIONES TÉCNICAS
+                  ══════════════════════════════════════════════════ */}
           <div>
             <div
               style={sectionHeaderStyle('technical')}
@@ -807,6 +809,8 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel }) {
               )}
             </div>
           </div>
+            </>
+          )}
 
           {/* ─── Botones de acción ─────────────────────────── */}
           <div style={{

@@ -10,6 +10,9 @@ import { Topbar } from '../../components/layout/Topbar';
 import { useAuth } from '../../contexts/AuthContext';
 import { OTFirmadaUploader } from '../../components/documentos/OTFirmadaUploader';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { Modal } from '../../components/common/Modal';
+import { ContactForm } from '../../components/Contacts/ContactForm';
+import { EquipoForm } from '../../components/Equipos/EquipoForm';
 import api from '../../lib/api';
 
 export function OTFormPage() {
@@ -39,6 +42,10 @@ export function OTFormPage() {
   const [tecnicos, setTecnicos] = React.useState([]);
   const [repuestos, setRepuestos] = React.useState([]);
   const [actividadesPM, setActividadesPM] = React.useState([]);
+
+  // Modales
+  const [isContactModalOpen, setIsContactModalOpen] = React.useState(false);
+  const [isEquipoModalOpen, setIsEquipoModalOpen] = React.useState(false);
 
   // Búsqueda de inventario
   const [invSearch, setInvSearch] = React.useState('');
@@ -185,7 +192,7 @@ export function OTFormPage() {
 
   // --- Carga de equipos (solo OPERATIVOS de la empresa seleccionada) ---
 
-  const { data: equiposData, isLoading: loadingEquipos } = useQuery({
+  const { data: equiposData, isLoading: loadingEquipos, refetch: refetchEquipos } = useQuery({
     queryKey: ['equipos-empresa', form.empresa_id, isEditing ? form.equipo_id : null],
     queryFn: async () => {
       const params = {};
@@ -197,7 +204,7 @@ export function OTFormPage() {
   const equipos = equiposData || [];
 
   // --- Carga de contactos de la empresa ---
-  const { data: contactosData, isLoading: loadingContactos } = useQuery({
+  const { data: contactosData, isLoading: loadingContactos, refetch: refetchContactos } = useQuery({
     queryKey: ['contactos-empresa', form.empresa_id],
     queryFn: async () => {
       const { data } = await api.get('/contacts', { params: { companyId: form.empresa_id, limit: 100 } });
@@ -402,6 +409,8 @@ export function OTFormPage() {
       tid, body: {
         fecha_salida: extractDate(timers.fecha_salida, t.fecha_salida) || null,
         hora_salida: extractTime(timers.hora_salida, t.hora_salida) || null,
+        hora_llegada_cliente: extractTime(timers.hora_llegada_cliente, t.hora_llegada_cliente) || null,
+        hora_salida_cliente: extractTime(timers.hora_salida_cliente, t.hora_salida_cliente) || null,
         fecha_regreso: extractDate(timers.fecha_regreso, t.fecha_regreso) || null,
         hora_regreso: extractTime(timers.hora_regreso, t.hora_regreso) || null,
       }
@@ -601,7 +610,14 @@ export function OTFormPage() {
 
             {/* Equipo (dinámico) */}
             <div className="input-group">
-              <label className="input-label">Equipo</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+                <label className="input-label" style={{ marginBottom: 0 }}>Equipo</label>
+                {!isLiqOrClosed && form.empresa_id && (
+                  <button type="button" onClick={() => setIsEquipoModalOpen(true)} className="btn btn--ghost btn--sm" style={{ padding: '0 4px', height: 'auto', color: 'var(--clr-primary-500)' }} title="Nuevo equipo">
+                    <Plus size={14} /> Nuevo
+                  </button>
+                )}
+              </div>
               {!form.empresa_id ? (
                 <select className="input" disabled>
                   <option>Selecciona primero una empresa</option>
@@ -650,7 +666,14 @@ export function OTFormPage() {
 
             {/* Contacto */}
             <div className="input-group">
-              <label className="input-label">Contacto empresa</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+                <label className="input-label" style={{ marginBottom: 0 }}>Contacto empresa</label>
+                {!isLiqOrClosed && form.empresa_id && (
+                  <button type="button" onClick={() => setIsContactModalOpen(true)} className="btn btn--ghost btn--sm" style={{ padding: '0 4px', height: 'auto', color: 'var(--clr-primary-500)' }} title="Nuevo contacto">
+                    <Plus size={14} /> Nuevo
+                  </button>
+                )}
+              </div>
               {!form.empresa_id ? (
                 <select className="input" disabled>
                   <option>Selecciona primero una empresa</option>
@@ -733,6 +756,8 @@ export function OTFormPage() {
                       <th>Técnico</th>
                       <th>Fecha Salida</th>
                       <th>Hora Salida</th>
+                      <th>Llegada Cliente</th>
+                      <th>Salida Cliente</th>
                       <th>Fecha Regreso</th>
                       <th>Hora Regreso</th>
                       <th style={{ textAlign: 'right' }}>Tiempo</th>
@@ -749,6 +774,8 @@ export function OTFormPage() {
                           <td style={{ fontWeight: 600 }}>{t.full_name}</td>
                           <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.fecha_salida ?? (t.fecha_salida?.substring(0, 10) || '')} onChange={e => handleTecTimeChange(t.id, 'fecha_salida', e.target.value)} onBlur={() => handleSaveTecTimes(t.id)} disabled={isLiqOrClosed} /></td>
                           <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.hora_salida ?? (t.hora_salida?.substring(0, 5) || '')} onChange={e => handleTecTimeChange(t.id, 'hora_salida', e.target.value)} onBlur={() => handleSaveTecTimes(t.id)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.hora_llegada_cliente ?? (t.hora_llegada_cliente?.substring(0, 5) || '')} onChange={e => handleTecTimeChange(t.id, 'hora_llegada_cliente', e.target.value)} onBlur={() => handleSaveTecTimes(t.id)} disabled={isLiqOrClosed} /></td>
+                          <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.hora_salida_cliente ?? (t.hora_salida_cliente?.substring(0, 5) || '')} onChange={e => handleTecTimeChange(t.id, 'hora_salida_cliente', e.target.value)} onBlur={() => handleSaveTecTimes(t.id)} disabled={isLiqOrClosed} /></td>
                           <td><input type="date" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.fecha_regreso ?? (t.fecha_regreso?.substring(0, 10) || '')} onChange={e => handleTecTimeChange(t.id, 'fecha_regreso', e.target.value)} onBlur={() => handleSaveTecTimes(t.id)} disabled={isLiqOrClosed} /></td>
                           <td><input type="time" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={timer.hora_regreso ?? (t.hora_regreso?.substring(0, 5) || '')} onChange={e => handleTecTimeChange(t.id, 'hora_regreso', e.target.value)} onBlur={() => handleSaveTecTimes(t.id)} disabled={isLiqOrClosed} /></td>
                           <td style={{ textAlign: 'right', fontSize: '12px' }}>
@@ -1155,6 +1182,48 @@ export function OTFormPage() {
           </div>
         )}
       </main>
+      {/* MODALES */}
+      {isContactModalOpen && (
+        <Modal title="Crear Contacto Rápido" onClose={() => setIsContactModalOpen(false)}>
+          <ContactForm
+            defaultCompanyId={form.empresa_id}
+            fixedCompany={true}
+            onSuccess={() => {
+              setIsContactModalOpen(false);
+              refetchContactos().then(res => {
+                const data = res.data;
+                if (data && data.length > 0) {
+                  const latest = [...data].sort((a, b) => b.id - a.id)[0];
+                  setForm(prev => ({ ...prev, contacto_empresa: `${latest.first_name} ${latest.last_name || ''}`.trim() }));
+                }
+              });
+            }}
+            onCancel={() => setIsContactModalOpen(false)}
+          />
+        </Modal>
+      )}
+
+      {isEquipoModalOpen && (
+        <Modal title="Crear Equipo Rápido" onClose={() => setIsEquipoModalOpen(false)}>
+          <EquipoForm
+            defaultCompanyId={form.empresa_id}
+            fixedCompany={true}
+            isQuickCreate={true}
+            onSuccess={() => {
+              setIsEquipoModalOpen(false);
+              refetchEquipos().then(res => {
+                const data = res.data;
+                if (data && data.length > 0) {
+                  // asumiendo que el más reciente tiene un ID numérico mayor o por fecha de creacion, pero podemos tomar el último elemento del array si no está ordenado así. O mejor, si el servidor devuelve UUIDs ordenados, tomamos el primero o buscamos el más reciente.
+                  // Pero para asegurar, simplemente seleccionamos el primero devuelto (que suele ser el más reciente por el order by desc)
+                  setForm(prev => ({ ...prev, equipo_id: data[0].id }));
+                }
+              });
+            }}
+            onCancel={() => setIsEquipoModalOpen(false)}
+          />
+        </Modal>
+      )}
     </div>
   );
 }

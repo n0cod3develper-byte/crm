@@ -273,6 +273,8 @@ export function OTDetailPage() {
                   <tr>
                     <th>Técnico</th>
                     <th>Fecha/Hora Salida</th>
+                    <th>Llegada Cliente</th>
+                    <th>Salida Cliente</th>
                     <th>Fecha/Hora Regreso</th>
                     <th style={{ textAlign: 'right' }}>Tiempo</th>
                     <th style={{ textAlign: 'right' }}>Tarifa/h</th>
@@ -284,6 +286,8 @@ export function OTDetailPage() {
                     <tr key={t.id}>
                       <td style={{ fontWeight: 600 }}>{t.full_name}</td>
                       <td>{fmtDate(t.fecha_salida)} {fmtTime(t.hora_salida)}</td>
+                      <td>{fmtTime(t.hora_llegada_cliente)}</td>
+                      <td>{fmtTime(t.hora_salida_cliente)}</td>
                       <td>{fmtDate(t.fecha_regreso)} {fmtTime(t.hora_regreso)}</td>
                       <td style={{ textAlign: 'right' }}>{fmtMins(t.tiempo_total_min)}</td>
                       <td style={{ textAlign: 'right' }}>{fmt(t.tarifa_hora)}</td>
