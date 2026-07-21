@@ -9,7 +9,8 @@ export const db = new Pool({
   max: parseInt(env.DB_POOL_MAX || '20', 10),
   idleTimeoutMillis: parseInt(env.DB_POOL_IDLE_TIMEOUT || '10000', 10),
   connectionTimeoutMillis: 5000,
-  ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,
+  //ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,
+  ssl: env.DB_SSL === 'true' ? { rejectUnauthorized: true } : false,
 });
 
 // Verifica la conexión al iniciar

@@ -228,4 +228,76 @@ export const informesController = {
       next(error);
     }
   },
+
+  // ── MANTENIMIENTO: Ventas Reales vs Presupuesto (KPI 4) ──
+  async getVentasVsPresupuestoMantenimiento(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getVentasVsPresupuestoMantenimiento(fecha_inicio, fecha_fin);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getVentasVsPresupuestoMantenimiento', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── MANTENIMIENTO: Ventas vs Presupuesto Mensual (KPI 4.1) ──
+  async getVentasVsPresupuestoMensualMantenimiento(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getVentasVsPresupuestoMensualMantenimiento(fecha_inicio, fecha_fin);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getVentasVsPresupuestoMensualMantenimiento', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── MANTENIMIENTO: Horas por Técnico (KPI 5) ──
+  async getHorasTecnicosMantenimiento(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getHorasTecnicosMantenimiento(fecha_inicio, fecha_fin);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getHorasTecnicosMantenimiento', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── MANTENIMIENTO: Disponibilidad / Downtime (KPI 6) ──
+  async getDisponibilidadFlotaMantenimiento(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getDisponibilidadFlotaMantenimiento(fecha_inicio, fecha_fin);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getDisponibilidadFlotaMantenimiento', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── MANTENIMIENTO: Costo por Equipo (KPI 7) ──
+  async getCostoPorEquipoMantenimiento(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin, empresa_id } = req.query;
+      const data = await informesRepository.getCostoPorEquipo(fecha_inicio, fecha_fin, empresa_id);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getCostoPorEquipoMantenimiento', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── MANTENIMIENTO: Reincidencia de Fallas (KPI 8) ──
+  async getReincidenciaFallasMantenimiento(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin, empresa_id, dias_ventana } = req.query;
+      const data = await informesRepository.getReincidenciaFallas(fecha_inicio, fecha_fin, empresa_id, dias_ventana ? parseInt(dias_ventana) : 30);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getReincidenciaFallasMantenimiento', { error: error.message });
+      next(error);
+    }
+  }
 };

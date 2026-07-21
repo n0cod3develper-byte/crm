@@ -2,12 +2,19 @@ import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
 import * as ctrl from './mantenimiento.controller.js';
 import * as pmCtrl from './pm.controller.js';
+import * as compCtrl from './componentes.controller.js';
 
 const router = Router();
 router.use(authenticate);
 
 // ─── KPIs (Dashboard) ────────────────────────────────────────
 router.get('/kpis',     ctrl.getKpis);
+
+// ─── Catálogo de Componentes ─────────────────────────────────
+router.get('/componentes/activos', compCtrl.getAllActive);
+router.get('/componentes', compCtrl.getAll);
+router.post('/componentes', compCtrl.create);
+router.put('/componentes/:id', compCtrl.update);
 
 // ─── Órdenes de trabajo ─────────────────────────────────────
 router.get('/ot',       ctrl.getAllOTs);

@@ -114,7 +114,12 @@ const MIGRATION_FILES = [
   '081_fix_autorizado_por_fk.sql',
   '082_add_supplier_quote_id.sql',
   '083_ot_liquidacion_quotes.sql',
-  '084_fix_tipo_legacy_default.sql'
+  '084_fix_tipo_legacy_default.sql',
+  '085_budget_mantenimiento.sql',
+  '086_mantenimiento_componentes.sql',
+  '087_add_componente_to_ordenes.sql',
+  '088_add_mime_type_documentos.sql',
+  '089_add_employee_missing_columns.sql'
 ];
 
 async function ensureMigrationsTable(client) {

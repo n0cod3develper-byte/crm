@@ -1,9 +1,17 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Layout } from '../../components/Layout';
 import { Calendar, Filter } from 'lucide-react';
+import api from '../../lib/api';
 import GraficoOrdenesPorEstado from './components/mantenimiento/GraficoOrdenesPorEstado';
 import GraficoEquiposMasMantenimientos from './components/mantenimiento/GraficoEquiposMasMantenimientos';
 import GraficoTipoMantenimiento from './components/mantenimiento/GraficoTipoMantenimiento';
+import GraficoVentasVsPresupuesto from './components/mantenimiento/GraficoVentasVsPresupuesto';
+import GraficoHorasTecnicos from './components/mantenimiento/GraficoHorasTecnicos';
+import KpiDisponibilidadFlota from './components/mantenimiento/KpiDisponibilidadFlota';
+import GraficoVentasVsPresupuestoMensual from './components/mantenimiento/GraficoVentasVsPresupuestoMensual';
+import KpiCostoPorEquipo from './components/mantenimiento/KpiCostoPorEquipo';
+import KpiReincidenciaFallas from './components/mantenimiento/KpiReincidenciaFallas';
 
 const getLocalDateString = (date) => {
   const year = date.getFullYear();
@@ -67,14 +75,28 @@ export function InformesMantenimientoPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem' }}>
-        <GraficoOrdenesPorEstado appliedFilters={appliedFilters} />
-        
-        <GraficoTipoMantenimiento appliedFilters={appliedFilters} />
-
+        {/* Evolución mensual — ancho completo */}
         <div style={{ gridColumn: '1 / -1' }}>
-          <GraficoEquiposMasMantenimientos appliedFilters={appliedFilters} />
+          <GraficoVentasVsPresupuestoMensual appliedFilters={appliedFilters} />
         </div>
+
+        {/* Fila 1 */}
+        <KpiDisponibilidadFlota appliedFilters={appliedFilters} />
+        <GraficoVentasVsPresupuesto appliedFilters={appliedFilters} />
+        
+        {/* Fila 2 */}
+        <GraficoHorasTecnicos appliedFilters={appliedFilters} />
+        <GraficoOrdenesPorEstado appliedFilters={appliedFilters} />
+
+        {/* Fila 3 */}
+        <GraficoTipoMantenimiento appliedFilters={appliedFilters} />
+        <GraficoEquiposMasMantenimientos appliedFilters={appliedFilters} />
+
+        {/* Fila 4 — Nuevos KPIs */}
+        <KpiCostoPorEquipo appliedFilters={appliedFilters} />
+        <KpiReincidenciaFallas appliedFilters={appliedFilters} />
       </div>
     </Layout>
   );
 }
+

@@ -1,7 +1,7 @@
 import { query, withTransaction } from '../../config/database.js';
 
 export class TasksRepository {
-  async findAll({ assignedTo, status, relatedType, relatedId, search, priority, type, tags, limit = 50, cursor, userId, userRole, dateFilter, priorityFilter, userFilter }) {
+  async findAll({ assignedTo, status, relatedType, relatedId, search, priority, type, tags, favorite, limit = 50, cursor, userId, userRole, dateFilter, priorityFilter, userFilter }) {
     const conditions = ['1=1'];
     const params = [];
     let i = 1;

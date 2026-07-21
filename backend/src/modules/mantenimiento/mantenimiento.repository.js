@@ -155,8 +155,9 @@ export class MantenimientoRepository {
    * dentro de la misma transacción.
    */
   async createOT(data, userId) {
-    const { tipo_mantenimiento, empresa_id, equipo_id, responsable, contacto_empresa, telefono_contacto, detalle_servicio, pm_frecuencia_id } = data;
+    const { tipo_mantenimiento, empresa_id, equipo_id, componente_id, responsable, contacto_empresa, telefono_contacto, detalle_servicio, pm_frecuencia_id } = data;
     const horometro_inicial = data.horometro_inicial === '' ? null : data.horometro_inicial;
+
     
     return await withTransaction(async (client) => {
         // Encontrar info de empresa para determinar la serie
@@ -176,15 +177,17 @@ export class MantenimientoRepository {
 
         const sqlInsert = `
             INSERT INTO ordenes_trabajo 
-            (consecutivo, tipo_mantenimiento, empresa_id, equipo_id, horometro_inicial, responsable, contacto_empresa, telefono_contacto, detalle_servicio, created_by, pm_frecuencia_id, horometro_frecuencia)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            (consecutivo, tipo_mantenimiento, empresa_id, equipo_id, componente_id, horometro_inicial, responsable, contacto_empresa, telefono_contacto, detalle_servicio, created_by, pm_frecuencia_id, horometro_frecuencia)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             RETURNING *
         `;
         const res = await client.query(sqlInsert, [
+
           consecutivo ?? null,
           tipo_mantenimiento ?? null,
           empresa_id ?? null,
           equipo_id ?? null,
+          (tipo_mantenimiento === 'CORRECTIVO' && componente_id) ? componente_id : null,
           horometro_inicial ?? null,
           responsable ?? null,
           contacto_empresa ?? null,
@@ -219,7 +222,7 @@ export class MantenimientoRepository {
     const fields = [];
     const values = [];
     let i = 1;
-    const allowed = ['tipo_mantenimiento', 'horometro_inicial', 'horometro_final', 'responsable', 'contacto_empresa', 'telefono_contacto', 'detalle_servicio', 'observaciones', 'estado'];
+    const allowed = ['tipo_mantenimiento', 'componente_id', 'horometro_inicial', 'horometro_final', 'responsable', 'contacto_empresa', 'telefono_contacto', 'detalle_servicio', 'observaciones', 'estado'];
     
     for (const key of allowed) {
       if (key in data && data[key] !== undefined) {
