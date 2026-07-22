@@ -92,14 +92,15 @@ export class SupplierQuotesRepository {
       estado_comercial = 'EN_ESPERA',
       numero_cotizacion,
       iva = 19.00,
+      tiempo_envio,
       items = []
     } = data;
 
     const res = await query(
-      `INSERT INTO supplier_quotes (consecutivo, proveedor_id, contact_id, telefono_contacto, estado, subtotal, total, validez_oferta, forma_pago, estado_comercial, numero_cotizacion, iva, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      `INSERT INTO supplier_quotes (consecutivo, proveedor_id, contact_id, telefono_contacto, estado, subtotal, total, validez_oferta, forma_pago, estado_comercial, numero_cotizacion, iva, tiempo_envio, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
       [consecutivo, proveedor_id || null, contact_id || null, telefono_contacto || null, estado, subtotal, total,
-       validez_oferta || null, forma_pago || null, estado_comercial, numero_cotizacion || null, iva, userId]
+       validez_oferta || null, forma_pago || null, estado_comercial, numero_cotizacion || null, iva, tiempo_envio || null, userId]
     );
     const quote = res.rows[0];
 
@@ -123,7 +124,7 @@ export class SupplierQuotesRepository {
     const fields = [];
     const values = [];
     let i = 1;
-    const allowed = ['proveedor_id','contact_id','telefono_contacto','estado','subtotal','total','validez_oferta','forma_pago','estado_comercial','numero_cotizacion','iva'];
+    const allowed = ['proveedor_id','contact_id','telefono_contacto','estado','subtotal','total','validez_oferta','forma_pago','estado_comercial','numero_cotizacion','iva','tiempo_envio'];
     for (const key of allowed) {
       if (key in data) {
         fields.push(`${key} = $${i++}`);

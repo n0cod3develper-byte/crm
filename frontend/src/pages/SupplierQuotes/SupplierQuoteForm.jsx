@@ -61,6 +61,7 @@ export function SupplierQuoteForm() {
   const [formaPago, setFormaPago] = useState('');
   const [estadoComercial, setEstadoComercial] = useState('EN_ESPERA');
   const [ivaGlobal, setIvaGlobal] = useState(19);
+  const [tiempoEnvio, setTiempoEnvio] = useState('');
 
   const [saving, setSaving] = useState(false);
 
@@ -84,10 +85,12 @@ export function SupplierQuoteForm() {
       setFormaPago(existingQuote.forma_pago || '');
       setEstadoComercial(existingQuote.estado_comercial || 'EN_ESPERA');
       setIvaGlobal(existingQuote.iva != null ? existingQuote.iva : 19);
+      setTiempoEnvio(existingQuote.tiempo_envio || '');
 
       if (existingQuote.items?.length > 0) {
         setItems(existingQuote.items.map((it, i) => ({
           key: i,
+          inventario_id: it.inventario_id || null,
           item: it.descripcion_manual || it.inventario_nombre || '',
           codigo: it.codigo || '',
           descripcion_manual: it.descripcion_manual || '',
@@ -196,7 +199,9 @@ export function SupplierQuoteForm() {
       forma_pago: formaPago || null,
       estado_comercial: estadoComercial,
       iva: parseFloat(ivaGlobal) != null ? parseFloat(ivaGlobal) : 19,
+      tiempo_envio: tiempoEnvio || null,
       items: items.map(it => ({
+        inventario_id: it.inventario_id || null,
         descripcion_manual: it.descripcion_manual || it.item || null,
         codigo: it.codigo || null,
         cantidad: parseFloat(it.cantidad) || 1,
@@ -215,6 +220,9 @@ export function SupplierQuoteForm() {
         toast.success('Cotización creada');
       }
       queryClient.invalidateQueries({ queryKey: ['supplier-quotes'] });
+      if (isEditing) {
+        queryClient.invalidateQueries({ queryKey: ['supplier-quote', id] });
+      }
       navigate('/supplier-quotes');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error al guardar');
@@ -498,6 +506,18 @@ export function SupplierQuoteForm() {
                     <option key={fp.value} value={fp.value}>{fp.label}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Tiempo de envío */}
+              <div className="input-group">
+                <label className="input-label">Tiempo de envío</label>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="Ej: 3 días, 1 semana..."
+                  value={tiempoEnvio}
+                  onChange={e => setTiempoEnvio(e.target.value)}
+                />
               </div>
 
               {/* Estado comercial */}

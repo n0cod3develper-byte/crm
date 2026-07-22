@@ -65,6 +65,7 @@ export const supplierQuotesController = {
       const isAdmin = req.user.roles?.includes('admin');
       
       let updateData = { ...rest };
+      console.log('[SUPPLIER QUOTES] Update Data:', updateData);
       
       if (estado && estado !== current.estado) {
         if (estado === 'APROBADO') {
@@ -86,6 +87,7 @@ export const supplierQuotesController = {
           updateData.estado = estado;
         }
       }
+      console.log('[SUPPLIER QUOTES] Calling repo.update with:', updateData);
       const updated = await repo.update(id, updateData);
       res.json({ success: true, data: updated });
     } catch (err) {

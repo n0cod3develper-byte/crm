@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   Wrench, Plus, Search, Filter, Eye, Edit, Trash2, FileText,
-  ClipboardCheck, Clock, Building2, AlertTriangle
+  ClipboardCheck, Clock, Building2, AlertTriangle, ListChecks
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
+import { OtActivitiesModal } from './OtActivitiesModal';
 
 const ESTADOS = [
   { value: 'all', label: 'Todos los estados', color: '#64748b' },
@@ -39,6 +40,7 @@ export function MantenimientoPage() {
   const [search, setSearch] = React.useState('');
   const [filterEstado, setFilterEstado] = React.useState('all');
   const [filterTipo, setFilterTipo] = React.useState('all');
+  const [selectedOtForActivities, setSelectedOtForActivities] = React.useState(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['ordenes-trabajo', search, filterEstado, filterTipo],
@@ -190,6 +192,11 @@ export function MantenimientoPage() {
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
+                            {ot.estado === 'LIQUIDADA' && (
+                              <button className="btn btn--ghost btn--sm" onClick={() => setSelectedOtForActivities(ot.id)} title="Ver actividades">
+                                <ListChecks size={14} />
+                              </button>
+                            )}
                             <button className="btn btn--ghost btn--sm" onClick={() => navigate(`/mantenimiento/${ot.id}`)} title="Ver detalle">
                               <Eye size={14} />
                             </button>
@@ -219,6 +226,13 @@ export function MantenimientoPage() {
           </div>
         )}
       </main>
+
+      {selectedOtForActivities && (
+        <OtActivitiesModal 
+          otId={selectedOtForActivities} 
+          onClose={() => setSelectedOtForActivities(null)} 
+        />
+      )}
     </div>
   );
 }

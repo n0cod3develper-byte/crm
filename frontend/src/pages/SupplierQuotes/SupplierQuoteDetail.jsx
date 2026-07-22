@@ -216,6 +216,16 @@ export function SupplierQuoteDetail() {
                       </div>
                     </div>
                   )}
+
+                  {quote.tiempo_envio && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
+                      <Clock size={16} />
+                      <div>
+                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Tiempo de envío</div>
+                        <div style={{ fontWeight: 600 }}>{quote.tiempo_envio}</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

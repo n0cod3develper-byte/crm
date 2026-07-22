@@ -341,13 +341,17 @@ export function QuoteForm({ quote, onSuccess, onCancel }) {
                 ) : (
                   supplierQuotesPending?.map(sq => (
                     <div key={sq.id} style={{ background: 'var(--bg-surface)', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                      <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#4338ca', borderBottom: '1px solid var(--border-color)', paddingBottom: '3px', marginBottom: '4px' }}>
-                        {sq.consecutivo} - Proveedor: {sq.provider_name || 'Desconocido'}
+                      <div style={{ fontWeight: 'bold', fontSize: '12px', color: '#4338ca', borderBottom: '1px solid var(--border-color)', paddingBottom: '3px', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{sq.consecutivo} - Proveedor: {sq.provider_name || 'Desconocido'}</span>
+                        {sq.tiempo_envio && <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 500 }}>⏱ Tiempo de espera: {sq.tiempo_envio}</span>}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                         {sq.items?.map(sItem => (
                           <div key={sItem.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', paddingLeft: '4px' }}>
-                            <span>{sItem.descripcion_manual || 'Ítem sin nombre'} ({sItem.cantidad} uds)</span>
+                            <span>
+                              {sItem.descripcion_manual || 'Ítem sin nombre'} ({sItem.cantidad} uds) 
+                              <span style={{ color: '#64748b', marginLeft: '6px' }}>| Precio: {formatCurrency(sItem.precio_unitario)}</span>
+                            </span>
                             <button type="button" className="btn btn--sm btn--secondary" style={{ padding: '1px 6px', fontSize: '9px' }} onClick={() => handleAddFromSupplierQuote(sq, sItem)}>
                               + Traer
                             </button>

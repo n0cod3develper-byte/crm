@@ -67,38 +67,48 @@ function buildActividadesSection(ot) {
     'PENDIENTE': { text: 'N/A', bg: '#f7f9fc', color: '#64748b' }
   };
 
-  const rows = hasActividades ? actividades.map(a => {
+  const rows = actividades.map(a => {
     const st = estadoMap[a.estado] || { text: 'N/A', bg: '#f7f9fc', color: '#64748b' };
     return `
         <tr>
-          <td style="text-align:center">${a.orden}</td>
-          <td style="font-weight:600">${a.codigo || ''} - ${a.nombre}</td>
-          <td>
+          <td style="border: 1px solid #ccc; text-align:center">${a.orden}</td>
+          <td style="border: 1px solid #ccc; font-weight:600">${a.codigo || ''} - ${a.nombre}</td>
+          <td style="border: 1px solid #ccc; text-align:center">
             <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;color:${st.color};background:${st.bg}">
               ${st.text}
             </span>
           </td>
-          <td>${a.completada_por_nombre || '—'}</td>
-          <td style="font-size:9px;color:#64748b">${a.observacion || ''}</td>
+          <td style="border: 1px solid #ccc;">${a.completada_por_nombre || '—'}</td>
+          <td style="border: 1px solid #ccc; font-size:9px;color:#64748b">${a.observacion || ''}</td>
         </tr>`;
-  }).join('')
-    : `<tr><td colspan="5" style="text-align:center;padding:15px;color:#64748b;font-style:italic;">Sin actividades registradas por código para esta orden</td></tr>`;
+  }).join('');
+
+    const blankRowsCount = Math.max(15 - actividades.length, 0);
+    const blankRows = Array(blankRowsCount).fill(0).map(() => `
+      <tr>
+        <td style="border: 1px solid #ccc; padding: 12px 4px;"></td>
+        <td style="border: 1px solid #ccc; padding: 12px 4px;"></td>
+        <td style="border: 1px solid #ccc; padding: 12px 4px;"></td>
+        <td style="border: 1px solid #ccc; padding: 12px 4px;"></td>
+        <td style="border: 1px solid #ccc; padding: 12px 4px;"></td>
+      </tr>`).join('');
 
   return `
   <div class="section">
     <div class="section-title">Actividades Realizadas ${ot.frecuencia_nombre ? `— Preventivo ${ot.frecuencia_nombre}` : ''}</div>
-    <table>
+    <table style="width:100%; border-collapse: collapse; border: 1px solid #ccc;">
       <thead>
         <tr>
-          <th style="width:30px">Item</th>
-          <th>Actividad (Código / Descripción)</th>
-          <th>Estado</th>
-          <th>Técnico</th>
-          <th>Observaciones</th>
+          <th style="border: 1px solid #ccc; width:30px; background:#f8fafc;">Item</th>
+          <th style="border: 1px solid #ccc; background:#f8fafc;">Actividad (Código / Descripción)</th>
+          <th style="border: 1px solid #ccc; background:#f8fafc;">Estado</th>
+          <th style="border: 1px solid #ccc; background:#f8fafc;">Técnico</th>
+          <th style="border: 1px solid #ccc; background:#f8fafc;">Observaciones</th>
         </tr>
       </thead>
       <tbody>
         ${rows}
+        ${blankRows}
       </tbody>
     </table>
   </div>`;
@@ -211,20 +221,16 @@ function buildPMTop(ot, logoHtml) {
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">MARCA:</td><td style="text-transform: uppercase;">${ot.equipo_marca || ''}</td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">MODELO:</td><td style="text-transform: uppercase;">${ot.equipo_modelo || ''}</td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">SERIE</td><td style="text-transform: uppercase;">${ot.equipo_serial || ''}</td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">CÓDIGO</td><td style="text-transform: uppercase;">${ot.equipo_serial || ''}</td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">HOROMETRO:</td><td style="border-bottom: 1px solid black;">${ot.horometro_inicial || ''}</td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">AUTORIZADO POR:</td><td style="text-transform: uppercase;">${ot.responsable || ''}</td></tr>
         </table>
       </td>
-      <td style="width: 50%; vertical-align: bottom;">
+      <td style="width: 50%; vertical-align: top;">
         <table style="width: 100%; border-collapse: collapse;">
-          <tr><td style="text-align: right; width: 140px; padding-right: 10px; color: #555; height: 18px;">COTIZACIÓN No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; width: 140px; padding-right: 10px; color: #555; height: 18px;">CÓDIGO:</td><td style="text-transform: uppercase;">${ot.equipo_serial || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">HOROMETRO:</td><td style="border-bottom: 1px solid black;">${ot.horometro_inicial || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">AUTORIZADO POR:</td><td style="text-transform: uppercase;">${ot.responsable || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">COTIZACIÓN No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">ORDEN DE COMPRA No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">SDC No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Salida Cargar.:</td><td style="border-bottom: 1px solid black;"></td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Llegada Cliente:</td><td style="border-bottom: 1px solid black;"></td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Salida Cliente:</td><td style="border-bottom: 1px solid black;"></td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Llegada Cargar:</td><td style="border-bottom: 1px solid black;"></td></tr>
         </table>
       </td>
     </tr>
@@ -244,8 +250,9 @@ function buildPMActividadesSection(ot) {
       <td style="border: 1px solid #ccc; padding: 2px 4px;"></td>
     </tr>`).join('');
 
-  // 1 fila en blanco al final para no ocupar tanto espacio
-  const blankRows = Array(1).fill(0).map(() => `
+  // Rellenar hasta 15 filas mínimo
+  const blankRowsCount = Math.max(15 - actividades.length, 0);
+  const blankRows = Array(blankRowsCount).fill(0).map(() => `
     <tr>
       <td style="border: 1px solid #ccc; padding: 6px 4px;"></td>
       <td style="border: 1px solid #ccc; padding: 6px 4px;"></td>
@@ -321,20 +328,16 @@ function buildCMTop(ot, logoHtml) {
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">MARCA:</td><td style="text-transform: uppercase;">${ot.equipo_marca || ''}</td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">MODELO:</td><td style="text-transform: uppercase;">${ot.equipo_modelo || ''}</td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">SERIE</td><td style="text-transform: uppercase;">${ot.equipo_serial || ''}</td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">CÓDIGO</td><td style="text-transform: uppercase;">${ot.equipo_serial || ''}</td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">HOROMETRO:</td><td style="border-bottom: 1px solid black;">${ot.horometro_inicial || ''}</td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">AUTORIZADO POR:</td><td style="text-transform: uppercase;">${ot.responsable || ''}</td></tr>
         </table>
       </td>
-      <td style="width: 50%; vertical-align: bottom;">
+      <td style="width: 50%; vertical-align: top;">
         <table style="width: 100%; border-collapse: collapse;">
-          <tr><td style="text-align: right; width: 140px; padding-right: 10px; color: #555; height: 18px;">COTIZACIÓN No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
+          <tr><td style="text-align: right; width: 140px; padding-right: 10px; color: #555; height: 18px;">CÓDIGO:</td><td style="text-transform: uppercase;">${ot.equipo_serial || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">HOROMETRO:</td><td style="border-bottom: 1px solid black;">${ot.horometro_inicial || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">AUTORIZADO POR:</td><td style="text-transform: uppercase;">${ot.responsable || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">COTIZACIÓN No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">ORDEN DE COMPRA No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">SDC No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Salida Cargar.:</td><td style="border-bottom: 1px solid black;"></td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Llegada Cliente:</td><td style="border-bottom: 1px solid black;"></td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Salida Cliente:</td><td style="border-bottom: 1px solid black;"></td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">Hora Llegada Cargar:</td><td style="border-bottom: 1px solid black;"></td></tr>
         </table>
       </td>
     </tr>
@@ -646,6 +649,8 @@ function buildOTHtml(ot) {
         <tr>
           <th style="border: 1px solid #ccc; background:#f8fafc;">Técnico</th>
           <th style="border: 1px solid #ccc; background:#f8fafc;">Fecha/Hora Salida</th>
+          <th style="border: 1px solid #ccc; background:#f8fafc;">Llegada Cliente</th>
+          <th style="border: 1px solid #ccc; background:#f8fafc;">Salida Cliente</th>
           <th style="border: 1px solid #ccc; background:#f8fafc;">Fecha/Hora Regreso</th>
           <th class="text-right" style="border: 1px solid #ccc; background:#f8fafc;">Tiempo</th>
         </tr>
@@ -655,6 +660,8 @@ function buildOTHtml(ot) {
         <tr>
           <td style="border: 1px solid #ccc;">${t.full_name}</td>
           <td style="border: 1px solid #ccc;">${formatDate(t.fecha_salida)} ${formatTime(t.hora_salida)}</td>
+          <td style="border: 1px solid #ccc;">${formatTime(t.hora_llegada_cliente)}</td>
+          <td style="border: 1px solid #ccc;">${formatTime(t.hora_salida_cliente)}</td>
           <td style="border: 1px solid #ccc;">${formatDate(t.fecha_regreso)} ${formatTime(t.hora_regreso)}</td>
           <td class="text-right" style="border: 1px solid #ccc;">${formatMinutes(t.tiempo_total_min)}</td>
         </tr>`).join('')}
