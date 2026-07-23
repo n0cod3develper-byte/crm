@@ -393,6 +393,51 @@ export class EquiposRepository {
       total: countRes.rows[0].total,
     };
   }
+
+  /**
+   * Reparación: libera todos los equipos en estado ALQUILADO
+   * que no tienen ninguna remisión activa (BORRADOR o PENDIENTE).
+   * Devuelve la lista de equipos corregidos.
+   */
+  async repairEstadosAlquilado(userStr = 'Sistema') {
+    return await withTransaction(async (client) => {
+      const atascadosRes = await client.query(`
+        SELECT e.id, e.marca, e.modelo, e.serial, e.serie
+        FROM equipos e
+        WHERE e.estado = 'ALQUILADO'
+          AND e.deleted_at IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM remisiones r
+            WHERE r.equipo_id = e.id
+              AND r.deleted_at IS NULL
+              AND r.estado NOT IN ('REALIZADA', 'LIQUIDADA', 'FACTURADA', 'ANULADO')
+          )
+      `);
+
+      const liberados = [];
+      for (const eq of atascadosRes.rows) {
+        const motivo = 'Liberado automáticamente: sin remisiones activas (reparación de estado)';
+        await client.query(
+          `UPDATE equipos SET
+             estado = 'OPERATIVO',
+             motivo_estado = $1,
+             fecha_cambio_estado = CURRENT_DATE,
+             actualizado_por = $2,
+             updated_at = NOW()
+           WHERE id = $3`,
+          [motivo, userStr, eq.id]
+        );
+        await client.query(
+          `INSERT INTO equipos_historial_estado
+             (equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por)
+           VALUES ($1, 'ALQUILADO', 'OPERATIVO', $2, $3)`,
+          [eq.id, motivo, userStr]
+        );
+        liberados.push(eq);
+      }
+      return liberados;
+    });
+  }
 }
 
 function horoVal(val) {

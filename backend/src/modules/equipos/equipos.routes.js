@@ -21,6 +21,7 @@ router.use(authenticate);
 // no interprete la cadena literal 'by-company' como un valor de :id.
 router.get('/by-company/:id',      equiposController.listByCompany);
 router.get('/externos',            equiposController.listExternos);
+router.post('/repair-estados',     equiposController.repairEstados);
 
 router.get('/',                    equiposController.list);
 router.post('/',                   equiposController.create);

@@ -178,7 +178,7 @@ export function RemisionDetailPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem 1.5rem' }}>
               <div style={{ gridColumn: '1 / -1' }}><span style={labelStyle}>Servicio</span><span style={valueStyle}>{remision.servicio_codigo} — {remision.servicio_nombre}</span></div>
               <div><span style={labelStyle}>Equipo</span><span style={valueStyle}>{remision.equipo_marca ? `${remision.equipo_marca} ${remision.equipo_modelo} (${remision.equipo_serial || remision.equipo_serie || '—'})` : 'Sin equipo asignado'}</span></div>
-              <div><span style={labelStyle}>No. Máquina</span><span style={valueStyle}>{remision.numero_maquina || '—'}</span></div>
+              <div><span style={labelStyle}>No. Máquina</span><span style={valueStyle}>{remision.equipo_serie || remision.numero_maquina || '—'}</span></div>
               <div><span style={labelStyle}>Bonificación por Hora</span><span style={valueStyle}>{formatCOP(remision.bonificacion_hora)}</span></div>
               <div><span style={labelStyle}>Cantidad Horas</span><span style={valueStyle}>{remision.cantidad_horas}</span></div>
               <div><span style={labelStyle}>Valor Hora</span><span style={valueStyle}>{formatCOP(remision.valor_hora)}</span></div>

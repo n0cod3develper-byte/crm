@@ -500,7 +500,7 @@ export class ServiciosRepository {
              FROM remisiones
              WHERE equipo_id = $1
                AND id != $2
-               AND estado NOT IN ('LIQUIDADA', 'FACTURADA', 'ANULADO')
+               AND estado NOT IN ('REALIZADA', 'LIQUIDADA', 'FACTURADA', 'ANULADO')
                AND deleted_at IS NULL`,
             [current.equipo_id, id]
           );

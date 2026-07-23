@@ -48,7 +48,7 @@ function calcularHoras(salida, regreso) {
   const r = parseFloat(regreso);
   if (isNaN(s) || isNaN(r) || r <= s) return null;
   const diff = r - s;
-  return Math.max(1, Math.round(diff * 100) / 100);
+  return Math.max(1, Math.ceil(diff * 100) / 100);
 }
 
 function formatCOP(v) {
@@ -83,8 +83,9 @@ const FESTIVOS_COLOMBIA_2026 = [
 /**
  * Calcula el desglose de horas ordinarias vs recargo según horario laboral.
  * HORARIO NORMAL:
- *   Lunes–Viernes: 7:00 AM – 5:00 PM
- *   Sábado:        7:00 AM – 12:00 M
+ *   Lunes-Jueves: 7:00 AM - 4:15 PM
+ *   Viernes:      7:00 AM - 4:10 PM
+ *   Sábado:       7:00 AM - 10:50 AM
  * RECARGO (125%):
  *   Domingos, festivos = todo el día es recargo.
  *   Cualquier hora fuera del horario normal = recargo.
@@ -105,20 +106,28 @@ function calcularDesgloseHoras(fechaServicio, salidaStr, llegadaStr) {
   // Si es domingo o festivo → todo es recargo
   if (esDomingoOFestivo) {
     const totalMin = Math.round((l - s) / 60000);
-    let hRec = Math.round((totalMin / 60) * 100) / 100;
+    let hRec = Math.ceil((totalMin / 60) * 100) / 100;
     if (hRec > 0 && hRec < 1) hRec = 1;
     return { ordinarias: 0, recargo: hRec, total: hRec };
   }
 
-  // Horario normal según día
-  const normalStart = 7;  // 7:00 AM
-  const normalEnd = dayOfWeek === 6 ? 12 : 17; // Sáb: 12M, Lun-Vie: 5PM
+  // Horario normal según día (en minutos desde medianoche)
+  // Lun-Jue: 7:00 AM – 4:15 PM | Vie: 7:00 AM – 4:10 PM | Sáb: 7:00 AM – 10:50 AM
+  const normalStartMin = 7 * 60; // 7:00 AM = 420 min
+  let normalEndMin;
+  if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+    normalEndMin = 16 * 60 + 15; // Lun-Jue: 4:15 PM = 975 min
+  } else if (dayOfWeek === 5) {
+    normalEndMin = 16 * 60 + 10; // Vie: 4:10 PM = 970 min
+  } else {
+    normalEndMin = 10 * 60 + 50; // Sáb: 10:50 AM = 650 min
+  }
 
   let ordMin = 0, recMin = 0;
   let current = new Date(s);
   while (current < l) {
-    const hora = current.getHours();
-    if (hora < normalStart || hora >= normalEnd) {
+    const minutoDelDia = current.getHours() * 60 + current.getMinutes();
+    if (minutoDelDia < normalStartMin || minutoDelDia >= normalEndMin) {
       recMin++;
     } else {
       ordMin++;
@@ -126,14 +135,14 @@ function calcularDesgloseHoras(fechaServicio, salidaStr, llegadaStr) {
     current.setMinutes(current.getMinutes() + 1);
   }
 
-  let hOrd = Math.round((ordMin / 60) * 100) / 100;
-  let hRec = Math.round((recMin / 60) * 100) / 100;
+  let hOrd = Math.ceil((ordMin / 60) * 100) / 100;
+  let hRec = Math.ceil((recMin / 60) * 100) / 100;
   
   // Garantizar cobro mínimo de 1 hora
   const totalRaw = parseFloat((hOrd + hRec).toFixed(2));
   if (totalRaw > 0 && totalRaw < 1) {
     // Escalar proporcionalmente para que la suma sea 1
-    hOrd = Math.round((hOrd / totalRaw) * 100) / 100;
+    hOrd = Math.ceil((hOrd / totalRaw) * 100) / 100;
     hRec = parseFloat((1 - hOrd).toFixed(2));
   }
 
@@ -239,7 +248,14 @@ export function RemisionFormPage() {
       });
       if (existingData.fecha_servicio) f.fecha_servicio = existingData.fecha_servicio.split('T')[0];
       if (existingData.hora_acordada) {
-        f.hora_acordada = new Date(existingData.hora_acordada).toISOString().slice(0, 16);
+        // Usar componentes locales en vez de toISOString() que convierte a UTC
+        const dt = new Date(existingData.hora_acordada);
+        const yyyy = dt.getFullYear();
+        const mm = String(dt.getMonth() + 1).padStart(2, '0');
+        const dd = String(dt.getDate()).padStart(2, '0');
+        const hh = String(dt.getHours()).padStart(2, '0');
+        const mi = String(dt.getMinutes()).padStart(2, '0');
+        f.hora_acordada = `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
       }
       if (existingData.operarios && existingData.operarios.length > 0) {
         f.operario_id = existingData.operarios[0]?.empleado_id || '';
@@ -380,7 +396,7 @@ export function RemisionFormPage() {
     if (form.equipo_id && equiposFiltrados.length) {
       const eq = equiposFiltrados.find(e => e.id === form.equipo_id);
       if (eq) {
-        setForm(prev => ({ ...prev, numero_maquina: eq.serial }));
+        setForm(prev => ({ ...prev, numero_maquina: eq.serial || '' }));
         
         const isDifferentEquipment = isEditing && existingData && existingData.equipo_id !== form.equipo_id;
         if (!isEditing || isDifferentEquipment) {
@@ -453,8 +469,8 @@ export function RemisionFormPage() {
           const unidadNorm = (it.unidad || '').trim().toLowerCase();
           if (unidadNorm === 'hora') {
             let h = 1;
-            if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.round(horas1 * 100) / 100) : 1;
-            else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.round(horas2 * 100) / 100) : 1;
+            if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.ceil(horas1 * 100) / 100) : 1;
+            else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.ceil(horas2 * 100) / 100) : 1;
             indexHora++;
             return { ...it, cantidad: h };
           }
@@ -642,8 +658,8 @@ export function RemisionFormPage() {
                 const unidadNorm = (it.unidad || '').trim().toLowerCase();
                 if (unidadNorm === 'hora') {
                   let h = 1;
-                  if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.round(horas1 * 100) / 100) : 1;
-                  else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.round(horas2 * 100) / 100) : 1;
+                  if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.ceil(horas1 * 100) / 100) : 1;
+                  else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.ceil(horas2 * 100) / 100) : 1;
                   indexHora++;
                   return { ...it, cantidad: h };
                 }
@@ -689,8 +705,8 @@ export function RemisionFormPage() {
               const unidadNorm = (it.unidad || '').trim().toLowerCase();
               if (unidadNorm === 'hora') {
                 let h = 1;
-                if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.round(horas1 * 100) / 100) : 1;
-                else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.round(horas2 * 100) / 100) : 1;
+                if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.ceil(horas1 * 100) / 100) : 1;
+                else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.ceil(horas2 * 100) / 100) : 1;
                 indexHora++;
                 return { ...it, cantidad: h };
               }
@@ -790,7 +806,19 @@ export function RemisionFormPage() {
         }
       }
     }
-    mutation.mutate(form);
+    // Construir payload con hora_acordada incluyendo offset de zona horaria local
+    const payload = { ...form };
+    if (payload.hora_acordada) {
+      // datetime-local da "YYYY-MM-DDTHH:MM" sin timezone.
+      // Calcular offset local para que PostgreSQL TIMESTAMPTZ lo interprete correctamente.
+      const dt = new Date(payload.hora_acordada);
+      const offsetMin = dt.getTimezoneOffset(); // ej: 300 para UTC-5
+      const sign = offsetMin <= 0 ? '+' : '-';
+      const absH = String(Math.floor(Math.abs(offsetMin) / 60)).padStart(2, '0');
+      const absM = String(Math.abs(offsetMin) % 60).padStart(2, '0');
+      payload.hora_acordada = `${payload.hora_acordada}:00${sign}${absH}:${absM}`;
+    }
+    mutation.mutate(payload);
   };
 
   // ─── Modo solo lectura ───────────────────────────────────────
@@ -1166,7 +1194,7 @@ export function RemisionFormPage() {
               )}
             </div>
             <div>
-              <label style={label}>No. Máquina</label>
+              <label style={label}>Serial</label>
               <input placeholder="Ej: 73" {...inputProps('numero_maquina')} />
             </div>
             <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

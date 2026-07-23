@@ -438,6 +438,20 @@ export const equiposController = {
 
       res.json({ success: true, ...result });
     } catch (err) { next(err); }
+  },
+
+  async repairEstados(req, res, next) {
+    try {
+      const userStr = req.user
+        ? `${req.user.nombre || ''} ${req.user.apellido || ''}`.trim() || req.user.email
+        : 'Sistema';
+      const liberados = await repo.repairEstadosAlquilado(userStr);
+      res.json({
+        success: true,
+        message: `Se liberaron ${liberados.length} equipo(s) atascados en estado ALQUILADO.`,
+        data: liberados
+      });
+    } catch (err) { next(err); }
   }
 };
 
