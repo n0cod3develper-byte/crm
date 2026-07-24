@@ -52,11 +52,11 @@ export function PermissionsProvider({ children }) {
   }, [authLoading, user]);
 
   const puede = (modulo, accion) => {
-    if (data.rol?.slug === 'admin') return true;
+    if (user?.rol_slug === 'admin' || user?.rol_slug === 'superadmin') return true;
     return data.permisos[modulo]?.[accion] === true;
   };
 
-  const esAdmin = () => data.rol?.slug === 'admin';
+  const esAdmin = () => user?.rol_slug === 'admin' || user?.rol_slug === 'superadmin';
 
   const value = {
     rolActual: data.rol,

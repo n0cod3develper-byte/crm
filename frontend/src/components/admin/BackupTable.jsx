@@ -56,7 +56,7 @@ export const BackupTable = ({ backups, onDelete, isDeleting }) => {
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <Download size={14} /> Descargar
+                    <Download size={14} /> Descarga
                   </a>
                   <button
                     className="btn btn--danger btn--sm"

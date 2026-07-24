@@ -14,7 +14,10 @@
     "build": "npm run build --workspace=frontend",
     "test": "npm run test --workspace=backend",
     "db:migrate": "npm run migrate --workspace=backend",
-    "db:seed": "npm run seed --workspace=backend"
+    "db:seed": "npm run seed --workspace=backend",
+    "git:pull": "bash git-sync.sh pull",
+    "git:push": "bash git-sync.sh push",
+    "git:sync": "bash git-sync.sh"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
