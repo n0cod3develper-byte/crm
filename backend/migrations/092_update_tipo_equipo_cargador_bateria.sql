@@ -50,22 +50,27 @@ SELECT
     WHEN 'ELECTRICO_BATERIA_PLOMO' THEN 'Eléctrico / Batería Plomo'
   END AS tipo_propulsion_label,
   e.tipo_mastil,
-  e.altura_maxima_mastil,
+  CASE e.tipo_mastil
+    WHEN 'SIMPLEX'    THEN 'Simplex'
+    WHEN 'DUPLEX'     THEN 'Dúplex'
+    WHEN 'TRIPLEX'    THEN 'Tríplex'
+    WHEN 'CUADRUPLEX' THEN 'Cuádruple'
+  END AS tipo_mastil_label,
+  e.altura_maxima,
+  -- Métricas operativas
   e.horometro_actual,
-  e.horometro_inicial,
-  e.horometro_mantenimiento,
-  e.proximo_mantenimiento_horas,
-  -- Fechas y documentos
-  e.fecha_fabricacion,
-  e.fecha_adquisicion,
-  e.numero_chasis,
-  e.numero_motor,
-  e.placa,
-  e.propietario,
-  e.soat_numero,
-  e.soat_fecha_vencimiento,
-  e.tecnicomecanica_fecha_vencimiento,
-  -- Estado y ubicación
+  e.odometro,
+  e.fecha_horometro,
+  e.fecha_odometro,
+  -- SOAT
+  e.soat_vigente,
+  e.soat_vencimiento,
+  -- Bonificación por hora
+  e.bonificacion_hora,
+  -- Ubicación
+  e.ubicacion_fisica,
+  e.ciudad_ubicacion,
+  -- Estado
   e.estado,
   CASE e.estado
     WHEN 'OPERATIVO'         THEN 'Operativo'
@@ -74,20 +79,21 @@ SELECT
     WHEN 'ALQUILADO'         THEN 'Alquilado'
     WHEN 'RETIRADO'          THEN 'Retirado'
   END AS estado_label,
-  e.empresa_id,
-  c.name AS empresa_nombre,
-  e.ubicacion,
+  e.fecha_cambio_estado,
   e.motivo_estado,
-  e.observaciones,
-  e.imagen_url,
-  e.frecuencia_mantenimiento_horas,
-  e.bonificacion_hora,
+  -- Foto
+  e.foto_url,
+  e.foto_thumb_url,
+  -- Empresa
+  emp.id            AS empresa_id,
+  emp.name          AS empresa_nombre,
+  emp.nit           AS empresa_nit,
   -- Auditoría
   e.created_at,
   e.updated_at,
   e.deleted_at
 FROM equipos e
-LEFT JOIN companies c ON c.id = e.empresa_id
+LEFT JOIN companies emp ON emp.id = e.empresa_id
 WHERE e.deleted_at IS NULL;
 
 COMMIT;

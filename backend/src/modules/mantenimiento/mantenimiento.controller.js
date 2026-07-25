@@ -2,8 +2,12 @@ import { MantenimientoRepository } from './mantenimiento.repository.js';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../../utils/errors.js';
 import { generateOTPdf } from '../../utils/pdfGenerator.js';
 import { logger } from '../../utils/logger.js';
+import { OtActividadesRepository } from './ot-actividades.repository.js';
+
 
 const repo = new MantenimientoRepository();
+const actividadesRepo = new OtActividadesRepository();
+
 
 // ─── Órdenes de Trabajo ────────────────────────────────
 export const getAllOTs = async (req, res, next) => {
@@ -123,6 +127,31 @@ export const liquidar = async (req, res, next) => {
   }
 };
 
+// ─── Mano de Obra — Ítems Adicionales ─────────────────
+export const addManoObraAdicional = async (req, res, next) => {
+  try {
+    const ot = await repo.findOTById(req.params.id);
+    if (!ot) throw new NotFoundError('Orden de trabajo');
+    if (ot.estado === 'LIQUIDADA' || ot.estado === 'CERRADA') {
+      throw new ForbiddenError('No se pueden agregar ítems a una OT liquidada o cerrada');
+    }
+    const result = await repo.addManoObraAdicional(req.params.id, req.body, req.user.id);
+    res.status(201).json({ success: true, data: result });
+  } catch (err) { next(err); }
+};
+
+export const removeManoObraAdicional = async (req, res, next) => {
+  try {
+    const ot = await repo.findOTById(req.params.id);
+    if (!ot) throw new NotFoundError('Orden de trabajo');
+    if (ot.estado === 'LIQUIDADA' || ot.estado === 'CERRADA') {
+      throw new ForbiddenError('No se pueden eliminar ítems de una OT liquidada o cerrada');
+    }
+    await repo.removeManoObraAdicional(req.params.id, req.params.itemId);
+    res.json({ success: true, message: 'Ítem adicional eliminado' });
+  } catch (err) { next(err); }
+};
+
 // ─── PDF ───────────────────────────────────────────────
 export const downloadPDF = async (req, res, next) => {
   try {
@@ -162,5 +191,31 @@ export const searchInventario = async (req, res, next) => {
     const q = req.query.q || '';
     const items = await repo.searchInventario(q);
     res.json({ success: true, data: items });
+  } catch (err) { next(err); }
+};
+
+// ─── Actividades de OT correctiva ──────────────────────
+export const getActividadesOT = async (req, res, next) => {
+  try {
+    const ot = await repo.findOTById(req.params.id);
+    if (!ot) throw new NotFoundError('Orden de trabajo');
+    const data = await actividadesRepo.findByOT(req.params.id);
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
+};
+
+export const upsertActividadesOT = async (req, res, next) => {
+  try {
+    const ot = await repo.findOTById(req.params.id);
+    if (!ot) throw new NotFoundError('Orden de trabajo');
+    if (ot.estado === 'LIQUIDADA' || ot.estado === 'CERRADA') {
+      throw new ForbiddenError('No se pueden modificar actividades de una OT liquidada o cerrada');
+    }
+    const { actividades } = req.body;
+    if (!Array.isArray(actividades)) {
+      throw new BadRequestError('El campo actividades debe ser un arreglo');
+    }
+    const data = await actividadesRepo.upsertMany(req.params.id, actividades);
+    res.json({ success: true, data });
   } catch (err) { next(err); }
 };
