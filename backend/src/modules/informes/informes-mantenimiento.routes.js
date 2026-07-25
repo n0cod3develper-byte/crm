@@ -31,4 +31,20 @@ router.get('/costo-por-equipo', informesController.getCostoPorEquipoMantenimient
 // Reincidencia de Fallas
 router.get('/reincidencia-fallas', informesController.getReincidenciaFallasMantenimiento);
 
+// ── NUEVOS KPIs Avanzados ──
+// MTTR: Tiempo Medio de Reparación
+router.get('/mttr', informesController.getMTTRMantenimiento);
+
+// MTBF: Tiempo Medio Entre Fallas
+router.get('/mtbf', informesController.getMTBFMantenimiento);
+
+// Preventivos próximos a vencer (próximos N días, default=15)
+router.get('/preventivos-proximos', informesController.getPreventivosProximos);
+
+// Stock bajo vinculado a OTs activas
+router.get('/stock-bajo-activo', informesController.getStockBajoActivo);
+
+// Indicadores de cobertura (equipos atendidos %, empresas activas, proveedores)
+router.get('/cobertura', informesController.getCoberturaMantenimiento);
+
 export default router;

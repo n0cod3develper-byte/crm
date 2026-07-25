@@ -43,14 +43,14 @@ export const tasksController = {
 
   async update(req, res, next) {
     try {
-      const task = await service.updateTask(req.params.id, req.body, req.user.id);
+      const task = await service.updateTask(req.params.id, req.body, req.user);
       res.json({ success: true, data: task });
     } catch (err) { next(err); }
   },
 
   async complete(req, res, next) {
     try {
-      const task = await service.completeTask(req.params.id, req.user.id);
+      const task = await service.completeTask(req.params.id, req.user);
       res.json({ success: true, data: task });
     } catch (err) { next(err); }
   },

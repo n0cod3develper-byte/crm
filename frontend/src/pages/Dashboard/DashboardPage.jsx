@@ -11,9 +11,12 @@ import DashboardMantenimiento from './dashboards/DashboardMantenimiento';
 import DashboardEnConstruccion from './dashboards/DashboardEnConstruccion';
 
 const DASHBOARD_POR_ROL = {
-  'comercial':      DashboardComercial,
-  'mantenimiento':  DashboardMantenimiento,
-  'sst':            DashboardEnConstruccion,
+  'comercial':                 DashboardComercial,
+  'mantenimiento':             DashboardMantenimiento,
+  'tecnico':                   DashboardMantenimiento,
+  'jefe_mantenimiento':        DashboardMantenimiento,
+  'mantenimientos_programados': DashboardMantenimiento,
+  'sst':                       DashboardEnConstruccion,
 };
 
 export function KpiCard({ label, value, delta, deltaType, icon: Icon, color, href }) {
