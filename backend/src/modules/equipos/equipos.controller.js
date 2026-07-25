@@ -354,7 +354,8 @@ export const equiposController = {
         ESTIBADOR: '🏗️',
         CAMIONETA: '🚐',
         AMBULANCIA: '🚑',
-        VEHICULO: '🚗'
+        CARGADOR: '🔌',
+        BATERIA: '🔋'
       };
 
       const mapLabels = {
@@ -363,7 +364,8 @@ export const equiposController = {
         ESTIBADOR: 'Estibador',
         CAMIONETA: 'Camioneta',
         AMBULANCIA: 'Ambulancia',
-        VEHICULO: 'Vehículo'
+        CARGADOR: 'Cargador',
+        BATERIA: 'Batería'
       };
 
       const tipo = equipo.tipo_equipo || 'MONTACARGAS';

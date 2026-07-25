@@ -50,11 +50,12 @@ export const TIPOS_EQUIPO = [
   { valor: 'ESTIBADOR',   label: 'Estibador',   icono: '🏗️' },
   { valor: 'CAMIONETA',   label: 'Camioneta',   icono: '🚐'  },
   { valor: 'AMBULANCIA',  label: 'Ambulancia',  icono: '🚑'  },
-  { valor: 'VEHICULO',    label: 'Vehículo',    icono: '🚗'  },
+  { valor: 'CARGADOR',    label: 'Cargador',    icono: '🔌'  },
+  { valor: 'BATERIA',     label: 'Batería',     icono: '🔋'  },
 ];
 
 // Tipos de equipo que pueden tener SOAT (montacargas también pueden tenerlo)
-export const TIPOS_REQUIEREN_SOAT = ['MONTACARGAS', 'ELEVADOR', 'VEHICULO', 'CAMIONETA', 'AMBULANCIA'];
+export const TIPOS_REQUIEREN_SOAT = ['MONTACARGAS', 'ELEVADOR', 'CAMIONETA', 'AMBULANCIA'];
 
 // Estados que requieren motivo obligatorio
 export const ESTADOS_REQUIEREN_MOTIVO = ['FUERA_DE_SERVICIO', 'RETIRADO'];
