@@ -107,9 +107,26 @@ export class MantenimientoRepository {
     const liqRes = await query(`SELECT * FROM ot_liquidacion WHERE orden_trabajo_id = $1`, [id]);
     ot.liquidacion = liqRes.rows[0] || null;
 
+    const moAdicionalRes = await query(
+      `SELECT * FROM ot_mano_obra_adicional WHERE orden_trabajo_id = $1 ORDER BY created_at ASC`,
+      [id]
+    );
+    ot.mano_obra_adicional = moAdicionalRes.rows;
+
     // Si es preventiva, cargar las actividades del snapshot
     if (ot.tipo_mantenimiento === 'PREVENTIVO') {
       ot.pm_actividades = await pmRepo.findActividadesOT(id);
+    } else {
+      // Si es correctiva, cargar las actividades libres ingresadas por el usuario
+      const actRes = await query(
+        `SELECT a.*, e.full_name AS tecnico_nombre
+         FROM ot_actividades a
+         LEFT JOIN employees e ON e.id = a.tecnico_id
+         WHERE a.orden_trabajo_id = $1
+         ORDER BY a.orden ASC`,
+        [id]
+      );
+      ot.actividades_correctivas = actRes.rows;
     }
 
     return ot;
@@ -517,9 +534,16 @@ export class MantenimientoRepository {
               throw err;
           }
 
-          // 2. Sumar Mano de Obra
+          // 2. Sumar Mano de Obra (costo por horas × tarifa — sin modificar)
           const moRes = await client.query(`SELECT SUM(total_mano_obra) as sum_mo FROM ot_tecnicos WHERE orden_trabajo_id = $1`, [ot_id]);
-          const total_mano_obra = parseFloat(moRes.rows[0].sum_mo) || 0;
+          const costo_mano_obra = parseFloat(moRes.rows[0].sum_mo) || 0;
+
+          // 2b. Sumar ítems adicionales de mano de obra (valor de venta)
+          const moAdicRes = await client.query(
+            `SELECT COALESCE(SUM(precio), 0) AS suma FROM ot_mano_obra_adicional WHERE orden_trabajo_id = $1`,
+            [ot_id]
+          );
+          const total_mano_obra = costo_mano_obra + parseFloat(moAdicRes.rows[0].suma);
 
           // 3. Revisar Repuestos Múltiples e Inventario (Stock Constraint)
           //    Incluye tanto los de la plantilla PM como los manuales
@@ -609,8 +633,36 @@ export class MantenimientoRepository {
               await quotesService.changeStatus(quote_id, 'accepted', user_id, client);
           }
 
-          return { success: true, message: 'La OT fue liquidada y el inventario descargado con éxito y el horómetro del equipo actualizado.' };
+          return {
+            success: true,
+            message: 'La OT fue liquidada y el inventario descargado con éxito y el horómetro del equipo actualizado.',
+            costo_mano_obra,
+            total_mano_obra
+          };
       });
+  }
+
+  // ==========================================
+  // MANO DE OBRA — ÍTEMS ADICIONALES
+  // ==========================================
+
+  async addManoObraAdicional(ot_id, data, user_id) {
+    const { descripcion, precio } = data;
+    if (!descripcion || descripcion.trim() === '') throw new Error('La descripción es requerida');
+    const res = await query(
+      `INSERT INTO ot_mano_obra_adicional (orden_trabajo_id, descripcion, precio, created_by)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [ot_id, descripcion.trim(), parseFloat(precio) || 0, user_id || null]
+    );
+    return res.rows[0];
+  }
+
+  async removeManoObraAdicional(ot_id, item_id) {
+    await query(
+      `DELETE FROM ot_mano_obra_adicional WHERE id = $1 AND orden_trabajo_id = $2`,
+      [item_id, ot_id]
+    );
+    return true;
   }
 
 }

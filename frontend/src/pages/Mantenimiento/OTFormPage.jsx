@@ -42,6 +42,9 @@ export function OTFormPage() {
   const [tecnicos, setTecnicos] = React.useState([]);
   const [repuestos, setRepuestos] = React.useState([]);
   const [actividadesPM, setActividadesPM] = React.useState([]);
+  const [actividadesCorrectivas, setActividadesCorrectivas] = React.useState([]);
+  const [itemsAdicionales, setItemsAdicionales] = React.useState([]);
+  const [newMOItem, setNewMOItem] = React.useState({ descripcion: '', precio: '' });
 
   // Modales
   const [isContactModalOpen, setIsContactModalOpen] = React.useState(false);
@@ -136,6 +139,8 @@ export function OTFormPage() {
       setTecnicos(otData.tecnicos_asignados || []);
       setRepuestos(otData.repuestos_insumos || []);
       setActividadesPM(otData.pm_actividades || []);
+      setActividadesCorrectivas(otData.actividades_correctivas || []);
+      setItemsAdicionales(otData.mano_obra_adicional || []);
     } else if (!isEditing && user && !form.responsable) {
       setForm(prev => ({ ...prev, responsable: `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.full_name || '' }));
     }
@@ -260,6 +265,15 @@ export function OTFormPage() {
     onError: (err) => toast.error(err.response?.data?.message || 'Error al actualizar actividad'),
   });
 
+  const upsertActividadesMut = useMutation({
+    mutationFn: (actividades) => api.put(`/mantenimiento/ot/${id}/actividades-correctivas`, { actividades }),
+    onSuccess: () => {
+      toast.success('Actividades guardadas correctamente');
+      qc.invalidateQueries({ queryKey: ['ot-detail', id] });
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Error al guardar actividades')
+  });
+
   const addTecMut = useMutation({
     mutationFn: (body) => api.post(`/mantenimiento/ot/${id}/tecnicos`, body),
     onSuccess: () => { toast.success('Técnico agregado'); qc.invalidateQueries({ queryKey: ['ot-detail', id] }); },
@@ -293,6 +307,35 @@ export function OTFormPage() {
     mutationFn: ({ rid, body }) => api.put(`/mantenimiento/ot/${id}/repuestos/${rid}`, body),
     onSuccess: () => { toast.success('Repuesto actualizado'); qc.invalidateQueries({ queryKey: ['ot-detail', id] }); },
   });
+
+  const addMOAdicionalMut = useMutation({
+    mutationFn: (body) => api.post(`/mantenimiento/ot/${id}/mano-obra-adicional`, body),
+    onSuccess: (res) => {
+      setItemsAdicionales(prev => [...prev, res.data.data]);
+      setNewMOItem({ descripcion: '', precio: '' });
+      toast.success('Ítem adicional agregado');
+      qc.invalidateQueries({ queryKey: ['ot-detail', id] });
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Error al agregar ítem'),
+  });
+
+  const delMOAdicionalMut = useMutation({
+    mutationFn: (itemId) => api.delete(`/mantenimiento/ot/${id}/mano-obra-adicional/${itemId}`),
+    onSuccess: (_, itemId) => {
+      setItemsAdicionales(prev => prev.filter(i => i.id !== itemId));
+      toast.success('Ítem eliminado');
+      qc.invalidateQueries({ queryKey: ['ot-detail', id] });
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Error al eliminar ítem'),
+  });
+
+  const handleAddMOItem = () => {
+    const desc = newMOItem.descripcion.trim();
+    const price = parseFloat(newMOItem.precio);
+    if (!desc) return toast.error('La descripción es requerida');
+    if (isNaN(price) || price < 0) return toast.error('El precio debe ser un número válido');
+    addMOAdicionalMut.mutate({ descripcion: desc, precio: price });
+  };
 
   const liquidarMut = useMutation({
     mutationFn: (body) => api.post(`/mantenimiento/ot/${id}/liquidar`, body),
@@ -352,6 +395,37 @@ export function OTFormPage() {
     });
   };
 
+  const handleAddActividadCorrectiva = () => {
+    setActividadesCorrectivas(prev => [
+      ...prev,
+      { id: Date.now().toString(), codigo: '', descripcion: '', estado: 'PENDIENTE', tecnico_id: '', observaciones: '' }
+    ]);
+  };
+
+  const handleRemoveActividadCorrectiva = (index) => {
+    setActividadesCorrectivas(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleActividadCorrectivaChange = (index, field, value) => {
+    setActividadesCorrectivas(prev => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const handleSaveActividadesCorrectivas = () => {
+    const toSave = actividadesCorrectivas.map((a, i) => ({
+      orden: i + 1,
+      codigo: a.codigo,
+      descripcion: a.descripcion,
+      estado: a.estado,
+      tecnico_id: a.tecnico_id || null,
+      observaciones: a.observaciones
+    }));
+    upsertActividadesMut.mutate(toSave);
+  };
+
   const handleFrecuenciaChange = (freqId) => {
     if (form.pm_frecuencia_id && freqId !== form.pm_frecuencia_id && plantillaData) {
       if (!window.confirm('¿Deseas cambiar la frecuencia? Se actualizarán las actividades e insumos mostrados.')) return;
@@ -365,9 +439,6 @@ export function OTFormPage() {
     }
     if (form.tipo_mantenimiento === 'CORRECTIVO' && !form.componente_id) {
       return toast.error('Debes seleccionar el Componente / Sistema afectado para ordenes correctivas');
-    }
-    if (!isEditing && !form.tecnico_id) {
-      return toast.error('Debes seleccionar un técnico principal (mecánico)');
     }
     if (form.tipo_mantenimiento === 'PREVENTIVO' && !form.pm_frecuencia_id) {
       return toast.error('Debes seleccionar una frecuencia para el mantenimiento preventivo');
@@ -466,7 +537,9 @@ export function OTFormPage() {
     });
   };
 
-  const totalMO = tecnicos.reduce((s, t) => s + parseFloat(t.total_mano_obra || 0), 0);
+  const totalMOBase = tecnicos.reduce((s, t) => s + parseFloat(t.total_mano_obra || 0), 0);
+  const totalMOAdicional = itemsAdicionales.reduce((s, i) => s + parseFloat(i.precio || 0), 0);
+  const totalMO = totalMOBase + totalMOAdicional;
   const totalRepManual = repuestos.reduce((s, r) => s + parseFloat(r.total || 0), 0);
   const totalRep = totalRepManual + quoteSubtotal;
   const subtotal = totalMO + totalRep;
@@ -643,9 +716,9 @@ export function OTFormPage() {
             {/* Técnico Principal (Solo Creación) */}
             {!isEditing && (
               <div className="input-group">
-                <label className="input-label">Técnico (Mecánico) *</label>
-                <select className="input" name="tecnico_id" value={form.tecnico_id || ''} onChange={handleChange} required>
-                  <option value="">Seleccionar técnico...</option>
+                <label className="input-label">Técnico (Mecánico) <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(opcional)</span></label>
+                <select className="input" name="tecnico_id" value={form.tecnico_id || ''} onChange={handleChange}>
+                  <option value="">Sin asignar</option>
                   {(tecnicosDisponibles || []).map(t => (
                     <option key={t.id} value={t.id}>{t.full_name || t.nombre}</option>
                   ))}
@@ -804,8 +877,102 @@ export function OTFormPage() {
                 </table>
               </div>
             )}
-            <div style={{ textAlign: 'right', marginTop: '0.75rem', fontWeight: 700, color: 'var(--clr-primary-400)' }}>
-              Total Mano de Obra: {fmt(totalMO)}
+            <div style={{ textAlign: 'right', marginTop: '0.75rem', fontSize: '13px', color: 'var(--text-secondary)' }}>
+              Mano de Obra (horas): {fmt(totalMOBase)}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ SECCIÓN B2: Ítems Adicionales de Mano de Obra ═══ */}
+        {isEditing && (
+          <div className="card" style={{ marginBottom: '1.5rem', borderColor: 'rgba(34,197,94,0.25)', borderTopWidth: 3 }}>
+            <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <DollarSign size={18} color="#16a34a" /> Ítems Adicionales de Mano de Obra
+            </h2>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>
+              Agrega conceptos de venta adicionales (traslados, urgencias, viáticos, etc.) que se suman al total de mano de obra facturado al cliente.
+            </p>
+
+            {!isLiqOrClosed && (
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'flex-end' }}>
+                <div className="input-group" style={{ flex: 2, marginBottom: 0 }}>
+                  <label className="input-label">Descripción</label>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder="Ej: Traslado zona, Trabajo nocturno..."
+                    value={newMOItem.descripcion}
+                    onChange={e => setNewMOItem(prev => ({ ...prev, descripcion: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && handleAddMOItem()}
+                  />
+                </div>
+                <div className="input-group" style={{ flex: 1, marginBottom: 0 }}>
+                  <label className="input-label">Precio (COP)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    step="1000"
+                    placeholder="0"
+                    value={newMOItem.precio}
+                    onChange={e => setNewMOItem(prev => ({ ...prev, precio: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && handleAddMOItem()}
+                  />
+                </div>
+                <button
+                  className="btn btn--primary btn--sm"
+                  onClick={handleAddMOItem}
+                  disabled={addMOAdicionalMut.isPending}
+                  style={{ whiteSpace: 'nowrap', alignSelf: 'flex-end' }}
+                >
+                  <Plus size={14} /> Agregar
+                </button>
+              </div>
+            )}
+
+            {itemsAdicionales.length === 0 ? (
+              <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '0.75rem', fontSize: '13px' }}>
+                No hay ítems adicionales. {!isLiqOrClosed && 'Usa el formulario de arriba para agregar.'}
+              </p>
+            ) : (
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Descripción</th>
+                      <th style={{ textAlign: 'right', width: 160 }}>Precio</th>
+                      {!isLiqOrClosed && <th style={{ width: 60 }}>Acción</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {itemsAdicionales.map(item => (
+                      <tr key={item.id}>
+                        <td style={{ fontWeight: 500 }}>{item.descripcion}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>{fmt(item.precio)}</td>
+                        {!isLiqOrClosed && (
+                          <td>
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              style={{ color: 'var(--clr-danger)' }}
+                              onClick={() => delMOAdicionalMut.mutate(item.id)}
+                              disabled={delMOAdicionalMut.isPending}
+                              title="Eliminar ítem"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '2rem', marginTop: '0.75rem', fontSize: '13px' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Subtotal horas: <strong>{fmt(totalMOBase)}</strong></span>
+              <span style={{ color: 'var(--text-secondary)' }}>Ítems adicionales: <strong style={{ color: '#16a34a' }}>{fmt(totalMOAdicional)}</strong></span>
+              <span style={{ fontWeight: 700, color: 'var(--clr-primary-400)', fontSize: '14px' }}>Total Mano de Obra: {fmt(totalMO)}</span>
             </div>
           </div>
         )}
@@ -904,6 +1071,86 @@ export function OTFormPage() {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ═══ SECCIÓN CORRECTIVO: Actividades (solo CORRECTIVO) ═══ */}
+        {form.tipo_mantenimiento === 'CORRECTIVO' && isEditing && (
+          <div className="card" style={{ marginBottom: '1.5rem', borderColor: 'rgba(234,88,12,0.3)', borderTopWidth: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--clr-primary-500)' }}>
+                <Wrench size={18} /> Actividades del Correctivo
+              </h2>
+              {!isLiqOrClosed && (
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button className="btn btn--secondary btn--sm" onClick={handleAddActividadCorrectiva}>
+                    <Plus size={14} style={{ marginRight: 4 }} /> Agregar fila
+                  </button>
+                  <button className="btn btn--primary btn--sm" onClick={handleSaveActividadesCorrectivas} disabled={upsertActividadesMut.isPending}>
+                    <Save size={14} style={{ marginRight: 4 }} /> Guardar actividades
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ width: 40 }}>#</th>
+                    <th style={{ width: 120 }}>Código (Opc)</th>
+                    <th>Descripción</th>
+                    <th style={{ width: 120 }}>Estado</th>
+                    <th style={{ width: 150 }}>Técnico</th>
+                    <th>Observación</th>
+                    {!isLiqOrClosed && <th style={{ width: 60 }}>Acciones</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {actividadesCorrectivas.length === 0 ? (
+                    <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No hay actividades registradas. Usa el botón "Agregar fila".</td></tr>
+                  ) : (
+                    actividadesCorrectivas.map((a, i) => (
+                      <tr key={a.id || i}>
+                        <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>{i + 1}</td>
+                        <td>
+                          <input type="text" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={a.codigo} onChange={e => handleActividadCorrectivaChange(i, 'codigo', e.target.value)} disabled={isLiqOrClosed} placeholder="Ej: R-01" />
+                        </td>
+                        <td>
+                          <input type="text" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={a.descripcion} onChange={e => handleActividadCorrectivaChange(i, 'descripcion', e.target.value)} disabled={isLiqOrClosed} placeholder="Descripción de la actividad" />
+                        </td>
+                        <td>
+                          <select className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={a.estado} onChange={e => handleActividadCorrectivaChange(i, 'estado', e.target.value)} disabled={isLiqOrClosed}>
+                            <option value="PENDIENTE">PENDIENTE</option>
+                            <option value="EN_PROCESO">EN PROCESO</option>
+                            <option value="COMPLETADA">COMPLETADA</option>
+                            <option value="OMITIDA">OMITIDA</option>
+                          </select>
+                        </td>
+                        <td>
+                          <select className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={a.tecnico_id || ''} onChange={e => handleActividadCorrectivaChange(i, 'tecnico_id', e.target.value)} disabled={isLiqOrClosed}>
+                            <option value="">Sin asignar</option>
+                            {(tecnicosDisponibles || []).map(t => (
+                              <option key={t.id} value={t.id}>{t.full_name || t.nombre}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <input type="text" className="input" style={{ padding: '4px 6px', fontSize: '12px' }} value={a.observaciones || ''} onChange={e => handleActividadCorrectivaChange(i, 'observaciones', e.target.value)} disabled={isLiqOrClosed} placeholder="Notas adicionales" />
+                        </td>
+                        {!isLiqOrClosed && (
+                          <td style={{ textAlign: 'center' }}>
+                            <button className="btn btn--ghost btn--sm" style={{ color: 'var(--clr-danger)', padding: 4 }} onClick={() => handleRemoveActividadCorrectiva(i)} title="Remover fila">
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -1132,8 +1379,16 @@ export function OTFormPage() {
               </h2>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.375rem 2rem', fontSize: '14px', maxWidth: 400 }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Total Mano de Obra</span>
-                <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(totalMO)}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>M.O. por horas</span>
+                <span style={{ textAlign: 'right' }}>{fmt(totalMOBase)}</span>
+                {totalMOAdicional > 0 && (
+                  <>
+                    <span style={{ color: 'var(--text-secondary)' }}>Ítems adicionales MO</span>
+                    <span style={{ textAlign: 'right', color: '#16a34a' }}>+ {fmt(totalMOAdicional)}</span>
+                  </>
+                )}
+                <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>Total Mano de Obra</span>
+                <span style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(totalMO)}</span>
                 <span style={{ color: 'var(--text-secondary)' }}>Total Repuestos</span>
                 <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(totalRep)}</span>
                 <span style={{ color: 'var(--text-secondary)' }}>Subtotal</span>

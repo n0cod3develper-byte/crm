@@ -121,7 +121,11 @@ const MIGRATION_FILES = [
   '088_add_mime_type_documentos.sql',
   '089_add_employee_missing_columns.sql',
   '090_add_ot_tecnicos_cliente_times.sql',
-  '091_add_tiempo_envio_supplier_quotes.sql'
+  '091_add_tiempo_envio_supplier_quotes.sql',
+  '092_update_tipo_equipo_cargador_bateria.sql',
+  '093_tasks_enterprise_fields.sql',
+  '094_ot_actividades_correctivas.sql',
+  '095_ot_mano_obra_adicional.sql'
 ];
 
 async function ensureMigrationsTable(client) {

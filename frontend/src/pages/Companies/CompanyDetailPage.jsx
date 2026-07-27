@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   Building2, Phone, Globe, MapPin, Calendar, 
   Users, TrendingUp, History, ArrowLeft, 
@@ -20,6 +20,7 @@ import api from '../../lib/api';
 export function CompanyDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState('timeline');
   const [isContactModalOpen, setIsContactModalOpen] = React.useState(false);
   const [isEquipoModalOpen, setIsEquipoModalOpen] = React.useState(false);
@@ -28,6 +29,7 @@ export function CompanyDetailPage() {
   const [isQuoteModalOpen, setIsQuoteModalOpen] = React.useState(false);
   const [editingContact, setEditingContact] = React.useState(null);
   const [isEditContactModalOpen, setIsEditContactModalOpen] = React.useState(false);
+  const [isTaskModalOpen, setIsTaskModalOpen] = React.useState(false);
 
   const { data: company, isLoading } = useQuery({
     queryKey: ['company', id],
@@ -66,6 +68,22 @@ export function CompanyDetailPage() {
     queryFn: async () => {
       const { data } = await api.get(`/companies/${id}/service-addresses`);
       return data.data;
+    }
+  });
+
+  const { data: tasksData, isLoading: isTasksLoading } = useQuery({
+    queryKey: ['company-tasks', id],
+    queryFn: async () => {
+      const { data } = await api.get('/tasks', { params: { relatedType: 'company', relatedId: id } });
+      return data.data || [];
+    }
+  });
+
+  const { data: quotesData, isLoading: isQuotesLoading } = useQuery({
+    queryKey: ['company-quotes', id],
+    queryFn: async () => {
+      const { data } = await api.get('/quotes', { params: { companyId: id } });
+      return data.data || [];
     }
   });
 
@@ -621,6 +639,23 @@ export function CompanyDetailPage() {
             entidadId={id} 
             onClose={() => setIsDocumentoModalOpen(false)} 
             onUploadSuccess={() => setIsDocumentoModalOpen(false)}
+          />
+        </Modal>
+      )}
+
+      {isTaskModalOpen && (
+        <Modal 
+          title="Nueva Tarea para Empresa" 
+          onClose={() => setIsTaskModalOpen(false)}
+        >
+          <TaskForm 
+            defaultRelatedType="company"
+            defaultRelatedId={id}
+            onSuccess={() => {
+              setIsTaskModalOpen(false);
+              queryClient.invalidateQueries({ queryKey: ['company-tasks', id] });
+            }}
+            onCancel={() => setIsTaskModalOpen(false)}
           />
         </Modal>
       )}

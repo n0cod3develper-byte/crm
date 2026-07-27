@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
 import * as ctrl from './mantenimiento.controller.js';
+import { addManoObraAdicional, removeManoObraAdicional } from './mantenimiento.controller.js';
 import * as pmCtrl from './pm.controller.js';
 import * as compCtrl from './componentes.controller.js';
 
@@ -36,8 +37,16 @@ router.delete('/ot/:id/repuestos/:rid',  ctrl.removeRepuesto);
 // ─── Actividades PM de la OT ────────────────────────────────
 router.put('/ot/:id/actividades/:aid',   pmCtrl.updateActividadOT);
 
+// ─── Actividades de OT correctiva ────────────────────────
+router.get('/ot/:id/actividades-correctivas',  ctrl.getActividadesOT);
+router.put('/ot/:id/actividades-correctivas',  ctrl.upsertActividadesOT);
+
 // ─── Liquidación ────────────────────────────────────────────
 router.post('/ot/:id/liquidar',          ctrl.liquidar);
+
+// ─── Mano de Obra — Ítems Adicionales ────────────────────────
+router.post('/ot/:id/mano-obra-adicional',              addManoObraAdicional);
+router.delete('/ot/:id/mano-obra-adicional/:itemId',    removeManoObraAdicional);
 
 // ─── PDF ────────────────────────────────────────────────────
 router.get('/ot/:id/pdf',               ctrl.downloadPDF);

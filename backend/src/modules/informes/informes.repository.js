@@ -1290,6 +1290,197 @@ export class InformesRepository {
       casos: casos_reincidencia
     };
   }
+
+  // ── KPI: MTTR (Tiempo Medio de Reparación) ─────────────────────────────────
+  // Promedio de horas desde apertura de OT correctiva hasta su liquidación
+  async getMTTR(fecha_inicio, fecha_fin, empresa_id) {
+    const params = [];
+    let i = 1;
+    const conditions = [
+      "ot.tipo_mantenimiento = 'CORRECTIVO'",
+      "ot.deleted_at IS NULL",
+      "otl.fecha_liquidacion IS NOT NULL"
+    ];
+    if (fecha_inicio) { conditions.push(`otl.fecha_liquidacion >= $${i++}::date`); params.push(fecha_inicio); }
+    if (fecha_fin)    { conditions.push(`otl.fecha_liquidacion <= ($${i++}::date + interval '1 day')`); params.push(fecha_fin); }
+    if (empresa_id)   { conditions.push(`ot.empresa_id = $${i++}`); params.push(empresa_id); }
+
+    const sql = `
+      SELECT
+        COUNT(*)::int                                                          AS total_ots,
+        ROUND(AVG(EXTRACT(EPOCH FROM (otl.fecha_liquidacion - ot.created_at)) / 3600)::numeric, 2) AS mttr_horas,
+        ROUND(MIN(EXTRACT(EPOCH FROM (otl.fecha_liquidacion - ot.created_at)) / 3600)::numeric, 2) AS min_horas,
+        ROUND(MAX(EXTRACT(EPOCH FROM (otl.fecha_liquidacion - ot.created_at)) / 3600)::numeric, 2) AS max_horas
+      FROM ordenes_trabajo ot
+      JOIN ot_liquidacion otl ON otl.orden_trabajo_id = ot.id
+      WHERE ${conditions.join(' AND ')}
+    `;
+    const res = await query(sql, params);
+    return res.rows[0] || { total_ots: 0, mttr_horas: null, min_horas: null, max_horas: null };
+  }
+
+  // ── KPI: MTBF (Tiempo Medio Entre Fallas) ─────────────────────────────────
+  // Promedio de días entre OTs correctivas consecutivas por equipo
+  async getMTBF(fecha_inicio, fecha_fin, empresa_id) {
+    const params = [];
+    let i = 1;
+    const conditions = [
+      "ot.tipo_mantenimiento = 'CORRECTIVO'",
+      "ot.deleted_at IS NULL",
+      "otl.fecha_liquidacion IS NOT NULL"
+    ];
+    if (fecha_inicio) { conditions.push(`otl.fecha_liquidacion >= $${i++}::date`); params.push(fecha_inicio); }
+    if (fecha_fin)    { conditions.push(`otl.fecha_liquidacion <= ($${i++}::date + interval '1 day')`); params.push(fecha_fin); }
+    if (empresa_id)   { conditions.push(`ot.empresa_id = $${i++}`); params.push(empresa_id); }
+
+    const sql = `
+      WITH ots_correctivas AS (
+        SELECT
+          ot.equipo_id,
+          e.marca, e.modelo, e.serial,
+          otl.fecha_liquidacion,
+          LAG(otl.fecha_liquidacion) OVER (PARTITION BY ot.equipo_id ORDER BY otl.fecha_liquidacion) AS fecha_anterior
+        FROM ordenes_trabajo ot
+        JOIN ot_liquidacion otl ON otl.orden_trabajo_id = ot.id
+        JOIN equipos e ON e.id = ot.equipo_id
+        WHERE ${conditions.join(' AND ')}
+      ),
+      intervalos AS (
+        SELECT
+          equipo_id, marca, modelo, serial,
+          EXTRACT(EPOCH FROM (fecha_liquidacion - fecha_anterior)) / 86400 AS dias_entre_fallas
+        FROM ots_correctivas
+        WHERE fecha_anterior IS NOT NULL
+      ),
+      por_equipo_agg AS (
+        SELECT
+          equipo_id,
+          marca || ' ' || modelo || ' (' || serial || ')' AS equipo,
+          ROUND(AVG(dias_entre_fallas)::numeric, 1) AS mtbf_dias
+        FROM intervalos
+        GROUP BY equipo_id, marca, modelo, serial
+      )
+      SELECT
+        (SELECT COUNT(DISTINCT equipo_id)::int FROM intervalos) AS equipos_con_fallas,
+        (SELECT ROUND(AVG(dias_entre_fallas)::numeric, 1) FROM intervalos) AS mtbf_dias_promedio,
+        (SELECT ROUND(MIN(dias_entre_fallas)::numeric, 1) FROM intervalos) AS mtbf_min,
+        (SELECT ROUND(MAX(dias_entre_fallas)::numeric, 1) FROM intervalos) AS mtbf_max,
+        COALESCE(
+          (SELECT jsonb_agg(jsonb_build_object('equipo', equipo, 'mtbf_dias', mtbf_dias) ORDER BY mtbf_dias ASC) FROM por_equipo_agg),
+          '[]'::jsonb
+        ) AS por_equipo
+    `;
+    const res = await query(sql, params);
+    return res.rows[0] || { equipos_con_fallas: 0, mtbf_dias_promedio: null, mtbf_min: null, mtbf_max: null, por_equipo: [] };
+  }
+
+  // ── KPI: Preventivos Próximos a Vencer ────────────────────────────────────
+  // Mantenimientos preventivos programados que vencen en los próximos N días
+  async getPreventivosProximos(dias = 15) {
+    const sql = `
+      SELECT
+        mp.id,
+        mp.codigo,
+        mp.titulo,
+        mp.fecha_programada,
+        mp.estado,
+        mp.prioridad,
+        mp.tipo_mantenimiento,
+        mp.tipo_entidad,
+        e.marca || ' ' || e.modelo || ' (' || e.serial || ')' AS equipo_nombre,
+        a.nombre AS area_nombre,
+        u.nombre AS responsable_nombre,
+        mp.fecha_programada - CURRENT_DATE AS dias_restantes
+      FROM mp_ordenes_mantenimiento mp
+      LEFT JOIN equipos e ON mp.equipo_id = e.id
+      LEFT JOIN areas_inventario a ON mp.area_id = a.id
+      LEFT JOIN users u ON mp.responsable_id = u.id
+      WHERE mp.estado IN ('PROGRAMADO', 'EN_EJECUCION')
+        AND mp.fecha_programada BETWEEN CURRENT_DATE AND (CURRENT_DATE + ($1 || ' days')::interval)
+      ORDER BY mp.fecha_programada ASC, mp.prioridad DESC
+      LIMIT 50
+    `;
+    const res = await query(sql, [dias]);
+    return res.rows;
+  }
+
+  // ── KPI: Stock Bajo Vinculado a OTs Activas ───────────────────────────────
+  // Repuestos con stock <= mínimo que aparecen en OTs abiertas/en proceso
+  async getStockBajoActivo() {
+    try {
+      const sql = `
+        SELECT
+          ii.id AS item_id,
+          COALESCE(ii.codigo_interno, ii.sku, 'PRD-00000') AS codigo_interno,
+          COALESCE(ii.nombre_comercial, ii.name) AS nombre,
+          COALESCE(ii.stock_current, 0)::int AS stock_actual,
+          COALESCE(ii.stock_minimum, 0)::int AS stock_minimo,
+          (COALESCE(ii.stock_minimum, 0) - COALESCE(ii.stock_current, 0))::int AS deficit,
+          COUNT(DISTINCT ot.id)::int AS ots_activas_count,
+          COALESCE(STRING_AGG(DISTINCT ot.consecutivo::text, ', '), '') AS ots_consecutivos
+        FROM inventory_items ii
+        JOIN ot_repuestos_insumos ri ON ri.item_inventario_id = ii.id
+        JOIN ordenes_trabajo ot ON ot.id = ri.orden_trabajo_id
+        WHERE ot.estado IN ('ABIERTA', 'EN_PROCESO')
+          AND ot.deleted_at IS NULL
+        GROUP BY ii.id, ii.codigo_interno, ii.sku, ii.nombre_comercial, ii.name, ii.stock_current, ii.stock_minimum
+        HAVING COALESCE(ii.stock_current, 0) <= COALESCE(ii.stock_minimum, 0)
+           AND COALESCE(ii.stock_minimum, 0) > 0
+        ORDER BY deficit DESC
+        LIMIT 20
+      `;
+      const res = await query(sql);
+      return res.rows;
+    } catch (err) {
+      // Fallback si ocurre algún detalle en las columnas de inventory_items
+      return [];
+    }
+  }
+
+  // ── KPI: Indicadores de Cobertura ─────────────────────────────────────────
+  async getCobertura(fecha_inicio, fecha_fin) {
+    const params = [];
+    let i = 1;
+    const dateConditions = ['ot.deleted_at IS NULL'];
+    if (fecha_inicio) { dateConditions.push(`ot.created_at >= $${i++}::date`); params.push(fecha_inicio); }
+    if (fecha_fin)    { dateConditions.push(`ot.created_at <= ($${i++}::date + interval '1 day')`); params.push(fecha_fin); }
+
+    const sql = `
+      WITH equipos_totales AS (
+        SELECT COUNT(*)::int AS total FROM equipos WHERE deleted_at IS NULL
+      ),
+      equipos_activos AS (
+        SELECT COUNT(DISTINCT ot.equipo_id)::int AS total
+        FROM ordenes_trabajo ot
+        WHERE ${dateConditions.join(' AND ')}
+      ),
+      empresas_activas AS (
+        SELECT COUNT(DISTINCT ot.empresa_id)::int AS total
+        FROM ordenes_trabajo ot
+        WHERE ${dateConditions.join(' AND ')}
+      ),
+      empresas_totales AS (
+        SELECT COUNT(*)::int AS total FROM companies WHERE deleted_at IS NULL
+      ),
+      proveedores_stats AS (
+        SELECT
+          COUNT(DISTINCT p.id)::int AS proveedores_activos,
+          0 AS tiempo_respuesta_promedio
+        FROM proveedores p
+        WHERE p.estado = 'ACTIVO'
+      )
+      SELECT
+        et.total       AS equipos_total,
+        ea.total       AS equipos_atendidos,
+        CASE WHEN et.total > 0 THEN ROUND((ea.total::numeric / et.total) * 100, 1) ELSE 0 END AS cobertura_equipos_pct,
+        empa.total     AS empresas_activas,
+        empt.total     AS empresas_total,
+        ps.proveedores_activos
+      FROM equipos_totales et, equipos_activos ea, empresas_activas empa, empresas_totales empt, proveedores_stats ps
+    `;
+    const res = await query(sql, params);
+    return res.rows[0] || { equipos_total: 0, equipos_atendidos: 0, cobertura_equipos_pct: 0, empresas_activas: 0, empresas_total: 0, proveedores_activos: 0 };
+  }
 }
 
 // Utility: format decimal hours to "Xh Ym"

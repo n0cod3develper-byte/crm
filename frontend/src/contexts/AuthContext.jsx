@@ -41,7 +41,7 @@ export function AuthProvider({ children }) {
       });
       const result = await res.json();
       if (res.ok) {
-        setUser(result.data.user);
+        await fetchUser();
         toast.success('Sesión iniciada');
         return { success: true };
       } else {

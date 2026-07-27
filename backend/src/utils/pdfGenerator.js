@@ -59,22 +59,49 @@ function formatHorometro(h) {
 
 /**
  * Genera la sección HTML de actividades para el PDF.
- * Si no hay actividades (ej. Mantenimiento Correctivo sin plan), imprime filas en blanco.
+ * - Para OTs PREVENTIVAS: usa ot.pm_actividades (campo 'completada_por_nombre', 'observacion')
+ * - Para OTs CORRECTIVAS: usa ot.actividades_correctivas (campo 'tecnico_nombre', 'observaciones', 'codigo', 'descripcion')
+ * Si no hay actividades, imprime filas en blanco.
  */
 function buildActividadesSection(ot) {
-  const actividades = ot.pm_actividades || [];
-  const hasActividades = actividades.length > 0;
+  const esCorrectiva = ot.tipo_mantenimiento === 'CORRECTIVO';
 
   const estadoMap = {
-    'COMPLETADA': { text: 'OK', bg: '#e6f4ea', color: '#1a7a3c' },
-    'OMITIDA': { text: 'N/A', bg: '#f7f9fc', color: '#64748b' },
-    'EN_PROCESO': { text: 'N/A', bg: '#f7f9fc', color: '#64748b' },
-    'PENDIENTE': { text: 'N/A', bg: '#f7f9fc', color: '#64748b' }
+    'COMPLETADA': { text: 'OK',  bg: '#e6f4ea', color: '#1a7a3c' },
+    'OMITIDA':    { text: 'N/A', bg: '#f7f9fc', color: '#64748b' },
+    'EN_PROCESO': { text: 'EN PROCESO', bg: '#fff7ed', color: '#c2410c' },
+    'PENDIENTE':  { text: 'N/A', bg: '#f7f9fc', color: '#64748b' },
   };
 
-  const rows = actividades.map(a => {
-    const st = estadoMap[a.estado] || { text: 'N/A', bg: '#f7f9fc', color: '#64748b' };
-    return `
+  let actividades;
+  let buildRow;
+
+  if (esCorrectiva) {
+    actividades = ot.actividades_correctivas || [];
+    buildRow = (a) => {
+      const st = estadoMap[a.estado] || { text: 'N/A', bg: '#f7f9fc', color: '#64748b' };
+      const actividadCell = a.codigo
+        ? `<strong>${a.codigo}</strong> — ${a.descripcion || ''}`
+        : (a.descripcion || '');
+      return `
+        <tr>
+          <td style="border: 1px solid #ccc; text-align:center; padding: 4px 2px;">${a.orden}</td>
+          <td style="border: 1px solid #ccc; padding: 4px 6px; font-size:9px;">${actividadCell}</td>
+          <td style="border: 1px solid #ccc; text-align:center; padding: 4px 2px;">
+            <span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;color:${st.color};background:${st.bg}">
+              ${st.text}
+            </span>
+          </td>
+          <td style="border: 1px solid #ccc; padding: 4px 6px; font-size:9px;">${a.tecnico_nombre || '—'}</td>
+          <td style="border: 1px solid #ccc; font-size:9px; color:#64748b; padding: 4px 6px;">${a.observaciones || ''}</td>
+        </tr>`;
+    };
+  } else {
+    // PREVENTIVO — lógica original preservada
+    actividades = ot.pm_actividades || [];
+    buildRow = (a) => {
+      const st = estadoMap[a.estado] || { text: 'N/A', bg: '#f7f9fc', color: '#64748b' };
+      return `
         <tr>
           <td style="border: 1px solid #ccc; text-align:center">${a.orden}</td>
           <td style="border: 1px solid #ccc; font-weight:600">${a.codigo || ''} - ${a.nombre}</td>
@@ -86,10 +113,13 @@ function buildActividadesSection(ot) {
           <td style="border: 1px solid #ccc;">${a.completada_por_nombre || '—'}</td>
           <td style="border: 1px solid #ccc; font-size:9px;color:#64748b">${a.observacion || ''}</td>
         </tr>`;
-  }).join('');
+    };
+  }
 
-    const blankRowsCount = Math.max(15 - actividades.length, 0);
-    const blankRows = Array(blankRowsCount).fill(0).map(() => `
+  const rows = actividades.map(buildRow).join('');
+
+  const blankRowsCount = Math.max(15 - actividades.length, 0);
+  const blankRows = Array(blankRowsCount).fill(0).map(() => `
       <tr>
         <td style="border: 1px solid #ccc; padding: 12px 4px;"></td>
         <td style="border: 1px solid #ccc; padding: 12px 4px;"></td>
@@ -98,9 +128,13 @@ function buildActividadesSection(ot) {
         <td style="border: 1px solid #ccc; padding: 12px 4px;"></td>
       </tr>`).join('');
 
+  const titulo = esCorrectiva
+    ? 'Actividades Realizadas'
+    : `Actividades Realizadas ${ot.frecuencia_nombre ? `— Preventivo ${ot.frecuencia_nombre}` : ''}`;
+
   return `
   <div class="section">
-    <div class="section-title">Actividades Realizadas ${ot.frecuencia_nombre ? `— Preventivo ${ot.frecuencia_nombre}` : ''}</div>
+    <div class="section-title">${titulo}</div>
     <table style="width:100%; border-collapse: collapse; border: 1px solid #ccc;">
       <thead>
         <tr>

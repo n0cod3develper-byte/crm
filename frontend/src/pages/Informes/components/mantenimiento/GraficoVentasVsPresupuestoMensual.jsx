@@ -91,17 +91,19 @@ export default function GraficoVentasVsPresupuestoMensual({ appliedFilters }) {
           Sin datos en el período
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={320}>
-          <ComposedChart data={chartData} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.6} />
-            <XAxis dataKey="mesLabel" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} tickLine={false} />
-            <YAxis tickFormatter={formatCOP} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-            <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '13px', color: '#cbd5e1' }} />
-            <Bar dataKey="Presupuesto" fill={COLOR_PRESUPUESTO} radius={[4, 4, 0, 0]} maxBarSize={40} />
-            <Line type="monotone" dataKey="Real" stroke={COLOR_REAL} strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
-          </ComposedChart>
-        </ResponsiveContainer>
+        <div style={{ width: '100%', height: 320, minWidth: 0, minHeight: 320 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.6} />
+              <XAxis dataKey="mesLabel" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={{ stroke: '#334155' }} tickLine={false} />
+              <YAxis tickFormatter={formatCOP} tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+              <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '13px', color: '#cbd5e1' }} />
+              <Bar dataKey="Presupuesto" fill={COLOR_PRESUPUESTO} radius={[4, 4, 0, 0]} maxBarSize={40} />
+              <Line type="monotone" dataKey="Real" stroke={COLOR_REAL} strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
       )}
     </div>
   );

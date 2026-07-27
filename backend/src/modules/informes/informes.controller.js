@@ -299,5 +299,64 @@ export const informesController = {
       logger.error('Error en getReincidenciaFallasMantenimiento', { error: error.message });
       next(error);
     }
+  },
+
+  // ── MANTENIMIENTO: MTTR ──
+  async getMTTRMantenimiento(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin, empresa_id } = req.query;
+      const data = await informesRepository.getMTTR(fecha_inicio, fecha_fin, empresa_id);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getMTTRMantenimiento', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── MANTENIMIENTO: MTBF ──
+  async getMTBFMantenimiento(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin, empresa_id } = req.query;
+      const data = await informesRepository.getMTBF(fecha_inicio, fecha_fin, empresa_id);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getMTBFMantenimiento', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── MANTENIMIENTO: Preventivos Próximos a Vencer ──
+  async getPreventivosProximos(req, res, next) {
+    try {
+      const { dias } = req.query;
+      const data = await informesRepository.getPreventivosProximos(dias ? parseInt(dias) : 15);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getPreventivosProximos', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── MANTENIMIENTO: Stock Bajo Activo en OTs ──
+  async getStockBajoActivo(req, res, next) {
+    try {
+      const data = await informesRepository.getStockBajoActivo();
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getStockBajoActivo', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── MANTENIMIENTO: Indicadores de Cobertura ──
+  async getCoberturaMantenimiento(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getCobertura(fecha_inicio, fecha_fin);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getCoberturaMantenimiento', { error: error.message });
+      next(error);
+    }
   }
 };

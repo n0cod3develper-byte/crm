@@ -136,12 +136,16 @@ export function OTDetailPage() {
   const tecnicos = ot.tecnicos_asignados || [];
   const repuestos = ot.repuestos_insumos || [];
   const actividadesPM = ot.pm_actividades || [];
+  const actividadesCorrectivas = ot.actividades_correctivas || [];
+  const itemsAdicionales = ot.mano_obra_adicional || [];
   const liq = ot.liquidacion;
   const isPM = ot.tipo_mantenimiento === 'PREVENTIVO';
 
   const showOrigenCol = isPM || quoteItems.length > 0;
   
-  const totalMO = tecnicos.reduce((s, t) => s + parseFloat(t.total_mano_obra || 0), 0);
+  const totalMOBase = tecnicos.reduce((s, t) => s + parseFloat(t.total_mano_obra || 0), 0);
+  const totalMOAdicional = itemsAdicionales.reduce((s, i) => s + parseFloat(i.precio || 0), 0);
+  const totalMO = totalMOBase + totalMOAdicional;
   const totalRep = repuestosDisplay.reduce((s, r) => s + parseFloat(r.total || 0), 0);
   const canEdit = ot.estado === 'ABIERTA' || ot.estado === 'EN_PROCESO';
 
@@ -155,9 +159,20 @@ export function OTDetailPage() {
             </button>
             <div style={{ width: 1, height: 20, background: 'var(--border-color)' }} />
             <span>Orden de Trabajo #{ot.consecutivo}</span>
+            <span style={{
+              fontSize: '12px',
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: '12px',
+              background: est.bg,
+              color: est.color,
+              marginLeft: '0.5rem'
+            }}>
+              {est.label}
+            </span>
           </div>
         } 
-        subtitle={`Creada el ${fmtDate(ot.created_at)}`} 
+        subtitle={`Creada el ${fmtDate(ot.created_at)} • Tipo: ${ot.tipo_mantenimiento}`} 
         rightContent={
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {canEdit && (
@@ -224,7 +239,7 @@ export function OTDetailPage() {
         {isPM && actividadesPM.length > 0 && (
           <div className="card" style={{ marginBottom: '1.5rem', borderColor: 'rgba(67,56,202,0.3)', borderTopWidth: 4 }}>
             <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--clr-primary-500)' }}>
-              <CheckCircle2 size={18} /> Actividades del Preventivo
+              <CheckCircle2 size={18} /> Actividades del Mantenimiento Preventivo
             </h2>
             <div className="table-wrapper">
               <table>
@@ -251,6 +266,35 @@ export function OTDetailPage() {
                       <td>{a.completada_por_nombre || '—'}</td>
                       <td style={{ fontSize: '12px' }}>{fmtDate(a.fecha_completado)}</td>
                       <td style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{a.observacion || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Actividades Correctivas ──────────────── */}
+        {!isPM && actividadesCorrectivas.length > 0 && (
+          <div className="card" style={{ marginBottom: '1.5rem', borderColor: 'rgba(245,158,11,0.3)', borderTopWidth: 4 }}>
+            <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#d97706' }}>
+              <CheckCircle2 size={18} /> Actividades Ejecutadas (Correctivo)
+            </h2>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ width: 40, textAlign: 'center' }}>#</th>
+                    <th>Descripción de la Actividad</th>
+                    <th>Técnico Ejecutor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {actividadesCorrectivas.map((a, idx) => (
+                    <tr key={a.id || idx}>
+                      <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>{a.orden || idx + 1}</td>
+                      <td style={{ fontWeight: 500 }}>{a.descripcion}</td>
+                      <td>{a.tecnico_nombre || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -298,10 +342,42 @@ export function OTDetailPage() {
               </table>
             </div>
           )}
-          <div style={{ textAlign: 'right', marginTop: '0.75rem', fontWeight: 700, color: 'var(--clr-primary-400)', fontSize: '14px' }}>
-            Total Mano de Obra: {fmt(totalMO)}
+          <div style={{ textAlign: 'right', marginTop: '0.75rem', fontSize: '13px', color: 'var(--text-secondary)' }}>
+            Subtotal Mano de Obra (Horas): {fmt(totalMOBase)}
           </div>
         </div>
+
+        {/* ─── Ítems Adicionales de Mano de Obra ────────── */}
+        {itemsAdicionales.length > 0 && (
+          <div className="card" style={{ marginBottom: '1.5rem', borderColor: 'rgba(34,197,94,0.3)', borderTopWidth: 4 }}>
+            <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#16a34a' }}>
+              <DollarSign size={18} color="#16a34a" /> Ítems Adicionales de Mano de Obra
+            </h2>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Descripción</th>
+                    <th style={{ textAlign: 'right', width: 180 }}>Precio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemsAdicionales.map(item => (
+                    <tr key={item.id}>
+                      <td style={{ fontWeight: 500 }}>{item.descripcion}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>{fmt(item.precio)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '2rem', marginTop: '0.75rem', fontSize: '13px' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>M.O. Horas: <strong>{fmt(totalMOBase)}</strong></span>
+              <span style={{ color: 'var(--text-secondary)' }}>Ítems Adicionales: <strong style={{ color: '#16a34a' }}>{fmt(totalMOAdicional)}</strong></span>
+              <span style={{ fontWeight: 700, color: 'var(--clr-primary-400)', fontSize: '14px' }}>Total Mano de Obra: {fmt(totalMO)}</span>
+            </div>
+          </div>
+        )}
 
         {/* ─── Repuestos ───────────────────────────────── */}
         <div className="card" style={{ marginBottom: '1.5rem' }}>
@@ -370,20 +446,36 @@ export function OTDetailPage() {
               background: 'linear-gradient(135deg, var(--bg-surface), rgba(34,197,94,0.03))',
             }}>
               <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <DollarSign size={18} color="#22c55e" /> Liquidación
+                <DollarSign size={18} color="#22c55e" /> Resumen de Liquidación
               </h2>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem 3rem', maxWidth: 400, fontSize: '14px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Total Mano de Obra</span>
-                <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(liq.total_mano_obra)}</span>
-                <span style={{ color: 'var(--text-secondary)' }}>Total Repuestos</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem 3rem', maxWidth: 420, fontSize: '14px' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>M.O. (horas)</span>
+                <span style={{ textAlign: 'right' }}>{fmt(totalMOBase)}</span>
+
+                {totalMOAdicional > 0 && (
+                  <>
+                    <span style={{ color: 'var(--text-secondary)' }}>Ítems adicionales M.O.</span>
+                    <span style={{ textAlign: 'right', color: '#16a34a' }}>+ {fmt(totalMOAdicional)}</span>
+                  </>
+                )}
+
+                <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>Total Mano de Obra</span>
+                <span style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(liq.total_mano_obra)}</span>
+
+                <span style={{ color: 'var(--text-secondary)' }}>Total Repuestos / Cotización</span>
                 <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(liq.total_repuestos)}</span>
-                <span style={{ color: 'var(--text-secondary)' }}>Subtotal</span>
+
+                <span style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>Subtotal</span>
                 <span style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(liq.subtotal)}</span>
+
                 <span style={{ color: 'var(--text-secondary)' }}>Impuesto ({liq.impuesto_pct}%)</span>
                 <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(liq.impuesto_valor)}</span>
-                <span style={{ fontSize: '20px', fontWeight: 800, color: '#22c55e' }}>TOTAL FINAL</span>
-                <span style={{ textAlign: 'right', fontSize: '20px', fontWeight: 800, color: '#22c55e' }}>{fmt(liq.total_final)}</span>
+
+                <div style={{ gridColumn: '1 / -1', height: 1, background: 'var(--border-color)', margin: '0.25rem 0' }} />
+
+                <span style={{ fontSize: '18px', fontWeight: 800, color: '#22c55e' }}>TOTAL FINAL</span>
+                <span style={{ textAlign: 'right', fontSize: '18px', fontWeight: 800, color: '#22c55e' }}>{fmt(liq.total_final)}</span>
               </div>
 
               {liq.notas_liquidacion && (
