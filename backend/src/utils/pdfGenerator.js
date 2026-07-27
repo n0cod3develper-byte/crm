@@ -33,23 +33,28 @@ function formatCOP(value) {
 }
 
 function formatDate(dateStr) {
-  if (!dateStr) return '—';
+  if (!dateStr) return '';
   return new Date(dateStr).toLocaleDateString('es-CO', {
     year: 'numeric', month: '2-digit', day: '2-digit'
   });
 }
 
 function formatTime(timeStr) {
-  if (!timeStr) return '—';
+  if (!timeStr) return '';
   // time comes as HH:MM:SS from pg
   return timeStr.substring(0, 5);
 }
 
 function formatMinutes(mins) {
-  if (!mins && mins !== 0) return '—';
+  if (!mins || mins === 0 || mins === '0' || mins === '0.0') return '';
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return `${h}h ${m}m`;
+}
+
+function formatHorometro(h) {
+  if (!h || h === '0' || h === '0.0' || h === 0) return '';
+  return h;
 }
 
 /**
@@ -226,7 +231,7 @@ function buildPMTop(ot, logoHtml) {
       <td style="width: 50%; vertical-align: top;">
         <table style="width: 100%; border-collapse: collapse;">
           <tr><td style="text-align: right; width: 140px; padding-right: 10px; color: #555; height: 18px;">CÓDIGO:</td><td style="text-transform: uppercase;">${ot.equipo_serial || ''}</td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">HOROMETRO:</td><td style="border-bottom: 1px solid black;">${ot.horometro_inicial || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">HOROMETRO:</td><td style="border-bottom: 1px solid black;">${formatHorometro(ot.horometro_inicial)}</td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">AUTORIZADO POR:</td><td style="text-transform: uppercase;">${ot.responsable || ''}</td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">COTIZACIÓN No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">ORDEN DE COMPRA No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
@@ -250,16 +255,7 @@ function buildPMActividadesSection(ot) {
       <td style="border: 1px solid #ccc; padding: 2px 4px;"></td>
     </tr>`).join('');
 
-  // Rellenar hasta 15 filas mínimo
-  const blankRowsCount = Math.max(15 - actividades.length, 0);
-  const blankRows = Array(blankRowsCount).fill(0).map(() => `
-    <tr>
-      <td style="border: 1px solid #ccc; padding: 6px 4px;"></td>
-      <td style="border: 1px solid #ccc; padding: 6px 4px;"></td>
-      <td style="border: 1px solid #ccc; padding: 6px 4px;"></td>
-      <td style="border: 1px solid #ccc; padding: 6px 4px;"></td>
-      <td style="border: 1px solid #ccc; padding: 6px 4px;"></td>
-    </tr>`).join('');
+
 
   return `
   <table style="width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10px; margin-bottom: 5px;">
@@ -277,11 +273,6 @@ function buildPMActividadesSection(ot) {
     </thead>
     <tbody>
       ${rows}
-      ${blankRows}
-      <tr>
-        <td colspan="4" style="border: 1px solid #ccc; text-align: right; padding: 4px; font-weight: bold; color: #555;">TOTAL</td>
-        <td style="border: 1px solid #ccc; padding: 4px;"></td>
-      </tr>
     </tbody>
   </table>
   `;
@@ -333,7 +324,7 @@ function buildCMTop(ot, logoHtml) {
       <td style="width: 50%; vertical-align: top;">
         <table style="width: 100%; border-collapse: collapse;">
           <tr><td style="text-align: right; width: 140px; padding-right: 10px; color: #555; height: 18px;">CÓDIGO:</td><td style="text-transform: uppercase;">${ot.equipo_serial || ''}</td></tr>
-          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">HOROMETRO:</td><td style="border-bottom: 1px solid black;">${ot.horometro_inicial || ''}</td></tr>
+          <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">HOROMETRO:</td><td style="border-bottom: 1px solid black;">${formatHorometro(ot.horometro_inicial)}</td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">AUTORIZADO POR:</td><td style="text-transform: uppercase;">${ot.responsable || ''}</td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">COTIZACIÓN No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
           <tr><td style="text-align: right; padding-right: 10px; color: #555; height: 18px;">ORDEN DE COMPRA No.:</td><td style="border-bottom: 1px solid black;"></td></tr>
