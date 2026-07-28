@@ -55,14 +55,16 @@ const navItems = [
   { label: 'Órdenes Compra', icon: ShoppingCart, to: '/compras/oc', modulo: 'ordenes_compra', indent: true },
   { section: 'Administración' },
   { label: 'Presupuestos', icon: DollarSign, to: '/presupuestos' },
-  { label: 'Informes Dinámicos', icon: PieChart, to: '/informes' },
-  { label: 'Analítica / BI', icon: BarChart3, to: '/reportes' },
+  { label: 'Informes', icon: BarChart3, to: '/informes' },
+  { label: 'Informes Dinámicos', icon: PieChart, to: '/informes/dinamicos', indent: true },
   { label: 'Ventas Servicios', icon: ClipboardList, to: '/reportes/servicios', indent: true },
   { label: 'Ventas Mantenimiento', icon: Wrench, to: '/reportes/mantenimiento', indent: true },
+  { label: 'Horas Extras', icon: Clock, to: '/informes/horas-extras', indent: true },
   { label: 'Usuarios', icon: Users, to: '/admin/usuarios', adminOnly: true },
   { label: 'Roles y Permisos', icon: Shield, to: '/admin/roles', adminOnly: true },
   { label: 'Módulos del Sistema', icon: Settings, to: '/admin/modulos', adminOnly: true },
   { label: 'Respaldos DB', icon: Database, to: '/admin/backups', adminOnly: true },
+
   { section: 'Sistemas' },
   { label: 'Generador Prompts', icon: MessageSquareCode, to: '/sistemas/generador-prompts', adminOnly: true },
 ];

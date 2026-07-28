@@ -358,5 +358,17 @@ export const informesController = {
       logger.error('Error en getCoberturaMantenimiento', { error: error.message });
       next(error);
     }
+  },
+
+  // ── HORAS EXTRAS: Servicios ──
+  async getHorasExtrasServicios(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getHorasExtrasServicios(fecha_inicio, fecha_fin);
+      res.json({ success: true, data });
+    } catch (error) {
+      logger.error('Error en getHorasExtrasServicios', { error: error.message });
+      res.status(500).json({ success: false, message: 'Error interno del servidor', error: error.message, stack: error.stack });
+    }
   }
 };

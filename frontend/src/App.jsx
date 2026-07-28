@@ -84,6 +84,9 @@ const InformesIndexPage = lazy(() => import('./pages/Informes/InformesIndexPage'
 const InformesServiciosPage = lazy(() => import('./pages/Informes/InformesServiciosPage').then(m => ({ default: m.InformesServiciosPage })));
 const InformesMantenimientoPage = lazy(() => import('./pages/Informes/InformesMantenimientoPage').then(m => ({ default: m.InformesMantenimientoPage })));
 const InformesGestionHumanaPage = lazy(() => import('./pages/Informes/InformesGestionHumanaPage').then(m => ({ default: m.InformesGestionHumanaPage })));
+const HorasExtrasIndexPage = lazy(() => import('./pages/Informes/HorasExtrasIndexPage').then(m => ({ default: m.HorasExtrasIndexPage })));
+const HorasExtrasServiciosPage = lazy(() => import('./pages/Informes/HorasExtrasServiciosPage').then(m => ({ default: m.HorasExtrasServiciosPage })));
+const HorasExtrasMantenimientoPage = lazy(() => import('./pages/Informes/HorasExtrasMantenimientoPage').then(m => ({ default: m.HorasExtrasMantenimientoPage })));
 
 const BudgetIndexPage = lazy(() => import('./pages/Presupuestos/BudgetIndexPage').then(m => ({ default: m.BudgetIndexPage })));
 const BudgetFormPage = lazy(() => import('./pages/Presupuestos/BudgetFormPage').then(m => ({ default: m.BudgetFormPage })));
@@ -226,11 +229,15 @@ function App() {
                 <Route path="/reportes/servicios" element={<ProtectedRoute><SalesReportServicios /></ProtectedRoute>} />
                 <Route path="/reportes/mantenimiento" element={<ProtectedRoute><SalesReportMantenimiento /></ProtectedRoute>} />
 
-                {/* Informes Nuevos */}
+                {/* Informes */}
                 <Route path="/informes" element={<ProtectedRoute><InformesIndexPage /></ProtectedRoute>} />
+                <Route path="/informes/dinamicos" element={<ProtectedRoute><InformesIndexPage /></ProtectedRoute>} />
                 <Route path="/informes/servicios" element={<ProtectedRoute><InformesServiciosPage /></ProtectedRoute>} />
                 <Route path="/informes/mantenimiento" element={<ProtectedRoute><InformesMantenimientoPage /></ProtectedRoute>} />
                 <Route path="/informes/gestion-humana" element={<ProtectedRoute><InformesGestionHumanaPage /></ProtectedRoute>} />
+                <Route path="/informes/horas-extras" element={<ProtectedRoute><HorasExtrasIndexPage /></ProtectedRoute>} />
+                <Route path="/informes/horas-extras/servicios" element={<ProtectedRoute><HorasExtrasServiciosPage /></ProtectedRoute>} />
+                <Route path="/informes/horas-extras/mantenimiento" element={<ProtectedRoute><HorasExtrasMantenimientoPage /></ProtectedRoute>} />
 
                 {/* Presupuestos */}
                 <Route path="/presupuestos" element={<ProtectedRoute><BudgetIndexPage /></ProtectedRoute>} />

@@ -1481,6 +1481,95 @@ export class InformesRepository {
     const res = await query(sql, params);
     return res.rows[0] || { equipos_total: 0, equipos_atendidos: 0, cobertura_equipos_pct: 0, empresas_activas: 0, empresas_total: 0, proveedores_activos: 0 };
   }
+
+  /**
+   * Horas Extras de Servicios.
+   * Calcula las horas que caen FUERA del horario normal de la empresa:
+   *   Lunes-Jueves: 07:00 – 16:15
+   *   Viernes:      07:00 – 16:10
+   *   Sábado:       07:00 – 10:50
+   *   Domingo/Festivo: todo es extra
+   *
+   * Se usa hora_salida_cargar → hora_llegada_cargar como jornada real.
+   * Campos retornados: numero_remision, operario, equipo, fecha_servicio,
+   *                    cliente, horas_extras, total_neto de la remisión.
+   */
+  async getHorasExtrasServicios(fecha_inicio, fecha_fin) {
+    const conditions = ['r.deleted_at IS NULL', "r.estado != 'ANULADO'"];
+    const params = [];
+    let i = 1;
+
+    if (fecha_inicio) {
+      conditions.push(`r.fecha_servicio >= $${i++}`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`r.fecha_servicio <= $${i++}`);
+      params.push(fecha_fin);
+    }
+
+    // Solo remisiones con ambos tiempos registrados
+    conditions.push('r.hora_salida_cargar IS NOT NULL');
+    conditions.push('r.hora_llegada_cargar IS NOT NULL');
+
+    const sql = `
+      SELECT
+        r.id AS remision_id,
+        r.numero_remision,
+        em.id AS operario_id,
+        em.full_name AS operario_nombre,
+        e.marca AS equipo_marca,
+        e.modelo AS equipo_modelo,
+        e.serie AS equipo_serie,
+        r.fecha_servicio,
+        c.name AS cliente_nombre,
+        r.hora_salida_cargar,
+        r.hora_llegada_cargar,
+        COALESCE(r.total_neto, 0)::NUMERIC(12,2) AS total_neto,
+        EXTRACT(DOW FROM r.fecha_servicio) AS dia_semana,
+        CASE WHEN fc.fecha IS NOT NULL THEN TRUE ELSE FALSE END AS es_festivo
+      FROM remisiones r
+      LEFT JOIN remision_operarios ro ON ro.remision_id = r.id
+      LEFT JOIN employees em ON em.id = ro.empleado_id
+      JOIN companies c ON c.id = r.company_id
+      LEFT JOIN equipos e ON e.id = r.equipo_id
+      LEFT JOIN festivos_colombia fc ON fc.fecha = r.fecha_servicio AND fc.activo = TRUE
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY r.fecha_servicio DESC, r.numero_remision ASC
+    `;
+
+    const res = await query(sql, params);
+
+    // ── Calcular horas extras para cada fila ──
+    const resultado = [];
+
+    for (const row of res.rows) {
+      const horasExtras = calcularHorasExtras(
+        row.hora_salida_cargar,
+        row.hora_llegada_cargar,
+        parseInt(row.dia_semana),   // 0=Domingo, 1=Lunes, ..., 6=Sábado
+        row.es_festivo
+      );
+
+      if (horasExtras > 0) {
+        resultado.push({
+          remision_id: row.remision_id,
+          numero_remision: row.numero_remision,
+          operario_id: row.operario_id,
+          operario_nombre: row.operario_nombre,
+          equipo_marca: row.equipo_marca,
+          equipo_modelo: row.equipo_modelo,
+          equipo_serie: row.equipo_serie,
+          fecha_servicio: row.fecha_servicio,
+          cliente_nombre: row.cliente_nombre,
+          horas_extras: horasExtras.toFixed(2),
+          total_neto: row.total_neto,
+        });
+      }
+    }
+
+    return resultado;
+  }
 }
 
 // Utility: format decimal hours to "Xh Ym"
@@ -1491,3 +1580,63 @@ function formatHours(decimalHours) {
 }
 
 export const informesRepository = new InformesRepository();
+
+// ── Helper para cálculo de Horas Extras ──
+// Lunes (1) a Jueves (4): 07:00 a 16:15
+// Viernes (5): 07:00 a 16:10
+// Sábado (6): 07:00 a 10:50
+// Domingo (0) o Festivo: Todo es extra
+function calcularHorasExtras(horaSalida, horaLlegada, diaSemana, esFestivo) {
+  if (!horaSalida || !horaLlegada) return 0;
+  
+  // Convertimos 'HH:MM:SS' a minutos desde la medianoche
+  const toMinutes = (timeStr) => {
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+  };
+  
+  const inicioTrabajo = toMinutes(horaSalida);
+  let finTrabajo = toMinutes(horaLlegada);
+  
+  // Si terminó al día siguiente (ej. de 23:00 a 02:00)
+  if (finTrabajo < inicioTrabajo) {
+    finTrabajo += 24 * 60;
+  }
+  
+  const totalMinutosTrabajados = finTrabajo - inicioTrabajo;
+  if (totalMinutosTrabajados <= 0) return 0;
+
+  // Si es Domingo (0) o Festivo, TODO es extra
+  if (diaSemana === 0 || esFestivo) {
+    return totalMinutosTrabajados / 60;
+  }
+
+  // Definir horario normal en minutos según el día
+  let inicioNormal = toMinutes('07:00');
+  let finNormal = 0;
+
+  if (diaSemana >= 1 && diaSemana <= 4) {
+    // Lunes a Jueves
+    finNormal = toMinutes('16:15');
+  } else if (diaSemana === 5) {
+    // Viernes
+    finNormal = toMinutes('16:10');
+  } else if (diaSemana === 6) {
+    // Sábado
+    finNormal = toMinutes('10:50');
+  }
+
+  // Calcular minutos trabajados DENTRO del horario normal
+  const trabajoNormalInicio = Math.max(inicioTrabajo, inicioNormal);
+  const trabajoNormalFin = Math.min(finTrabajo, finNormal);
+  
+  let minutosNormales = 0;
+  if (trabajoNormalFin > trabajoNormalInicio) {
+    minutosNormales = trabajoNormalFin - trabajoNormalInicio;
+  }
+  
+  // El resto son horas extras
+  const minutosExtras = totalMinutosTrabajados - minutosNormales;
+  
+  return minutosExtras > 0 ? minutosExtras / 60 : 0;
+}
