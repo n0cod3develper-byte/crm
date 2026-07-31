@@ -231,43 +231,190 @@ export class MantenimientoRepository {
           );
         }
 
+        // Lógica de transición de estado de equipo a EN_MANTENIMIENTO
+        if (equipo_id) {
+          const userStr = userId ? `Usuario ID ${userId}` : 'Sistema';
+          const eqRes = await client.query(`
+            SELECT e.estado, c.name AS empresa_nombre 
+            FROM equipos e 
+            LEFT JOIN companies c ON e.empresa_id = c.id 
+            WHERE e.id = $1`, [equipo_id]);
+          const estado_anterior = eqRes.rows[0]?.estado || 'OPERATIVO';
+          const empresa_nombre = eqRes.rows[0]?.empresa_nombre || '';
+
+          if (estado_anterior !== 'EN_MANTENIMIENTO' && empresa_nombre.toUpperCase().startsWith('CARGAR')) {
+            await client.query(
+              `UPDATE equipos SET 
+                estado = 'EN_MANTENIMIENTO',
+                motivo_estado = $1,
+                fecha_cambio_estado = CURRENT_DATE,
+                actualizado_por = $2,
+                updated_at = NOW()
+               WHERE id = $3`,
+              [`En mantenimiento por OT ${consecutivo}`, userStr, equipo_id]
+            );
+
+            await client.query(
+              `INSERT INTO equipos_historial_estado (
+                equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
+              ) VALUES ($1, $2, $3, $4, $5)`,
+              [equipo_id, estado_anterior, 'EN_MANTENIMIENTO', `Asignado a OT ${consecutivo}`, userStr]
+            );
+          }
+        }
+
         return ot;
     });
   }
 
-  async updateOT(id, data) {
-    const fields = [];
-    const values = [];
-    let i = 1;
-    const allowed = ['tipo_mantenimiento', 'componente_id', 'horometro_inicial', 'horometro_final', 'responsable', 'contacto_empresa', 'telefono_contacto', 'detalle_servicio', 'observaciones', 'estado'];
-    
-    for (const key of allowed) {
-      if (key in data && data[key] !== undefined) {
-        let val = data[key];
-        if ((key === 'horometro_inicial' || key === 'horometro_final') && val === '') {
-          val = null;
+  async updateOT(id, data, userId) {
+    const userStr = userId ? `Usuario ID ${userId}` : 'Sistema';
+    return await withTransaction(async (client) => {
+      const currentRes = await client.query('SELECT equipo_id, estado, consecutivo FROM ordenes_trabajo WHERE id = $1 FOR UPDATE', [id]);
+      const current = currentRes.rows[0];
+      if (!current) return null;
+
+      const fields = [];
+      const values = [];
+      let i = 1;
+      const allowed = ['tipo_mantenimiento', 'componente_id', 'horometro_inicial', 'horometro_final', 'responsable', 'contacto_empresa', 'telefono_contacto', 'detalle_servicio', 'observaciones', 'estado'];
+      
+      for (const key of allowed) {
+        if (key in data && data[key] !== undefined) {
+          let val = data[key];
+          if ((key === 'horometro_inicial' || key === 'horometro_final') && val === '') {
+            val = null;
+          }
+          fields.push(`${key} = $${i++}`);
+          values.push(val);
         }
-        fields.push(`${key} = $${i++}`);
-        values.push(val);
       }
-    }
-    
-    if (fields.length === 0) return await this.findOTById(id);
-    
-    values.push(id);
-    const result = await query(
-      `UPDATE ordenes_trabajo SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${i} AND deleted_at IS NULL RETURNING *`,
-      values
-    );
-    return result.rows[0] || null;
+      
+      let updatedOT = null;
+      if (fields.length > 0) {
+        values.push(id);
+        const result = await client.query(
+          `UPDATE ordenes_trabajo SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${i} AND deleted_at IS NULL RETURNING *`,
+          values
+        );
+        updatedOT = result.rows[0] || null;
+      } else {
+        const fetchUpdated = await client.query(`SELECT * FROM ordenes_trabajo WHERE id = $1`, [id]);
+        updatedOT = fetchUpdated.rows[0] || null;
+      }
+
+      if (!updatedOT) return null;
+
+      // Lógica de transición de estado de equipos
+      const equipo_id = current.equipo_id;
+      const new_estado = 'estado' in data ? data.estado : current.estado;
+
+      const is_released_state = ['LIQUIDADA', 'CERRADA', 'ANULADA'].includes(new_estado);
+
+      if (equipo_id && is_released_state && current.estado !== new_estado) {
+        const eqRes = await client.query(`
+          SELECT e.estado, c.name AS empresa_nombre 
+          FROM equipos e 
+          LEFT JOIN companies c ON e.empresa_id = c.id 
+          WHERE e.id = $1`, [equipo_id]);
+        const current_eq_state = eqRes.rows[0]?.estado;
+        const empresa_nombre = eqRes.rows[0]?.empresa_nombre || '';
+
+        if (current_eq_state && current_eq_state !== 'OPERATIVO' && empresa_nombre.toUpperCase().startsWith('CARGAR')) {
+          // Verificar que no haya otras OTs activas del mismo equipo
+          const otrasActivasRes = await client.query(
+            `SELECT COUNT(*) AS total
+             FROM ordenes_trabajo
+             WHERE equipo_id = $1
+               AND id != $2
+               AND estado NOT IN ('LIQUIDADA', 'CERRADA', 'ANULADA')
+               AND deleted_at IS NULL`,
+            [equipo_id, id]
+          );
+          const otrasActivas = parseInt(otrasActivasRes.rows[0]?.total || 0);
+
+          if (otrasActivas === 0) {
+            const motivo = `Liberado por estado ${new_estado} de OT ${current.consecutivo}`;
+            await client.query(
+              `UPDATE equipos SET 
+                estado = 'OPERATIVO',
+                motivo_estado = $1,
+                fecha_cambio_estado = CURRENT_DATE,
+                actualizado_por = $2,
+                updated_at = NOW()
+               WHERE id = $3`,
+              [motivo, userStr, equipo_id]
+            );
+
+            await client.query(
+              `INSERT INTO equipos_historial_estado (
+                equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
+              ) VALUES ($1, $2, $3, $4, $5)`,
+              [equipo_id, current_eq_state, 'OPERATIVO', motivo, userStr]
+            );
+          }
+        }
+      }
+
+      return updatedOT;
+    });
   }
 
-  async softDeleteOT(id) {
-    const result = await query(
-      `UPDATE ordenes_trabajo SET deleted_at = NOW(), estado = 'CERRADA' WHERE id = $1 RETURNING id`,
-      [id]
-    );
-    return result.rows[0];
+  async softDeleteOT(id, userId) {
+    const userStr = userId ? `Usuario ID ${userId}` : 'Sistema';
+    return await withTransaction(async (client) => {
+      const currentRes = await client.query('SELECT equipo_id, estado, consecutivo FROM ordenes_trabajo WHERE id = $1', [id]);
+      const current = currentRes.rows[0];
+      if (!current) return null;
+
+      const result = await client.query(
+        `UPDATE ordenes_trabajo SET deleted_at = NOW(), estado = 'CERRADA' WHERE id = $1 RETURNING id`,
+        [id]
+      );
+
+      if (current.equipo_id && current.estado !== 'CERRADA' && current.estado !== 'LIQUIDADA') {
+        const eqRes = await client.query(`
+          SELECT e.estado, c.name AS empresa_nombre 
+          FROM equipos e 
+          LEFT JOIN companies c ON e.empresa_id = c.id 
+          WHERE e.id = $1`, [current.equipo_id]);
+        const state = eqRes.rows[0]?.estado;
+        const empresa_nombre = eqRes.rows[0]?.empresa_nombre || '';
+        if (state && state !== 'OPERATIVO' && empresa_nombre.toUpperCase().startsWith('CARGAR')) {
+          const otrasActivasRes = await client.query(
+            `SELECT COUNT(*) AS total
+             FROM ordenes_trabajo
+             WHERE equipo_id = $1
+               AND id != $2
+               AND estado NOT IN ('LIQUIDADA', 'CERRADA', 'ANULADA')
+               AND deleted_at IS NULL`,
+            [current.equipo_id, id]
+          );
+          const otrasActivas = parseInt(otrasActivasRes.rows[0]?.total || 0);
+
+          if (otrasActivas === 0) {
+            await client.query(
+              `UPDATE equipos SET 
+                estado = 'OPERATIVO',
+                motivo_estado = $1,
+                fecha_cambio_estado = CURRENT_DATE,
+                actualizado_por = $2,
+                updated_at = NOW()
+               WHERE id = $3`,
+              [`Liberado por anulación/cierre de OT ${current.consecutivo}`, userStr, current.equipo_id]
+            );
+            await client.query(
+              `INSERT INTO equipos_historial_estado (
+                equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
+              ) VALUES ($1, $2, $3, $4, $5)`,
+              [current.equipo_id, state, 'OPERATIVO', `Liberado por anulación/cierre de OT ${current.consecutivo}`, userStr]
+            );
+          }
+        }
+      }
+
+      return result.rows[0];
+    });
   }
 
   // ==========================================
@@ -631,6 +778,51 @@ export class MantenimientoRepository {
           // 7. Si hay cotización, aceptar atómicamente la cotización (deduce su stock interno)
           if (quote_id) {
               await quotesService.changeStatus(quote_id, 'accepted', user_id, client);
+          }
+
+          // 8. Liberar el equipo a OPERATIVO si no hay otras OTs activas
+          const userStr = user_id ? `Usuario ID ${user_id}` : 'Sistema';
+          if (equipo_id) {
+            const eqRes = await client.query(`
+              SELECT e.estado, c.name AS empresa_nombre 
+              FROM equipos e 
+              LEFT JOIN companies c ON e.empresa_id = c.id 
+              WHERE e.id = $1`, [equipo_id]);
+            const current_eq_state = eqRes.rows[0]?.estado;
+            const empresa_nombre = eqRes.rows[0]?.empresa_nombre || '';
+            if (current_eq_state && current_eq_state !== 'OPERATIVO' && empresa_nombre.toUpperCase().startsWith('CARGAR')) {
+              const otrasActivasRes = await client.query(
+                `SELECT COUNT(*) AS total
+                 FROM ordenes_trabajo
+                 WHERE equipo_id = $1
+                   AND id != $2
+                   AND estado NOT IN ('LIQUIDADA', 'CERRADA', 'ANULADA')
+                   AND deleted_at IS NULL`,
+                [equipo_id, ot_id]
+              );
+              const otrasActivas = parseInt(otrasActivasRes.rows[0]?.total || 0);
+
+              if (otrasActivas === 0) {
+                const motivo = `Liberado por liquidación de OT ${consecutivo}`;
+                await client.query(
+                  `UPDATE equipos SET 
+                    estado = 'OPERATIVO',
+                    motivo_estado = $1,
+                    fecha_cambio_estado = CURRENT_DATE,
+                    actualizado_por = $2,
+                    updated_at = NOW()
+                   WHERE id = $3`,
+                  [motivo, userStr, equipo_id]
+                );
+
+                await client.query(
+                  `INSERT INTO equipos_historial_estado (
+                    equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
+                  ) VALUES ($1, $2, $3, $4, $5)`,
+                  [equipo_id, current_eq_state, 'OPERATIVO', motivo, userStr]
+                );
+              }
+            }
           }
 
           return {

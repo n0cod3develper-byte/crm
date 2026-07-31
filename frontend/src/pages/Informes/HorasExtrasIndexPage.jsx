@@ -56,7 +56,7 @@ export function HorasExtrasIndexPage() {
               Horas Extras Servicios
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.5, marginBottom: '1.5rem', flex: 1 }}>
-              Consulte y analice las horas extras registradas por los técnicos en las remisiones de servicio.
+              Consulte y analice las horas extras registradas de los operarios en las remisiones de servicio.
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6366f1', fontWeight: 600, fontSize: '0.95rem' }}>
               Ver reporte <ArrowRight size={18} />
@@ -104,7 +104,7 @@ export function HorasExtrasIndexPage() {
               Horas Extras Mantenimiento
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.5, marginBottom: '1.5rem', flex: 1 }}>
-              Consulte y analice las horas extras registradas por los técnicos en las órdenes de trabajo de mantenimiento.
+              Consulte y analice las horas extras registradas de los técnicos en las órdenes de trabajo de mantenimiento.
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontWeight: 600, fontSize: '0.95rem' }}>
               Ver reporte <ArrowRight size={18} />

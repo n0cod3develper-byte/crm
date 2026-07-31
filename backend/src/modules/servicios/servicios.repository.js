@@ -372,7 +372,9 @@ export class ServiciosRepository {
 
       // 3. Lógica de transición de estado de equipos (orientada a estado objetivo)
       const old_equipo_id = current.equipo_id;
-      const new_equipo_id = 'equipo_id' in data ? data.equipo_id : old_equipo_id;
+      let new_equipo_id = 'equipo_id' in data ? data.equipo_id : old_equipo_id;
+      if (new_equipo_id === '') new_equipo_id = null;
+      
       const old_estado = current.estado;
       const new_estado = 'estado' in data ? data.estado : old_estado;
 
@@ -450,27 +452,41 @@ export class ServiciosRepository {
       }
 
       // B. Si el equipo cambió, liberar el equipo anterior
-      if (old_equipo_id && new_equipo_id && old_equipo_id !== new_equipo_id) {
+      if (old_equipo_id && old_equipo_id !== new_equipo_id) {
         const eqOldRes = await client.query('SELECT estado FROM equipos WHERE id = $1', [old_equipo_id]);
         const stateOld = eqOldRes.rows[0]?.estado;
         if (stateOld && stateOld !== 'OPERATIVO') {
-          const motivo = `Liberado por cambio de equipo en remisión ${current.numero_remision}`;
-          await client.query(
-            `UPDATE equipos SET 
-              estado = 'OPERATIVO',
-              motivo_estado = $1,
-              fecha_cambio_estado = CURRENT_DATE,
-              actualizado_por = $2,
-              updated_at = NOW()
-             WHERE id = $3`,
-            [motivo, userStr, old_equipo_id]
+          // Verificar que no haya otras remisiones activas del mismo equipo
+          const otrasActivasResOld = await client.query(
+            `SELECT COUNT(*) AS total
+             FROM remisiones
+             WHERE equipo_id = $1
+               AND id != $2
+               AND estado NOT IN ('REALIZADA', 'LIQUIDADA', 'FACTURADA', 'ANULADO')
+               AND deleted_at IS NULL`,
+            [old_equipo_id, id]
           );
-          await client.query(
-            `INSERT INTO equipos_historial_estado (
-              equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
-            ) VALUES ($1, $2, $3, $4, $5)`,
-            [old_equipo_id, stateOld, 'OPERATIVO', motivo, userStr]
-          );
+          const otrasActivasOld = parseInt(otrasActivasResOld.rows[0]?.total || 0);
+
+          if (otrasActivasOld === 0) {
+            const motivo = `Liberado por cambio/remoción de equipo en remisión ${current.numero_remision}`;
+            await client.query(
+              `UPDATE equipos SET 
+                estado = 'OPERATIVO',
+                motivo_estado = $1,
+                fecha_cambio_estado = CURRENT_DATE,
+                actualizado_por = $2,
+                updated_at = NOW()
+               WHERE id = $3`,
+              [motivo, userStr, old_equipo_id]
+            );
+            await client.query(
+              `INSERT INTO equipos_historial_estado (
+                equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
+              ) VALUES ($1, $2, $3, $4, $5)`,
+              [old_equipo_id, stateOld, 'OPERATIVO', motivo, userStr]
+            );
+          }
         }
       }
 

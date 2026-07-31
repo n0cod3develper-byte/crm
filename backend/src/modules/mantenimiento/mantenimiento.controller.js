@@ -47,14 +47,14 @@ export const updateOT = async (req, res, next) => {
     if (ot.estado === 'LIQUIDADA' || ot.estado === 'CERRADA') {
       throw new ForbiddenError('No se puede editar una OT liquidada o cerrada');
     }
-    const updated = await repo.updateOT(req.params.id, req.body);
+    const updated = await repo.updateOT(req.params.id, req.body, req.user?.id);
     res.json({ success: true, data: updated });
   } catch (err) { next(err); }
 };
 
 export const deleteOT = async (req, res, next) => {
   try {
-    const result = await repo.softDeleteOT(req.params.id);
+    const result = await repo.softDeleteOT(req.params.id, req.user?.id);
     if (!result) throw new NotFoundError('Orden de trabajo');
     res.json({ success: true, message: 'OT anulada exitosamente' });
   } catch (err) { next(err); }
