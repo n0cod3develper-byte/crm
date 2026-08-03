@@ -148,15 +148,22 @@ export class ServiciosRepository {
   }
 
   async generarNumeroRemision(client) {
-    const res = await client.query(`SELECT ultimo_valor FROM consecutivos WHERE id = 'REM' FOR UPDATE`);
-    const current = res.rows[0]?.ultimo_valor || 32961;
-    const next = current + 1;
-    await client.query(
-      `INSERT INTO consecutivos (id, ultimo_valor) VALUES ('REM', $1)
-       ON CONFLICT (id) DO UPDATE SET ultimo_valor = EXCLUDED.ultimo_valor`,
-      [next]
-    );
-    return String(next).padStart(5, '0');
+    let nextNum;
+    let exists = true;
+    while (exists) {
+      const res = await client.query(
+        `UPDATE consecutivos SET ultimo_valor = ultimo_valor + 1 WHERE id = 'REM' RETURNING ultimo_valor`
+      );
+      nextNum = res.rows[0]?.ultimo_valor;
+      if (!nextNum) throw new Error('No se encontró el consecutivo REM');
+      
+      const checkRes = await client.query(
+        `SELECT id FROM remisiones WHERE numero_remision = $1`,
+        [String(nextNum)]
+      );
+      exists = checkRes.rows.length > 0;
+    }
+    return String(nextNum);
   }
 
   async create(data, user) {

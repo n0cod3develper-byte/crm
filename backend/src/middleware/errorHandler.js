@@ -20,9 +20,10 @@ export function errorHandler(err, req, res, _next) {
 
   // Errores de PostgreSQL conocidos
   if (err.code === '23505') {   // unique_violation
+    logger.error('Unique violation', { detail: err.detail, constraint: err.constraint, table: err.table });
     return res.status(409).json({
       success: false,
-      error: { message: 'Ya existe un registro con esos datos', code: 'DUPLICATE' },
+      error: { message: 'Ya existe un registro con esos datos', code: 'DUPLICATE', detail: err.detail },
     });
   }
   if (err.code === '23503') {   // foreign_key_violation
