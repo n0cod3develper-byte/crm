@@ -6,20 +6,44 @@ export class FacturacionRepository {
    * Obtener OTs pendientes de facturar
    */
   async getOtsPendientes({ empresa_id, search, limit = 50, offset = 0 }) {
-    let sql = `SELECT * FROM ots_pendientes_facturar WHERE 1=1`;
+    let sql = `
+      SELECT
+        ot.id,
+        ot.consecutivo,
+        ot.tipo_mantenimiento,
+        ot.estado,
+        ot.horometro_inicial,
+        ot.horometro_final,
+        e.id           AS empresa_id,
+        e.name         AS empresa_nombre,
+        e.nit          AS empresa_nit,
+        e.condicion_pago,
+        liq.total_mano_obra,
+        liq.total_repuestos,
+        liq.subtotal,
+        liq.impuesto_valor  AS iva_valor,
+        liq.total_final     AS total,
+        liq.fecha_liquidacion,
+        EXTRACT(DAY FROM NOW() - liq.fecha_liquidacion)::INT AS dias_desde_liquidacion
+      FROM ordenes_trabajo ot
+      JOIN companies e ON e.id = ot.empresa_id
+      JOIN ot_liquidacion liq ON liq.orden_trabajo_id = ot.id
+      WHERE ot.estado = 'LIQUIDADA'
+        AND ot.factura_id IS NULL
+    `;
     const params = [];
 
     if (empresa_id) {
       params.push(empresa_id);
-      sql += ` AND empresa_id = $${params.length}`;
+      sql += ` AND ot.empresa_id = $${params.length}`;
     }
 
     if (search) {
       params.push(`%${search}%`);
-      sql += ` AND (consecutivo ILIKE $${params.length} OR empresa_nombre ILIKE $${params.length})`;
+      sql += ` AND (ot.consecutivo ILIKE $${params.length} OR e.name ILIKE $${params.length})`;
     }
 
-    sql += ` ORDER BY fecha_liquidacion ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    sql += ` ORDER BY liq.fecha_liquidacion ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
 
     const result = await query(sql, params);
@@ -30,20 +54,40 @@ export class FacturacionRepository {
    * Obtener remisiones pendientes de facturar
    */
   async getRemisionesPendientes({ empresa_id, search, limit = 50, offset = 0 }) {
-    let sql = `SELECT * FROM remisiones_pendientes_facturar WHERE 1=1`;
+    let sql = `
+      SELECT
+        r.id,
+        r.numero_remision AS consecutivo,
+        r.company_id AS empresa_id,
+        c.name AS empresa_nombre,
+        c.nit AS empresa_nit,
+        r.created_at AS fecha_creacion,
+        r.updated_at AS fecha_liquidacion,
+        r.total_bruto AS subtotal,
+        r.iva_valor,
+        r.total_neto AS total,
+        r.forma_pago AS condicion_pago,
+        EXTRACT(DAY FROM NOW() - r.updated_at)::int AS dias_desde_liquidacion,
+        r.factura_id
+      FROM remisiones r
+      JOIN companies c ON c.id = r.company_id
+      WHERE r.estado = 'LIQUIDADA'
+        AND r.factura_id IS NULL
+        AND r.deleted_at IS NULL
+    `;
     const params = [];
 
     if (empresa_id) {
       params.push(empresa_id);
-      sql += ` AND empresa_id = $${params.length}`;
+      sql += ` AND r.company_id = $${params.length}`;
     }
 
     if (search) {
       params.push(`%${search}%`);
-      sql += ` AND (consecutivo ILIKE $${params.length} OR empresa_nombre ILIKE $${params.length})`;
+      sql += ` AND (r.numero_remision ILIKE $${params.length} OR c.name ILIKE $${params.length})`;
     }
 
-    sql += ` ORDER BY fecha_liquidacion ASC NULLS LAST LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    sql += ` ORDER BY r.updated_at ASC NULLS LAST LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
 
     const result = await query(sql, params);
@@ -64,7 +108,9 @@ export class FacturacionRepository {
    */
   async getFacturas({ estado, empresa_id, search, limit = 50, offset = 0 }) {
     let sql = `
-      SELECT f.*, e.name as empresa_nombre 
+      SELECT f.*, e.name as empresa_nombre,
+             (SELECT STRING_AGG(ot_consecutivo, ', ') FROM factura_ots WHERE factura_id = f.id) as ots_list,
+             (SELECT STRING_AGG(remision_numero, ', ') FROM factura_remisiones WHERE factura_id = f.id) as remisiones_list
       FROM facturas f
       JOIN companies e ON f.empresa_id = e.id
       WHERE 1=1
@@ -161,6 +207,7 @@ export class FacturacionRepository {
         }
       }
 
+      
       // 2. Generar consecutivo interno
       const consRes = await client.query(`
         UPDATE consecutivos SET ultimo_valor = ultimo_valor + 1 WHERE id = 'FAC' RETURNING ultimo_valor
@@ -190,7 +237,7 @@ export class FacturacionRepository {
         empresa_id, 
         estado, 
         subtotal, iva_valor, total,
-        condicion_pago, fecha_vencimiento, notas, 
+        condicion_pago || null, fecha_vencimiento || null, notas || null, 
         createdBy,
         numero_factura ? createdBy : null
       ]);
@@ -279,7 +326,7 @@ export class FacturacionRepository {
         empresa_id,
         estado,
         subtotal, iva_valor, total,
-        condicion_pago, fecha_vencimiento, notas,
+        condicion_pago || null, fecha_vencimiento || null, notas || null,
         createdBy,
         numero_factura ? createdBy : null
       ]);
@@ -315,9 +362,9 @@ export class FacturacionRepository {
     const { numero_factura, fecha_factura, sistema_contable, sistema_contable_id } = data;
 
     return await withTransaction(async (client) => {
-      // 1. Validar estado factura
       const factRes = await client.query('SELECT estado FROM facturas WHERE id = $1 FOR UPDATE', [id]);
       if (factRes.rows.length === 0) throw new NotFoundError('Factura');
+      // Consecutivo interno será provisto por el usuario (no automático)
       if (factRes.rows[0].estado !== 'PREFACTURA') throw new BadRequestError('Solo se pueden confirmar prefacturas');
 
       // 2. Validar unicidad de numero_factura
@@ -366,7 +413,6 @@ export class FacturacionRepository {
    */
   async anularFactura(id, motivo, cancelledBy) {
     return await withTransaction(async (client) => {
-      // 1. Validar estado
       const factRes = await client.query('SELECT estado FROM facturas WHERE id = $1 FOR UPDATE', [id]);
       if (factRes.rows.length === 0) throw new NotFoundError('Factura');
       if (factRes.rows[0].estado === 'ANULADA') throw new BadRequestError('La factura ya está anulada');

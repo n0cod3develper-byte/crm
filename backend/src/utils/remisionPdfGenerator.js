@@ -41,7 +41,7 @@ const TERMINOS = `CARGAR S.A.S. en la prestación de servicio en montacargas ha 
 1. Cuenta con una póliza de responsabilidad civil contractual.
 2. El cliente asume totalmente la responsabilidad por la dirección, supervisión y control de la operación del montacargas que se le suministraron operario calificado, evitando riesgos virtuales de siniestros ó movimientos y operaciones efectuados de modo impropio.
 3. En caso de siniestro o daños, las partes interesadas se responsabilizaran de manera equitativa por los hechos ocurridos, evitando una reclamacion o demanda futura por perdida o daños quedando por consiguiente CARGAR S.A.S. a paz y salvo y libre de toda responsabilidad.
-4. Si el servicio es después de las 5 PM se cobrará a la tarifa con el recargo correspondiente y los sábados después de las 12 M.`;
+4. Si el servicio es después de las 4:15 PM se cobrará a la tarifa con el recargo correspondiente y los sábados después de las 10:50 AM.`;
 
 function buildRemisionHtml(rem, horasLaborales = []) {
   const logo = getLogoBase64();

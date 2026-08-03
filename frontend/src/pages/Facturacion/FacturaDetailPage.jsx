@@ -93,6 +93,10 @@ export const FacturaDetailPage = () => {
   const fact = factura.data;
   const isPrefactura = fact.estado === 'PREFACTURA';
   const isFacturada = fact.estado === 'FACTURADA';
+  
+  const titleNumbers = fact.ots?.length > 0 
+    ? fact.ots.map(ot => ot.ot_consecutivo).join(', ') 
+    : fact.consecutivo_interno;
 
   return (
     <Layout>
@@ -137,7 +141,7 @@ export const FacturaDetailPage = () => {
           <div className="lg:col-span-2 space-y-8">
             
             {/* Summary Card */}
-            <div className="card-premium p-8 relative overflow-hidden">
+            <div className="card-premium relative overflow-hidden" style={{ padding: '2.5rem' }}>
               <div className={`absolute top-0 right-0 px-8 py-2 rounded-bl-3xl font-bold text-xs uppercase tracking-widest ${isFacturada ? 'bg-green-500 text-white' : 'bg-orange-500 text-white'}`}>
                 {fact.estado}
               </div>
@@ -147,7 +151,7 @@ export const FacturaDetailPage = () => {
                   <Receipt size={32} />
                 </div>
                 <div>
-                  <h2 className="text-3xl font-black">{fact.consecutivo_interno}</h2>
+                  <h2 className="text-3xl font-black break-words">{titleNumbers}</h2>
                   <p className="text-muted flex items-center gap-2 mt-1">
                     <Calendar size={14} /> Emitida el {new Date(fact.fecha_prefactura).toLocaleDateString()}
                   </p>
@@ -190,7 +194,7 @@ export const FacturaDetailPage = () => {
 
             {/* OTs Table */}
             <div className="card-premium overflow-hidden">
-              <div className="p-6 border-b border-color bg-subtle/30 flex items-center gap-2">
+              <div className="border-b border-color bg-subtle/30 flex items-center gap-2" style={{ padding: '1.5rem 2.5rem' }}>
                 <FileText size={20} className="text-accent" />
                 <h3 className="font-bold">Órdenes de Trabajo Incluidas</h3>
               </div>
@@ -240,7 +244,7 @@ export const FacturaDetailPage = () => {
             </div>
 
             {fact.notas && (
-              <div className="card-premium p-6">
+              <div className="card-premium" style={{ padding: '2rem 2.5rem' }}>
                 <h4 className="text-xs font-bold uppercase text-muted mb-4 tracking-widest">Notas del Facturador</h4>
                 <div className="p-4 bg-subtle/50 rounded-xl border border-color text-sm italic">
                   "{fact.notas}"
@@ -254,8 +258,8 @@ export const FacturaDetailPage = () => {
           <div className="space-y-8">
             
             {/* Status Card */}
-            <div className="card-premium p-6 space-y-6">
-              <h3 className="font-bold border-b border-color pb-2">Estado del Proceso</h3>
+            <div className="card-premium space-y-6" style={{ padding: '2rem' }}>
+              <h3 className="font-bold border-b border-color pb-4">Estado del Proceso</h3>
               
               <div className="space-y-8 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-color">
                 
@@ -292,7 +296,7 @@ export const FacturaDetailPage = () => {
 
             {/* Auditoria Card */}
             {isFacturada && (
-              <div className="card-premium p-6 space-y-4 bg-accent/5 border-accent/20">
+              <div className="card-premium space-y-4 bg-accent/5 border-accent/20" style={{ padding: '2rem' }}>
                 <div className="flex items-center gap-2 text-accent font-bold">
                   <AlertTriangle size={18} /> Detalle Sistema Contable
                 </div>
