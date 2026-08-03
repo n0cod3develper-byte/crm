@@ -309,7 +309,7 @@ export class MantenimientoRepository {
       const equipo_id = current.equipo_id;
       const new_estado = 'estado' in data ? data.estado : current.estado;
 
-      const is_released_state = ['LIQUIDADA', 'CERRADA', 'ANULADA'].includes(new_estado);
+      const is_released_state = ['LIQUIDADA', 'CERRADA', 'ANULADA', 'FACTURADA'].includes(new_estado);
 
       if (equipo_id && is_released_state && current.estado !== new_estado) {
         const eqRes = await client.query(`
@@ -320,14 +320,14 @@ export class MantenimientoRepository {
         const current_eq_state = eqRes.rows[0]?.estado;
         const empresa_nombre = eqRes.rows[0]?.empresa_nombre || '';
 
-        if (current_eq_state && current_eq_state !== 'OPERATIVO' && empresa_nombre.toUpperCase().startsWith('CARGAR')) {
+        if (current_eq_state && current_eq_state !== 'OPERATIVO') {
           // Verificar que no haya otras OTs activas del mismo equipo
           const otrasActivasRes = await client.query(
             `SELECT COUNT(*) AS total
              FROM ordenes_trabajo
              WHERE equipo_id = $1
                AND id != $2
-               AND estado NOT IN ('LIQUIDADA', 'CERRADA', 'ANULADA')
+               AND estado NOT IN ('LIQUIDADA', 'CERRADA', 'ANULADA', 'FACTURADA')
                AND deleted_at IS NULL`,
             [equipo_id, id]
           );
@@ -372,7 +372,7 @@ export class MantenimientoRepository {
         [id]
       );
 
-      if (current.equipo_id && current.estado !== 'CERRADA' && current.estado !== 'LIQUIDADA') {
+      if (current.equipo_id && !['CERRADA', 'LIQUIDADA', 'FACTURADA', 'ANULADA'].includes(current.estado)) {
         const eqRes = await client.query(`
           SELECT e.estado, c.name AS empresa_nombre 
           FROM equipos e 
@@ -386,7 +386,7 @@ export class MantenimientoRepository {
              FROM ordenes_trabajo
              WHERE equipo_id = $1
                AND id != $2
-               AND estado NOT IN ('LIQUIDADA', 'CERRADA', 'ANULADA')
+               AND estado NOT IN ('LIQUIDADA', 'CERRADA', 'ANULADA', 'FACTURADA')
                AND deleted_at IS NULL`,
             [current.equipo_id, id]
           );
