@@ -21,16 +21,18 @@ export const serviciosController = {
     } catch (err) { next(err); }
   },
 
-  async create(req, res, next) {
-    try {
-      const { fecha_servicio, company_id, catalogo_servicio_id, items } = req.body;
-        if (!fecha_servicio || !company_id || (!catalogo_servicio_id && (!items || items.length === 0))) {
-          throw new BadRequestError('fecha_servicio, company_id y al menos un servicio (catalogo_servicio_id o items) son requeridos');
-        }
-      const item = await repo.create(req.body, req.user);
-      res.status(201).json({ success: true, data: item });
-    } catch (err) { next(err); }
-  },
+ async create(req, res, next) {
+  try {
+    const { fecha_servicio, company_id, catalogo_servicio_id, items } = req.body;
+    const primerCatalogoId = items && items.length > 0 ? items[0].catalogo_servicio_id : catalogo_servicio_id;
+    if (!fecha_servicio || !company_id || !primerCatalogoId) {
+      throw new BadRequestError('fecha_servicio, company_id y al menos un servicio (catalogo_servicio_id o items) son requeridos');
+    }
+    const item = await repo.create(req.body, req.user);
+    res.status(201).json({ success: true, data: item });
+  } catch (err) { next(err); }
+},
+
 
   async update(req, res, next) {
     try {
