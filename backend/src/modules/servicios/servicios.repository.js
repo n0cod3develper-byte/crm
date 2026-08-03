@@ -192,7 +192,8 @@ export class ServiciosRepository {
         d.hora_acordada || null,                  // $3
         d.forma_pago || 'Contado',                // $4
         d.company_id,                             // $5
-        d.items && d.items.length > 0 ? d.items[0].catalogo_servicio_id : d.catalogo_servicio_id, // $6
+       // d.items && d.items.length > 0 ? d.items[0].catalogo_servicio_id : d.catalogo_servicio_id, // $6
+        d.items && d.items.length > 0 ? (d.items[0].catalogo_servicio_id || null) : (d.catalogo_servicio_id || null), // $6
         d.equipo_id || null,                              // $7
         d.solicitado_por || null,                 // $8
         d.solicitado_por_id || null,              // $9
