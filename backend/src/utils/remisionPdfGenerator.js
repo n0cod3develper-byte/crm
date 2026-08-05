@@ -51,7 +51,7 @@ function buildRemisionHtml(rem, horasLaborales = []) {
 
   const operarios = rem.operarios || [];
 
-  
+
   const horarioRows = [
     { label: 'ORDINARIA', horas: rem.horas_ordinarias, valor: rem.valor_hora_ordinaria },
     { label: 'CON RECARGO', horas: rem.horas_recargo, valor: rem.valor_hora_recargo },
@@ -155,7 +155,7 @@ function buildRemisionHtml(rem, horasLaborales = []) {
       gap: 40px;
     }
     .firma-line {
-      border-top: 1px solid #000;
+      border-top: 1px solid #000;|
       padding-top: 4px;
       text-align: center;
       font-size: 9px;
@@ -172,7 +172,7 @@ function buildRemisionHtml(rem, horasLaborales = []) {
     <div class="header-center">
       CALLE 31 # 41-51<br>
       Itagüí, Antioquia<br>
-      PBX: (+57) 444 77 73 Cel: 320 693 73 94<br>
+      PBX: (604) 444 77 73 Cel: 320 693 73 94<br>
       www.cargar.co<br>
       mercadeo@cargar.com.co
     </div>
@@ -223,13 +223,13 @@ function buildRemisionHtml(rem, horasLaborales = []) {
     </thead>
     <tbody>
       ${operarios.length > 0 ? operarios.map((op, idx) => {
-        const h_sal_cargar = idx === 1 ? rem.segundo_hora_salida_cargar : rem.hora_salida_cargar;
-        const h_lleg_cliente = idx === 1 ? rem.segundo_hora_llegada_cliente : rem.hora_llegada_cliente;
-        const h_sal_cliente = idx === 1 ? rem.segundo_hora_salida_cliente : rem.hora_salida_cliente;
-        const h_lleg_cargar = idx === 1 ? rem.segundo_hora_llegada_cargar : rem.hora_llegada_cargar;
-        return `
+    const h_sal_cargar = idx === 1 ? rem.segundo_hora_salida_cargar : rem.hora_salida_cargar;
+    const h_lleg_cliente = idx === 1 ? rem.segundo_hora_llegada_cliente : rem.hora_llegada_cliente;
+    const h_sal_cliente = idx === 1 ? rem.segundo_hora_salida_cliente : rem.hora_salida_cliente;
+    const h_lleg_cargar = idx === 1 ? rem.segundo_hora_llegada_cargar : rem.hora_llegada_cargar;
+    return `
       <tr>
-        <td class="td-center" style="font-size: 8px;"><strong>${op.full_name}</strong><br/>Máq: ${rem.numero_maquina || ''}</td>
+        <td class="td-center">${rem.equipo_serie || rem.numero_maquina || ''}</td>
         <td class="td-center">${formatTime(h_sal_cargar)}</td>
         <td class="td-center">${formatTime(h_lleg_cliente)}</td>
         <td class="td-center">${formatTime(h_sal_cliente)}</td>
@@ -238,9 +238,9 @@ function buildRemisionHtml(rem, horasLaborales = []) {
         <td class="td-center">${idx === 0 ? (rem.horometro_salida || '') : ''}</td>
         <td class="td-center">${idx === 0 ? (rem.horometro_regreso || '') : ''}</td>
       </tr>`;
-      }).join('') : `
+  }).join('') : `
       <tr>
-        <td class="td-center">${rem.numero_maquina || ''}</td>
+        <td class="td-center">${rem.equipo_serie || rem.numero_maquina || ''}</td>
         <td class="td-center">${formatTime(rem.hora_salida_cargar)}</td>
         <td class="td-center">${formatTime(rem.hora_llegada_cliente)}</td>
         <td class="td-center">${formatTime(rem.hora_salida_cliente)}</td>
@@ -306,11 +306,11 @@ function buildRemisionHtml(rem, horasLaborales = []) {
         <td class="td-center">${parseFloat(row.horas) > 0 && parseFloat(row.valor) > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(row.valor) : ''}</td>
         <td class="td-center">${(parseFloat(row.horas) > 0 && parseFloat(row.valor) > 0) ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(parseFloat(row.horas) * parseFloat(row.valor)) : ''}</td>
       </tr>`).join('')}
-      <tr style="font-weight: bold; background: #f0f0f0;">
-        <td>TOTAL</td>
-        <td class="td-center">${totalHorasDesglose > 0 ? totalHorasDesglose : ''}</td>
-        <td></td>
-        <td class="td-center">${totalParcialDesglose > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(totalParcialDesglose) : ''}</td>
+      <tr style="font-weight: bold; background: #f0f0f0; font-size: 12px;">
+        <td style="padding: 10px 5px;">TOTAL</td>
+        <td class="td-center" style="padding: 10px 5px;">${totalHorasDesglose > 0 ? totalHorasDesglose : ''}</td>
+        <td style="padding: 10px 5px;"></td>
+        <td class="td-center" style="padding: 10px 5px;">${totalParcialDesglose > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(totalParcialDesglose) : ''}</td>
       </tr>
     </tbody>
   </table>

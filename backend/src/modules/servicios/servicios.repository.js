@@ -404,7 +404,7 @@ export class ServiciosRepository {
                FROM remisiones
                WHERE equipo_id = $1
                  AND id != $2
-                 AND estado NOT IN ('REALIZADA', 'LIQUIDADA', 'FACTURADA', 'ANULADO', 'ANULADA')
+                 AND estado IN ('PENDIENTE', 'EN_PROCESO')
                  AND deleted_at IS NULL`,
               [new_equipo_id, id]
             );
@@ -524,7 +524,7 @@ export class ServiciosRepository {
              FROM remisiones
              WHERE equipo_id = $1
                AND id != $2
-               AND estado NOT IN ('REALIZADA', 'LIQUIDADA', 'FACTURADA', 'ANULADO')
+               AND estado IN ('PENDIENTE', 'EN_PROCESO')
                AND deleted_at IS NULL`,
             [current.equipo_id, id]
           );

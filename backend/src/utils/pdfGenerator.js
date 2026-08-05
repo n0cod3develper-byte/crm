@@ -926,9 +926,8 @@ function buildPrefacturaHtml(factura) {
     </div>
     <div class="header-right">
       <div class="doc-label">${isPrefactura ? 'Prefactura de Servicios' : 'Relación de Facturación'}</div>
-      <div class="doc-number">${factura.consecutivo_interno}</div>
-      ${factura.numero_factura ? `<div style="font-weight:700;color:#22c55e">Ref: ${factura.numero_factura}</div>` : ''}
-      <div style="font-size:10px;color:#64748b">Fecha: ${formatDate(factura.fecha_prefactura)}</div>
+      <div class="doc-number">${factura.numero_factura || 'PENDIENTE'}</div>
+      <div style="font-size:10px;color:#64748b;margin-top:4px;">Fecha: ${formatDate(factura.fecha_prefactura)}</div>
     </div>
   </div>
 

@@ -38,6 +38,41 @@ const EMPTY = {
   items: [],
 };
 
+const DRAFT_KEY = 'remision_draft';
+
+function loadDraft() {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed._savedAt && Date.now() - parsed._savedAt > 24 * 60 * 60 * 1000) {
+      sessionStorage.removeItem(DRAFT_KEY);
+      return null;
+    }
+    const { _savedAt, ...draft } = parsed;
+    return { ...EMPTY, ...draft };
+  } catch { return null; }
+}
+
+function saveDraft(formData) {
+  try {
+    // Solo guardar si el formulario tiene datos reales ingresados
+    const hasMeaningfulData = formData.company_id || formData.equipo_id ||
+      formData.hora_salida_cargar || formData.hora_llegada_cliente ||
+      formData.solicitado_por || formData.direccion_servicio ||
+      formData.observaciones || (formData.items && formData.items.length > 0);
+    if (!hasMeaningfulData) {
+      sessionStorage.removeItem(DRAFT_KEY);
+      return;
+    }
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ ...formData, _savedAt: Date.now() }));
+  } catch { /* quota exceeded */ }
+}
+
+function clearDraft() {
+  sessionStorage.removeItem(DRAFT_KEY);
+}
+
 /**
  * Calcula horas a partir de horómetros.
  * diff = regreso - salida (en horas decimales)
@@ -155,7 +190,9 @@ export function RemisionFormPage() {
   const qc = useQueryClient();
   const isEditing = !!id;
 
-  const [form, setForm] = React.useState(EMPTY);
+  const draft = React.useMemo(() => !id ? loadDraft() : null, [id]);
+  const [form, setForm] = React.useState(() => draft || EMPTY);
+  const [draftRestored, setDraftRestored] = React.useState(!!draft);
   const [equiposFiltrados, setEquiposFiltrados] = React.useState([]);
   const [equiposExternosFiltrados, setEquiposExternosFiltrados] = React.useState([]);
   const [equipoExterno, setEquipoExterno] = React.useState(false);
@@ -164,6 +201,13 @@ export function RemisionFormPage() {
   const [horasManual, setHorasManual] = React.useState(false);
   const [currentEstado, setCurrentEstado] = React.useState(null);
   const [estadoManual, setEstadoManual] = React.useState(false);
+
+  // ─── Auto-guardar borrador en sessionStorage (solo creación) ──
+  React.useEffect(() => {
+    if (isEditing) return;
+    const timer = setTimeout(() => saveDraft(form), 400);
+    return () => clearTimeout(timer);
+  }, [form, isEditing]);
 
   const [isContactModalOpen, setIsContactModalOpen] = React.useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = React.useState(false);
@@ -396,7 +440,7 @@ export function RemisionFormPage() {
     if (form.equipo_id && equiposFiltrados.length) {
       const eq = equiposFiltrados.find(e => e.id === form.equipo_id);
       if (eq) {
-        setForm(prev => ({ ...prev, numero_maquina: eq.serial || '' }));
+        setForm(prev => ({ ...prev, numero_maquina: eq.serie || eq.serial || '' }));
         
         const isDifferentEquipment = isEditing && existingData && existingData.equipo_id !== form.equipo_id;
         if (!isEditing || isDifferentEquipment) {
@@ -581,6 +625,7 @@ export function RemisionFormPage() {
     mutationFn: (payload) =>
       isEditing ? api.put(`/servicios/${id}`, payload) : api.post('/servicios', payload),
     onSuccess: (res) => {
+      clearDraft();
       toast.success(isEditing ? 'Remisión actualizada' : 'Remisión creada');
       qc.invalidateQueries({ queryKey: ['servicios'] });
       qc.invalidateQueries({ queryKey: ['servicios-edit', id] });
@@ -864,6 +909,14 @@ export function RemisionFormPage() {
         {isReadOnly && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1.5rem', color: '#f59e0b', fontWeight: 600, fontSize: '13px' }}>
             <Lock size={16} /> Esta remisión está en estado <strong>{currentEstado}</strong> y no puede ser editada.
+          </div>
+        )}
+
+        {draftRestored && !isEditing && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '8px', padding: '0.65rem 1rem', marginBottom: '1rem', fontSize: '13px' }}>
+            <span style={{ color: '#818cf8' }}>💾</span>
+            <span style={{ flex: 1, color: 'var(--text-secondary)' }}>Se restauró un <strong>borrador</strong> con los datos que tenías antes de recargar.</span>
+            <button type="button" className="btn btn--ghost btn--sm" style={{ fontSize: '12px', color: 'var(--text-muted)' }} onClick={() => { clearDraft(); setForm(EMPTY); setDraftRestored(false); }}>Descartar</button>
           </div>
         )}
 

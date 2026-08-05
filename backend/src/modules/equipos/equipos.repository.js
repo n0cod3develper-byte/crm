@@ -410,7 +410,7 @@ export class EquiposRepository {
             SELECT 1 FROM remisiones r
             WHERE r.equipo_id = e.id
               AND r.deleted_at IS NULL
-              AND r.estado NOT IN ('REALIZADA', 'LIQUIDADA', 'FACTURADA', 'ANULADO')
+              AND r.estado IN ('PENDIENTE', 'EN_PROCESO')
           )
       `);
 
