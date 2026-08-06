@@ -1,16 +1,226 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { LogIn, Mail, Lock, Eye, EyeOff, AlertCircle, FileText } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { LoginCarousel } from '../../components/Auth/LoginCarousel';
+
+/* ─── Estilos globales del login ────────────────────────────── */
+const CSS = `
+  @keyframes lp-fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes lp-shake {
+    0%,100% { transform: translateX(0); }
+    18%     { transform: translateX(-5px); }
+    36%     { transform: translateX(5px); }
+    54%     { transform: translateX(-3px); }
+    72%     { transform: translateX(3px); }
+  }
+  @keyframes lp-slideDown {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Layout */
+  .lp-root {
+    min-height: 100vh;
+    display: flex;
+    background: #f0f4f8;
+  }
+
+  /* Panel formulario */
+  .lp-form-panel {
+    flex: 0 0 460px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 3rem 2.5rem;
+    background: #ffffff;
+    position: relative;
+    z-index: 1;
+    box-shadow: 4px 0 40px rgba(0,0,0,0.08);
+  }
+
+  /* Panel carrusel */
+  .lp-carousel-panel {
+    flex: 1 1 0;
+    position: relative;
+    overflow: hidden;
+    min-height: 100vh;
+  }
+
+  /* Wrapper del contenido del form */
+  .lp-form-inner {
+    width: 100%;
+    max-width: 360px;
+    animation: lp-fadeUp 0.55s cubic-bezier(.16,1,.3,1) both;
+  }
+
+  /* Inputs */
+  .lp-input {
+    width: 100%;
+    height: 44px;
+    padding: 0 0.875rem;
+    font-size: 0.9rem;
+    font-family: inherit;
+    color: #1a202c;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  }
+  .lp-input::placeholder { color: #a0aec0; }
+  .lp-input:hover { border-color: #cbd5e1; background: #f1f5f9; }
+  .lp-input:focus {
+    border-color: #2563eb;
+    background: #ffffff;
+    box-shadow: 0 0 0 3.5px rgba(37,99,235,0.12);
+  }
+  .lp-input--icon-left  { padding-left: 2.625rem; }
+  .lp-input--icon-right { padding-right: 2.625rem; }
+
+  /* Botón submit */
+  .lp-btn-submit {
+    width: 100%;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+    color: #ffffff;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    font-family: inherit;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+    box-shadow: 0 4px 14px rgba(37,99,235,0.3);
+    letter-spacing: 0.01em;
+  }
+  .lp-btn-submit::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.14) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .lp-btn-submit:not(:disabled):hover {
+    transform: translateY(-1.5px);
+    box-shadow: 0 8px 22px rgba(37,99,235,0.38);
+  }
+  .lp-btn-submit:not(:disabled):active { transform: translateY(0); box-shadow: 0 3px 10px rgba(37,99,235,0.25); }
+  .lp-btn-submit:disabled { opacity: 0.7; cursor: not-allowed; }
+
+  /* Eye button */
+  .lp-eye-btn {
+    position: absolute;
+    right: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    padding: 4px;
+    color: #94a3b8;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    border-radius: 5px;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+  .lp-eye-btn:hover { color: #475569; background: rgba(0,0,0,0.05); }
+
+  /* Forgot link */
+  .lp-forgot {
+    font-size: 0.78rem;
+    color: #2563eb;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+  .lp-forgot:hover { color: #1d4ed8; text-decoration: underline; }
+
+  /* Error banner */
+  .lp-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    padding: 0.75rem 0.875rem;
+    background: #fef2f2;
+    border: 1.5px solid #fecaca;
+    border-radius: 10px;
+    color: #dc2626;
+    font-size: 0.825rem;
+    font-weight: 500;
+    animation: lp-slideDown 0.2s ease, lp-shake 0.45s ease 0.05s;
+  }
+
+  /* Divider sutil */
+  .lp-divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, #e2e8f0 30%, #e2e8f0 70%, transparent);
+    margin: 1.625rem 0;
+  }
+
+  /* Cert link */
+  .lp-cert-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: #2563eb;
+    font-weight: 500;
+    text-decoration: none;
+    padding: 0.5rem 0.875rem;
+    border-radius: 8px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    transition: all 0.15s ease;
+  }
+  .lp-cert-link:hover { background: #dbeafe; border-color: #93c5fd; transform: translateY(-1px); }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .lp-form-panel {
+      flex: 1;
+      box-shadow: none;
+    }
+    .lp-carousel-panel { display: none !important; }
+  }
+  @media (min-width: 901px) and (max-width: 1200px) {
+    .lp-form-panel { flex: 0 0 400px; }
+  }
+
+  /* Spinner */
+  .lp-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255,255,255,0.35);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: spin 0.65s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+`;
+
+import stratumLogo from '../../assets/stratum_logo.png';
 
 export function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail]               = useState('');
+  const [password, setPassword]         = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const { login } = useAuth();
-  const navigate = useNavigate();
+  const [error, setError]               = useState('');
+  const [errorKey, setErrorKey]         = useState(0);
+  const { login }  = useAuth();
+  const navigate   = useNavigate();
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -21,137 +231,145 @@ export function LoginPage() {
       navigate('/dashboard');
     } else {
       setError(res.error);
+      setErrorKey(k => k + 1);
     }
     setIsSubmitting(false);
   }
 
   return (
-    <div className="login-page" style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center',
-      background: 'radial-gradient(circle at top right, var(--bg-elevated), var(--bg-app))',
-      padding: '2rem'
-    }}>
-      <div className="card" style={{ 
-        width: '100%', 
-        maxWidth: '420px', 
-        padding: '2.5rem',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: 16,
-            background: 'linear-gradient(135deg, var(--clr-primary-500), var(--clr-primary-700))',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            marginBottom: '1.25rem',
-            boxShadow: '0 10px 20px rgba(37,99,235,0.2)',
-          }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
-              <path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zm-.5 1.5L21.96 13H17V9.5h2.5zM6 18c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm2.22-3c-.55-.61-1.33-1-2.22-1-.89 0-1.67.39-2.22 1H3V6h12v9H8.22zM18 18c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/>
-            </svg>
-          </div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.5rem', letterSpacing: '-0.025em' }}>
-            CARGAR SAS CRM
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            Ingresa tus credenciales para continuar
-          </p>
-        </div>
+    <>
+      <style>{CSS}</style>
+      <div className="lp-root">
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {error && (
-            <>
-              <style>{`
-                @keyframes slideDown {
-                  from { opacity: 0; transform: translateY(-8px); }
-                  to { opacity: 1; transform: translateY(0); }
-                }
-              `}</style>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.875rem 1.25rem',
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.2)',
-                borderRadius: 'var(--radius-md, 0.75rem)',
-                color: '#ef4444',
-                fontSize: '0.875rem',
-                animation: 'slideDown 0.2s ease-out'
-              }}>
-                <AlertCircle size={18} style={{ flexShrink: 0 }} />
-                <span style={{ fontWeight: 500 }}>{error}</span>
+        {/* ── Panel formulario ──────────────────────────────── */}
+        <div className="lp-form-panel">
+          <div className="lp-form-inner">
+
+            {/* Logo + marca */}
+            <div style={{ marginBottom: '2.25rem' }}>
+              <div style={{ marginBottom: '1.75rem' }}>
+                <img src={stratumLogo} alt="STRATUM CRM" style={{ height: '200px', width: 'auto', display: 'block' }} />
               </div>
-            </>
-          )}
-          <div className="input-group">
-            <label className="input-label">Correo electrónico</label>
-            <div style={{ position: 'relative' }}>
-              <Mail size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input 
-                type="email" 
-                className="input" 
-                placeholder="nombre@empresa.com"
-                style={{ paddingLeft: '2.5rem' }}
-                required
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-              />
-            </div>
-          </div>
 
-          <div className="input-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label className="input-label">Contraseña</label>
-              <a href="#" style={{ fontSize: '0.75rem', color: 'var(--clr-primary-500)', fontWeight: 500 }}>¿Olvidaste tu contraseña?</a>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.375rem', letterSpacing: '-0.025em', lineHeight: 1.2 }}>
+                Iniciar sesión
+              </h1>
+              <p style={{ fontSize: '0.875rem', color: '#64748b', lineHeight: 1.55 }}>
+                Ingresa tus credenciales para continuar
+              </p>
             </div>
-            <div style={{ position: 'relative' }}>
-              <Lock size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input 
-                type={showPassword ? 'text' : 'password'} 
-                className="input" 
-                placeholder="••••••••"
-                style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem' }}
-                required
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-              />
-              <button 
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+
+            {/* Formulario */}
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+              {/* Error */}
+              {error && (
+                <div key={errorKey} className="lp-error">
+                  <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Campo email */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#374151', marginBottom: '0.375rem' }}>
+                  Correo electrónico
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Mail size={15} style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
+                  <input
+                    type="email"
+                    id="login-email"
+                    name="email"
+                    className="lp-input lp-input--icon-left"
+                    placeholder="nombre@empresa.com"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Campo contraseña */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151' }}>
+                    Contraseña
+                  </label>
+                  <Link to="/forgot-password" className="lp-forgot">
+                    ¿Olvidaste tu contraseña?
+                  </Link>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <Lock size={15} style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="login-password"
+                    name="password"
+                    className="lp-input lp-input--icon-left lp-input--icon-right"
+                    placeholder="••••••••"
+                    required
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="lp-eye-btn"
+                    onClick={() => setShowPassword(v => !v)}
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                id="login-submit"
+                className="lp-btn-submit"
+                disabled={isSubmitting}
+                style={{ marginTop: '0.25rem' }}
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                {isSubmitting ? (
+                  <>
+                    <div className="lp-spinner" />
+                    <span>Iniciando sesión…</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn size={16} />
+                    <span>Entrar al sistema</span>
+                  </>
+                )}
               </button>
+            </form>
+
+            {/* Divider */}
+            <div className="lp-divider" />
+
+            {/* Footer */}
+            <div style={{ textAlign: 'center' }}>
+              <Link to="/certificados/solicitar" className="lp-cert-link" style={{ marginBottom: '1.125rem' }}>
+                <FileText size={13} />
+                Solicitar Certificado Laboral
+              </Link>
+              <p style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '1rem' }}>
+                © {new Date().getFullYear()} CARGAR SAS · Todos los derechos reservados
+              </p>
             </div>
+
           </div>
-
-          <button 
-            type="submit" 
-            className="btn btn--primary" 
-            style={{ width: '100%', padding: '0.875rem', marginTop: '0.5rem', fontSize: '1rem', fontWeight: 600 }}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                <div className="spinner" style={{ width: '1rem', height: '1rem', borderWidth: '2px' }} />
-                <span>Iniciando sesión...</span>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                <LogIn size={18} />
-                <span>Entrar al sistema</span>
-              </div>
-            )}
-          </button>
-        </form>
-
-        <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-          <p>© {new Date().getFullYear()} CARGAR SAS. Todos los derechos reservados.</p>
         </div>
+
+        {/* ── Panel carrusel ────────────────────────────────── */}
+        <div className="lp-carousel-panel">
+          <LoginCarousel />
+        </div>
+
       </div>
-    </div>
+    </>
   );
 }

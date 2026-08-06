@@ -37,6 +37,7 @@ export function OTFormPage() {
     telefono_contacto: '',
     detalle_servicio: '',
     observaciones: '',
+    es_servicio_continuo: false,
   });
 
   const [tecnicos, setTecnicos] = React.useState([]);
@@ -135,6 +136,7 @@ export function OTFormPage() {
         responsable: otData.responsable || '',
         detalle_servicio: otData.detalle_servicio || '',
         observaciones: otData.observaciones || '',
+        es_servicio_continuo: otData.es_servicio_continuo || false,
       });
       setTecnicos(otData.tecnicos_asignados || []);
       setRepuestos(otData.repuestos_insumos || []);
@@ -548,7 +550,7 @@ export function OTFormPage() {
 
   const fmt = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v || 0);
 
-  const isLiqOrClosed = otData && (otData.estado === 'LIQUIDADA' || otData.estado === 'CERRADA');
+  const isLiqOrClosed = otData && (otData.estado === 'LIQUIDADA' || otData.estado === 'CERRADA' || otData.estado === 'LIQUIDADA_CORTE');
 
   // ─── Render ────────────────────────────────────────────
   return (
@@ -586,7 +588,7 @@ export function OTFormPage() {
             {/* Tipo */}
             <div className="input-group">
               <label className="input-label">Tipo de mantenimiento</label>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                 {['CORRECTIVO', 'PREVENTIVO'].map(t => (
                   <button
                     key={t}
@@ -600,6 +602,16 @@ export function OTFormPage() {
                   </button>
                 ))}
               </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  name="es_servicio_continuo"
+                  checked={form.es_servicio_continuo}
+                  onChange={(e) => handleChange({ target: { name: 'es_servicio_continuo', value: e.target.checked } })}
+                  disabled={isLiqOrClosed || Boolean(otData?.orden_origen_id)}
+                />
+                Servicio Continuo (sujeto a corte contable)
+              </label>
             </div>
 
             {/* Empresa (búsqueda predictiva) */}

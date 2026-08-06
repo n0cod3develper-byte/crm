@@ -64,3 +64,17 @@ export const certificadoLimiter = rateLimit({
     next(new AppError('Demasiados intentos de solicitud de certificado. Por favor, intenta de nuevo en 1 hora.', 429));
   },
 });
+
+/**
+ * Rate limiter para recuperación de contraseña — 5 req/15min por IP
+ * Más estricto que authLimiter para prevenir spam de correos
+ */
+export const resetPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, _res, next) => {
+    next(new AppError('Demasiadas solicitudes de recuperación. Intenta de nuevo en 15 minutos.', 429));
+  },
+});

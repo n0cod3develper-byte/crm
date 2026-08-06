@@ -34,6 +34,7 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
     fecha_ingreso: employee?.fecha_ingreso ? employee.fecha_ingreso.substring(0, 10) : '',
     fecha_retiro: employee?.fecha_retiro ? employee.fecha_retiro.substring(0, 10) : '',
     motivo_retiro: employee?.motivo_retiro || '',
+    correo_personal: employee?.correo_personal || '',
   });
 
   // Obtener usuarios disponibles para vincular
@@ -191,6 +192,12 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
         />
       </div>
 
+      <div style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: '8px', padding: '1rem' }}>
+        <label style={{ ...labelStyle, color: 'var(--clr-primary-500)' }}>Correo Personal *</label>
+        <input type="email" name="correo_personal" className="input" style={{ width: '100%' }} value={form.correo_personal} onChange={handleChange} placeholder="correo@personal.com" />
+        {!form.correo_personal && <p style={{ fontSize: '11px', color: '#f59e0b', marginTop: '0.25rem' }}>⚠️ Sin correo personal — el empleado no podrá usar el portal público de certificados.</p>}
+        {form.correo_personal && <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>Distinto del correo empresarial usado para autenticación.</p>}
+      </div>
       {/* ─── Sección de Gestión Humana (Oculta por defecto para no saturar) ── */}
       <details style={{ background: 'var(--bg-app)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
         <summary style={{ fontWeight: 600, cursor: 'pointer', outline: 'none' }}>Datos de Gestión Humana</summary>

@@ -1570,6 +1570,452 @@ export class InformesRepository {
 
     return resultado;
   }
+
+  // =============================================
+  // INFORME: Detalle Mantenimiento por Equipos
+  // RBAC scope, paginacion server-side, CTE optimizado
+  // =============================================
+  async getDetalleMantenimientoEquipos(fecha_inicio, fecha_fin, empresa_id, equipo_id, allowedEmpresaIds, page = 1, limit = 50) {
+    const params = [];
+    let i = 1;
+    const conditions = ["ot.estado = 'LIQUIDADA'", 'ot.deleted_at IS NULL'];
+
+    if (fecha_inicio) {
+      conditions.push(`otl.fecha_liquidacion >= $${i++}::date`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`otl.fecha_liquidacion <= ($${i++}::date + interval '1 day')`);
+      params.push(fecha_fin);
+    }
+    if (empresa_id) {
+      conditions.push(`ot.empresa_id = $${i++}`);
+      params.push(empresa_id);
+    } else if (allowedEmpresaIds && allowedEmpresaIds.length > 0) {
+      conditions.push(`ot.empresa_id = ANY($${i++}::uuid[])`);
+      params.push(allowedEmpresaIds);
+    }
+    if (equipo_id) {
+      conditions.push(`ot.equipo_id = $${i++}`);
+      params.push(equipo_id);
+    }
+
+    const whereClause = conditions.join(' AND ');
+
+    const countSql = `SELECT COUNT(DISTINCT ot.id)::int AS total FROM ordenes_trabajo ot JOIN ot_liquidacion otl ON otl.orden_trabajo_id = ot.id WHERE ${whereClause}`;
+    const countRes = await query(countSql, params);
+    const totalOt = countRes.rows[0]?.total || 0;
+
+    const offset = (Math.max(1, parseInt(page)) - 1) * Math.min(parseInt(limit) || 50, 200);
+    const safeLimit = Math.min(parseInt(limit) || 50, 200);
+
+    const sql = `
+      WITH actividades AS (
+        SELECT orden_trabajo_id, STRING_AGG(CONCAT(COALESCE(codigo,''), ' - ', descripcion), '; ' ORDER BY orden) AS actividades_texto
+        FROM ot_actividades GROUP BY orden_trabajo_id
+      )
+      SELECT ot.id AS ot_id, ot.consecutivo, ot.tipo_mantenimiento,
+        otl.fecha_liquidacion, otl.total_final, otl.total_mano_obra, otl.total_repuestos,
+        COALESCE(e.marca || ' - ' || COALESCE(e.modelo, e.serial), 'Sin Equipo') AS equipo_nombre,
+        e.serial AS equipo_serial, c.name AS empresa_nombre,
+        ot.detalle_servicio, ot.observaciones,
+        em.id AS tecnico_id, em.full_name AS tecnico_nombre,
+        ott.tarifa_hora, ott.total_mano_obra AS tecnico_mano_obra, ott.tiempo_total_min,
+        act.actividades_texto AS actividades_realizadas
+      FROM ordenes_trabajo ot
+      JOIN ot_liquidacion otl ON otl.orden_trabajo_id = ot.id
+      JOIN equipos e ON ot.equipo_id = e.id
+      JOIN companies c ON ot.empresa_id = c.id
+      LEFT JOIN ot_tecnicos ott ON ott.orden_trabajo_id = ot.id
+      LEFT JOIN employees em ON em.id = ott.empleado_id
+      LEFT JOIN actividades act ON act.orden_trabajo_id = ot.id
+      WHERE ${whereClause}
+      ORDER BY otl.fecha_liquidacion DESC, ot.consecutivo ASC, em.full_name ASC
+      LIMIT $${i++} OFFSET $${i++}
+    `;
+    params.push(safeLimit, offset);
+    const result = await query(sql, params);
+
+    const otMap = new Map();
+    for (const row of result.rows) {
+      if (!otMap.has(row.ot_id)) {
+        otMap.set(row.ot_id, {
+          ot_id: row.ot_id, consecutivo: row.consecutivo, tipo_mantenimiento: row.tipo_mantenimiento,
+          fecha_liquidacion: row.fecha_liquidacion, total_final: parseFloat(row.total_final),
+          total_mano_obra: parseFloat(row.total_mano_obra), total_repuestos: parseFloat(row.total_repuestos),
+          equipo_nombre: row.equipo_nombre, equipo_serial: row.equipo_serial, empresa_nombre: row.empresa_nombre,
+          detalle_servicio: row.detalle_servicio, observaciones: row.observaciones,
+          actividades_realizadas: row.actividades_realizadas, tecnicos: []
+        });
+      }
+      if (row.tecnico_id) {
+        otMap.get(row.ot_id).tecnicos.push({
+          id: row.tecnico_id, nombre: row.tecnico_nombre,
+          tarifa_hora: parseFloat(row.tarifa_hora), mano_obra: parseFloat(row.tecnico_mano_obra),
+          horas: row.tiempo_total_min ? parseFloat((row.tiempo_total_min / 60).toFixed(2)) : 0
+        });
+      }
+    }
+
+    const data = Array.from(otMap.values());
+    const totalValor = data.reduce((sum, ot) => sum + ot.total_final, 0);
+    return {
+      fecha_inicio, fecha_fin, empresa_id: empresa_id || null, equipo_id: equipo_id || null,
+      total_ot: totalOt, total_valor: totalValor,
+      page: parseInt(page), limit: safeLimit, totalPages: Math.ceil(totalOt / safeLimit), data
+    };
+  }
+
+  // =============================================
+  // MANTENIMIENTO: Venta Dejada de Percibir por Indisponibilidad
+  // Cruza OTs (tiempo en taller) con presupuesto mensual por equipo
+  // Fórmula: valor_dia = presupuesto_mensual / working_days
+  //           venta_perdida = valor_dia * dias_habiles_en_taller
+  // =============================================
+  async getVentaDejadaPercibir({ fecha_inicio, fecha_fin, equipo_id, empresa_id, tipo_mantenimiento }) {
+    const conditions = ['ot.deleted_at IS NULL'];
+    const params = [];
+    let i = 1;
+
+    if (fecha_inicio) { conditions.push(`ot.created_at >= $${i++}::date`); params.push(fecha_inicio); }
+    if (fecha_fin)    { conditions.push(`ot.created_at <= ($${i++}::date + interval '1 day')`); params.push(fecha_fin); }
+    if (equipo_id)   { conditions.push(`ot.equipo_id = $${i++}`); params.push(equipo_id); }
+    if (empresa_id)  { conditions.push(`ot.empresa_id = $${i++}`); params.push(empresa_id); }
+    if (tipo_mantenimiento) { conditions.push(`ot.tipo_mantenimiento = $${i++}`); params.push(tipo_mantenimiento); }
+
+    // 1. Obtener OTs en el rango con sus fechas de apertura y cierre
+    const otSql = `
+      SELECT
+        ot.id,
+        ot.consecutivo,
+        ot.tipo_mantenimiento,
+        ot.equipo_id,
+        ot.empresa_id,
+        ot.created_at AS fecha_apertura,
+        otl.fecha_liquidacion AS fecha_cierre,
+        ot.estado,
+        e.marca, e.modelo, e.serial,
+        c.name AS empresa_nombre
+      FROM ordenes_trabajo ot
+      LEFT JOIN ot_liquidacion otl ON otl.orden_trabajo_id = ot.id
+      LEFT JOIN equipos e ON e.id = ot.equipo_id
+      LEFT JOIN companies c ON c.id = ot.empresa_id
+      WHERE ${conditions.join(' AND ')}
+        AND ot.equipo_id IS NOT NULL
+      ORDER BY ot.created_at ASC
+    `;
+    const otRes = await query(otSql, params);
+    const ots = otRes.rows;
+
+    if (ots.length === 0) {
+      return {
+        fecha_inicio, fecha_fin, equipo_id: equipo_id || null, empresa_id: empresa_id || null,
+        total_perdido: 0, total_ots: 0, detalle: [], por_equipo: [],
+        por_tipo: [], por_mes: []
+      };
+    }
+
+    // 2. Obtener presupuesto mensual por equipo (budget_monthly_detail)
+    const yearFrom = fecha_inicio ? parseInt(fecha_inicio.substring(0, 4)) : new Date().getFullYear();
+    const yearTo = fecha_fin ? parseInt(fecha_fin.substring(0, 4)) : new Date().getFullYear();
+
+    const budgetSql = `
+      SELECT
+        be.equipment_id,
+        ba.year,
+        bmd.month,
+        bmd.amount,
+        COALESCE(bmd.working_days, 22) AS working_days
+      FROM budget_monthly_detail bmd
+      JOIN budget_equipment be ON be.id = bmd.budget_equipment_id
+      JOIN budget_annual ba ON ba.id = be.budget_annual_id
+      WHERE ba.year >= $1 AND ba.year <= $2
+        AND bmd.working_days > 0
+    `;
+    const budgetRes = await query(budgetSql, [yearFrom, yearTo]);
+
+    // Map: equipo_id -> 'YYYY-MM' -> { amount, working_days }
+    const budgetMap = new Map();
+    for (const row of budgetRes.rows) {
+      const key = row.equipment_id;
+      if (!budgetMap.has(key)) budgetMap.set(key, new Map());
+      const mStr = String(row.month).padStart(2, '0');
+      budgetMap.get(key).set(`${row.year}-${mStr}`, {
+        amount: parseFloat(row.amount || 0),
+        workingDays: parseInt(row.working_days) || 22
+      });
+    }
+
+    // 3. Calcular días hábiles en taller por OT, prorrateando por mes
+    const detalle = [];
+    const equipoStats = new Map();  // equipo -> total_perdido
+    const tipoStats = new Map();    // tipo -> total_perdido
+    const mesStats = new Map();     // mes -> total_perdido
+
+    for (const ot of ots) {
+      const apertura = new Date(ot.fecha_apertura);
+      const cierre = ot.fecha_cierre ? new Date(ot.fecha_cierre) : new Date();
+      const diasCalendario = Math.max(Math.ceil((cierre - apertura) / (1000 * 60 * 60 * 24)), 1);
+
+      // Distribuir días por mes (sin off-by-one)
+      const mesesTaller = new Map(); // 'YYYY-MM' -> dias en ese mes
+      let fechaActual = new Date(apertura.getFullYear(), apertura.getMonth(), apertura.getDate());
+      const fechaFin = new Date(cierre.getFullYear(), cierre.getMonth(), cierre.getDate());
+
+      while (fechaActual <= fechaFin) {
+        const mesKey = `${fechaActual.getFullYear()}-${String(fechaActual.getMonth() + 1).padStart(2, '0')}`;
+        const ultimoDiaMes = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 1, 0).getDate();
+        const diaActual = fechaActual.getDate();
+        const diasRestantesEnMes = ultimoDiaMes - diaActual + 1;
+        const diasRestantesTotal = Math.ceil((fechaFin - fechaActual) / 86400000) + 1;
+        const diffDias = Math.min(diasRestantesEnMes, diasRestantesTotal);
+        mesesTaller.set(mesKey, (mesesTaller.get(mesKey) || 0) + diffDias);
+        fechaActual = new Date(fechaActual.getFullYear(), fechaActual.getMonth() + 1, 1);
+      }
+
+      // Calcular valor perdido por mes
+      let totalPerdidoOT = 0;
+      let totalDiasHabiles = 0;
+      const eqBudget = budgetMap.get(ot.equipo_id) || new Map();
+
+      for (const [mes, diasCal] of mesesTaller) {
+        const budget = eqBudget.get(mes);
+        if (budget && budget.workingDays > 0 && budget.amount > 0) {
+          const valorDia = budget.amount / budget.workingDays;
+          const diasHabilesMes = Math.min(diasCal, budget.workingDays);
+          const perdida = valorDia * diasHabilesMes;
+          totalPerdidoOT += perdida;
+          totalDiasHabiles += diasHabilesMes;
+
+          // Acumular por mes
+          mesStats.set(mes, (mesStats.get(mes) || 0) + perdida);
+        }
+      }
+
+      if (totalPerdidoOT > 0) {
+        const eqKey = `${ot.marca || ''} ${ot.modelo || ''} (${ot.serial || ''})`.trim();
+        equipoStats.set(eqKey, (equipoStats.get(eqKey) || 0) + totalPerdidoOT);
+        tipoStats.set(ot.tipo_mantenimiento, (tipoStats.get(ot.tipo_mantenimiento) || 0) + totalPerdidoOT);
+
+        detalle.push({
+          ot_id: ot.id,
+          consecutivo: ot.consecutivo,
+          tipo_mantenimiento: ot.tipo_mantenimiento,
+          equipo: eqKey,
+          empresa: ot.empresa_nombre || 'Sin empresa',
+          fecha_apertura: ot.fecha_apertura,
+          fecha_cierre: ot.fecha_cierre,
+          dias_calendario: diasCalendario,
+          dias_habiles: totalDiasHabiles,
+          valor_perdido: parseFloat(totalPerdidoOT.toFixed(0)),
+          estado: ot.estado
+        });
+      }
+    }
+
+    // 4. Construir respuesta
+    const totalPerdido = detalle.reduce((sum, d) => sum + d.valor_perdido, 0);
+    const porEquipo = Array.from(equipoStats.entries())
+      .map(([equipo, total]) => ({ equipo, total: parseFloat(total.toFixed(0)) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 15);
+    const porTipo = Array.from(tipoStats.entries())
+      .map(([tipo, total]) => ({ tipo, total: parseFloat(total.toFixed(0)) }));
+    const porMes = Array.from(mesStats.entries())
+      .map(([mes, total]) => ({ mes, total: parseFloat(total.toFixed(0)) }))
+      .sort((a, b) => a.mes.localeCompare(b.mes));
+
+    return {
+      fecha_inicio, fecha_fin,
+      equipo_id: equipo_id || null, empresa_id: empresa_id || null,
+      tipo_mantenimiento: tipo_mantenimiento || null,
+      total_perdido: parseFloat(totalPerdido.toFixed(0)),
+      total_ots: ots.length,
+      total_ots_con_presupuesto: detalle.length,
+      detalle,
+      por_equipo: porEquipo,
+      por_tipo: porTipo,
+      por_mes: porMes
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // EMAIL MARKETING REPORTS / BI
+  // ════════════════════════════════════════════════════════════
+
+  async getEmailDashboardResumen(fecha_inicio, fecha_fin) {
+    const params = [];
+    const conditions = [];
+    let i = 1;
+    if (fecha_inicio) {
+      conditions.push(`created_at >= $${i++}`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`created_at <= $${i++}`);
+      params.push(fecha_fin);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const sql = `
+      SELECT
+        COALESCE(SUM(total_envios), 0) AS total_enviados,
+        COALESCE(SUM(enviados), 0) AS total_entregados,
+        COALESCE(SUM(fallidos), 0) AS total_fallidos,
+        COALESCE(SUM(abiertos), 0) AS total_abiertos,
+        COALESCE(SUM(clicks), 0) AS total_clicks,
+        COUNT(*) AS total_campanas
+      FROM email_campanas
+      ${where}
+    `;
+
+    const result = await query(sql, params);
+    return result.rows[0];
+  }
+
+  async getEmailTasasPorCampana(fecha_inicio, fecha_fin) {
+    const params = [];
+    const conditions = ['deleted_at IS NULL', "estado = 'completada'"];
+    let i = 1;
+    if (fecha_inicio) {
+      conditions.push(`created_at >= $${i++}`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`created_at <= $${i++}`);
+      params.push(fecha_fin);
+    }
+
+    const sql = `
+      SELECT
+        id,
+        nombre,
+        total_envios,
+        enviados,
+        abiertos,
+        clicks,
+        CASE WHEN enviados > 0 THEN ROUND((abiertos::numeric / enviados::numeric) * 100, 2) ELSE 0 END AS tasa_apertura,
+        CASE WHEN abiertos > 0 THEN ROUND((clicks::numeric / abiertos::numeric) * 100, 2) ELSE 0 END AS tasa_clics
+      FROM email_campanas
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY created_at DESC
+      LIMIT 10
+    `;
+
+    const result = await query(sql, params);
+    return result.rows;
+  }
+
+  async getEmailEvolucionListas(fecha_inicio, fecha_fin) {
+    const params = [];
+    const conditions = [];
+    let i = 1;
+    if (fecha_inicio) {
+      conditions.push(`created_at >= $${i++}`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`created_at <= $${i++}`);
+      params.push(fecha_fin);
+    }
+
+    const where = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
+
+    const sql = `
+      SELECT
+        to_char(date_trunc('month', created_at), 'YYYY-MM') AS mes,
+        COUNT(*) FILTER (WHERE estado = 'activo') AS altas,
+        COUNT(*) FILTER (WHERE estado = 'baja') AS bajas
+      FROM email_contactos
+      WHERE deleted_at IS NULL ${where}
+      GROUP BY date_trunc('month', created_at)
+      ORDER BY mes ASC
+    `;
+
+    const result = await query(sql, params);
+    return result.rows;
+  }
+
+  async getEmailRankingPlantillas() {
+    const sql = `
+      SELECT
+        p.id,
+        p.nombre,
+        COUNT(c.id) AS veces_usada,
+        COALESCE(SUM(c.enviados), 0) AS total_enviados,
+        COALESCE(SUM(c.abiertos), 0) AS total_abiertos,
+        COALESCE(SUM(c.clicks), 0) AS total_clicks,
+        CASE WHEN SUM(c.enviados) > 0 THEN ROUND((SUM(c.abiertos)::numeric / SUM(c.enviados)::numeric) * 100, 2) ELSE 0 END AS tasa_apertura_promedio
+      FROM email_plantillas p
+      LEFT JOIN email_campanas c ON c.plantilla_id = p.id AND c.estado = 'completada'
+      WHERE p.deleted_at IS NULL
+      GROUP BY p.id
+      ORDER BY tasa_apertura_promedio DESC
+      LIMIT 10
+    `;
+    const result = await query(sql);
+    return result.rows;
+  }
+
+  async getEmailSaludLista() {
+    const sql = `
+      SELECT
+        estado,
+        COUNT(*) AS cantidad,
+        ROUND((COUNT(*)::numeric / (SELECT COUNT(*) FROM email_contactos WHERE deleted_at IS NULL)::numeric) * 100, 2) AS porcentaje
+      FROM email_contactos
+      WHERE deleted_at IS NULL
+      GROUP BY estado
+    `;
+    const result = await query(sql);
+    return result.rows;
+  }
+
+  async getEmailComparativoCampanas(limit = 6) {
+    const sql = `
+      SELECT
+        nombre,
+        enviados,
+        abiertos,
+        clicks,
+        fallidos
+      FROM email_campanas
+      WHERE deleted_at IS NULL AND estado = 'completada'
+      ORDER BY created_at DESC
+      LIMIT $1
+    `;
+    const result = await query(sql, [limit]);
+    return result.rows;
+  }
+
+  async getEmailEvolucionMensual(fecha_inicio, fecha_fin) {
+    const params = [];
+    const conditions = ['deleted_at IS NULL', "estado = 'completada'"];
+    let i = 1;
+    if (fecha_inicio) {
+      conditions.push(`created_at >= $${i++}`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`created_at <= $${i++}`);
+      params.push(fecha_fin);
+    }
+
+    const sql = `
+      SELECT
+        to_char(date_trunc('month', created_at), 'YYYY-MM') AS mes,
+        COALESCE(SUM(enviados), 0) AS enviados,
+        COALESCE(SUM(abiertos), 0) AS abiertos,
+        COALESCE(SUM(clicks), 0) AS clicks
+      FROM email_campanas
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY date_trunc('month', created_at)
+      ORDER BY mes ASC
+    `;
+    const result = await query(sql, params);
+    return result.rows;
+  }
 }
 
 // Utility: format decimal hours to "Xh Ym"

@@ -1,8 +1,16 @@
 import { Router } from 'express';
 import { requireAuth, soloAdmin } from '../../middleware/auth.js';
 import * as adminController from './admin.controller.js';
+import * as auditController from './auditLog.controller.js';
 
 const router = Router();
+
+// ─── Auditoría (solo Admin) ─────────────────────────────────
+router.get('/auditoria',       requireAuth, soloAdmin, auditController.listarLogs);
+router.get('/auditoria/stats', requireAuth, soloAdmin, auditController.obtenerEstadisticas);
+router.get('/auditoria/modulos', requireAuth, soloAdmin, auditController.obtenerModulos);
+router.get('/auditoria/export',  requireAuth, soloAdmin, auditController.exportarLogs);
+router.get('/auditoria/:id',   requireAuth, soloAdmin, auditController.obtenerLog);
 
 // Rutas de administración (solo Admin)
 

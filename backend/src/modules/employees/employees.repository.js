@@ -67,7 +67,7 @@ export class EmployeesRepository {
       hourly_rate, tipo_documento, numero_documento, departamento,
       fecha_nacimiento, direccion, contacto_emergencia_nombre, contacto_emergencia_telefono,
       eps, arl, fondo_pension, tipo_sangre, tipo_contrato, salario,
-      jornada, fecha_ingreso, fecha_retiro, motivo_retiro
+      jornada, fecha_ingreso, fecha_retiro, motivo_retiro, correo_personal
     } = data;
 
     const result = await query(
@@ -75,14 +75,14 @@ export class EmployeesRepository {
          full_name, phone, email, position, status, user_id, hourly_rate, tipo_documento, numero_documento, departamento,
          fecha_nacimiento, direccion, contacto_emergencia_nombre, contacto_emergencia_telefono,
          eps, arl, fondo_pension, tipo_sangre, tipo_contrato, salario,
-         jornada, fecha_ingreso, fecha_retiro, motivo_retiro
+         jornada, fecha_ingreso, fecha_retiro, motivo_retiro, correo_personal
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING *`,
       [
         full_name, phone, email, position, status || 'Activo', user_id || null, hourly_rate || 0, tipo_documento || null, numero_documento || null, departamento || null,
         fecha_nacimiento || null, direccion || null, contacto_emergencia_nombre || null, contacto_emergencia_telefono || null,
         eps || null, arl || null, fondo_pension || null, tipo_sangre || null, tipo_contrato || null, salario || 0,
-        jornada || null, fecha_ingreso || null, fecha_retiro || null, motivo_retiro || null
+        jornada || null, fecha_ingreso || null, fecha_retiro || null, motivo_retiro || null, correo_personal || null
       ]
     );
     return result.rows[0];
@@ -97,7 +97,7 @@ export class EmployeesRepository {
       'hourly_rate', 'tipo_documento', 'numero_documento', 'departamento',
       'fecha_nacimiento', 'direccion', 'contacto_emergencia_nombre', 'contacto_emergencia_telefono',
       'eps', 'arl', 'fondo_pension', 'tipo_sangre', 'tipo_contrato', 'salario',
-      'jornada', 'fecha_ingreso', 'fecha_retiro', 'motivo_retiro'
+      'jornada', 'fecha_ingreso', 'fecha_retiro', 'motivo_retiro', 'correo_personal'
     ];
 
     for (const key of allowed) {

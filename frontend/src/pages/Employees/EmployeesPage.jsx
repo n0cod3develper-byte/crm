@@ -5,6 +5,7 @@ import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { EmployeeTabs } from '../../components/Employees/EmployeeTabs';
+import { useAuth } from '../../contexts/AuthContext';
 import api from '../../lib/api';
 
 const STATUS_COLORS = {
@@ -15,6 +16,7 @@ const STATUS_COLORS = {
 
 export function EmployeesPage() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [search, setSearch] = React.useState('');
   const [filterPos, setFilterPos] = React.useState('all');
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -184,6 +186,7 @@ export function EmployeesPage() {
             employee={editingEmployee}
             onSuccess={handleClose}
             onCancel={handleClose}
+            userRole={user?.rol_slug || user?.role || 'user'}
           />
         </Modal>
       )}
