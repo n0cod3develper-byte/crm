@@ -47,4 +47,10 @@ router.get('/stock-bajo-activo', informesController.getStockBajoActivo);
 // Indicadores de cobertura (equipos atendidos %, empresas activas, proveedores)
 router.get('/cobertura', informesController.getCoberturaMantenimiento);
 
+// Detalle de mantenimiento por equipos (informe tabular)
+router.get('/detalle-equipos', informesController.getDetalleMantenimientoEquipos);
+
+// Venta Dejada de Percibir por Indisponibilidad de Equipos
+router.get('/venta-dejada-percibir', informesController.getVentaDejadaPercibir);
+
 export default router;

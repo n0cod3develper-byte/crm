@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
-import { User, Briefcase, Shield, Heart } from 'lucide-react';
+import { User, Briefcase, Shield, Heart, AlertTriangle } from 'lucide-react';
 import { EmployeeForm } from './EmployeeForm';
+import { EmployeeDatosLaborales } from './EmployeeDatosLaborales';
+import { EmployeeSeguridadSocial } from './EmployeeSeguridadSocial';
+import { EmployeeLlamados } from './EmployeeLlamados';
+import { EmployeeSaludOcupacional } from './EmployeeSaludOcupacional';
 
 const TABS = [
   { key: 'general', label: 'Información General', icon: User },
   { key: 'laboral', label: 'Datos Laborales', icon: Briefcase },
   { key: 'seguridad', label: 'Seguridad Social', icon: Shield },
+  { key: 'llamados', label: 'Llamados y Felicitaciones', icon: AlertTriangle },
   { key: 'salud', label: 'Salud Ocupacional', icon: Heart },
 ];
 
-export function EmployeeTabs({ employee, onSuccess, onCancel }) {
+export function EmployeeTabs({ employee, onSuccess, onCancel, userRole }) {
   const [activeTab, setActiveTab] = useState('general');
 
   return (
@@ -44,17 +49,10 @@ export function EmployeeTabs({ employee, onSuccess, onCancel }) {
 
       <div>
         {activeTab === 'general' && <EmployeeForm employee={employee} onSuccess={onSuccess} onCancel={onCancel} />}
-        {activeTab !== 'general' && (
-          <div style={{
-            textAlign: 'center', padding: '3rem 2rem', color: 'var(--text-muted)',
-            fontSize: '0.9rem'
-          }}>
-            <p>Próximamente: información detallada de esta sección.</p>
-            <p style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
-              Por ahora, usa la pestaña de Información General para editar los datos del empleado.
-            </p>
-          </div>
-        )}
+        {activeTab === 'laboral' && <EmployeeDatosLaborales employee={employee} userRole={userRole} onSuccess={onSuccess} />}
+        {activeTab === 'seguridad' && <EmployeeSeguridadSocial employee={employee} onSuccess={onSuccess} />}
+        {activeTab === 'llamados' && <EmployeeLlamados employee={employee} />}
+        {activeTab === 'salud' && <EmployeeSaludOcupacional employee={employee} userRole={userRole} />}
       </div>
     </div>
   );

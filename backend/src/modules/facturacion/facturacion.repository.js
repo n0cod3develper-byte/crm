@@ -180,7 +180,7 @@ export class FacturacionRepository {
    * Crear una prefactura
    */
   async createPrefactura(data, createdBy) {
-    const { empresa_id, ot_ids, condicion_pago, fecha_vencimiento, notas, numero_factura } = data;
+    const { empresa_id, ot_ids, condicion_pago, fecha_vencimiento, notas, numero_factura, fecha_factura } = data;
 
     return await withTransaction(async (client) => {
       // 1. Validar OTs
@@ -222,6 +222,7 @@ export class FacturacionRepository {
 
       // 4. Insertar factura
       const estado = numero_factura ? 'FACTURADA' : 'PREFACTURA';
+      const fechaFacturaVal = fecha_factura ? new Date(fecha_factura) : (numero_factura ? new Date() : null);
       const insFactSql = `
         INSERT INTO facturas (
           consecutivo_interno, numero_factura, fecha_factura, empresa_id, estado, 
@@ -233,7 +234,7 @@ export class FacturacionRepository {
       const factRes = await client.query(insFactSql, [
         consecutivo_interno, 
         numero_factura || null, 
-        numero_factura ? new Date() : null,
+        fechaFacturaVal,
         empresa_id, 
         estado, 
         subtotal, iva_valor, total,
@@ -271,7 +272,7 @@ export class FacturacionRepository {
    * Crear prefactura desde remisiones de Servicios
    */
   async createPrefacturaFromRemisiones(data, createdBy) {
-    const { empresa_id, remision_ids, condicion_pago, fecha_vencimiento, notas, numero_factura } = data;
+    const { empresa_id, remision_ids, condicion_pago, fecha_vencimiento, notas, numero_factura, fecha_factura } = data;
 
     return await withTransaction(async (client) => {
       // 1. Validar remisiones
@@ -311,6 +312,7 @@ export class FacturacionRepository {
 
       // 4. Insertar factura
       const estado = numero_factura ? 'FACTURADA' : 'PREFACTURA';
+      const fechaFacturaVal = fecha_factura ? new Date(fecha_factura) : (numero_factura ? new Date() : null);
       const insFactSql = `
         INSERT INTO facturas (
           consecutivo_interno, numero_factura, fecha_factura, empresa_id, estado,
@@ -322,7 +324,7 @@ export class FacturacionRepository {
       const factRes = await client.query(insFactSql, [
         consecutivo_interno,
         numero_factura || null,
-        numero_factura ? new Date() : null,
+        fechaFacturaVal,
         empresa_id,
         estado,
         subtotal, iva_valor, total,

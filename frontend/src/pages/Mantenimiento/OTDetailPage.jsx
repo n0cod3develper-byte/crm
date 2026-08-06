@@ -15,6 +15,7 @@ function getEstadoStyle(estado) {
     EN_PROCESO: { bg: 'rgba(245,158,11,0.15)', color: '#fbbf24', label: 'En Proceso' },
     LIQUIDADA:  { bg: 'rgba(34,197,94,0.15)',  color: '#4ade80', label: 'Liquidada' },
     CERRADA:    { bg: 'rgba(100,116,139,0.15)',color: '#94a3b8', label: 'Cerrada' },
+    LIQUIDADA_CORTE: { bg: 'rgba(139,92,246,0.15)', color: '#a78bfa', label: 'Corte Contable' }
   };
   return map[estado] || map.CERRADA;
 }
@@ -34,6 +35,17 @@ export function OTDetailPage() {
       const { data } = await api.get(`/mantenimiento/ot/${id}`);
       return data.data;
     },
+  });
+
+  const cadenaId = ot?.cadena_servicio_id || (ot?.es_servicio_continuo ? ot?.id : null);
+
+  const { data: cadenaHistorial } = useQuery({
+    queryKey: ['ot-cadena-historial', cadenaId],
+    queryFn: async () => {
+      const { data } = await api.get(`/mantenimiento/cadena/${cadenaId}`);
+      return data.data;
+    },
+    enabled: Boolean(cadenaId),
   });
 
   const handleDownloadPDF = async () => {
@@ -519,6 +531,80 @@ export function OTDetailPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Trazabilidad de Cadena de Servicio */}
+        {cadenaHistorial && cadenaHistorial.length > 0 && (
+          <div className="card" style={{ marginTop: '2rem' }}>
+            <h2 style={{ fontSize: 'var(--text-base)', fontWeight: 700, marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Clock size={18} color="var(--clr-primary-500)" /> Historial de la Cadena de Servicio Continuo
+            </h2>
+            <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingLeft: '1.5rem', borderLeft: '2px solid var(--border-color)', marginLeft: '0.75rem' }}>
+              {cadenaHistorial.map((item, idx) => {
+                const isCurrent = item.id === id;
+                const statusStyle = getEstadoStyle(item.estado);
+                return (
+                  <div key={item.id} style={{ position: 'relative' }}>
+                    {/* Indicador de punto en la línea */}
+                    <div style={{
+                      position: 'absolute',
+                      left: '-1.95rem',
+                      top: '0.25rem',
+                      width: '0.75rem',
+                      height: '0.75rem',
+                      borderRadius: '50%',
+                      background: isCurrent ? 'var(--clr-primary-500)' : 'var(--border-color)',
+                      border: isCurrent ? '2px solid var(--bg-surface)' : 'none',
+                      boxShadow: isCurrent ? '0 0 0 4px rgba(59,130,246,0.2)' : 'none'
+                    }} />
+
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: isCurrent ? 'rgba(59,130,246,0.03)' : 'transparent',
+                      padding: isCurrent ? '0.75rem 1rem' : '0.25rem 0',
+                      borderRadius: '8px',
+                      border: isCurrent ? '1px solid rgba(59,130,246,0.1)' : 'none'
+                    }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <span 
+                            onClick={() => !isCurrent && navigate(`/mantenimiento/ot/${item.id}`)}
+                            style={{ 
+                              fontWeight: 700, 
+                              fontSize: '14px', 
+                              color: isCurrent ? 'var(--clr-primary-500)' : 'var(--text-primary)',
+                              cursor: isCurrent ? 'default' : 'pointer',
+                              textDecoration: isCurrent ? 'none' : 'underline'
+                            }}
+                          >
+                            {item.consecutivo}
+                          </span>
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                            {new Date(item.created_at).toLocaleDateString('es-CO')}
+                          </span>
+                          {isCurrent && (
+                            <span style={{ fontSize: '11px', background: 'rgba(59,130,246,0.1)', color: 'var(--clr-primary-500)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 600 }}>
+                              Actual
+                            </span>
+                          )}
+                        </div>
+                        {item.total_final && (
+                          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                            Liquidado: <strong style={{ color: 'var(--text-primary)' }}>{fmt(item.total_final)}</strong> el {new Date(item.fecha_liquidacion).toLocaleDateString('es-CO')}
+                          </div>
+                        )}
+                      </div>
+                      <span className="badge" style={{ background: statusStyle.bg, color: statusStyle.color }}>
+                        {statusStyle.label}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

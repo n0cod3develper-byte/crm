@@ -30,6 +30,7 @@ export const OtsPendientesPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [notas, setNotas] = useState('');
   const [nroFactura, setNroFactura] = useState('');
+  const [fechaFactura, setFechaFactura] = useState(() => new Date().toISOString().split('T')[0]);
 
   const activeTab = searchParams.get('tab') || 'ots';
   const empresaIdParam = searchParams.get('empresa_id');
@@ -114,6 +115,7 @@ export const OtsPendientesPage = () => {
     if (selectedItems.length === 0) return;
     setNroFactura('');
     setNotas('');
+    setFechaFactura(new Date().toISOString().split('T')[0]);
     setIsModalOpen(true);
   };
 
@@ -127,7 +129,8 @@ export const OtsPendientesPage = () => {
       empresa_id: selectedItems[0].empresa_id,
       condicion_pago: selectedItems[0].condicion_pago || '30_DIAS',
       notas: notas,
-      numero_factura: nroFactura
+      numero_factura: nroFactura,
+      fecha_factura: fechaFactura
     };
 
     if (isRemisiones) {
@@ -162,7 +165,7 @@ export const OtsPendientesPage = () => {
               style={{ borderRadius: '0.75rem' }}
             >
               <Layers size={16} />
-              OTs Pendientes
+              Mantenimiento
             </button>
             <button
               role="tab"
@@ -176,7 +179,7 @@ export const OtsPendientesPage = () => {
               style={{ borderRadius: '0.75rem' }}
             >
               <Receipt size={16} />
-              Remisiones Pendientes
+              Servicios
             </button>
           </div>
 
@@ -436,6 +439,18 @@ export const OtsPendientesPage = () => {
                     autoFocus
                   />
                   <p className="text-xs text-muted mt-2 font-medium">Ingresa el número de factura electrónica asignado externamente.</p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
+                    Fecha de Factura <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    type="date" 
+                    className="input-premium w-full font-bold text-base py-3 px-5"
+                    value={fechaFactura}
+                    onChange={(e) => setFechaFactura(e.target.value)}
+                  />
                 </div>
 
                 <div>

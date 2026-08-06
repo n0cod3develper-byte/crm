@@ -20,6 +20,8 @@ import { Sidebar } from './components/layout/Sidebar';
 const LoginPage = lazy(() => import('./pages/Auth/LoginPage').then(m => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import('./pages/Auth/RegisterPage').then(m => ({ default: m.RegisterPage })));
 const AuthCallback = lazy(() => import('./pages/Auth/AuthCallback').then(m => ({ default: m.AuthCallbackPage })));
+const ForgotPasswordPage = lazy(() => import('./pages/Auth/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import('./pages/Auth/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 const DashboardPage = lazy(() => import('./pages/Dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const CompaniesPage = lazy(() => import('./pages/Companies/CompaniesPage').then(m => ({ default: m.CompaniesPage })));
 const CompanyDetailPage = lazy(() => import('./pages/Companies/CompanyDetailPage').then(m => ({ default: m.CompanyDetailPage })));
@@ -42,6 +44,7 @@ const CatalogItemDetailPage = lazy(() => import('./pages/Inventory/CatalogItemDe
 const MovementsPage = lazy(() => import('./pages/Inventory/MovementsPage').then(m => ({ default: m.MovementsPage })));
 const PMAdminPage = lazy(() => import('./pages/Mantenimiento/PMAdminPage').then(m => ({ default: m.PMAdminPage })));
 const ComponentesPage = lazy(() => import('./pages/Mantenimiento/ComponentesPage').then(m => ({ default: m.ComponentesPage })));
+const CortesContablesPage = lazy(() => import('./pages/Mantenimiento/CortesContablesPage').then(m => ({ default: m.CortesContablesPage })));
 const UbicacionesPage = lazy(() => import('./pages/Inventory/UbicacionesPage').then(m => ({ default: m.UbicacionesPage })));
 const FamiliesPage = lazy(() => import('./pages/Inventory/FamiliesPage').then(m => ({ default: m.FamiliesPage })));
 
@@ -67,6 +70,7 @@ const RolesPage = lazy(() => import('./pages/Admin/RolesPage').then(m => ({ defa
 const UsersPage = lazy(() => import('./pages/Admin/UsersPage').then(m => ({ default: m.UsersPage })));
 const ModulesPage = lazy(() => import('./pages/Admin/ModulesPage').then(m => ({ default: m.ModulesPage })));
 const BackupsPage = lazy(() => import('./pages/Admin/BackupsPage').then(m => ({ default: m.BackupsPage })));
+const AuditoriaPage = lazy(() => import('./pages/Admin/AuditoriaPage').then(m => ({ default: m.AuditoriaPage })));
 
 const CatalogoServiciosPage = lazy(() => import('./pages/CatalogoServicios/CatalogoServiciosPage').then(m => ({ default: m.CatalogoServiciosPage })));
 const ServiciosPage = lazy(() => import('./pages/Servicios/ServiciosPage').then(m => ({ default: m.ServiciosPage })));
@@ -88,10 +92,23 @@ const HorasExtrasIndexPage = lazy(() => import('./pages/Informes/HorasExtrasInde
 const HorasExtrasServiciosPage = lazy(() => import('./pages/Informes/HorasExtrasServiciosPage').then(m => ({ default: m.HorasExtrasServiciosPage })));
 const HorasExtrasMantenimientoPage = lazy(() => import('./pages/Informes/HorasExtrasMantenimientoPage').then(m => ({ default: m.HorasExtrasMantenimientoPage })));
 
+// Email Marketing Lazy Pages
+const EmailMarketingPage = lazy(() => import('./pages/EmailMarketing/EmailMarketingPage').then(m => ({ default: m.EmailMarketingPage })));
+const ContactosListaPage = lazy(() => import('./pages/EmailMarketing/ContactosListaPage').then(m => ({ default: m.ContactosListaPage })));
+const PlantillasPage = lazy(() => import('./pages/EmailMarketing/PlantillasPage').then(m => ({ default: m.PlantillasPage })));
+const CampanasPage = lazy(() => import('./pages/EmailMarketing/CampanasPage').then(m => ({ default: m.CampanasPage })));
+const CampanaDetallePage = lazy(() => import('./pages/EmailMarketing/CampanaDetallePage').then(m => ({ default: m.CampanaDetallePage })));
+const UnsubscribePage = lazy(() => import('./pages/EmailMarketing/UnsubscribePage').then(m => ({ default: m.UnsubscribePage })));
+const InformesEmailMarketingPage = lazy(() => import('./pages/Informes/InformesEmailMarketingPage').then(m => ({ default: m.InformesEmailMarketingPage })));
+
 const BudgetIndexPage = lazy(() => import('./pages/Presupuestos/BudgetIndexPage').then(m => ({ default: m.BudgetIndexPage })));
 const BudgetFormPage = lazy(() => import('./pages/Presupuestos/BudgetFormPage').then(m => ({ default: m.BudgetFormPage })));
 
 const PromptGeneratorPage = lazy(() => import('./pages/Sistemas/PromptGeneratorPage').then(m => ({ default: m.PromptGeneratorPage })));
+const InformeDetalleEquiposPage = lazy(() => import('./pages/Informes/InformeDetalleEquiposPage').then(m => ({ default: m.InformeDetalleEquiposPage })));
+const ServiciosNegadosPage = lazy(() => import('./pages/ServiciosNegados/ServiciosNegadosPage').then(m => ({ default: m.ServiciosNegadosPage })));
+const InformeServiciosNegadosPage = lazy(() => import('./pages/Informes/InformeServiciosNegadosPage').then(m => ({ default: m.InformeServiciosNegadosPage })));
+const InformeVentaDejadaPage = lazy(() => import('./pages/Informes/InformeVentaDejadaPage').then(m => ({ default: m.InformeVentaDejadaPage })));
 
 const SupplierQuotesPage = lazy(() => import('./pages/SupplierQuotes/SupplierQuotesPage').then(m => ({ default: m.SupplierQuotesPage })));
 const QuotesIndexPage = lazy(() => import('./pages/Quotes/QuotesIndexPage').then(m => ({ default: m.QuotesIndexPage })));
@@ -103,6 +120,7 @@ const SupplierQuoteForm = lazy(() => import('./pages/SupplierQuotes/SupplierQuot
 const SupplierQuoteDetail = lazy(() => import('./pages/SupplierQuotes/SupplierQuoteDetail').then(m => ({ default: m.SupplierQuoteDetail })));
 const SolicitarCertificadoPage = lazy(() => import('./pages/CertificadosPublico/SolicitarCertificadoPage').then(m => ({ default: m.SolicitarCertificadoPage })));
 const DescargarCertificadoPage = lazy(() => import('./pages/CertificadosPublico/DescargarCertificadoPage').then(m => ({ default: m.DescargarCertificadoPage })));
+const CertificadoTemplatesPage = lazy(() => import('./pages/Certificados/CertificadoTemplatesPage').then(m => ({ default: m.CertificadoTemplatesPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -143,8 +161,11 @@ function App() {
                 {/* Rutas públicas */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/certificados/solicitar" element={<SolicitarCertificadoPage />} />
                 <Route path="/certificados/descargar/:token" element={<DescargarCertificadoPage />} />
+                <Route path="/unsubscribe/:token" element={<UnsubscribePage />} />
 
                 {/* Rutas protegidas */}
                 <Route path="/dashboard" element={<SafeModule context="dashboard"><DashboardPage /></SafeModule>} />
@@ -164,6 +185,7 @@ function App() {
                 <Route path="/mantenimiento/ot/:id" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="ver"><OTDetailPage /></SafeModule>} />
                 <Route path="/mantenimiento/pm-config" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="crear"><PMAdminPage /></SafeModule>} />
                 <Route path="/mantenimiento/componentes" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="crear"><ComponentesPage /></SafeModule>} />
+                <Route path="/mantenimiento/cortes" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="ver"><CortesContablesPage /></SafeModule>} />
                 <Route path="/mantenimiento/configuracion" element={<SafeModule context="mantenimiento" adminOnly><PMAdminPage /></SafeModule>} />
                 <Route path="/mantenimiento/:id/editar" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="editar"><OTFormPage /></SafeModule>} />
                 <Route path="/mantenimiento/:id" element={<SafeModule context="mantenimiento" modulo="ordenes_trabajo" accion="ver"><OTDetailPage /></SafeModule>} />
@@ -250,6 +272,14 @@ function App() {
                 <Route path="/informes/horas-extras" element={<ProtectedRoute><HorasExtrasIndexPage /></ProtectedRoute>} />
                 <Route path="/informes/horas-extras/servicios" element={<ProtectedRoute><HorasExtrasServiciosPage /></ProtectedRoute>} />
                 <Route path="/informes/horas-extras/mantenimiento" element={<ProtectedRoute><HorasExtrasMantenimientoPage /></ProtectedRoute>} />
+                <Route path="/informes/email-marketing" element={<ProtectedRoute><InformesEmailMarketingPage /></ProtectedRoute>} />
+
+                {/* Email Marketing CRUD routes */}
+                <Route path="/email-marketing" element={<ProtectedRoute modulo="email_marketing" accion="ver"><EmailMarketingPage /></ProtectedRoute>} />
+                <Route path="/email-marketing/contactos" element={<ProtectedRoute modulo="email_marketing" accion="ver"><ContactosListaPage /></ProtectedRoute>} />
+                <Route path="/email-marketing/plantillas" element={<ProtectedRoute modulo="email_marketing" accion="ver"><PlantillasPage /></ProtectedRoute>} />
+                <Route path="/email-marketing/campanas" element={<ProtectedRoute modulo="email_marketing" accion="ver"><CampanasPage /></ProtectedRoute>} />
+                <Route path="/email-marketing/campanas/:id" element={<ProtectedRoute modulo="email_marketing" accion="ver"><CampanaDetallePage /></ProtectedRoute>} />
 
                 {/* Presupuestos */}
                 <Route path="/presupuestos" element={<ProtectedRoute><BudgetIndexPage /></ProtectedRoute>} />
@@ -261,12 +291,24 @@ function App() {
                 {/* Programación de Mantenimientos */}
                 <Route path="/mantenimientos-programados/*" element={<ProtectedRoute><MantenimientosProgramados /></ProtectedRoute>} />
 
+                {/* Informes Mantenimiento */}
+                <Route path="/informes/mantenimiento/detalle-equipos" element={<ProtectedRoute><InformeDetalleEquiposPage /></ProtectedRoute>} />
+
                 {/* Sistemas */}
                 <Route path="/sistemas/generador-prompts" element={<ProtectedRoute adminOnly><PromptGeneratorPage /></ProtectedRoute>} />
 
                 {/* Admin Usuarios */}
                 <Route path="/admin/users" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
                 <Route path="/admin/backups" element={<ProtectedRoute adminOnly><BackupsPage /></ProtectedRoute>} />
+                <Route path="/admin/auditoria" element={<ProtectedRoute adminOnly><AuditoriaPage /></ProtectedRoute>} />
+
+                {/* Plantillas de Certificado */}
+                <Route path="/certificados/plantillas" element={<ProtectedRoute modulo="empleados" accion="ver"><CertificadoTemplatesPage /></ProtectedRoute>} />
+
+                {/* Servicios Negados */}
+                <Route path="/servicios-negados" element={<ProtectedRoute><ServiciosNegadosPage /></ProtectedRoute>} />
+                <Route path="/informes/servicios-negados" element={<ProtectedRoute><InformeServiciosNegadosPage /></ProtectedRoute>} />
+                <Route path="/informes/venta-dejada-percibir" element={<ProtectedRoute><InformeVentaDejadaPage /></ProtectedRoute>} />
 
                 {/* Redirect raíz */}
                 <Route path="/403" element={<Error403Page />} />

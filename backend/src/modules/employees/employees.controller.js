@@ -1,6 +1,6 @@
 import { query } from '../../config/database.js';
 import { EmployeesRepository } from './employees.repository.js';
-import { NotFoundError } from '../../utils/errors.js';
+import { AppError, NotFoundError } from '../../utils/errors.js';
 
 const repo = new EmployeesRepository();
 
@@ -30,6 +30,13 @@ export const employeesController = {
 
   async update(req, res, next) {
     try {
+      // RBAC: Solo roles admin, rrhh, gerente pueden modificar el salario
+      if ('salario' in req.body) {
+        const allowedSalaryRoles = ['admin', 'rrhh', 'gerente'];
+        if (!req.user.role || !allowedSalaryRoles.includes(req.user.role)) {
+          throw new AppError('No tiene permisos para modificar el salario del empleado.', 403);
+        }
+      }
       const employee = await repo.update(req.params.id, req.body);
       if (!employee) throw new NotFoundError('Empleado');
       res.json({ success: true, data: employee });

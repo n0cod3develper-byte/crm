@@ -4,9 +4,19 @@ import * as ctrl from './mantenimiento.controller.js';
 import { addManoObraAdicional, removeManoObraAdicional } from './mantenimiento.controller.js';
 import * as pmCtrl from './pm.controller.js';
 import * as compCtrl from './componentes.controller.js';
+import * as corteCtrl from './corteContable.controller.js';
 
 const router = Router();
 router.use(authenticate);
+
+// ─── Cortes Contables ────────────────────────────────────────
+router.get('/cortes',                  corteCtrl.getAllCortes);
+router.post('/cortes/generar',         corteCtrl.generarPropuesta);
+router.get('/cortes/:id',              corteCtrl.getCorte);
+router.post('/cortes/:id/confirmar',   corteCtrl.confirmarCorte);
+router.post('/cortes/:id/ejecutar',    corteCtrl.ejecutarCorte);
+router.delete('/cortes/:id',           corteCtrl.cancelarCorte);
+router.get('/cadena/:cadena_id',       corteCtrl.getHistorialCadena);
 
 // ─── KPIs (Dashboard) ────────────────────────────────────────
 router.get('/kpis',     ctrl.getKpis);

@@ -1,4 +1,5 @@
 import { informesRepository } from './informes.repository.js';
+import { obtenerPermisosUsuario } from '../../middleware/auth.js';
 import { logger } from '../../utils/logger.js';
 
 export const informesController = {
@@ -289,6 +290,33 @@ export const informesController = {
     }
   },
 
+  // ── MANTENIMIENTO: Detalle Mantenimiento por Equipos ──
+  async getDetalleMantenimientoEquipos(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin, empresa_id, equipo_id, page, limit } = req.query;
+      if (!fecha_inicio || !fecha_fin) {
+        return res.status(400).json({ error: 'fecha_inicio y fecha_fin son requeridos' });
+      }
+      // RBAC scope: extract allowed empresa IDs from user permissions if not admin
+      let allowedEmpresaIds = null;
+      if (!empresa_id && req.user?.role !== 'admin') {
+        const { permisos } = await obtenerPermisosUsuario(req.userId);
+        const empresaPermisos = permisos?.empresas;
+        if (empresaPermisos && !empresaPermisos.ver) {
+          // Non-admin without empresa ver permission gets no results
+          allowedEmpresaIds = [];
+        }
+      }
+      const data = await informesRepository.getDetalleMantenimientoEquipos(
+        fecha_inicio, fecha_fin, empresa_id, equipo_id, allowedEmpresaIds, page, limit
+      );
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getDetalleMantenimientoEquipos', { error: error.message });
+      next(error);
+    }
+  },
+
   // ── MANTENIMIENTO: Reincidencia de Fallas (KPI 8) ──
   async getReincidenciaFallasMantenimiento(req, res, next) {
     try {
@@ -369,6 +397,99 @@ export const informesController = {
     } catch (error) {
       logger.error('Error en getHorasExtrasServicios', { error: error.message });
       res.status(500).json({ success: false, message: 'Error interno del servidor', error: error.message, stack: error.stack });
+    }
+  },
+
+  // ── MANTENIMIENTO: Venta Dejada de Percibir ──
+  async getVentaDejadaPercibir(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin, equipo_id, empresa_id, tipo_mantenimiento } = req.query;
+      if (!fecha_inicio || !fecha_fin) {
+        return res.status(400).json({ error: 'fecha_inicio y fecha_fin son requeridos' });
+      }
+      const data = await informesRepository.getVentaDejadaPercibir({
+        fecha_inicio, fecha_fin, equipo_id, empresa_id, tipo_mantenimiento
+      });
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getVentaDejadaPercibir', { error: error.message });
+      next(error);
+    }
+  },
+
+  // ── EMAIL MARKETING REPORT HANDLERS ──
+  async getEmailDashboardResumen(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getEmailDashboardResumen(fecha_inicio, fecha_fin);
+      res.json({ success: true, data });
+    } catch (error) {
+      logger.error('Error en getEmailDashboardResumen', { error: error.message });
+      next(error);
+    }
+  },
+
+  async getEmailTasasPorCampana(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getEmailTasasPorCampana(fecha_inicio, fecha_fin);
+      res.json({ success: true, data });
+    } catch (error) {
+      logger.error('Error en getEmailTasasPorCampana', { error: error.message });
+      next(error);
+    }
+  },
+
+  async getEmailEvolucionListas(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getEmailEvolucionListas(fecha_inicio, fecha_fin);
+      res.json({ success: true, data });
+    } catch (error) {
+      logger.error('Error en getEmailEvolucionListas', { error: error.message });
+      next(error);
+    }
+  },
+
+  async getEmailRankingPlantillas(req, res, next) {
+    try {
+      const data = await informesRepository.getEmailRankingPlantillas();
+      res.json({ success: true, data });
+    } catch (error) {
+      logger.error('Error en getEmailRankingPlantillas', { error: error.message });
+      next(error);
+    }
+  },
+
+  async getEmailSaludLista(req, res, next) {
+    try {
+      const data = await informesRepository.getEmailSaludLista();
+      res.json({ success: true, data });
+    } catch (error) {
+      logger.error('Error en getEmailSaludLista', { error: error.message });
+      next(error);
+    }
+  },
+
+  async getEmailComparativoCampanas(req, res, next) {
+    try {
+      const limit = parseInt(req.query.limit) || 6;
+      const data = await informesRepository.getEmailComparativoCampanas(limit);
+      res.json({ success: true, data });
+    } catch (error) {
+      logger.error('Error en getEmailComparativoCampanas', { error: error.message });
+      next(error);
+    }
+  },
+
+  async getEmailEvolucionMensual(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getEmailEvolucionMensual(fecha_inicio, fecha_fin);
+      res.json({ success: true, data });
+    } catch (error) {
+      logger.error('Error en getEmailEvolucionMensual', { error: error.message });
+      next(error);
     }
   }
 };

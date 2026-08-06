@@ -126,7 +126,20 @@ const MIGRATION_FILES = [
   '093_tasks_enterprise_fields.sql',
   '094_ot_actividades_correctivas.sql',
   '095_ot_mano_obra_adicional.sql',
-  '096_quotes_servicios.sql',
+  '096_cierre_contable_ot.sql',
+  '097_create_audit_logs.sql',
+  '098_optimization_informes_indexes.sql',
+  '099_password_reset_tokens.sql',
+  '100_servicios_negados.sql',
+  '101_empleados_llamados.sql',
+  '102_salud_ocupacional.sql',
+  '103_certificado_templates.sql',
+  '104_correo_personal_and_certificado_otp.sql',
+  '105_remision_consecutivo_sync.sql',
+  '106_email_marketing_module.sql',
+  '107_email_marketing_modulos_sistema.sql',
+  '108_email_consentimiento.sql',
+  '109_quotes_servicios.sql',
 ];
 
 async function ensureMigrationsTable(client) {

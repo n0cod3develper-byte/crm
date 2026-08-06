@@ -14,10 +14,12 @@ import { initializePassport } from './config/passport.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { generalLimiter, uploadLimiter } from './middleware/rateLimiter.js';
 import { requireAuth } from './middleware/auth.js';
+import { auditMiddleware } from './middleware/audit.middleware.js';
 import { logger } from './utils/logger.js';
 
 // ─── Rutas ───────────────────────────────────────────────────
 import authRoutes from './modules/auth/auth.routes.js';
+import resetPasswordRoutes from './modules/auth/resetPassword.routes.js';
 import companiesRoutes from './modules/companies/companies.routes.js';
 import contactsRoutes from './modules/contacts/contacts.routes.js';
 import pipelineRoutes from './modules/pipeline/pipeline.routes.js';
@@ -55,8 +57,14 @@ import informesRoutes from './modules/informes/informes.routes.js';
 import budgetRoutes from './modules/budget/budget.routes.js';
 import promptSpecsRoutes from './modules/prompt-specs/promptSpecs.routes.js';
 import certificadosRoutes from './modules/certificados/certificados.routes.js';
+import certificadosPublicoRoutes from './modules/certificados/certificadosPublico.routes.js';
+import serviciosNegadosRoutes from './modules/servicios_negados/serviciosNegados.routes.js';
+import emailMarketingRoutes from './modules/email-marketing/email-marketing.routes.js';
 import { iniciarJobCierreAutomatico } from './jobs/turnosCierreAutomatico.job.js';
 import { iniciarJobSoatEmail } from './jobs/soatEmailNotifier.js';
+import { iniciarJobCierreContableOT } from './jobs/cierreContableOT.job.js';
+import { iniciarJobEnvioCampanas } from './jobs/emailCampanaJob.js';
+import { iniciarJobRebotes } from './jobs/emailRebotesJob.js';
 import { inicializarFestivos } from './services/calendarioService.js';
 import { initBackupCronJob } from './services/backupService.js';
 
@@ -125,6 +133,9 @@ app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev', {
 initializePassport();
 app.use(passport.initialize());
 
+// ─── Audit Middleware (registra operaciones de escritura) ─────
+app.use(auditMiddleware);
+
 // ─── Health check ────────────────────────────────────────────
 app.get('/health', async (_req, res) => {
   try {
@@ -161,6 +172,7 @@ app.use(`${API}/admin`,         adminRoutes);
 app.use(`/api/backups`,         backupsRoutes); // Ruta especificada en los requerimientos
 app.use(`${API}/me`,            adminRoutes); // Reutilizamos el router para /me
 app.use(`${API}/auth`,          authRoutes);
+app.use(`${API}/auth`,          resetPasswordRoutes);
 app.use(`${API}/companies`,     companiesRoutes);
 app.use(`${API}/contacts`,      contactsRoutes);
 app.use(`${API}/pipeline`,      pipelineRoutes);
@@ -179,6 +191,11 @@ app.use(`${API}/movements`,     movementsRoutes);
 app.use(`${API}/campaigns`,     campaignsRoutes);
 app.use(`${API}/support`,     supportRoutes);
 app.use(`${API}/employees`,   employeesRoutes);
+
+import empleadosLlamadosRoutes from './modules/empleados-llamados/llamados.routes.js';
+import saludOcupacionalRoutes from './modules/salud-ocupacional/salud.routes.js';
+app.use(`${API}/empleados-llamados`, empleadosLlamadosRoutes);
+app.use(`${API}/salud-ocupacional`, saludOcupacionalRoutes);
 app.use(`${API}/equipos`,     equiposRoutes);
 app.use(`${API}/mantenimiento`, mantenimientoRoutes);
 app.use(`${API}/proveedores`, proveedoresRoutes);
@@ -188,10 +205,13 @@ app.use(`${API}/facturacion`, facturacionRoutes);
 app.use(`${API}/catalogo-servicios`, catalogoServiciosRoutes);
 app.use(`${API}/servicios`, serviciosRoutes);
 app.use(`${API}/turnos`,   turnosRoutes);
+app.use(`${API}/certificados-publico`, certificadosPublicoRoutes);
 app.use(`${API}/certificados`, certificadosRoutes);
-// ─── Archivos estáticos públicos (avatares) ───────────────────
-// Los avatares se sirven sin autenticación para que <img> tags funcionen
+app.use(`${API}/servicios-negados`, serviciosNegadosRoutes);
+// ─── Archivos estáticos públicos (avatares, email marketing) ───
+// Deben servirse sin autenticación para que <img> tags funcionen en clientes de correo
 app.use('/uploads/avatars', express.static('uploads/avatars'));
+app.use('/uploads/email-marketing', express.static('uploads/email-marketing'));
 
 // ─── Archivos estáticos protegidos ───────────────────────────
 // Los demás uploads requieren autenticación JWT (vía cookie o header)
@@ -216,6 +236,9 @@ import centrosCostosRoutes from './modules/centros_costos/centros_costos.routes.
 // ─── Prompt Specs (bajo /api/prompt-specs, no /api/v1) ────
 app.use('/api/prompt-specs', promptSpecsRoutes);
 app.use(`${API}/centros-costos`, centrosCostosRoutes);
+// ─── Email Marketing (tracking público + rutas protegidas) ───
+app.use('/api/email-marketing', emailMarketingRoutes);
+app.use(`${API}/email-marketing`, emailMarketingRoutes);
 
 // ─── 404 y manejo de errores ─────────────────────────────────
 app.use(notFoundHandler);
@@ -236,6 +259,13 @@ async function bootstrap() {
 
   // Iniciar job de notificaciones de SOAT (06:00 America/Bogota)
   iniciarJobSoatEmail();
+
+  // Iniciar job de cierre contable mensual de OTs
+  iniciarJobCierreContableOT();
+
+  // Iniciar jobs de Email Marketing
+  iniciarJobEnvioCampanas();   // Cada 3 minutos — procesa lotes de envío
+  iniciarJobRebotes();         // Cada hora — detecta rebotes (NDR) en el buzón
 
   // Iniciar job de backups automático (02:00 AM)
   initBackupCronJob();

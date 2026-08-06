@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { TrendingUp, Users, DollarSign, CheckSquare, ArrowUpRight, ArrowDownRight, Wrench, ShieldCheck, Activity, Calendar, RotateCcw, AlertTriangle, HardHat } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
@@ -867,6 +867,10 @@ function DashboardAdminOriginal() {
 export function DashboardPage() {
   const { rolActual } = usePermissions();
   const rolSlug = rolActual?.slug;
+
+  if (rolSlug === 'facturador' || rolActual?.nombre?.toLowerCase() === 'facturador') {
+    return <Navigate to="/facturacion/pendientes" replace />;
+  }
 
   if (rolSlug === 'admin' || !rolSlug || rolActual?.nombre === 'Administrador') {
     return <DashboardAdminOriginal />;

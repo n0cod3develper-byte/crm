@@ -1,13 +1,13 @@
 import React, { useEffect, useCallback } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Building2, Users, TrendingUp, CheckSquare,
+  LayoutDashboard, Building2, Users, TrendingUp, TrendingDown, CheckSquare,
   FileText, Megaphone, Package, LifeBuoy,
   Zap, BarChart3, Settings, LogOut, Truck, Box, Wrench,
   ShoppingCart, ShoppingBag, Receipt, Clock, BookOpen, MapPin, History,
   Bookmark, ClipboardList, Shield, Sun, Moon, Monitor,
   CalendarClock, Database, PieChart, DollarSign,
-  MessageSquareCode, Briefcase
+  MessageSquareCode, Briefcase, XCircle, AlertTriangle, Mail
 } from 'lucide-react';
 import { useSidebarStore } from '../../stores/sidebarStore';
 import { useThemeStore } from '../../stores/themeStore';
@@ -28,7 +28,9 @@ const navItems = [
   { label: 'Cotiz. Proveedores', icon: FileText, to: '/supplier-quotes', modulo: 'cotizaciones' },
   { section: 'Marketing' },
   { label: 'Leads', icon: Megaphone, to: '/leads', modulo: 'leads' },
+  { label: 'Serv. Negados', icon: XCircle, to: '/servicios-negados', modulo: 'leads' },
   { label: 'Campañas', icon: Zap, to: '/campaigns', modulo: 'campanas' },
+  { label: 'Email Marketing', icon: Mail, to: '/email-marketing', modulo: 'email_marketing' },
   { section: 'Operaciones' },
   { label: 'Inventario', icon: Box, to: '/inventory', modulo: 'inventario' },
   { label: 'Ubicaciones', icon: MapPin, to: '/inventory/ubicaciones', modulo: 'inventario', indent: true },
@@ -36,8 +38,10 @@ const navItems = [
   { label: 'Catálogo', icon: BookOpen, to: '/catalogo', modulo: 'catalogo' },
   { label: 'Soporte', icon: LifeBuoy, to: '/support', modulo: 'soporte' },
   { label: 'Empleados', icon: Users, to: '/employees', modulo: 'empleados' },
+  { label: 'Plantillas Cert.', icon: FileText, to: '/certificados/plantillas', modulo: 'empleados', indent: true },
   { label: 'Equipos', icon: Truck, to: '/equipos', modulo: 'equipos' },
   { label: 'Mantenimiento', icon: Wrench, to: '/mantenimiento', modulo: 'ordenes_trabajo' },
+  { label: 'Cortes Contables', icon: Clock, to: '/mantenimiento/cortes', modulo: 'ordenes_trabajo', indent: true },
   { label: 'Plantillas PM', icon: Settings, to: '/mantenimiento/configuracion', modulo: 'ordenes_trabajo' },
   { label: 'Turnos', icon: Clock, to: '/turnos', modulo: 'turnos' },
   { label: 'Prog. Mant.', icon: CalendarClock, to: '/mantenimientos-programados', modulo: 'ordenes_trabajo' },
@@ -60,16 +64,22 @@ const navItems = [
   { label: 'Ventas Servicios', icon: ClipboardList, to: '/reportes/servicios', indent: true },
   { label: 'Ventas Mantenimiento', icon: Wrench, to: '/reportes/mantenimiento', indent: true },
   { label: 'Horas Extras', icon: Clock, to: '/informes/horas-extras', indent: true },
+  { label: 'Mant. por Equipos', icon: Wrench, to: '/informes/mantenimiento/detalle-equipos', indent: true },
+  { label: 'Serv. Negados', icon: AlertTriangle, to: '/informes/servicios-negados', indent: true },
+  { label: 'Venta Perdida', icon: TrendingDown, to: '/informes/venta-dejada-percibir', indent: true },
   { label: 'Usuarios', icon: Users, to: '/admin/usuarios', adminOnly: true },
   { label: 'Roles y Permisos', icon: Shield, to: '/admin/roles', adminOnly: true },
   { label: 'Módulos del Sistema', icon: Settings, to: '/admin/modulos', adminOnly: true },
   { label: 'Respaldos DB', icon: Database, to: '/admin/backups', adminOnly: true },
+  { label: 'Auditoria', icon: History, to: '/admin/auditoria', adminOnly: true },
 
   { section: 'Sistemas' },
   { label: 'Generador Prompts', icon: MessageSquareCode, to: '/sistemas/generador-prompts', adminOnly: true },
 ];
 
 // ─── Componente principal ────────────────────────────────────
+import stratumLogo from '../../assets/stratum_logo.png';
+
 export function Sidebar() {
   const { expanded, mobileOpen, closeMobile, toggleExpanded } = useSidebarStore();
   const { user, logout } = useAuth();
@@ -139,13 +149,7 @@ export function Sidebar() {
         {/* ── Logo ───────────────────────────────── */}
         <div className="sidebar__logo">
           <div className="sidebar__logo-inner">
-            <div className="sidebar__logo-icon">
-              <Truck size={18} color="white" />
-            </div>
-            <div className="sidebar__logo-text">
-              <div className="sidebar__logo-title">CARGAR SAS</div>
-              <div className="sidebar__logo-sub">CRM & ERP</div>
-            </div>
+            <img src={stratumLogo} alt="STRATUM" style={{ height: '32px', width: 'auto', filter: 'brightness(0) invert(1)' }} />
           </div>
         </div>
 

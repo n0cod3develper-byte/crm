@@ -271,31 +271,6 @@ export class ServiciosRepository {
         }
       }
 
-      if (d.equipo_id) {
-        const eqRes = await client.query('SELECT estado FROM equipos WHERE id = $1', [d.equipo_id]);
-        const estado_anterior = eqRes.rows[0]?.estado || 'OPERATIVO';
-
-        if (estado_anterior !== 'ALQUILADO') {
-          await client.query(
-            `UPDATE equipos SET 
-              estado = 'ALQUILADO',
-              motivo_estado = $1,
-              fecha_cambio_estado = CURRENT_DATE,
-              actualizado_por = $2,
-              updated_at = NOW()
-             WHERE id = $3`,
-            [`Alquilado automáticamente por creación de remisión ${numero}`, userStr, d.equipo_id]
-          );
-
-          await client.query(
-            `INSERT INTO equipos_historial_estado (
-              equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
-            ) VALUES ($1, $2, $3, $4, $5)`,
-            [d.equipo_id, estado_anterior, 'ALQUILADO', `Alquilado por creación de remisión ${numero}`, userStr]
-          );
-        }
-      }
-
       return res.rows[0];
     });
   }

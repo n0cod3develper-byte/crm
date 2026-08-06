@@ -32,4 +32,13 @@ router.get('/horas-extras/servicios', informesController.getHorasExtrasServicios
 // Mantenimiento
 router.use('/mantenimiento', mantenimientoRoutes);
 
+// Email Marketing Reports
+router.get('/email-marketing/resumen',             informesController.getEmailDashboardResumen);
+router.get('/email-marketing/tasas-campana',        informesController.getEmailTasasPorCampana);
+router.get('/email-marketing/evolucion-listas',     informesController.getEmailEvolucionListas);
+router.get('/email-marketing/ranking-plantillas',   informesController.getEmailRankingPlantillas);
+router.get('/email-marketing/salud-lista',          informesController.getEmailSaludLista);
+router.get('/email-marketing/comparativo-campanas', informesController.getEmailComparativoCampanas);
+router.get('/email-marketing/evolucion-mensual',     informesController.getEmailEvolucionMensual);
+
 export default router;
