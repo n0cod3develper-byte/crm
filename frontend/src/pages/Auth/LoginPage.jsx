@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, Mail, Lock, Eye, EyeOff, AlertCircle, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { LoginCarousel } from '../../components/Auth/LoginCarousel';
+import { LoginCarousel } from '../../components/auth/LoginCarousel';
 
 /* ─── Estilos globales del login ────────────────────────────── */
 const CSS = `
