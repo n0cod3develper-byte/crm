@@ -87,6 +87,14 @@ export function CompanyDetailPage() {
     }
   });
 
+  const { data: quotesServiciosData, isLoading: isQuotesServiciosLoading } = useQuery({
+    queryKey: ['company-quotes-servicios', id],
+    queryFn: async () => {
+      const { data } = await api.get('/quotes-servicios', { params: { companyId: id } });
+      return data.data || [];
+    }
+  });
+
   if (isLoading) return (
     <div className="app-layout">
       <div className="main-content flex items-center justify-center">
@@ -341,43 +349,92 @@ export function CompanyDetailPage() {
                   </button>
                 </div>
                 
-                {isQuotesLoading ? (
+                {(isQuotesLoading || isQuotesServiciosLoading) ? (
                   <div className="spinner" />
-                ) : quotesData?.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                    No hay cotizaciones registradas para esta empresa.
-                  </div>
                 ) : (
-                  <div className="table-wrapper">
-                    <table style={{ background: 'transparent' }}>
-                      <thead>
-                        <tr>
-                          <th>Consecutivo</th>
-                          <th>Fecha</th>
-                          <th>Total Venta (Sugerido)</th>
-                          <th>Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {quotesData.map(q => (
-                          <tr key={q.id}>
-                            <td style={{ fontWeight: 600, color: 'var(--clr-primary-500)', cursor: 'pointer' }} onClick={() => { setSelectedQuoteId(q.id); setIsQuoteModalOpen(true); }}>
-                              {q.quote_number}
-                            </td>
-                            <td>{new Date(q.created_at).toLocaleDateString()}</td>
-                            <td style={{ fontWeight: 600 }}>
-                              {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(q.total || 0)}
-                            </td>
-                            <td>
-                               <span style={{ fontSize: '12px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', background: 'var(--bg-elevated)', textTransform: 'uppercase' }}>
-                                 {q.status === 'draft' ? 'BORRADOR' : q.status === 'sent' ? 'ENVIADA' : q.status === 'viewed' ? 'VISTA' : q.status === 'accepted' ? 'ACEPTADA' : q.status === 'rejected' ? 'RECHAZADA' : q.status === 'expired' ? 'EXPIRADA' : q.status}
-                               </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <>
+                    {/* Cotizaciones Mantenimiento */}
+                    <div style={{ marginBottom: '2rem' }}>
+                      <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Mantenimiento
+                      </h4>
+                      {quotesData?.length === 0 ? (
+                        <div style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>No hay cotizaciones de mantenimiento.</div>
+                      ) : (
+                        <div className="table-wrapper">
+                          <table style={{ background: 'transparent' }}>
+                            <thead>
+                              <tr>
+                                <th>Consecutivo</th>
+                                <th>Fecha</th>
+                                <th>Total Venta (Sugerido)</th>
+                                <th>Estado</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {quotesData.map(q => (
+                                <tr key={q.id}>
+                                  <td style={{ fontWeight: 600, color: 'var(--clr-primary-500)', cursor: 'pointer' }} onClick={() => navigate(`/quotes/mantenimiento/${q.id}`)}>
+                                    {q.quote_number}
+                                  </td>
+                                  <td>{new Date(q.created_at).toLocaleDateString()}</td>
+                                  <td style={{ fontWeight: 600 }}>
+                                    {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(q.total || 0)}
+                                  </td>
+                                  <td>
+                                     <span style={{ fontSize: '12px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', background: 'var(--bg-elevated)', textTransform: 'uppercase' }}>
+                                       {q.status === 'draft' ? 'BORRADOR' : q.status === 'sent' ? 'ENVIADA' : q.status === 'viewed' ? 'VISTA' : q.status === 'accepted' ? 'ACEPTADA' : q.status === 'rejected' ? 'RECHAZADA' : q.status === 'expired' ? 'EXPIRADA' : q.status}
+                                     </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cotizaciones Servicios */}
+                    <div>
+                      <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Servicios
+                      </h4>
+                      {quotesServiciosData?.length === 0 ? (
+                        <div style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>No hay cotizaciones de servicios.</div>
+                      ) : (
+                        <div className="table-wrapper">
+                          <table style={{ background: 'transparent' }}>
+                            <thead>
+                              <tr>
+                                <th>Consecutivo</th>
+                                <th>Fecha</th>
+                                <th>Total</th>
+                                <th>Estado</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {quotesServiciosData.map(q => (
+                                <tr key={q.id}>
+                                  <td style={{ fontWeight: 600, color: 'var(--clr-primary-500)', cursor: 'pointer' }} onClick={() => navigate(`/quotes/servicios/${q.id}`)}>
+                                    {q.consecutivo}
+                                  </td>
+                                  <td>{new Date(q.fecha).toLocaleDateString()}</td>
+                                  <td style={{ fontWeight: 600 }}>
+                                    {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(q.total || 0)}
+                                  </td>
+                                  <td>
+                                     <span style={{ fontSize: '12px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', background: 'var(--bg-elevated)', textTransform: 'uppercase' }}>
+                                       {q.estado}
+                                     </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             )}

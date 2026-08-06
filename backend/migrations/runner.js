@@ -125,7 +125,8 @@ const MIGRATION_FILES = [
   '092_update_tipo_equipo_cargador_bateria.sql',
   '093_tasks_enterprise_fields.sql',
   '094_ot_actividades_correctivas.sql',
-  '095_ot_mano_obra_adicional.sql'
+  '095_ot_mano_obra_adicional.sql',
+  '096_quotes_servicios.sql',
 ];
 
 async function ensureMigrationsTable(client) {

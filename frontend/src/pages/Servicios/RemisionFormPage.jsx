@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Save, Lock, Plus, Minus } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -190,8 +190,39 @@ export function RemisionFormPage() {
   const qc = useQueryClient();
   const isEditing = !!id;
 
-  const draft = React.useMemo(() => !id ? loadDraft() : null, [id]);
-  const [form, setForm] = React.useState(() => draft || EMPTY);
+  const location = useLocation();
+  const draft = React.useMemo(() => {
+    if (id || location.state?.prefillFromQuote) return null;
+    return loadDraft();
+  }, [id, location.state]);
+
+  const [form, setForm] = React.useState(() => {
+    if (location.state?.prefillFromQuote) {
+      const q = location.state.prefillFromQuote;
+      // Tratar de adaptar los datos de la cotización al formulario de remisión
+      return {
+        ...EMPTY,
+        company_id: q.company_id || '',
+        solicitado_por_id: q.contact_id || '',
+        catalogo_servicio_id: q.catalogo_servicio_id || (q.items && q.items[0] ? q.items[0].catalogo_servicio_id : '') || '',
+        direccion_servicio: q.direccion_invitacion || '',
+        observaciones: `Servicio basado en Cotización ${q.consecutivo || ''}. ${q.descripcion || ''}`.trim(),
+        cantidad_horas: q.items && q.items[0] ? parseFloat(q.items[0].cantidad) || 1 : 1,
+        valor_hora: q.items && q.items[0] ? parseFloat(q.items[0].valor_unitario) || 0 : 0,
+        items: q.items ? q.items.map(it => ({
+          catalogo_servicio_id: it.catalogo_servicio_id || '',
+          servicio_nombre: it.servicio_nombre || '',
+          descripcion: it.descripcion || '',
+          cantidad: parseFloat(it.cantidad) || 1,
+          valor_unitario: parseFloat(it.valor_unitario) || 0,
+          subtotal: parseFloat(it.subtotal) || 0,
+          aplica_iva: it.aplica_iva || false,
+          iva_valor: parseFloat(it.iva_valor) || 0,
+        })) : []
+      };
+    }
+    return draft || EMPTY;
+  });
   const [draftRestored, setDraftRestored] = React.useState(!!draft);
   const [equiposFiltrados, setEquiposFiltrados] = React.useState([]);
   const [equiposExternosFiltrados, setEquiposExternosFiltrados] = React.useState([]);
@@ -397,12 +428,16 @@ export function RemisionFormPage() {
 
   // ─── Al cambiar servicio: autocompletar valor_hora ───────────
   React.useEffect(() => {
-    if (form.catalogo_servicio_id && catalogoMap[form.catalogo_servicio_id]) {
+    // Si viene de una cotización o ya tiene un valor distinto de cero (escrito manualmente o de la cotización), no sobreescribir.
+    if (form.catalogo_servicio_id && catalogoMap[form.catalogo_servicio_id] && !location.state?.prefillFromQuote) {
       const item = catalogoMap[form.catalogo_servicio_id];
       const precio = parseFloat(item.precio_base ?? 0);
-      setForm(prev => ({ ...prev, valor_hora: precio }));
+      setForm(prev => {
+        if (prev.valor_hora > 0 && prev.valor_hora !== precio) return prev;
+        return { ...prev, valor_hora: precio };
+      });
     }
-  }, [form.catalogo_servicio_id, catalogoMap]);
+  }, [form.catalogo_servicio_id, catalogoMap, location.state?.prefillFromQuote]);
 
   // ─── Auto-calcular valor_hora_fest_dia al 125% del valor_hora ──
   React.useEffect(() => {

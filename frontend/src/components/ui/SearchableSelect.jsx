@@ -49,6 +49,7 @@ export function SearchableSelect({
   errorMessage = 'Error al buscar',
   initialItem = null,
   className = '',
+  dropUp = false,
 }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [results, setResults] = React.useState([]);
@@ -303,7 +304,10 @@ export function SearchableSelect({
           ref={dropdownRef}
           style={{
             position: 'absolute',
-            top: 'calc(100% + 4px)',
+            ...(dropUp
+              ? { bottom: 'calc(100% + 4px)' }
+              : { top: 'calc(100% + 4px)' }
+            ),
             left: 0,
             zIndex: 1000,
             minWidth: '100%',

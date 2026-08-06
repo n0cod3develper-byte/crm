@@ -94,8 +94,11 @@ const BudgetFormPage = lazy(() => import('./pages/Presupuestos/BudgetFormPage').
 const PromptGeneratorPage = lazy(() => import('./pages/Sistemas/PromptGeneratorPage').then(m => ({ default: m.PromptGeneratorPage })));
 
 const SupplierQuotesPage = lazy(() => import('./pages/SupplierQuotes/SupplierQuotesPage').then(m => ({ default: m.SupplierQuotesPage })));
+const QuotesIndexPage = lazy(() => import('./pages/Quotes/QuotesIndexPage').then(m => ({ default: m.QuotesIndexPage })));
 const QuotesPage = lazy(() => import('./pages/Quotes/QuotesPage').then(m => ({ default: m.QuotesPage })));
 const QuoteDetailPage = lazy(() => import('./pages/Quotes/QuoteDetailPage').then(m => ({ default: m.QuoteDetailPage })));
+const QuotesServiciosPage = lazy(() => import('./pages/Quotes/QuotesServiciosPage').then(m => ({ default: m.QuotesServiciosPage })));
+const QuoteServicioFormPage = lazy(() => import('./pages/Quotes/QuoteServicioFormPage').then(m => ({ default: m.QuoteServicioFormPage })));
 const SupplierQuoteForm = lazy(() => import('./pages/SupplierQuotes/SupplierQuoteForm').then(m => ({ default: m.SupplierQuoteForm })));
 const SupplierQuoteDetail = lazy(() => import('./pages/SupplierQuotes/SupplierQuoteDetail').then(m => ({ default: m.SupplierQuoteDetail })));
 const SolicitarCertificadoPage = lazy(() => import('./pages/CertificadosPublico/SolicitarCertificadoPage').then(m => ({ default: m.SolicitarCertificadoPage })));
@@ -183,8 +186,17 @@ function App() {
                 <Route path="/contacts" element={<ProtectedRoute modulo="contactos" accion="ver"><ContactsPage /></ProtectedRoute>} />
                 <Route path="/pipeline" element={<ProtectedRoute modulo="pipeline" accion="ver"><PipelinePage /></ProtectedRoute>} />
                 <Route path="/tasks" element={<ProtectedRoute modulo="tareas" accion="ver"><TasksPage /></ProtectedRoute>} />
-                <Route path="/quotes" element={<ProtectedRoute modulo="cotizaciones" accion="ver"><QuotesPage /></ProtectedRoute>} />
-                <Route path="/quotes/:id" element={<ProtectedRoute modulo="cotizaciones" accion="ver"><QuoteDetailPage /></ProtectedRoute>} />
+                {/* Cotizaciones Clientes */}
+                <Route path="/quotes" element={<ProtectedRoute modulo="cotizaciones" accion="ver"><QuotesIndexPage /></ProtectedRoute>} />
+                
+                {/* Mantenimiento */}
+                <Route path="/quotes/mantenimiento" element={<ProtectedRoute modulo="cotizaciones" accion="ver"><QuotesPage /></ProtectedRoute>} />
+                <Route path="/quotes/mantenimiento/:id" element={<ProtectedRoute modulo="cotizaciones" accion="ver"><QuoteDetailPage /></ProtectedRoute>} />
+                
+                {/* Servicios */}
+                <Route path="/quotes/servicios" element={<ProtectedRoute modulo="cotizaciones" accion="ver"><QuotesServiciosPage /></ProtectedRoute>} />
+                <Route path="/quotes/servicios/nueva" element={<ProtectedRoute modulo="cotizaciones" accion="crear"><QuoteServicioFormPage /></ProtectedRoute>} />
+                <Route path="/quotes/servicios/:id" element={<ProtectedRoute modulo="cotizaciones" accion="ver"><QuoteServicioFormPage /></ProtectedRoute>} />
 
                 {/* Cotizaciones a Proveedores */}
                 <Route path="/supplier-quotes" element={<ProtectedRoute><SupplierQuotesPage /></ProtectedRoute>} />
