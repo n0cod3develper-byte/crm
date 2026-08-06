@@ -24,7 +24,7 @@ const EMPTY = {
   hora_salida_cargar: '', hora_llegada_cliente: '', hora_salida_cliente: '', hora_llegada_cargar: '',
   segundo_fecha_acordada: '', segundo_hora_salida_cargar: '', segundo_hora_llegada_cliente: '', segundo_hora_salida_cliente: '', segundo_hora_llegada_cargar: '', segundo_horometro_salida: '', segundo_horometro_regreso: '',
   horometro_salida: '', horometro_regreso: '',
-  cantidad_horas: 1, valor_hora: 0,
+  cantidad_horas: 0, valor_hora: 0,
   horas_diurnas: 0, valor_hora_diurna: 0,
   horas_nocturnas: 0, valor_hora_nocturna: 0,
   horas_fest_diurnas: 0, valor_hora_fest_dia: 0,
@@ -207,13 +207,13 @@ export function RemisionFormPage() {
         catalogo_servicio_id: q.catalogo_servicio_id || (q.items && q.items[0] ? q.items[0].catalogo_servicio_id : '') || '',
         direccion_servicio: q.direccion_invitacion || '',
         observaciones: `Servicio basado en Cotización ${q.consecutivo || ''}. ${q.descripcion || ''}`.trim(),
-        cantidad_horas: q.items && q.items[0] ? parseFloat(q.items[0].cantidad) || 1 : 1,
+        cantidad_horas: q.items && q.items[0] ? parseFloat(q.items[0].cantidad) || 0 : 0,
         valor_hora: q.items && q.items[0] ? parseFloat(q.items[0].valor_unitario) || 0 : 0,
         items: q.items ? q.items.map(it => ({
           catalogo_servicio_id: it.catalogo_servicio_id || '',
           servicio_nombre: it.servicio_nombre || '',
           descripcion: it.descripcion || '',
-          cantidad: parseFloat(it.cantidad) || 1,
+          cantidad: parseFloat(it.cantidad) || 0,
           valor_unitario: parseFloat(it.valor_unitario) || 0,
           subtotal: parseFloat(it.subtotal) || 0,
           aplica_iva: it.aplica_iva || false,
@@ -537,8 +537,6 @@ export function RemisionFormPage() {
 
       if (totalHorasCalc !== null) {
         updated.cantidad_horas = totalHorasCalc;
-      } else if (!prev.cantidad_horas || prev.cantidad_horas < 1) {
-        updated.cantidad_horas = 1;
       }
 
       if (totalHorasCalc !== null && updated.items) {
@@ -547,9 +545,9 @@ export function RemisionFormPage() {
           // SOLO actualizar items con unidad 'hora' — nunca modificar 'día' ni otras unidades
           const unidadNorm = (it.unidad || '').trim().toLowerCase();
           if (unidadNorm === 'hora') {
-            let h = 1;
-            if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.ceil(horas1 * 100) / 100) : 1;
-            else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.ceil(horas2 * 100) / 100) : 1;
+            let h = 0;
+            if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.ceil(horas1 * 100) / 100) : 0;
+            else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.ceil(horas2 * 100) / 100) : 0;
             indexHora++;
             return { ...it, cantidad: h };
           }
@@ -737,9 +735,9 @@ export function RemisionFormPage() {
                 // SOLO modificar items con unidad 'hora', nunca 'día' u otras
                 const unidadNorm = (it.unidad || '').trim().toLowerCase();
                 if (unidadNorm === 'hora') {
-                  let h = 1;
-                  if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.ceil(horas1 * 100) / 100) : 1;
-                  else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.ceil(horas2 * 100) / 100) : 1;
+                  let h = 0;
+                  if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.ceil(horas1 * 100) / 100) : 0;
+                  else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.ceil(horas2 * 100) / 100) : 0;
                   indexHora++;
                   return { ...it, cantidad: h };
                 }
@@ -784,9 +782,9 @@ export function RemisionFormPage() {
               // SOLO modificar items con unidad 'hora', nunca 'día' u otras
               const unidadNorm = (it.unidad || '').trim().toLowerCase();
               if (unidadNorm === 'hora') {
-                let h = 1;
-                if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.ceil(horas1 * 100) / 100) : 1;
-                else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.ceil(horas2 * 100) / 100) : 1;
+                let h = 0;
+                if (indexHora === 0) h = horas1 > 0 ? Math.max(1, Math.ceil(horas1 * 100) / 100) : 0;
+                else if (indexHora === 1) h = horas2 > 0 ? Math.max(1, Math.ceil(horas2 * 100) / 100) : 0;
                 indexHora++;
                 return { ...it, cantidad: h };
               }
@@ -835,7 +833,7 @@ export function RemisionFormPage() {
   const addItem = () => {
     setForm(prev => ({
       ...prev,
-      items: [...(prev.items || []), { catalogo_servicio_id: '', descripcion: '', unidad: '', cantidad: 1, valor_unitario: 0, descuento_pct: 0, aplica_iva: false }]
+      items: [...(prev.items || []), { catalogo_servicio_id: '', descripcion: '', unidad: '', cantidad: 0, valor_unitario: 0, descuento_pct: 0, aplica_iva: false }]
     }));
   };
 
@@ -1353,7 +1351,7 @@ export function RemisionFormPage() {
                   ].map(({ name, label: lbl }) => (
                     <div key={name}>
                       <label style={label}>{lbl}</label>
-                      <input type="text" placeholder="HH:MM" {...inputProps(name)} />
+                      <input type="time" {...inputProps(name)} />
                     </div>
                   ))}
                 </div>
@@ -1374,7 +1372,7 @@ export function RemisionFormPage() {
                       ].map(({ name, label: lbl }) => (
                         <div key={name}>
                           <label style={label}>{lbl}</label>
-                          <input type="text" placeholder="HH:MM" {...inputProps(name)} />
+                          <input type="time" {...inputProps(name)} />
                         </div>
                       ))}
                       <div>
