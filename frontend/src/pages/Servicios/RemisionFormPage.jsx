@@ -192,11 +192,75 @@ export function RemisionFormPage() {
 
   const location = useLocation();
   const draft = React.useMemo(() => {
-    if (id || location.state?.prefillFromQuote) return null;
+    if (id || location.state?.prefillFromQuote || location.state?.duplicateFrom) return null;
     return loadDraft();
   }, [id, location.state]);
 
   const [form, setForm] = React.useState(() => {
+    if (location.state?.duplicateFrom) {
+      const r = location.state.duplicateFrom;
+      // Pre-llenar con todos los datos de la remisión original
+      const f = { ...EMPTY };
+      // Datos del cliente
+      f.company_id = r.company_id || '';
+      f.solicitado_por = r.solicitado_por || '';
+      f.solicitado_por_id = r.solicitado_por_id || '';
+      f.direccion_servicio = r.direccion_servicio || '';
+      f.forma_pago = r.forma_pago || 'Contado';
+      // Servicio
+      f.catalogo_servicio_id = r.catalogo_servicio_id || '';
+      f.equipo_id = r.equipo_id || '';
+      f.numero_maquina = r.numero_maquina || r.equipo_serie || '';
+      // Operarios
+      if (r.operarios && r.operarios.length > 0) {
+        f.operario_id = r.operarios[0]?.empleado_id || '';
+        if (r.operarios.length > 1) f.operario_2_id = r.operarios[1]?.empleado_id || '';
+      }
+      // Valores y horas
+      f.cantidad_horas = parseFloat(r.cantidad_horas) || 0;
+      f.valor_hora = parseFloat(r.valor_hora) || 0;
+      f.bonificacion_hora = parseFloat(r.bonificacion_hora) || 0;
+      f.horas_diurnas = parseFloat(r.horas_diurnas) || 0;
+      f.valor_hora_diurna = parseFloat(r.valor_hora_diurna) || 0;
+      f.horas_nocturnas = parseFloat(r.horas_nocturnas) || 0;
+      f.valor_hora_nocturna = parseFloat(r.valor_hora_nocturna) || 0;
+      f.horas_fest_diurnas = parseFloat(r.horas_fest_diurnas) || 0;
+      f.valor_hora_fest_dia = parseFloat(r.valor_hora_fest_dia) || 0;
+      f.horas_fest_nocturnas = parseFloat(r.horas_fest_nocturnas) || 0;
+      f.valor_hora_fest_noc = parseFloat(r.valor_hora_fest_noc) || 0;
+      f.horas_otras = parseFloat(r.horas_otras) || 0;
+      f.valor_hora_otras = parseFloat(r.valor_hora_otras) || 0;
+      f.horas_ordinarias = parseFloat(r.horas_ordinarias) || 0;
+      f.valor_hora_ordinaria = parseFloat(r.valor_hora_ordinaria) || 0;
+      f.horas_recargo = parseFloat(r.horas_recargo) || 0;
+      f.valor_hora_recargo = parseFloat(r.valor_hora_recargo) || 0;
+      // Totales
+      f.total_bruto = parseFloat(r.total_bruto) || 0;
+      f.iva_pct = parseFloat(r.iva_pct) || 0;
+      f.aplica_iva = parseFloat(r.iva_pct || 0) > 0;
+      f.iva_valor = parseFloat(r.iva_valor) || 0;
+      f.descuentos = parseFloat(r.descuentos) || 0;
+      f.total_neto = parseFloat(r.total_neto) || 0;
+      // Observaciones
+      f.observaciones = r.observaciones || '';
+      // Items
+      if (r.items && r.items.length > 0) {
+        f.items = r.items.map(it => ({
+          catalogo_servicio_id: it.catalogo_servicio_id || '',
+          servicio_nombre: it.servicio_nombre || '',
+          descripcion: it.descripcion || '',
+          cantidad: parseFloat(it.cantidad) || 0,
+          valor_unitario: parseFloat(it.valor_unitario) || 0,
+          subtotal: parseFloat(it.subtotal) || 0,
+          aplica_iva: it.aplica_iva || false,
+          iva_valor: parseFloat(it.iva_valor) || 0,
+        }));
+      }
+      // Fecha fresca y estado BORRADOR para la nueva remisión
+      f.fecha_servicio = new Date().toISOString().split('T')[0];
+      f.estado = 'BORRADOR';
+      return f;
+    }
     if (location.state?.prefillFromQuote) {
       const q = location.state.prefillFromQuote;
       // Tratar de adaptar los datos de la cotización al formulario de remisión
@@ -408,7 +472,8 @@ export function RemisionFormPage() {
     if (!form.company_id) return;
 
     // Traer la forma de pago de la última remisión FIRMADO para esta empresa
-    if (!isEditing || !existingData) {
+    // No sobreescribir si viene de duplicación
+    if ((!isEditing || !existingData) && !location.state?.duplicateFrom) {
       api.get(`/servicios/last-forma-pago/${form.company_id}`)
         .then(res => {
           if (res.data?.data) {
@@ -428,8 +493,8 @@ export function RemisionFormPage() {
 
   // ─── Al cambiar servicio: autocompletar valor_hora ───────────
   React.useEffect(() => {
-    // Si viene de una cotización o ya tiene un valor distinto de cero (escrito manualmente o de la cotización), no sobreescribir.
-    if (form.catalogo_servicio_id && catalogoMap[form.catalogo_servicio_id] && !location.state?.prefillFromQuote) {
+    // Si viene de una cotización/duplicado o ya tiene un valor distinto de cero, no sobreescribir.
+    if (form.catalogo_servicio_id && catalogoMap[form.catalogo_servicio_id] && !location.state?.prefillFromQuote && !location.state?.duplicateFrom) {
       const item = catalogoMap[form.catalogo_servicio_id];
       const precio = parseFloat(item.precio_base ?? 0);
       setForm(prev => {
@@ -437,7 +502,7 @@ export function RemisionFormPage() {
         return { ...prev, valor_hora: precio };
       });
     }
-  }, [form.catalogo_servicio_id, catalogoMap, location.state?.prefillFromQuote]);
+  }, [form.catalogo_servicio_id, catalogoMap, location.state?.prefillFromQuote, location.state?.duplicateFrom]);
 
   // ─── Auto-calcular valor_hora_fest_dia al 125% del valor_hora ──
   React.useEffect(() => {

@@ -369,11 +369,7 @@ export class FacturacionRepository {
       // Consecutivo interno será provisto por el usuario (no automático)
       if (factRes.rows[0].estado !== 'PREFACTURA') throw new BadRequestError('Solo se pueden confirmar prefacturas');
 
-      // 2. Validar unicidad de numero_factura
-      const dupRes = await client.query('SELECT id FROM facturas WHERE numero_factura = $1 AND id <> $2', [numero_factura, id]);
-      if (dupRes.rows.length > 0) throw new BadRequestError('El número de factura ya existe');
-
-      // 3. Actualizar factura
+      // 2. Actualizar factura
       const updFactSql = `
         UPDATE facturas SET
           numero_factura = $1,

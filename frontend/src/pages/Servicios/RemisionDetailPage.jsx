@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, FileText, Plus, Trash2, UserCheck, Edit, DollarSign } from 'lucide-react';
+import { ArrowLeft, FileText, Plus, Trash2, UserCheck, Edit, DollarSign, Copy } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
@@ -127,6 +127,9 @@ export function RemisionDetailPage() {
             {remision.estado === 'REALIZADA' && (
               <button className="btn btn--outline" onClick={() => updateEstadoMutation.mutate('LIQUIDADA')}>Marcar como Liquidada</button>
             )}
+            <button className="btn btn--outline" style={{ borderColor: 'rgba(168,85,247,0.5)', color: '#a855f7' }} onClick={() => navigate('/servicios/nueva', { state: { duplicateFrom: remision } })} title="Duplicar remisión">
+              <Copy size={16} /> Duplicar
+            </button>
             <button className="btn btn--primary" onClick={handleDownloadPDF}>
               <FileText size={16} /> Descargar PDF
             </button>
