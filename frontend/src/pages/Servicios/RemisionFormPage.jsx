@@ -421,37 +421,46 @@ export function RemisionFormPage() {
   }, [existingData, isEditing]);
 
   // ─── Cargar equipos de CARGAR S.A.S. (solo OPERATIVOS) ──────
+  // Usa existingData?.equipo_id (estable) para include_id en vez de form.equipo_id
+  // que puede estar vacío durante la carga inicial
   React.useEffect(() => {
     const params = { estado: 'OPERATIVO' };
-    if (isEditing && form.equipo_id && !equipoExterno) {
-      params.include_id = form.equipo_id;
+    const equipoIdToInclude = isEditing ? (existingData?.equipo_id || form.equipo_id) : form.equipo_id;
+    if (equipoIdToInclude && !equipoExterno) {
+      params.include_id = equipoIdToInclude;
     }
 
     api.get('/equipos/by-company/cargar', { params })
       .then(res => setEquiposFiltrados(res.data?.data || res.data || []))
       .catch(() => setEquiposFiltrados([]));
-  }, [isEditing, form.equipo_id, equipoExterno]);
+  }, [isEditing, form.equipo_id, equipoExterno, existingData?.equipo_id]);
 
   // ─── Cargar equipos externos ──────
   React.useEffect(() => {
     if (!equipoExterno && (!isEditing || !form.equipo_id)) return;
     
     const params = { estado: 'OPERATIVO' };
-    if (isEditing && form.equipo_id && equipoExterno) {
-      params.include_id = form.equipo_id;
+    const equipoIdToInclude = isEditing ? (existingData?.equipo_id || form.equipo_id) : form.equipo_id;
+    if (equipoIdToInclude && equipoExterno) {
+      params.include_id = equipoIdToInclude;
     }
     
     api.get('/equipos/externos', { params })
       .then(res => setEquiposExternosFiltrados(res.data?.data || res.data || []))
       .catch(() => setEquiposExternosFiltrados([]));
-  }, [equipoExterno, isEditing, form.equipo_id]);
+  }, [equipoExterno, isEditing, form.equipo_id, existingData?.equipo_id]);
 
   // ─── Detectar si el equipo guardado es externo ──────
+  // Solo ejecutar cuando existingData Y equiposFiltrados estén listos
   React.useEffect(() => {
     if (isEditing && existingData && existingData.equipo_id && !equipoInicializado && equiposFiltrados.length > 0) {
       const isInternal = equiposFiltrados.some(e => String(e.id) === String(existingData.equipo_id));
       if (!isInternal) {
+        // Doble verificación: solo marcar como externo si el equipo realmente NO
+        // está en la lista interna (que ya incluye include_id)
         setEquipoExterno(true);
+      } else {
+        setEquipoExterno(false);
       }
       setEquipoInicializado(true);
     }

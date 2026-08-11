@@ -8,7 +8,7 @@ import passport from 'passport';
 import { createServer } from 'http';
 
 import { env } from './config/env.js';
-import { checkConnection } from './config/database.js';
+import { checkConnection, db } from './config/database.js';
 import { connectRedis, redis } from './config/redis.js';
 import { initializePassport } from './config/passport.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
@@ -274,6 +274,14 @@ async function bootstrap() {
   inicializarFestivos().catch((err) =>
     logger.warn('[Festivos] No se pudieron inicializar los festivos', { error: err.message })
   );
+
+  // Ejecutar migración automática pendiente para quitar el UNIQUE (solicitado para producción)
+  try {
+    await db.query('ALTER TABLE facturas DROP CONSTRAINT IF EXISTS facturas_numero_factura_key;');
+    logger.info('✅ Constraint UNIQUE facturas_numero_factura_key eliminado (si existía)');
+  } catch (err) {
+    logger.warn('⚠️ No se pudo eliminar el constraint UNIQUE de facturas', { error: err.message });
+  }
 
   httpServer.listen(env.PORT, () => {
     logger.info(`🚀  CARGAR CRM API iniciada`, {
