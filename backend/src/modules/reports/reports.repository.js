@@ -2,7 +2,7 @@ import { query } from '../../config/database.js';
 
 export class ReportsRepository {
   async findServiciosSales(fecha_desde, fecha_hasta) {
-    const conditions = ['r.deleted_at IS NULL', "r.estado != 'ANULADO'"];
+    const conditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
     const params = [];
     let i = 1;
 
@@ -42,7 +42,7 @@ export class ReportsRepository {
   }
 
   async findMantenimientoSales(fecha_desde, fecha_hasta) {
-    const conditions = ['ot.deleted_at IS NULL', 'l.id IS NOT NULL'];
+    const conditions = ['ot.deleted_at IS NULL', "ot.estado = 'FACTURADA'"];
     const params = [];
     let i = 1;
 

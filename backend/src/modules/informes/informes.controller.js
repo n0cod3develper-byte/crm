@@ -144,6 +144,30 @@ export const informesController = {
     }
   },
 
+  async getLiquidacionAjustes(req, res, next) {
+    try {
+      const { quincena } = req.query;
+      if (!quincena) return res.status(400).json({ error: 'quincena es requerida' });
+      const data = await informesRepository.getLiquidacionAjustes(quincena);
+      res.json(data);
+    } catch (error) {
+      logger.error('Error en getLiquidacionAjustes', { error: error.message });
+      next(error);
+    }
+  },
+
+  async upsertLiquidacionAjustes(req, res, next) {
+    try {
+      const { quincena, ajustes } = req.body;
+      if (!quincena || !ajustes) return res.status(400).json({ error: 'quincena y ajustes requeridos' });
+      await informesRepository.upsertLiquidacionAjustes(quincena, ajustes);
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('Error en upsertLiquidacionAjustes', { error: error.message });
+      next(error);
+    }
+  },
+
   async getTop10Clientes(req, res, next) {
     try {
       const { fecha_inicio, fecha_fin } = req.query;

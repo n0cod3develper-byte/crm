@@ -53,8 +53,9 @@ export function RegistroDiasFijoPanel({ remision }) {
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
   const [horaEntrada, setHoraEntrada] = useState('');
   const [horaSalida, setHoraSalida] = useState('');
-  const [descDesayuno, setDescDesayuno] = useState(true);
-  const [descAlmuerzo, setDescAlmuerzo] = useState(false);
+  const [tiempoDescuento, setTiempoDescuento] = useState('00:00');
+  const [horometroInicial, setHorometroInicial] = useState('');
+  const [horometroFinal, setHorometroFinal] = useState('');
 
   // Calculate live preview
   let prevHorasBrutas = 0;
@@ -69,7 +70,7 @@ export function RegistroDiasFijoPanel({ remision }) {
     if (diff < 0) diff += 24 * 60; // cruce medianoche
 
     prevHorasBrutas = diff / 60;
-    prevMinDesc = (descDesayuno ? 20 : 0) + (descAlmuerzo ? 30 : 0);
+    prevMinDesc = parseTime(tiempoDescuento);
     prevHorasNetas = Math.max(0, prevHorasBrutas - prevMinDesc / 60);
     prevComision = prevHorasNetas * bonificacionBase;
   }
@@ -90,9 +91,10 @@ export function RegistroDiasFijoPanel({ remision }) {
       fecha,
       hora_entrada: horaEntrada,
       hora_salida: horaSalida,
-      descuento_desayuno: descDesayuno,
-      descuento_almuerzo: descAlmuerzo,
-      bonificacion_hora: bonificacionBase
+      minutos_descuento: parseTime(tiempoDescuento),
+      bonificacion_hora: bonificacionBase,
+      horometro_inicial: horometroInicial || null,
+      horometro_final: horometroFinal || null
     });
   };
 
@@ -134,7 +136,7 @@ export function RegistroDiasFijoPanel({ remision }) {
           <span>Debe asignar al menos un operario a la remisión para registrar días.</span>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: '0.75rem', alignItems: 'end', background: 'var(--bg-secondary)', padding: '1rem', borderRadius: 8, marginBottom: '1.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr 1fr auto', gap: '0.75rem', alignItems: 'end', background: 'var(--bg-secondary)', padding: '1rem', borderRadius: 8, marginBottom: '1.5rem' }}>
           <div>
             <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Operario</label>
             <select className="input" style={{ width: '100%', fontSize: 13, padding: '0.4rem 0.5rem' }} value={empleadoId} onChange={e => setEmpleadoId(e.target.value)}>
@@ -155,16 +157,17 @@ export function RegistroDiasFijoPanel({ remision }) {
             <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>H. Salida</label>
             <input type="time" className="input" style={{ width: '100%', fontSize: 13, padding: '0.4rem 0.5rem' }} value={horaSalida} onChange={e => setHoraSalida(e.target.value)} />
           </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-              <input type="checkbox" checked={descDesayuno} onChange={e => setDescDesayuno(e.target.checked)} />
-              Desc. Desayuno (20m)
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-              <input type="checkbox" checked={descAlmuerzo} onChange={e => setDescAlmuerzo(e.target.checked)} />
-              Desc. Almuerzo (30m)
-            </label>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Horóm. Inic.</label>
+            <input type="number" step="0.1" className="input" style={{ width: '100%', fontSize: 13, padding: '0.4rem 0.5rem' }} value={horometroInicial} onChange={e => setHorometroInicial(e.target.value)} placeholder="0.0" />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Horóm. Final</label>
+            <input type="number" step="0.1" className="input" style={{ width: '100%', fontSize: 13, padding: '0.4rem 0.5rem' }} value={horometroFinal} onChange={e => setHorometroFinal(e.target.value)} placeholder="0.0" />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>T. Desc.</label>
+            <input type="text" placeholder="00:00" pattern="[0-9]{1,2}:[0-9]{2}" title="Formato HH:mm (ej. 01:30)" className="input" style={{ width: '100%', fontSize: 13, padding: '0.4rem 0.5rem' }} value={tiempoDescuento} onChange={e => setTiempoDescuento(e.target.value)} />
           </div>
 
           <div style={{ gridColumn: '1 / -1', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '0.75rem', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -200,6 +203,8 @@ export function RegistroDiasFijoPanel({ remision }) {
                     <th style={{ padding: '0.5rem 1rem', textAlign: 'left', fontWeight: 600 }}>Fecha</th>
                     <th style={{ padding: '0.5rem 1rem', textAlign: 'center', fontWeight: 600 }}>Entrada</th>
                     <th style={{ padding: '0.5rem 1rem', textAlign: 'center', fontWeight: 600 }}>Salida</th>
+                    <th style={{ padding: '0.5rem 1rem', textAlign: 'center', fontWeight: 600 }}>H. Inic.</th>
+                    <th style={{ padding: '0.5rem 1rem', textAlign: 'center', fontWeight: 600 }}>H. Fin.</th>
                     <th style={{ padding: '0.5rem 1rem', textAlign: 'center', fontWeight: 600 }}>Desc. (m)</th>
                     <th style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 600 }}>Hrs Netas</th>
                     <th style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 600 }}>Comisión</th>
@@ -213,6 +218,8 @@ export function RegistroDiasFijoPanel({ remision }) {
                       <td style={{ padding: '0.5rem 1rem' }}>{dia.fecha.split('T')[0]}</td>
                       <td style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>{dia.hora_entrada.substring(0,5)}</td>
                       <td style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>{dia.hora_salida.substring(0,5)}</td>
+                      <td style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>{dia.horometro_inicial || '--'}</td>
+                      <td style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>{dia.horometro_final || '--'}</td>
                       <td style={{ padding: '0.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)' }}>{dia.minutos_descuento}</td>
                       <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 600 }}>{parseFloat(dia.horas_netas).toFixed(2)}h</td>
                       <td style={{ padding: '0.5rem 1rem', textAlign: 'right', color: '#22c55e', fontWeight: 600 }}>{fmtCOP(dia.comision)}</td>
@@ -228,7 +235,7 @@ export function RegistroDiasFijoPanel({ remision }) {
                 </tbody>
                 <tfoot>
                   <tr style={{ background: 'var(--bg-secondary)' }}>
-                    <td colSpan={5} style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 800 }}>SUBTOTAL {q.label}</td>
+                    <td colSpan={7} style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 800 }}>SUBTOTAL {q.label}</td>
                     <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 800 }}>{q.totalHoras.toFixed(2)}h</td>
                     <td style={{ padding: '0.5rem 1rem', textAlign: 'right', fontWeight: 800, color: '#22c55e' }}>{fmtCOP(q.totalComision)}</td>
                     <td></td>

@@ -685,28 +685,27 @@ export class ServiciosRepository {
   }
 
   /** Partir un registro en dos si cruza medianoche Y esa medianoche es límite de quincena */
-  static partirRegistroSiCruzaQuincena(fecha, entrada, salida, descDesayuno, descAlmuerzo, bonif) {
+  static partirRegistroSiCruzaQuincena(fecha, entrada, salida, minutosDesc, bonif, horometro_inicial, horometro_final) {
     const [eh, em] = entrada.split(':').map(Number);
     const [sh, sm] = salida.split(':').map(Number);
     const cruzaMedianoche = (sh * 60 + sm) < (eh * 60 + em);
 
     if (!cruzaMedianoche || !ServiciosRepository.esFechaLimiteQuincena(fecha)) {
       // Sin partición
-      const minDesc = ServiciosRepository.calcMinutosDescuento(descDesayuno, descAlmuerzo);
       const brutas  = ServiciosRepository.calcHorasBrutas(entrada, salida);
-      const netas   = Math.max(0, brutas - minDesc / 60);
+      const netas   = Math.max(0, brutas - minutosDesc / 60);
       return [{ fecha, hora_entrada: entrada, hora_salida: salida,
-                horas_brutas: brutas, minutos_descuento: minDesc,
-                horas_netas: netas, descuento_desayuno: descDesayuno,
-                descuento_almuerzo: descAlmuerzo,
-                bonificacion_hora: bonif, comision: netas * bonif }];
+                horas_brutas: brutas, minutos_descuento: minutosDesc,
+                horas_netas: netas, descuento_desayuno: false,
+                descuento_almuerzo: false,
+                bonificacion_hora: bonif, comision: netas * bonif,
+                horometro_inicial, horometro_final }];
     }
 
     // Parte 1: desde la entrada hasta "23:59" de fecha original
     const minParte1 = (23 * 60 + 59) - (eh * 60 + em) + 1; // hasta medianoche
     const horasParte1 = minParte1 / 60;
-    const minDesc1 = ServiciosRepository.calcMinutosDescuento(descDesayuno, descAlmuerzo);
-    const netas1 = Math.max(0, horasParte1 - minDesc1 / 60);
+    const netas1 = Math.max(0, horasParte1 - minutosDesc / 60);
 
     // Parte 2: desde "00:00" hasta la hora de salida, día siguiente
     const fechaDate = new Date(fecha + 'T00:00:00');
@@ -717,15 +716,17 @@ export class ServiciosRepository {
 
     return [
       { fecha, hora_entrada: entrada, hora_salida: '23:59',
-        horas_brutas: horasParte1, minutos_descuento: minDesc1,
-        horas_netas: netas1, descuento_desayuno: descDesayuno,
-        descuento_almuerzo: descAlmuerzo,
-        bonificacion_hora: bonif, comision: netas1 * bonif },
+        horas_brutas: horasParte1, minutos_descuento: minutosDesc,
+        horas_netas: netas1, descuento_desayuno: false,
+        descuento_almuerzo: false,
+        bonificacion_hora: bonif, comision: netas1 * bonif,
+        horometro_inicial, horometro_final },
       { fecha: fechaStr2, hora_entrada: '00:00', hora_salida: salida,
         horas_brutas: horasParte2, minutos_descuento: 0,
         horas_netas: netas2, descuento_desayuno: false,
         descuento_almuerzo: false,
-        bonificacion_hora: bonif, comision: netas2 * bonif },
+        bonificacion_hora: bonif, comision: netas2 * bonif,
+        horometro_inicial: null, horometro_final: null },
     ];
   }
 
@@ -751,14 +752,15 @@ export class ServiciosRepository {
   async upsertDiaFijo(remision_id, payload) {
     const {
       empleado_id, fecha, hora_entrada, hora_salida,
-      descuento_desayuno = true, descuento_almuerzo = false,
-      bonificacion_hora = 0, notas = null,
+      minutos_descuento = 0, bonificacion_hora = 0, notas = null,
+      horometro_inicial = null, horometro_final = null
     } = payload;
 
     const registros = ServiciosRepository.partirRegistroSiCruzaQuincena(
       fecha, hora_entrada, hora_salida,
-      descuento_desayuno, descuento_almuerzo,
-      parseFloat(bonificacion_hora)
+      parseFloat(minutos_descuento),
+      parseFloat(bonificacion_hora),
+      horometro_inicial, horometro_final
     );
 
     const insertados = [];
@@ -767,8 +769,9 @@ export class ServiciosRepository {
         `INSERT INTO remision_dias_fijo
            (remision_id, empleado_id, fecha, hora_entrada, hora_salida,
             descuento_desayuno, descuento_almuerzo, minutos_descuento,
-            horas_brutas, horas_netas, bonificacion_hora, comision, notas)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+            horas_brutas, horas_netas, bonificacion_hora, comision, notas,
+            horometro_inicial, horometro_final)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
          ON CONFLICT (remision_id, empleado_id, fecha) DO UPDATE SET
            hora_entrada       = EXCLUDED.hora_entrada,
            hora_salida        = EXCLUDED.hora_salida,
@@ -780,6 +783,8 @@ export class ServiciosRepository {
            bonificacion_hora  = EXCLUDED.bonificacion_hora,
            comision           = EXCLUDED.comision,
            notas              = EXCLUDED.notas,
+           horometro_inicial  = EXCLUDED.horometro_inicial,
+           horometro_final    = EXCLUDED.horometro_final,
            updated_at         = NOW()
          RETURNING *`,
         [
@@ -791,6 +796,8 @@ export class ServiciosRepository {
           parseFloat(reg.bonificacion_hora.toFixed(2)),
           parseFloat(reg.comision.toFixed(2)),
           notas,
+          reg.horometro_inicial,
+          reg.horometro_final
         ]
       );
       insertados.push(r.rows[0]);

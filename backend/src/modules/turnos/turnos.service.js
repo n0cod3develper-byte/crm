@@ -140,8 +140,9 @@ export async function calcularDesgloseCompleto(turno, config = {}) {
     esFestivo = diaEsp.esFestivo;
     nombreFestivo = diaEsp.nombreFestivo;
   } catch (err) {
-    // Si falla la BD, continuar sin datos de festivos
-    esDomingo = new Date(fechaTurno).getDay() === 0;
+    // Si falla la BD, continuar sin datos de festivos (incluir sábado y domingo)
+    const fallbackDay = new Date(fechaTurno).getDay();
+    esDomingo = fallbackDay === 0 || fallbackDay === 6;
   }
 
   const esDomFestivo = esDomingo || esFestivo;

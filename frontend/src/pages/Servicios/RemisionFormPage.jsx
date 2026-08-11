@@ -120,9 +120,8 @@ const FESTIVOS_COLOMBIA_2026 = [
  * HORARIO NORMAL:
  *   Lunes-Jueves: 7:00 AM - 4:15 PM
  *   Viernes:      7:00 AM - 4:10 PM
- *   Sábado:       7:00 AM - 10:50 AM
  * RECARGO (125%):
- *   Domingos, festivos = todo el día es recargo.
+ *   Sábados, Domingos, festivos = todo el día es recargo.
  *   Cualquier hora fuera del horario normal = recargo.
  */
 function calcularDesgloseHoras(fechaServicio, salidaStr, llegadaStr) {
@@ -136,10 +135,10 @@ function calcularDesgloseHoras(fechaServicio, salidaStr, llegadaStr) {
   const fecha = new Date(fechaServicio + 'T12:00:00');
   const dayOfWeek = fecha.getDay(); // 0=Dom, 1=Lun, ..., 6=Sáb
   const esFestivo = FESTIVOS_COLOMBIA_2026.includes(fechaServicio);
-  const esDomingoOFestivo = dayOfWeek === 0 || esFestivo;
+  const esDescanso = dayOfWeek === 0 || dayOfWeek === 6 || esFestivo;
 
-  // Si es domingo o festivo → todo es recargo
-  if (esDomingoOFestivo) {
+  // Si es sábado, domingo o festivo → todo es recargo
+  if (esDescanso) {
     const totalMin = Math.round((l - s) / 60000);
     let hRec = Math.ceil((totalMin / 60) * 100) / 100;
     if (hRec > 0 && hRec < 1) hRec = 1;
@@ -147,15 +146,13 @@ function calcularDesgloseHoras(fechaServicio, salidaStr, llegadaStr) {
   }
 
   // Horario normal según día (en minutos desde medianoche)
-  // Lun-Jue: 7:00 AM – 4:15 PM | Vie: 7:00 AM – 4:10 PM | Sáb: 7:00 AM – 10:50 AM
+  // Lun-Jue: 7:00 AM – 4:15 PM | Vie: 7:00 AM – 4:10 PM
   const normalStartMin = 7 * 60; // 7:00 AM = 420 min
   let normalEndMin;
   if (dayOfWeek >= 1 && dayOfWeek <= 4) {
     normalEndMin = 16 * 60 + 15; // Lun-Jue: 4:15 PM = 975 min
-  } else if (dayOfWeek === 5) {
-    normalEndMin = 16 * 60 + 10; // Vie: 4:10 PM = 970 min
   } else {
-    normalEndMin = 10 * 60 + 50; // Sáb: 10:50 AM = 650 min
+    normalEndMin = 16 * 60 + 10; // Vie: 4:10 PM = 970 min
   }
 
   let ordMin = 0, recMin = 0;

@@ -108,6 +108,7 @@ export const FacturasListPage = () => {
                 <th className="px-6 py-4 text-left">Nro Factura</th>
                 <th className="px-6 py-4 text-left">Órdenes / Remisiones</th>
                 <th className="px-6 py-4 text-left">Empresa</th>
+                <th className="px-6 py-4 text-left">Fecha Factura</th>
                 <th className="px-6 py-4 text-right">Monto Total</th>
                 <th className="px-6 py-4 text-center">Acciones</th>
               </tr>
@@ -146,6 +147,12 @@ export const FacturasListPage = () => {
                       <span className="font-semibold">{factura.empresa_nombre}</span>
                     </div>
                   </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2 text-muted">
+                      <Calendar size={14} />
+                      <span>{factura.fecha_factura ? new Date(factura.fecha_factura).toLocaleDateString() : '-'}</span>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 text-right font-bold text-accent">
                     {formatCurrency(factura.total)}
                   </td>
@@ -171,7 +178,7 @@ export const FacturasListPage = () => {
               ))}
               {facturas?.data?.length === 0 && !isLoading && (
                 <tr>
-                  <td colSpan="5" className="px-6 py-20 text-center text-muted italic">
+                  <td colSpan="6" className="px-6 py-20 text-center text-muted italic">
                     No se encontraron facturas en este estado.
                   </td>
                 </tr>

@@ -13,7 +13,7 @@ import * as XLSX from 'xlsx';
 
 // ─── Utilidades ────────────────────────────────────────────────────────────────
 
-const HORAS_ESPERADAS_QUINCENA = 88; // 7.33h × 6 días × 2 semanas
+const HORAS_ESPERADAS_QUINCENA = 84; // 14 días × 6h (o ajuste solicitado)
 
 function formatCOP(v) {
   return new Intl.NumberFormat('es-CO', {
@@ -132,6 +132,9 @@ export function InformesGestionHumanaPage() {
   const opciones = useMemo(() => generarOpcionesQuincena(), []);
   const [quincenaSeleccionada, setQuincenaSeleccionada] = useState(opciones[0]?.value || '');
   const [quincenaAplicada, setQuincenaAplicada] = useState(opciones[0]?.value || '');
+  const [manualHours, setManualHours] = useState({});
+  const [manualNotes, setManualNotes] = useState({});
+  const [notePopoverId, setNotePopoverId] = useState(null);
 
   const rango = useMemo(() => quincenaAplicada ? calcularRangoQuincena(quincenaAplicada) : null, [quincenaAplicada]);
 
@@ -146,11 +149,68 @@ export function InformesGestionHumanaPage() {
     enabled: !!rango,
   });
 
+  const { data: ajustesData, refetch: refetchAjustes } = useQuery({
+    queryKey: ['liquidacionAjustes', quincenaAplicada],
+    queryFn: async () => {
+      const res = await api.get('/informes/gestion-humana/liquidacion-ajustes', {
+        params: { quincena: quincenaAplicada }
+      });
+      return res.data;
+    },
+    enabled: !!quincenaAplicada,
+  });
+
+  React.useEffect(() => {
+    if (ajustesData && Array.isArray(ajustesData)) {
+      const initHours = {};
+      const initNotes = {};
+      ajustesData.forEach(aj => {
+        if (aj.horas_ajustadas !== null) initHours[aj.remision_id] = aj.horas_ajustadas;
+        if (aj.nota) initNotes[aj.remision_id] = aj.nota;
+      });
+      setManualHours(initHours);
+      setManualNotes(initNotes);
+    }
+  }, [ajustesData]);
+
+  const [isSaving, setIsSaving] = useState(false);
+  const handleSaveAjustes = async () => {
+    try {
+      setIsSaving(true);
+      const payload = {};
+      const ids = new Set([...Object.keys(manualHours), ...Object.keys(manualNotes)]);
+      ids.forEach(id => {
+        payload[id] = {
+           horas: manualHours[id] ?? '',
+           nota: manualNotes[id] || ''
+        };
+      });
+      await api.put('/informes/gestion-humana/liquidacion-ajustes', {
+        quincena: quincenaAplicada,
+        ajustes: payload
+      });
+      toast.success('Ajustes manuales guardados correctamente');
+      refetchAjustes();
+    } catch (e) {
+      toast.error('Error al guardar ajustes');
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // ── Agrupación por operario ────────────────────────────────────────────────
   const gruposOperario = useMemo(() => {
     if (!data?.detalle) return [];
     const mapa = new Map();
-    for (const row of data.detalle) {
+    for (const rawRow of data.detalle) {
+      const row = { ...rawRow };
+      if (manualHours[row.id] !== undefined && manualHours[row.id] !== '') {
+        row.original_horas_efectivas = row.horas_efectivas;
+        row.horas_efectivas = parseFloat(manualHours[row.id]) || 0;
+        row.comision = row.horas_efectivas * row.bonificacion_hora;
+      }
+
       if (!mapa.has(row.operario_id)) {
         mapa.set(row.operario_id, { operario_id: row.operario_id, operario_nombre: row.operario_nombre, filas: [] });
       }
@@ -162,7 +222,7 @@ export function InformesGestionHumanaPage() {
       subtotal_horas: g.filas.reduce((s, f) => s + f.horas_efectivas, 0),
       subtotal_comision: g.filas.reduce((s, f) => s + f.comision, 0),
     }));
-  }, [data]);
+  }, [data, manualHours]);
 
   const totalGeneral = useMemo(() => ({
     registros: data?.detalle?.length || 0,
@@ -235,24 +295,27 @@ export function InformesGestionHumanaPage() {
           bodyDetalle.push([
             g.operario_nombre, f.numero_remision, f.maquina_nombre,
             formatDate(f.fecha_servicio), f.estado || '—', formatCOP(f.bonificacion_hora),
-            formatHoras(f.horas_efectivas), formatCOP(f.comision)
+            formatHoras(f.horas_efectivas), formatCOP(f.comision),
+            manualNotes[f.id] ? `${manualNotes[f.id]} (Original: ${formatHoras(f.original_horas_efectivas)})` : ''
           ]);
         }
         bodyDetalle.push([
           { content: `Subtotal ${g.operario_nombre}`, colSpan: 6, styles: { fontStyle: 'bold', fillColor: [243,244,246] } },
           { content: formatHoras(g.subtotal_horas), styles: { fontStyle: 'bold', halign: 'right', fillColor: [243,244,246] } },
           { content: formatCOP(g.subtotal_comision), styles: { fontStyle: 'bold', halign: 'right', fillColor: [243,244,246] } },
+          { content: '', styles: { fillColor: [243,244,246] } },
         ]);
       }
       bodyDetalle.push([
         { content: `TOTALES GENERALES — ${totalGeneral.registros} registros`, colSpan: 6, styles: { fontStyle: 'bold', fillColor: [99,102,241], textColor: [255,255,255] } },
         { content: formatHoras(totalGeneral.horas), styles: { fontStyle: 'bold', halign: 'right', fillColor: [99,102,241], textColor: [255,255,255] } },
         { content: formatCOP(totalGeneral.comision), styles: { fontStyle: 'bold', halign: 'right', fillColor: [99,102,241], textColor: [255,255,255] } },
+        { content: '', styles: { fillColor: [99,102,241] } },
       ]);
 
       autoTable(doc, {
         startY: 50,
-        head: [['Operario', 'N° Orden', 'Máquina', 'Fecha', 'Estado', 'Bonif x Hora', 'Horas Liq.', 'Comisión $']],
+        head: [['Operario', 'N° Orden', 'Máquina', 'Fecha', 'Estado', 'Bonif x Hora', 'Horas Liq.', 'Comisión $', 'Nota']],
         body: bodyDetalle,
         theme: 'grid',
         headStyles: { fillColor: [99,102,241], textColor: [255,255,255], fontStyle: 'bold', halign: 'center', fontSize: 8 },
@@ -261,8 +324,9 @@ export function InformesGestionHumanaPage() {
           0: { cellWidth: 42 }, 1: { cellWidth: 18, halign: 'center' },
           2: { cellWidth: 38 }, 3: { cellWidth: 20, halign: 'center' },
           4: { cellWidth: 20, halign: 'center' },
-          5: { cellWidth: 22, halign: 'right' }, 6: { cellWidth: 20, halign: 'right', fontStyle: 'bold' },
-          7: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
+          5: { cellWidth: 22, halign: 'right' }, 6: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
+          7: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
+          8: { cellWidth: 40, fontSize: 6.5 },
         },
       });
 
@@ -456,6 +520,9 @@ export function InformesGestionHumanaPage() {
       subtitle="Gestión Humana — Informe Quincenal de Comisiones de Operarios"
       rightContent={
         <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn btn--primary" onClick={handleSaveAjustes} disabled={isSaving || isLoading || !data?.detalle?.length}>
+            <RefreshCw size={16} className={isSaving ? "spin" : ""} /> Guardar Ajustes
+          </button>
           <button className="btn btn--secondary" onClick={handleExportPDF} disabled={isLoading || !data?.detalle?.length}>
             <FileText size={16} /> Exportar PDF
           </button>
@@ -649,8 +716,51 @@ export function InformesGestionHumanaPage() {
                               }}>{f.estado}</span>
                             </td>
                             <td style={{ textAlign: 'right', fontSize: '13px' }}>{formatCOP(f.bonificacion_hora)}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '13px', color: 'var(--clr-primary-400)' }}>
-                              {formatHoras(f.horas_efectivas)}
+                            <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '13px', color: 'var(--clr-primary-400)', position: 'relative' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
+                                {f.original_horas_efectivas !== undefined && (
+                                  <>
+                                    <div 
+                                      title={manualNotes[f.id] ? `Nota: ${manualNotes[f.id]}\nOriginal BD: ${formatHoras(f.original_horas_efectivas)}` : `Original BD: ${formatHoras(f.original_horas_efectivas)}`} 
+                                      style={{ cursor: 'pointer', color: manualNotes[f.id] ? 'var(--clr-primary-500)' : 'var(--clr-warning-500)', display: 'flex' }}
+                                      onClick={() => setNotePopoverId(notePopoverId === f.id ? null : f.id)}
+                                    >
+                                      {manualNotes[f.id] ? <FileText size={14} /> : <AlertCircle size={14} />}
+                                    </div>
+                                    
+                                    {notePopoverId === f.id && (
+                                      <div style={{
+                                        position: 'absolute', zIndex: 10, right: '0', top: '100%',
+                                        background: 'var(--bg-surface)', padding: '0.75rem',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)', borderRadius: '8px',
+                                        border: '1px solid var(--border-color)', width: '220px',
+                                        textAlign: 'left'
+                                      }}>
+                                        <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Nota (Modificación manual):</label>
+                                        <textarea 
+                                          className="input"
+                                          style={{ width: '100%', height: '80px', fontSize: '12px', padding: '0.4rem', resize: 'vertical' }}
+                                          value={manualNotes[f.id] || ''}
+                                          onChange={e => setManualNotes(prev => ({ ...prev, [f.id]: e.target.value }))}
+                                          placeholder="Escribe la nota aquí..."
+                                          autoFocus
+                                        />
+                                        <div style={{ textAlign: 'right', marginTop: '6px' }}>
+                                          <button className="btn btn--primary btn--sm" style={{ padding: '2px 8px', fontSize: '11px' }} onClick={() => setNotePopoverId(null)}>Cerrar</button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                                <input 
+                                  type="number" 
+                                  step="0.01" 
+                                  className="input"
+                                  style={{ width: '70px', padding: '0.1rem 0.3rem', textAlign: 'right', fontSize: '12px' }}
+                                  value={manualHours[f.id] !== undefined ? manualHours[f.id] : parseFloat(f.horas_efectivas).toFixed(2)}
+                                  onChange={e => setManualHours(prev => ({ ...prev, [f.id]: e.target.value }))}
+                                />
+                              </div>
                             </td>
                             <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '13px', color: 'var(--clr-success-500)' }}>
                               {formatCOP(f.comision)}

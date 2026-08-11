@@ -1,8 +1,8 @@
-import { query } from '../../config/database.js';
+import { query, withTransaction } from '../../config/database.js';
 
 export class InformesRepository {
   async getVentasPorLineaNegocio(fecha_inicio, fecha_fin) {
-    const conditions = ['r.deleted_at IS NULL', "r.estado != 'ANULADO'"];
+    const conditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
     const params = [];
     let i = 1;
 
@@ -31,7 +31,7 @@ export class InformesRepository {
   }
 
   async getVentasMensuales(fecha_inicio, fecha_fin) {
-    const conditions = ['r.deleted_at IS NULL', "r.estado != 'ANULADO'"];
+    const conditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
     const params = [];
     let i = 1;
 
@@ -58,7 +58,7 @@ export class InformesRepository {
     return result.rows;
   }
   async getVentasPorEquipo(fecha_inicio, fecha_fin) {
-    const conditions = ['r.deleted_at IS NULL', "r.estado != 'ANULADO'"];
+    const conditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
     const params = [];
     let i = 1;
 
@@ -97,7 +97,7 @@ export class InformesRepository {
     }
 
     // 1. Obtener las ventas agrupadas por mes para el equipo (Real)
-    const salesConditions = ['r.deleted_at IS NULL', "r.estado != 'ANULADO'"];
+    const salesConditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
     const salesParams = [];
     let i = 1;
 
@@ -208,7 +208,7 @@ export class InformesRepository {
   async getHoursByEquipment(date_from, date_to) {
     const conditions = [
       "r.deleted_at IS NULL",
-      "r.estado = 'LIQUIDADA'",
+      "r.estado = 'FACTURADA'",
       "r.hora_salida_cargar IS NOT NULL",
       "r.hora_llegada_cargar IS NOT NULL"
     ];
@@ -246,12 +246,12 @@ export class InformesRepository {
 
     const result = await query(sql, params);
 
-    // Count excluded orders (LIQUIDADA but missing time fields)
+    // Count excluded orders (FACTURADA but missing time fields)
     const excludedSql = `
       SELECT COUNT(*) AS excluded
       FROM remisiones r
       WHERE r.deleted_at IS NULL
-        AND r.estado = 'LIQUIDADA'
+        AND r.estado = 'FACTURADA'
         AND (r.hora_salida_cargar IS NULL OR r.hora_llegada_cargar IS NULL)
         ${date_from ? `AND r.fecha_servicio >= $${1}` : ''}
         ${date_to ? `AND r.fecha_servicio <= $${date_from ? 2 : 1}` : ''}
@@ -285,7 +285,7 @@ export class InformesRepository {
   async getHoursByEquipmentDetail(equipment_id, date_from, date_to) {
     const conditions = [
       "r.deleted_at IS NULL",
-      "r.estado = 'LIQUIDADA'",
+      "r.estado = 'FACTURADA'",
       "r.hora_salida_cargar IS NOT NULL",
       "r.hora_llegada_cargar IS NOT NULL",
       "r.equipo_id = $1"
@@ -331,7 +331,7 @@ export class InformesRepository {
   async getHoursByOperator(date_from, date_to) {
     const conditions = [
       "r.deleted_at IS NULL",
-      "r.estado = 'LIQUIDADA'",
+      "r.estado = 'FACTURADA'",
       "r.hora_salida_cargar IS NOT NULL",
       "r.hora_llegada_cargar IS NOT NULL"
     ];
@@ -402,7 +402,7 @@ export class InformesRepository {
   async getHoursByOperatorDetail(operator_id, date_from, date_to) {
     const conditions = [
       "r.deleted_at IS NULL",
-      "r.estado = 'LIQUIDADA'",
+      "r.estado = 'FACTURADA'",
       "r.hora_salida_cargar IS NOT NULL",
       "r.hora_llegada_cargar IS NOT NULL",
       "ro.empleado_id = $1"
@@ -460,6 +460,7 @@ export class InformesRepository {
     const detalleSql = `
       SELECT
         r.id,
+        r.id AS remision_id,
         r.numero_remision,
         r.fecha_servicio,
         r.hora_salida_cargar,
@@ -508,7 +509,8 @@ export class InformesRepository {
       UNION ALL
 
       SELECT
-        r.id,
+        rdf.id AS id,
+        r.id AS remision_id,
         r.numero_remision,
         rdf.fecha AS fecha_servicio,
         rdf.hora_entrada AS hora_salida_cargar,
@@ -678,12 +680,36 @@ export class InformesRepository {
    * Ventas reales vs presupuesto agrupadas por equipo en un rango de fechas.
    * Devuelve [{ nombre, real, presupuesto }] para el gráfico del frontend.
    */
+  async getLiquidacionAjustes(quincena) {
+    const sql = `SELECT remision_id, horas_ajustadas, nota FROM liquidacion_ajustes WHERE quincena = $1`;
+    const result = await query(sql, [quincena]);
+    return result.rows;
+  }
+
+  async upsertLiquidacionAjustes(quincena, ajustes) {
+    // ajustes es un objeto { remision_id: { horas, nota } }
+    await withTransaction(async (client) => {
+      for (const [remision_id, data] of Object.entries(ajustes)) {
+        if (!data.horas && !data.nota) {
+           await client.query('DELETE FROM liquidacion_ajustes WHERE quincena = $1 AND remision_id = $2', [quincena, remision_id]);
+           continue;
+        }
+        await client.query(`
+          INSERT INTO liquidacion_ajustes (remision_id, quincena, horas_ajustadas, nota, updated_at)
+          VALUES ($1, $2, $3, $4, NOW())
+          ON CONFLICT (remision_id, quincena) 
+          DO UPDATE SET horas_ajustadas = EXCLUDED.horas_ajustadas, nota = EXCLUDED.nota, updated_at = NOW()
+        `, [remision_id, quincena, data.horas !== '' ? data.horas : null, data.nota || null]);
+      }
+    });
+  }
+
   /**
    * Top 10 clientes/empresas por volumen de ventas en un rango de fechas.
    * Devuelve [{ nombre, total_ventas, total_remisiones }].
    */
   async getTop10Clientes(fecha_inicio, fecha_fin) {
-    const conditions = ['r.deleted_at IS NULL', "r.estado != 'ANULADO'"];
+    const conditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
     const params = [];
     let i = 1;
 
@@ -811,7 +837,7 @@ export class InformesRepository {
    */
   async getVentasVsPresupuestoSimple(fecha_inicio, fecha_fin) {
     // 1. Ventas reales agrupadas por mes
-    const salesConditions = ['r.deleted_at IS NULL', "r.estado != 'ANULADO'"];
+    const salesConditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
     const salesParams = [];
     let i = 1;
 
@@ -893,7 +919,7 @@ export class InformesRepository {
   async getVentasVsPresupuestoMantenimiento(fecha_inicio, fecha_fin) {
     const params = [];
     let i = 1;
-    const dateConditions = ["ot.estado = 'LIQUIDADA'", "ot.deleted_at IS NULL"];
+    const dateConditions = ["ot.estado = 'FACTURADA'", "ot.deleted_at IS NULL"];
 
     if (fecha_inicio) {
       dateConditions.push(`otl.fecha_liquidacion >= $${i++}::date`);
@@ -967,7 +993,7 @@ export class InformesRepository {
   // =============================================
   async getVentasVsPresupuestoMensualMantenimiento(fecha_inicio, fecha_fin) {
     // 1. Ventas reales agrupadas por mes
-    const salesConditions = ["ot.estado = 'LIQUIDADA'", "ot.deleted_at IS NULL"];
+    const salesConditions = ["ot.estado = 'FACTURADA'", "ot.deleted_at IS NULL"];
     const salesParams = [];
     let i = 1;
 
@@ -1043,7 +1069,7 @@ export class InformesRepository {
   // Basado en ot_tecnicos.tiempo_total_min de OTs liquidadas
   // =============================================
   async getHorasTecnicosMantenimiento(fecha_inicio, fecha_fin) {
-    const conditions = ["ot.estado = 'LIQUIDADA'", "ot.deleted_at IS NULL"];
+    const conditions = ["ot.estado = 'FACTURADA'", "ot.deleted_at IS NULL"];
     const params = [];
     let i = 1;
 
@@ -1082,7 +1108,7 @@ export class InformesRepository {
   // MANTENIMIENTO KPI 6: Disponibilidad de Flota (Downtime)
   // =============================================
   async getDisponibilidadFlotaMantenimiento(fecha_inicio, fecha_fin) {
-    const conditions = ["ot.estado = 'LIQUIDADA'", "ot.deleted_at IS NULL"];
+    const conditions = ["ot.estado = 'FACTURADA'", "ot.deleted_at IS NULL"];
     const params = [];
     let i = 1;
 
@@ -1144,7 +1170,7 @@ export class InformesRepository {
   async getCostoPorEquipo(fecha_inicio, fecha_fin, empresa_id) {
     const params = [];
     let i = 1;
-    const conditions = ["ot.estado = 'LIQUIDADA'", "ot.deleted_at IS NULL"];
+    const conditions = ["ot.estado = 'FACTURADA'", "ot.deleted_at IS NULL"];
 
     if (fecha_inicio) {
       conditions.push(`otl.fecha_liquidacion >= $${i++}::date`);
@@ -1195,7 +1221,7 @@ export class InformesRepository {
     let i = 1;
     // Solo correctivos liquidado que tengan componente
     const conditions = [
-      "ot.estado = 'LIQUIDADA'", 
+      "ot.estado = 'FACTURADA'", 
       "ot.deleted_at IS NULL",
       "ot.tipo_mantenimiento = 'CORRECTIVO'",
       "ot.componente_id IS NOT NULL"
@@ -1495,7 +1521,7 @@ export class InformesRepository {
    *                    cliente, horas_extras, total_neto de la remisión.
    */
   async getHorasExtrasServicios(fecha_inicio, fecha_fin) {
-    const conditions = ['r.deleted_at IS NULL', "r.estado != 'ANULADO'"];
+    const conditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
     const params = [];
     let i = 1;
 
@@ -1578,7 +1604,7 @@ export class InformesRepository {
   async getDetalleMantenimientoEquipos(fecha_inicio, fecha_fin, empresa_id, equipo_id, allowedEmpresaIds, page = 1, limit = 50) {
     const params = [];
     let i = 1;
-    const conditions = ["ot.estado = 'LIQUIDADA'", 'ot.deleted_at IS NULL'];
+    const conditions = ["ot.estado = 'FACTURADA'", 'ot.deleted_at IS NULL'];
 
     if (fecha_inicio) {
       conditions.push(`otl.fecha_liquidacion >= $${i++}::date`);

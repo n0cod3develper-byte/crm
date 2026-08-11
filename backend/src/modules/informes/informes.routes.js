@@ -25,6 +25,8 @@ router.get('/kpi/hours-by-operator/:operator_id', informesController.getHoursByO
 
 // Gestión Humana
 router.get('/gestion-humana/liquidacion-bonificacion', informesController.getLiquidacionBonificacion);
+router.get('/gestion-humana/liquidacion-ajustes', informesController.getLiquidacionAjustes);
+router.put('/gestion-humana/liquidacion-ajustes', informesController.upsertLiquidacionAjustes);
 
 // Horas Extras
 router.get('/horas-extras/servicios', informesController.getHorasExtrasServicios);

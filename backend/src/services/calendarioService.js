@@ -122,7 +122,8 @@ export async function generarYGuardarFestivos(anio) {
 export async function esDiaEspecial(fecha) {
   const fechaStr = fecha instanceof Date ? toDateStr(fecha) : fecha;
   const fechaObj = new Date(fechaStr + 'T12:00:00');
-  const esDomingo = fechaObj.getDay() === 0;
+  // Se considera Sábado (6) y Domingo (0) como días de descanso/recargo
+  const esDomingo = fechaObj.getDay() === 0 || fechaObj.getDay() === 6;
 
   const res = await query(
     'SELECT nombre FROM festivos_colombia WHERE fecha = $1 AND activo = TRUE',
