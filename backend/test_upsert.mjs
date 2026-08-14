@@ -1,0 +1,1 @@
+import 'dotenv/config'; import { query } from './src/config/database.js'; query(\INSERT INTO equipos_repuestos_compatibles (equipo_id, aceite_motor) VALUES ((SELECT id FROM equipos LIMIT 1), 'TEST') ON CONFLICT (equipo_id) DO UPDATE SET aceite_motor = EXCLUDED.aceite_motor RETURNING *\).then(r => { console.log(r.rows); process.exit(0); }).catch(console.error);

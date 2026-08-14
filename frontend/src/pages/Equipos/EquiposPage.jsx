@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
-import { Plus, Search, Truck, Trash2, Edit, Building2, AlertTriangle, X } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Plus, Search, Truck, Trash2, Edit, Building2, AlertTriangle, X, Eye } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
@@ -15,6 +15,7 @@ const COMBUSTIBLES = ['all', 'GLP', 'Gasolina', 'Eléctrico', 'Híbrido', 'Diese
 
 export function EquiposPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = React.useState('');
@@ -79,7 +80,18 @@ export function EquiposPage() {
   const equipos = data?.data || [];
 
   const handleCreate = () => { setEditingEquipo(null); setIsModalOpen(true); };
-  const handleEdit = (eq) => { setEditingEquipo(eq); setIsModalOpen(true); };
+  const handleEdit = async (eq) => {
+    try {
+      toast.loading('Cargando datos...', { id: 'load-eq' });
+      const { data: res } = await api.get(`/equipos/${eq.id}`);
+      toast.dismiss('load-eq');
+      setEditingEquipo(res.data);
+      setIsModalOpen(true);
+    } catch (err) {
+      toast.dismiss('load-eq');
+      toast.error('Error al cargar los detalles del equipo');
+    }
+  };
   const handleClose = () => { setIsModalOpen(false); setEditingEquipo(null); };
 
   const PLACEHOLDER_SVG = 'data:image/svg+xml,' + encodeURIComponent(
@@ -488,6 +500,9 @@ export function EquiposPage() {
                         </td>
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
+                            <button className="btn btn--ghost btn--sm" onClick={() => navigate(`/equipos/${eq.id}`)} title="Ver detalle">
+                              <Eye size={14} />
+                            </button>
                             <button className="btn btn--ghost btn--sm" onClick={() => handleEdit(eq)} title="Editar">
                               <Edit size={14} />
                             </button>

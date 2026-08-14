@@ -15,6 +15,7 @@ const IVA_RATE = 0.19;
 
 const EMPTY = {
   company_id: '', contact_id: '', fecha: new Date().toISOString().slice(0, 10),
+  valido_hasta: '',
   asunto: '', direccion_invitacion: '', ciudad_envio: '',
   descripcion: '', estado: 'BORRADOR',
 };
@@ -58,6 +59,7 @@ export function QuoteServicioFormPage() {
         company_id: existingQuote.company_id || '',
         contact_id: existingQuote.contact_id || '',
         fecha: existingQuote.fecha ? existingQuote.fecha.slice(0, 10) : '',
+        valido_hasta: existingQuote.valido_hasta ? existingQuote.valido_hasta.slice(0, 10) : '',
         asunto: existingQuote.asunto || '',
         direccion_invitacion: existingQuote.direccion_invitacion || '',
         ciudad_envio: existingQuote.ciudad_envio || '',
@@ -339,6 +341,7 @@ export function QuoteServicioFormPage() {
               </div>
 
               {field('Fecha', 'fecha', 'date')}
+              {field('Válida hasta', 'valido_hasta', 'date')}
             </div>
 
             {/* ─── Detalles ─────────────────────── */}

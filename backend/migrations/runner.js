@@ -140,6 +140,10 @@ const MIGRATION_FILES = [
   '107_email_marketing_modulos_sistema.sql',
   '108_email_consentimiento.sql',
   '109_quotes_servicios.sql',
+  '110_equipos_centro_costo.sql',
+  '111_equipos_repuestos_compatibles.sql',
+  '112_quotes_servicios_valido_hasta.sql',
+  '113_quotes_servicios_items_catalogo.sql',
 ];
 
 async function ensureMigrationsTable(client) {

@@ -52,6 +52,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_quotes_servicios_updated_at_trigger ON quotes_servicios;
 CREATE TRIGGER update_quotes_servicios_updated_at_trigger
 BEFORE UPDATE ON quotes_servicios
 FOR EACH ROW EXECUTE FUNCTION update_quotes_servicios_updated_at();
@@ -65,6 +66,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_quotes_servicios_items_updated_at_trigger ON quotes_servicios_items;
 CREATE TRIGGER update_quotes_servicios_items_updated_at_trigger
 BEFORE UPDATE ON quotes_servicios_items
 FOR EACH ROW EXECUTE FUNCTION update_quotes_servicios_items_updated_at();
