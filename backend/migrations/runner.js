@@ -144,6 +144,8 @@ const MIGRATION_FILES = [
   '111_equipos_repuestos_compatibles.sql',
   '112_quotes_servicios_valido_hasta.sql',
   '113_quotes_servicios_items_catalogo.sql',
+  '114_reset_consecutivo_cotizacion_servicio.sql',
+  '115_sync_ordenes_trabajo_columns.sql',
 ];
 
 async function ensureMigrationsTable(client) {
