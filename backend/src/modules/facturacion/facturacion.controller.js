@@ -59,7 +59,15 @@ export const createPrefacturaFromRemisiones = async (req, res, next) => {
 
 export const confirmarFactura = async (req, res, next) => {
   try {
+    console.log("CONFIRMAR FACTURA REQ BODY:", req.body);
     const factura = await repo.confirmarFactura(req.params.id, req.body, req.user.id);
+    res.json({ success: true, data: factura });
+  } catch (err) { next(err); }
+};
+
+export const updateFactura = async (req, res, next) => {
+  try {
+    const factura = await repo.updateFactura(req.params.id, req.body, req.user.id);
     res.json({ success: true, data: factura });
   } catch (err) { next(err); }
 };

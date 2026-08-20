@@ -15,6 +15,7 @@ export const facturacionApi = {
   // Acciones
   createPrefactura: (data) => api.post('/facturacion/prefacturas', data).then(res => res.data),
   createPrefacturaFromRemisiones: (data) => api.post('/facturacion/prefacturas-remision', data).then(res => res.data),
+  updateFactura: (id, data) => api.put(`/facturacion/facturas/${id}`, data).then(res => res.data),
   confirmarFactura: (id, data) => api.post(`/facturacion/facturas/${id}/confirmar`, data).then(res => res.data),
   anularFactura: (id, motivo) => api.post(`/facturacion/facturas/${id}/anular`, { motivo }).then(res => res.data),
 };

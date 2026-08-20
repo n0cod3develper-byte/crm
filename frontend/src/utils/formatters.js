@@ -25,3 +25,22 @@ export function formatDate(date) {
     day: 'numeric'
   });
 }
+
+/**
+ * Formatea una fecha ignorando la zona horaria para evitar desfases de 1 día
+ * Útil para campos tipo DATE de PostgreSQL
+ * @param {string} dateString 
+ * @returns {string}
+ */
+export function formatDateLocal(dateString) {
+  if (!dateString) return '—';
+  if (typeof dateString === 'string' && dateString.includes('T')) {
+    const [year, month, day] = dateString.split('T')[0].split('-');
+    if (year && month && day) {
+      return `${parseInt(day)}/${parseInt(month)}/${year}`;
+    }
+  }
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-CO');
+}

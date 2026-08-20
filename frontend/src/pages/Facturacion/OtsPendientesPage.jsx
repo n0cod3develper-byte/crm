@@ -58,16 +58,33 @@ export const OtsPendientesPage = () => {
   const toggleSelect = (item) => {
     setSelectedItems(prev => {
       const exists = prev.find(o => o.id === item.id);
-      if (exists) return prev.filter(o => o.id !== item.id);
-      
-      // Validar misma empresa
-      if (prev.length > 0 && prev[0].empresa_id !== item.empresa_id) {
-        toast.error(`Solo puedes agrupar items de la misma empresa.`);
-        return prev;
+      if (exists) {
+        return prev.filter(o => o.id !== item.id);
       }
       
+      if (prev.length > 0 && prev[0].empresa_id !== item.empresa_id) {
+        toast.error('Solo puedes facturar ítems de la misma empresa');
+        return prev;
+      }
       return [...prev, item];
     });
+  };
+
+  const updateItemTotal = (id, newTotalStr) => {
+    const newTotal = parseFloat(newTotalStr) || 0;
+    
+    setSelectedItems(prev => prev.map(item => {
+      if (item.id === id) {
+        const originalSaldo = items?.data?.find(d => d.id === id)?.total || item.total;
+        const finalTotal = newTotal > originalSaldo ? originalSaldo : newTotal;
+        
+        const subtotalCalc = finalTotal / 1.19;
+        const ivaCalc = finalTotal - subtotalCalc;
+
+        return { ...item, total: finalTotal, subtotal: subtotalCalc, iva_valor: ivaCalc, original_saldo_pendiente: originalSaldo };
+      }
+      return item;
+    }));
   };
 
   const selectAll = () => {
@@ -136,12 +153,22 @@ export const OtsPendientesPage = () => {
     if (isRemisiones) {
       createPrefacturaMutation.mutate({
         ...baseData,
-        remision_ids: selectedItems.map(o => o.id),
+        remisiones: selectedItems.map(o => ({
+          id: o.id,
+          subtotal: o.subtotal,
+          iva_valor: o.iva_valor,
+          total: o.total
+        })),
       });
     } else {
       createPrefacturaMutation.mutate({
         ...baseData,
-        ot_ids: selectedItems.map(o => o.id),
+        ots: selectedItems.map(o => ({
+          id: o.id,
+          subtotal: o.subtotal,
+          iva_valor: o.iva_valor,
+          total: o.total
+        })),
       });
     }
   };
@@ -296,7 +323,8 @@ export const OtsPendientesPage = () => {
                 <th className="px-5 py-4 text-left">{isRemisiones ? 'Remisión' : 'Orden'}</th>
                 <th className="px-5 py-4 text-left">Empresa</th>
                 <th className="px-5 py-4 text-left">Liquidada</th>
-                <th className="px-5 py-4 text-right">Total</th>
+                <th className="px-5 py-4 text-right">Saldo Pendiente</th>
+                <th className="px-5 py-4 text-right w-48">Monto a Facturar</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-color">
@@ -338,15 +366,31 @@ export const OtsPendientesPage = () => {
                         Hace {item.dias_desde_liquidacion} días
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-right font-bold text-accent">
-                      {formatCurrency(item.total)}
+                    <td className="px-5 py-4 text-right">
+                      <span className="font-bold text-muted">{formatCurrency(item.original_saldo_pendiente || item.total)}</span>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      {isSelected ? (
+                        <div className="flex items-center justify-end">
+                          <span className="text-muted mr-1">$</span>
+                          <input 
+                            type="number"
+                            className="input-premium text-right w-32 py-1 px-2 text-accent font-bold"
+                            value={isSelected.total}
+                            onChange={(e) => updateItemTotal(item.id, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-muted italic">-</span>
+                      )}
                     </td>
                   </tr>
                 );
               })}
               {(!items?.data || items.data.length === 0) && !isLoading && (
                 <tr>
-                  <td colSpan="5" className="px-6 py-20 text-center text-muted italic">
+                  <td colSpan="6" className="px-6 py-20 text-center text-muted italic">
                     {isRemisiones
                       ? 'No se encontraron remisiones liquidadas pendientes de facturar.'
                       : 'No se encontraron órdenes de trabajo liquidadas pendientes de facturar.'

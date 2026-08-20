@@ -163,9 +163,16 @@ export class FacturacionRepository {
     const otsRes = await query(otsSql, [id]);
     factura.ots = otsRes.rows;
 
-    // Remisiones asociadas
+    // Return proportional values from factura_remisiones (fr.*) plus original
+    // remision components so frontend can compute display values that add up exactly.
+    // Formula: total_neto = total_bruto + recargos - descuentos + iva
     const remSql = `
-      SELECT fr.*, r.numero_remision, r.fecha_servicio
+      SELECT fr.*, r.numero_remision, r.fecha_servicio,
+             r.total_bruto as orig_bruto,
+             COALESCE(r.horas_recargo, 0) * COALESCE(r.valor_hora_recargo, 0) as orig_recargos,
+             COALESCE(r.descuentos, 0) as orig_descuentos,
+             COALESCE(r.iva_valor, 0) as orig_iva,
+             COALESCE(r.total_neto, 0) as orig_total
       FROM factura_remisiones fr
       JOIN remisiones r ON fr.remision_id = r.id
       WHERE fr.factura_id = $1
@@ -180,88 +187,147 @@ export class FacturacionRepository {
    * Crear una prefactura
    */
   async createPrefactura(data, createdBy) {
-    const { empresa_id, ot_ids, condicion_pago, fecha_vencimiento, notas, numero_factura, fecha_factura } = data;
+    const { empresa_id, ots: reqOts, ot_ids, condicion_pago, fecha_vencimiento, notas, numero_factura, fecha_factura } = data;
+
+    if (!numero_factura) throw new BadRequestError('El número de factura es obligatorio');
+
+    // Si viene ot_ids (antiguo), lo convertimos a formato ots
+    let otsList = reqOts;
+    if (!otsList && ot_ids) {
+      otsList = ot_ids.map(id => ({ id }));
+    }
 
     return await withTransaction(async (client) => {
       // 1. Validar OTs
+      const otIds = otsList.map(o => o.id);
       const otSql = `
-        SELECT ot.id, ot.consecutivo, ot.empresa_id, ot.estado, ot.factura_id,
-               liq.subtotal, liq.impuesto_valor as iva_valor, liq.total_final as total
+        SELECT ot.id, ot.consecutivo, ot.empresa_id, ot.estado,
+               liq.subtotal as liq_subtotal, liq.impuesto_valor as liq_iva, liq.total_final as liq_total,
+               liq.total_final - COALESCE((SELECT SUM(total_ot) FROM factura_ots fo WHERE fo.ot_id = ot.id), 0) AS saldo_pendiente
         FROM ordenes_trabajo ot
         JOIN ot_liquidacion liq ON ot.id = liq.orden_trabajo_id
         WHERE ot.id = ANY($1)
       `;
-      const otRes = await client.query(otSql, [ot_ids]);
-      const ots = otRes.rows;
+      const otRes = await client.query(otSql, [otIds]);
+      const dbOts = otRes.rows;
 
-      if (ots.length !== ot_ids.length) {
+      if (dbOts.length !== otIds.length) {
         throw new BadRequestError('Una o más OTs no existen o no están liquidadas');
       }
 
-      for (const ot of ots) {
-        if (ot.empresa_id !== empresa_id) {
-          throw new BadRequestError(`La OT ${ot.consecutivo} no pertenece a la empresa seleccionada`);
+      // Rellenar valores si vinieron por ot_ids sin totales
+      otsList = otsList.map(reqOt => {
+        const dbOt = dbOts.find(o => o.id === reqOt.id);
+        if (!reqOt.total) {
+          return { id: reqOt.id, subtotal: dbOt.liq_subtotal, iva_valor: dbOt.liq_iva, total: dbOt.liq_total };
         }
-        if (ot.estado !== 'LIQUIDADA' || ot.factura_id !== null) {
-          throw new BadRequestError(`La OT ${ot.consecutivo} no está disponible para facturar`);
+        return reqOt;
+      });
+
+      for (const reqOt of otsList) {
+        const dbOt = dbOts.find(o => o.id === reqOt.id);
+        if (dbOt.empresa_id !== empresa_id) {
+          throw new BadRequestError(`La OT ${dbOt.consecutivo} no pertenece a la empresa seleccionada`);
+        }
+        if (!['LIQUIDADA', 'PARCIALMENTE_FACTURADA'].includes(dbOt.estado)) {
+          throw new BadRequestError(`La OT ${dbOt.consecutivo} no está disponible para facturar`);
+        }
+        if (parseFloat(reqOt.total) > parseFloat(dbOt.saldo_pendiente) + 0.05) {
+          throw new BadRequestError(`El valor a facturar de la OT ${dbOt.consecutivo} supera su saldo pendiente`);
         }
       }
 
-      
-      // 2. Generar consecutivo interno
+      // 2. Generar consecutivo interno para la FACTURA
       const consRes = await client.query(`
         UPDATE consecutivos SET ultimo_valor = ultimo_valor + 1 WHERE id = 'FAC' RETURNING ultimo_valor
       `);
       const nro = consRes.rows[0].ultimo_valor;
       const consecutivo_interno = `FAC-${String(nro).padStart(5, '0')}`;
 
-      // 3. Calcular totales
-      const subtotal = ots.reduce((sum, ot) => sum + parseFloat(ot.subtotal), 0);
-      const iva_valor = ots.reduce((sum, ot) => sum + parseFloat(ot.iva_valor), 0);
-      const total = ots.reduce((sum, ot) => sum + parseFloat(ot.total), 0);
+      // 3. Calcular totales de la factura
+      const subtotal = otsList.reduce((sum, ot) => sum + parseFloat(ot.subtotal), 0);
+      const iva_valor = otsList.reduce((sum, ot) => sum + parseFloat(ot.iva_valor), 0);
+      const total = otsList.reduce((sum, ot) => sum + parseFloat(ot.total), 0);
 
-      // 4. Insertar factura
-      const estado = numero_factura ? 'FACTURADA' : 'PREFACTURA';
-      const fechaFacturaVal = fecha_factura ? new Date(fecha_factura) : (numero_factura ? new Date() : null);
+      // 4. Insertar factura FACTURADA
+      const fechaFacturaVal = fecha_factura || new Date().toISOString().split('T')[0];
       const insFactSql = `
         INSERT INTO facturas (
           consecutivo_interno, numero_factura, fecha_factura, empresa_id, estado, 
           subtotal, iva_valor, total, condicion_pago, fecha_vencimiento, notas, 
           creada_por, facturada_por
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ) VALUES ($1, $2, $3, $4, 'FACTURADA', $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *
       `;
       const factRes = await client.query(insFactSql, [
-        consecutivo_interno, 
-        numero_factura || null, 
-        fechaFacturaVal,
-        empresa_id, 
-        estado, 
+        consecutivo_interno, numero_factura, fechaFacturaVal, empresa_id,
         subtotal, iva_valor, total,
-        condicion_pago || null, fecha_vencimiento || null, notas || null, 
-        createdBy,
-        numero_factura ? createdBy : null
+        condicion_pago || null, fecha_vencimiento || null, notas || null,
+        createdBy, createdBy
       ]);
       const factura = factRes.rows[0];
 
-      // 5. Relacionar OTs y snapshot financiero
-      for (const ot of ots) {
+      // 5. Relacionar OTs y detectar remanentes
+      const remainders = [];
+      for (const reqOt of otsList) {
+        const dbOt = dbOts.find(o => o.id === reqOt.id);
+
         await client.query(`
           INSERT INTO factura_ots (factura_id, ot_id, ot_consecutivo, subtotal_ot, iva_ot, total_ot)
           VALUES ($1, $2, $3, $4, $5, $6)
-        `, [factura.id, ot.id, ot.consecutivo, ot.subtotal, ot.iva_valor, ot.total]);
+        `, [factura.id, dbOt.id, dbOt.consecutivo, reqOt.subtotal, reqOt.iva_valor, reqOt.total]);
 
-        // Actualizar OT
-        const otEstado = numero_factura ? 'FACTURADA' : 'LIQUIDADA';
-        const fechaFacturada = numero_factura ? 'NOW()' : 'NULL';
-        
-        await client.query(`
-          UPDATE ordenes_trabajo SET 
-            factura_id = $1,
-            estado = $2,
-            fecha_facturada = ${fechaFacturada}
-          WHERE id = $3
-        `, [factura.id, otEstado, ot.id]);
+        const nuevoSaldo = parseFloat(dbOt.saldo_pendiente) - parseFloat(reqOt.total);
+        if (nuevoSaldo > 0.05) {
+          // Calcular subtotal/iva proporcional del remanente
+          const proporcion = nuevoSaldo / parseFloat(dbOt.liq_total);
+          remainders.push({
+            ot_id: dbOt.id,
+            ot_consecutivo: dbOt.consecutivo,
+            subtotal: parseFloat(dbOt.liq_subtotal) * proporcion,
+            iva_valor: parseFloat(dbOt.liq_iva) * proporcion,
+            total: nuevoSaldo
+          });
+          await client.query('UPDATE ordenes_trabajo SET estado = $1 WHERE id = $2', ['PARCIALMENTE_FACTURADA', dbOt.id]);
+        } else {
+          await client.query('UPDATE ordenes_trabajo SET estado = $1, fecha_facturada = COALESCE(fecha_facturada, NOW()) WHERE id = $2', ['FACTURADA', dbOt.id]);
+        }
+      }
+
+      // 6. Si hay remanentes, crear PREFACTURA automática
+      if (remainders.length > 0) {
+        const consRes2 = await client.query(`
+          UPDATE consecutivos SET ultimo_valor = ultimo_valor + 1 WHERE id = 'FAC' RETURNING ultimo_valor
+        `);
+        const nro2 = consRes2.rows[0].ultimo_valor;
+        const consecutivo_prefactura = `FAC-${String(nro2).padStart(5, '0')}`;
+
+        const prefSubtotal = remainders.reduce((s, r) => s + r.subtotal, 0);
+        const prefIva = remainders.reduce((s, r) => s + r.iva_valor, 0);
+        const prefTotal = remainders.reduce((s, r) => s + r.total, 0);
+
+        const prefRes = await client.query(`
+          INSERT INTO facturas (
+            consecutivo_interno, numero_factura, fecha_factura, empresa_id, estado,
+            subtotal, iva_valor, total, condicion_pago, fecha_vencimiento, notas,
+            creada_por, facturada_por
+          ) VALUES ($1, NULL, NULL, $2, 'PREFACTURA', $3, $4, $5, $6, $7, $8, $9, NULL)
+          RETURNING *
+        `, [
+          consecutivo_prefactura, empresa_id,
+          prefSubtotal, prefIva, prefTotal,
+          condicion_pago || null, fecha_vencimiento || null,
+          notas ? `Saldo pendiente: ${notas}` : 'Saldo pendiente de facturación anterior',
+          createdBy
+        ]);
+        const prefactura = prefRes.rows[0];
+
+        for (const rem of remainders) {
+          await client.query(`
+            INSERT INTO factura_ots (factura_id, ot_id, ot_consecutivo, subtotal_ot, iva_ot, total_ot)
+            VALUES ($1, $2, $3, $4, $5, $6)
+          `, [prefactura.id, rem.ot_id, rem.ot_consecutivo, rem.subtotal, rem.iva_valor, rem.total]);
+        }
       }
 
       return factura;
@@ -272,85 +338,131 @@ export class FacturacionRepository {
    * Crear prefactura desde remisiones de Servicios
    */
   async createPrefacturaFromRemisiones(data, createdBy) {
-    const { empresa_id, remision_ids, condicion_pago, fecha_vencimiento, notas, numero_factura, fecha_factura } = data;
+    const { empresa_id, remisiones, condicion_pago, fecha_vencimiento, notas, numero_factura, fecha_factura } = data;
+
+    if (!numero_factura) throw new BadRequestError('El número de factura es obligatorio');
 
     return await withTransaction(async (client) => {
-      // 1. Validar remisiones
+      // 1. Validar remisiones (incluir total_bruto e iva original para calcular proporciones)
+      const remisionIds = remisiones.map(r => r.id);
       const remSql = `
-        SELECT r.id, r.numero_remision, r.company_id, r.estado, r.factura_id,
-               r.total_bruto AS subtotal, r.iva_valor, r.total_neto AS total
+        SELECT r.id, r.numero_remision, r.company_id, r.estado,
+               r.total_bruto AS orig_subtotal, r.iva_valor AS orig_iva, r.total_neto AS orig_total,
+               r.total_neto - COALESCE((SELECT SUM(total_rem) FROM factura_remisiones fr WHERE fr.remision_id = r.id), 0) AS saldo_pendiente
         FROM remisiones r
         WHERE r.id = ANY($1)
       `;
-      const remRes = await client.query(remSql, [remision_ids]);
-      const rems = remRes.rows;
+      const remRes = await client.query(remSql, [remisionIds]);
+      const dbRems = remRes.rows;
 
-      if (rems.length !== remision_ids.length) {
+      if (dbRems.length !== remisionIds.length) {
         throw new BadRequestError('Una o más remisiones no existen');
       }
 
-      for (const rem of rems) {
-        if (rem.company_id !== empresa_id) {
-          throw new BadRequestError(`La remisión ${rem.numero_remision} no pertenece a la empresa seleccionada`);
+      for (const reqRem of remisiones) {
+        const dbRem = dbRems.find(r => r.id === reqRem.id);
+        if (dbRem.company_id !== empresa_id) {
+          throw new BadRequestError(`La remisión ${dbRem.numero_remision} no pertenece a la empresa seleccionada`);
         }
-        if (rem.estado !== 'LIQUIDADA' || rem.factura_id !== null) {
-          throw new BadRequestError(`La remisión ${rem.numero_remision} no está disponible para facturar`);
+        if (!['LIQUIDADA', 'PARCIALMENTE_FACTURADA'].includes(dbRem.estado)) {
+          throw new BadRequestError(`La remisión ${dbRem.numero_remision} no está disponible para facturar`);
+        }
+        if (parseFloat(reqRem.total) > parseFloat(dbRem.saldo_pendiente) + 0.05) {
+          throw new BadRequestError(`El valor a facturar de la remisión ${dbRem.numero_remision} supera su saldo pendiente`);
         }
       }
 
-      // 2. Generar consecutivo interno
+      // 2. Generar consecutivo para la FACTURA
       const consRes = await client.query(`
         UPDATE consecutivos SET ultimo_valor = ultimo_valor + 1 WHERE id = 'FAC' RETURNING ultimo_valor
       `);
       const nro = consRes.rows[0].ultimo_valor;
       const consecutivo_interno = `FAC-${String(nro).padStart(5, '0')}`;
 
-      // 3. Calcular totales
-      const subtotal = rems.reduce((sum, r) => sum + parseFloat(r.subtotal), 0);
-      const iva_valor = rems.reduce((sum, r) => sum + parseFloat(r.iva_valor), 0);
-      const total = rems.reduce((sum, r) => sum + parseFloat(r.total), 0);
+      // 3. Calcular totales de la factura
+      const subtotal = remisiones.reduce((sum, r) => sum + parseFloat(r.subtotal), 0);
+      const iva_valor = remisiones.reduce((sum, r) => sum + parseFloat(r.iva_valor), 0);
+      const total = remisiones.reduce((sum, r) => sum + parseFloat(r.total), 0);
 
-      // 4. Insertar factura
-      const estado = numero_factura ? 'FACTURADA' : 'PREFACTURA';
-      const fechaFacturaVal = fecha_factura ? new Date(fecha_factura) : (numero_factura ? new Date() : null);
+      // 4. Insertar factura FACTURADA
+      const fechaFacturaVal = fecha_factura || new Date().toISOString().split('T')[0];
       const insFactSql = `
         INSERT INTO facturas (
           consecutivo_interno, numero_factura, fecha_factura, empresa_id, estado,
           subtotal, iva_valor, total, condicion_pago, fecha_vencimiento, notas,
           creada_por, facturada_por
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ) VALUES ($1, $2, $3, $4, 'FACTURADA', $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *
       `;
       const factRes = await client.query(insFactSql, [
-        consecutivo_interno,
-        numero_factura || null,
-        fechaFacturaVal,
-        empresa_id,
-        estado,
+        consecutivo_interno, numero_factura, fechaFacturaVal, empresa_id,
         subtotal, iva_valor, total,
         condicion_pago || null, fecha_vencimiento || null, notas || null,
-        createdBy,
-        numero_factura ? createdBy : null
+        createdBy, createdBy
       ]);
       const factura = factRes.rows[0];
 
-      // 5. Relacionar remisiones
-      for (const rem of rems) {
+      // 5. Relacionar remisiones y detectar remanentes
+      const remainders = [];
+      for (const reqRem of remisiones) {
+        const dbRem = dbRems.find(r => r.id === reqRem.id);
+        
         await client.query(`
           INSERT INTO factura_remisiones (factura_id, remision_id, remision_numero, subtotal_rem, iva_rem, total_rem)
           VALUES ($1, $2, $3, $4, $5, $6)
-        `, [factura.id, rem.id, rem.numero_remision, rem.subtotal, rem.iva_valor, rem.total]);
+        `, [factura.id, dbRem.id, dbRem.numero_remision, reqRem.subtotal, reqRem.iva_valor, reqRem.total]);
 
-        const remEstado = numero_factura ? 'FACTURADA' : 'LIQUIDADA';
-        const fechaFacturada = numero_factura ? 'NOW()' : 'NULL';
+        const nuevoSaldo = parseFloat(dbRem.saldo_pendiente) - parseFloat(reqRem.total);
+        if (nuevoSaldo > 0.05) {
+          // Calcular subtotal/iva proporcional del remanente
+          const proporcion = nuevoSaldo / parseFloat(dbRem.orig_total);
+          remainders.push({
+            remision_id: dbRem.id,
+            numero_remision: dbRem.numero_remision,
+            subtotal: parseFloat(dbRem.orig_subtotal) * proporcion,
+            iva_valor: parseFloat(dbRem.orig_iva) * proporcion,
+            total: nuevoSaldo
+          });
+          await client.query('UPDATE remisiones SET estado = $1 WHERE id = $2', ['PARCIALMENTE_FACTURADA', dbRem.id]);
+        } else {
+          await client.query('UPDATE remisiones SET estado = $1, fecha_facturada = COALESCE(fecha_facturada, NOW()) WHERE id = $2', ['FACTURADA', dbRem.id]);
+        }
+      }
 
-        await client.query(`
-          UPDATE remisiones SET
-            factura_id = $1,
-            estado = $2,
-            fecha_facturada = ${fechaFacturada}
-          WHERE id = $3
-        `, [factura.id, remEstado, rem.id]);
+      // 6. Si hay remanentes, crear PREFACTURA automática para el saldo
+      if (remainders.length > 0) {
+        const consRes2 = await client.query(`
+          UPDATE consecutivos SET ultimo_valor = ultimo_valor + 1 WHERE id = 'FAC' RETURNING ultimo_valor
+        `);
+        const nro2 = consRes2.rows[0].ultimo_valor;
+        const consecutivo_prefactura = `FAC-${String(nro2).padStart(5, '0')}`;
+
+        const prefSubtotal = remainders.reduce((s, r) => s + r.subtotal, 0);
+        const prefIva = remainders.reduce((s, r) => s + r.iva_valor, 0);
+        const prefTotal = remainders.reduce((s, r) => s + r.total, 0);
+
+        const prefRes = await client.query(`
+          INSERT INTO facturas (
+            consecutivo_interno, numero_factura, fecha_factura, empresa_id, estado,
+            subtotal, iva_valor, total, condicion_pago, fecha_vencimiento, notas,
+            creada_por, facturada_por
+          ) VALUES ($1, NULL, NULL, $2, 'PREFACTURA', $3, $4, $5, $6, $7, $8, $9, NULL)
+          RETURNING *
+        `, [
+          consecutivo_prefactura, empresa_id,
+          prefSubtotal, prefIva, prefTotal,
+          condicion_pago || null, fecha_vencimiento || null,
+          notas ? `Saldo pendiente: ${notas}` : 'Saldo pendiente de facturación anterior',
+          createdBy
+        ]);
+        const prefactura = prefRes.rows[0];
+
+        for (const rem of remainders) {
+          await client.query(`
+            INSERT INTO factura_remisiones (factura_id, remision_id, remision_numero, subtotal_rem, iva_rem, total_rem)
+            VALUES ($1, $2, $3, $4, $5, $6)
+          `, [prefactura.id, rem.remision_id, rem.numero_remision, rem.subtotal, rem.iva_valor, rem.total]);
+        }
       }
 
       return factura;
@@ -358,49 +470,225 @@ export class FacturacionRepository {
   }
 
   /**
-   * Confirmar factura con número externo
+   * Actualizar una prefactura (Remisiones)
    */
-  async confirmarFactura(id, data, confirmedBy) {
-    const { numero_factura, fecha_factura, sistema_contable, sistema_contable_id } = data;
+  async updateFactura(id, data, updatedBy) {
+    const { remisiones, ots, condicion_pago, fecha_vencimiento, notas } = data;
 
     return await withTransaction(async (client) => {
       const factRes = await client.query('SELECT estado FROM facturas WHERE id = $1 FOR UPDATE', [id]);
       if (factRes.rows.length === 0) throw new NotFoundError('Factura');
-      // Consecutivo interno será provisto por el usuario (no automático)
+      if (factRes.rows[0].estado !== 'PREFACTURA') throw new BadRequestError('Solo se pueden editar prefacturas');
+
+      // Revertir estados de remisiones anteriores si las hay
+      const oldRemsRes = await client.query('SELECT remision_id FROM factura_remisiones WHERE factura_id = $1', [id]);
+      await client.query('DELETE FROM factura_remisiones WHERE factura_id = $1', [id]);
+      for (const old of oldRemsRes.rows) {
+        const checkOtros = await client.query('SELECT SUM(total_rem) as sum_rem FROM factura_remisiones WHERE remision_id = $1', [old.remision_id]);
+        const sumOtros = parseFloat(checkOtros.rows[0].sum_rem || 0);
+        const newState = sumOtros > 0 ? 'PARCIALMENTE_FACTURADA' : 'LIQUIDADA';
+        await client.query('UPDATE remisiones SET estado = $1 WHERE id = $2', [newState, old.remision_id]);
+      }
+
+      // Revertir estados de OTs anteriores si las hay
+      const oldOtsRes = await client.query('SELECT ot_id FROM factura_ots WHERE factura_id = $1', [id]);
+      await client.query('DELETE FROM factura_ots WHERE factura_id = $1', [id]);
+      for (const old of oldOtsRes.rows) {
+        const checkOtros = await client.query('SELECT SUM(total_ot) as sum_ot FROM factura_ots WHERE ot_id = $1', [old.ot_id]);
+        const sumOtros = parseFloat(checkOtros.rows[0].sum_ot || 0);
+        const newState = sumOtros > 0 ? 'PARCIALMENTE_FACTURADA' : 'LIQUIDADA';
+        await client.query('UPDATE ordenes_trabajo SET estado = $1 WHERE id = $2', [newState, old.ot_id]);
+      }
+
+      if ((!remisiones || remisiones.length === 0) && (!ots || ots.length === 0)) {
+        throw new BadRequestError('La factura debe tener al menos un ítem (remisión u orden de trabajo)');
+      }
+
+      let subtotal = 0;
+      let iva_valor = 0;
+      let total = 0;
+
+      // 2. Procesar nuevas remisiones
+      if (remisiones && remisiones.length > 0) {
+        const remisionIds = remisiones.map(r => r.id);
+        const remSql = `
+          SELECT r.id, r.numero_remision, r.company_id, r.estado,
+                 r.total_neto - COALESCE((SELECT SUM(total_rem) FROM factura_remisiones fr WHERE fr.remision_id = r.id), 0) AS saldo_pendiente
+          FROM remisiones r
+          WHERE r.id = ANY($1)
+        `;
+        const remRes = await client.query(remSql, [remisionIds]);
+        const dbRems = remRes.rows;
+
+        if (dbRems.length !== remisionIds.length) throw new BadRequestError('Una o más remisiones no existen');
+
+        for (const reqRem of remisiones) {
+          const dbRem = dbRems.find(r => r.id === reqRem.id);
+          if (!['LIQUIDADA', 'PARCIALMENTE_FACTURADA'].includes(dbRem.estado)) {
+            throw new BadRequestError(`La remisión ${dbRem.numero_remision} no está disponible para facturar`);
+          }
+          if (parseFloat(reqRem.total) > parseFloat(dbRem.saldo_pendiente) + 0.05) {
+            throw new BadRequestError(`El valor a facturar de la remisión ${dbRem.numero_remision} supera su saldo pendiente`);
+          }
+        }
+
+        subtotal += remisiones.reduce((sum, r) => sum + parseFloat(r.subtotal), 0);
+        iva_valor += remisiones.reduce((sum, r) => sum + parseFloat(r.iva_valor), 0);
+        total += remisiones.reduce((sum, r) => sum + parseFloat(r.total), 0);
+        
+        // Guardar remisiones en BD temporalmente
+        for (const reqRem of remisiones) {
+          const dbRem = dbRems.find(r => r.id === reqRem.id);
+          await client.query(`
+            INSERT INTO factura_remisiones (factura_id, remision_id, remision_numero, subtotal_rem, iva_rem, total_rem)
+            VALUES ($1, $2, $3, $4, $5, $6)
+          `, [id, dbRem.id, dbRem.numero_remision, reqRem.subtotal, reqRem.iva_valor, reqRem.total]);
+
+          const nuevoSaldo = parseFloat(dbRem.saldo_pendiente) - parseFloat(reqRem.total);
+          const remEstado = nuevoSaldo <= 0.05 ? 'FACTURADA' : 'PARCIALMENTE_FACTURADA';
+          await client.query('UPDATE remisiones SET estado = $1 WHERE id = $2', [remEstado, dbRem.id]);
+        }
+      }
+
+      // 3. Procesar nuevas OTs
+      if (ots && ots.length > 0) {
+        const otIds = ots.map(o => o.id);
+        const otSql = `
+          SELECT ot.id, ot.consecutivo, ot.estado,
+                 liq.total_final - COALESCE((SELECT SUM(total_ot) FROM factura_ots fo WHERE fo.ot_id = ot.id), 0) AS saldo_pendiente
+          FROM ordenes_trabajo ot
+          JOIN ot_liquidacion liq ON ot.id = liq.orden_trabajo_id
+          WHERE ot.id = ANY($1)
+        `;
+        const otRes = await client.query(otSql, [otIds]);
+        const dbOts = otRes.rows;
+
+        if (dbOts.length !== otIds.length) throw new BadRequestError('Una o más OTs no existen');
+
+        for (const reqOt of ots) {
+          const dbOt = dbOts.find(o => o.id === reqOt.id);
+          if (!['LIQUIDADA', 'PARCIALMENTE_FACTURADA'].includes(dbOt.estado)) {
+            throw new BadRequestError(`La OT ${dbOt.consecutivo} no está disponible para facturar`);
+          }
+          if (parseFloat(reqOt.total) > parseFloat(dbOt.saldo_pendiente) + 0.05) {
+            throw new BadRequestError(`El valor a facturar de la OT ${dbOt.consecutivo} supera su saldo pendiente`);
+          }
+        }
+
+        subtotal += ots.reduce((sum, o) => sum + parseFloat(o.subtotal), 0);
+        iva_valor += ots.reduce((sum, o) => sum + parseFloat(o.iva_valor), 0);
+        total += ots.reduce((sum, o) => sum + parseFloat(o.total), 0);
+
+        // Guardar OTs en BD
+        for (const reqOt of ots) {
+          const dbOt = dbOts.find(o => o.id === reqOt.id);
+          await client.query(`
+            INSERT INTO factura_ots (factura_id, ot_id, ot_consecutivo, subtotal_ot, iva_ot, total_ot)
+            VALUES ($1, $2, $3, $4, $5, $6)
+          `, [id, dbOt.id, dbOt.consecutivo, reqOt.subtotal, reqOt.iva_valor, reqOt.total]);
+
+          const nuevoSaldo = parseFloat(dbOt.saldo_pendiente) - parseFloat(reqOt.total);
+          const otEstado = nuevoSaldo <= 0.05 ? 'FACTURADA' : 'PARCIALMENTE_FACTURADA';
+          await client.query('UPDATE ordenes_trabajo SET estado = $1 WHERE id = $2', [otEstado, dbOt.id]);
+        }
+      }
+
+      // 4. Actualizar factura
+      const updFactSql = `
+        UPDATE facturas SET
+          subtotal = $1, iva_valor = $2, total = $3,
+          condicion_pago = COALESCE($4, condicion_pago),
+          fecha_vencimiento = COALESCE($5, fecha_vencimiento),
+          notas = COALESCE($6, notas),
+          updated_at = NOW()
+        WHERE id = $7
+        RETURNING *
+      `;
+      const updFactRes = await client.query(updFactSql, [
+        subtotal, iva_valor, total, condicion_pago, fecha_vencimiento, notas, id
+      ]);
+      return updFactRes.rows[0];
+    });
+  }
+
+  /**
+   * Confirmar factura con número externo
+   */
+  async confirmarFactura(id, data, confirmedBy) {
+    const { numero_factura, fecha_factura, sistema_contable, sistema_contable_id, notas } = data;
+
+    return await withTransaction(async (client) => {
+      const factRes = await client.query('SELECT estado FROM facturas WHERE id = $1 FOR UPDATE', [id]);
+      if (factRes.rows.length === 0) throw new NotFoundError('Factura');
       if (factRes.rows[0].estado !== 'PREFACTURA') throw new BadRequestError('Solo se pueden confirmar prefacturas');
 
-      // 2. Actualizar factura
+      // Actualizar factura a FACTURADA
       const updFactSql = `
         UPDATE facturas SET
           numero_factura = $1,
           fecha_factura = $2,
           sistema_contable = $3,
           sistema_contable_id = $4,
+          notas = COALESCE($5, notas),
           estado = 'FACTURADA',
-          facturada_por = $5,
+          facturada_por = $6,
           updated_at = NOW()
-        WHERE id = $6
+        WHERE id = $7
         RETURNING *
       `;
       const updFactRes = await client.query(updFactSql, [
-        numero_factura, fecha_factura, sistema_contable, sistema_contable_id, confirmedBy, id
+        numero_factura, fecha_factura, sistema_contable, sistema_contable_id, notas || null, confirmedBy, id
       ]);
 
-      // 4. Actualizar OTs
-      await client.query(`
-        UPDATE ordenes_trabajo SET
-          estado = 'FACTURADA',
-          fecha_facturada = NOW()
-        WHERE factura_id = $1
-      `, [id]);
+      // Verificar saldo real de cada remisión vinculada
+      const remsInFactura = await client.query('SELECT remision_id FROM factura_remisiones WHERE factura_id = $1', [id]);
+      for (const row of remsInFactura.rows) {
+        // Calcular saldo pendiente real
+        const checkSql = `
+          SELECT r.total_neto - COALESCE((SELECT SUM(total_rem) FROM factura_remisiones fr WHERE fr.remision_id = r.id), 0) AS saldo_pendiente
+          FROM remisiones r WHERE r.id = $1
+        `;
+        const rCheck = await client.query(checkSql, [row.remision_id]);
+        if (rCheck.rows.length > 0) {
+          const saldo = parseFloat(rCheck.rows[0].saldo_pendiente);
+          // Verificar si TODAS las facturas vinculadas a esta remisión son FACTURADA
+          const prefCheck = await client.query(`
+            SELECT COUNT(*) as cnt FROM factura_remisiones fr 
+            JOIN facturas f ON f.id = fr.factura_id 
+            WHERE fr.remision_id = $1 AND f.estado = 'PREFACTURA'
+          `, [row.remision_id]);
+          const hasPrefacturas = parseInt(prefCheck.rows[0].cnt) > 0;
+          
+          if (saldo <= 0.05 && !hasPrefacturas) {
+            await client.query('UPDATE remisiones SET estado = $1, fecha_facturada = COALESCE(fecha_facturada, NOW()) WHERE id = $2', ['FACTURADA', row.remision_id]);
+          }
+        }
+      }
 
-      // 5. Actualizar remisiones
-      await client.query(`
-        UPDATE remisiones SET
-          estado = 'FACTURADA',
-          fecha_facturada = NOW()
-        WHERE factura_id = $1
-      `, [id]);
+      // Verificar saldo real de cada OT vinculada
+      const otsInFactura = await client.query('SELECT ot_id FROM factura_ots WHERE factura_id = $1', [id]);
+      for (const row of otsInFactura.rows) {
+        const checkSql = `
+          SELECT liq.total_final - COALESCE((SELECT SUM(total_ot) FROM factura_ots fo WHERE fo.ot_id = ot.id), 0) AS saldo_pendiente
+          FROM ordenes_trabajo ot
+          JOIN ot_liquidacion liq ON ot.id = liq.orden_trabajo_id
+          WHERE ot.id = $1
+        `;
+        const rCheck = await client.query(checkSql, [row.ot_id]);
+        if (rCheck.rows.length > 0) {
+          const saldo = parseFloat(rCheck.rows[0].saldo_pendiente);
+          const prefCheck = await client.query(`
+            SELECT COUNT(*) as cnt FROM factura_ots fo 
+            JOIN facturas f ON f.id = fo.factura_id 
+            WHERE fo.ot_id = $1 AND f.estado = 'PREFACTURA'
+          `, [row.ot_id]);
+          const hasPrefacturas = parseInt(prefCheck.rows[0].cnt) > 0;
+          
+          if (saldo <= 0.05 && !hasPrefacturas) {
+            await client.query('UPDATE ordenes_trabajo SET estado = $1, fecha_facturada = COALESCE(fecha_facturada, NOW()) WHERE id = $2', ['FACTURADA', row.ot_id]);
+          }
+        }
+      }
 
       return updFactRes.rows[0];
     });
@@ -415,7 +703,31 @@ export class FacturacionRepository {
       if (factRes.rows.length === 0) throw new NotFoundError('Factura');
       if (factRes.rows[0].estado === 'ANULADA') throw new BadRequestError('La factura ya está anulada');
 
-      // 2. Actualizar factura
+      // 1. Obtener relaciones antes de eliminarlas
+      const remsInFactura = await client.query('SELECT remision_id FROM factura_remisiones WHERE factura_id = $1', [id]);
+      const otsInFactura = await client.query('SELECT ot_id FROM factura_ots WHERE factura_id = $1', [id]);
+      
+      // 2. Eliminar relaciones
+      await client.query('DELETE FROM factura_remisiones WHERE factura_id = $1', [id]);
+      await client.query('DELETE FROM factura_ots WHERE factura_id = $1', [id]);
+
+      // 3. Recalcular estado de remisiones
+      for (const row of remsInFactura.rows) {
+        const checkOtros = await client.query('SELECT SUM(total_rem) as sum_rem FROM factura_remisiones WHERE remision_id = $1', [row.remision_id]);
+        const sumOtros = parseFloat(checkOtros.rows[0].sum_rem || 0);
+        const newState = sumOtros > 0 ? 'PARCIALMENTE_FACTURADA' : 'LIQUIDADA';
+        await client.query('UPDATE remisiones SET estado = $1, fecha_facturada = NULL WHERE id = $2', [newState, row.remision_id]);
+      }
+
+      // 4. Recalcular estado de OTs
+      for (const row of otsInFactura.rows) {
+        const checkOtros = await client.query('SELECT SUM(total_ot) as sum_ot FROM factura_ots WHERE ot_id = $1', [row.ot_id]);
+        const sumOtros = parseFloat(checkOtros.rows[0].sum_ot || 0);
+        const newState = sumOtros > 0 ? 'PARCIALMENTE_FACTURADA' : 'LIQUIDADA';
+        await client.query('UPDATE ordenes_trabajo SET estado = $1, fecha_facturada = NULL WHERE id = $2', [newState, row.ot_id]);
+      }
+
+      // 5. Anular factura
       await client.query(`
         UPDATE facturas SET
           estado = 'ANULADA',
@@ -424,24 +736,6 @@ export class FacturacionRepository {
           updated_at = NOW()
         WHERE id = $3
       `, [cancelledBy, motivo, id]);
-
-      // 3. Revertir OTs
-      await client.query(`
-        UPDATE ordenes_trabajo SET
-          estado = 'LIQUIDADA',
-          factura_id = NULL,
-          fecha_facturada = NULL
-        WHERE factura_id = $1
-      `, [id]);
-
-      // 4. Revertir remisiones
-      await client.query(`
-        UPDATE remisiones SET
-          estado = 'LIQUIDADA',
-          factura_id = NULL,
-          fecha_facturada = NULL
-        WHERE factura_id = $1
-      `, [id]);
 
       return { success: true };
     });

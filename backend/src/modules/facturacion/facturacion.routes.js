@@ -16,6 +16,7 @@ router.get('/facturas/:id/pdf', verificarPermiso('facturacion', 'ver'), ctrl.dow
 // ─── Gestión ──────────────────────────────────────────────────
 router.post('/prefacturas',     verificarPermiso('facturacion', 'crear'), ctrl.createPrefactura);
 router.post('/prefacturas-remision', verificarPermiso('facturacion', 'crear'), ctrl.createPrefacturaFromRemisiones);
+router.put('/facturas/:id', verificarPermiso('facturacion', 'editar'), ctrl.updateFactura);
 router.post('/facturas/:id/confirmar', verificarPermiso('facturacion', 'editar'), ctrl.confirmarFactura);
 router.post('/facturas/:id/anular',    soloAdmin, ctrl.anularFactura);
 
