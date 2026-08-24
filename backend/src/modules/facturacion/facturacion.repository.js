@@ -747,54 +747,164 @@ export class FacturacionRepository {
    * FACTURADA: solo administradores
    */
   async updateFacturaFields(id, { numero_factura, fecha_factura, total, notas }, isAdmin) {
-    const factRes = await query('SELECT id, estado FROM facturas WHERE id = $1', [id]);
-    if (factRes.rows.length === 0) throw new NotFoundError('Factura');
+    return await withTransaction(async (client) => {
+      const factRes = await client.query('SELECT * FROM facturas WHERE id = $1 FOR UPDATE', [id]);
+      if (factRes.rows.length === 0) throw new NotFoundError('Factura');
 
-    const estado = factRes.rows[0].estado;
+      const factura = factRes.rows[0];
+      const estado = factura.estado;
 
-    if (estado === 'ANULADA') {
-      throw new BadRequestError('No se pueden editar facturas anuladas');
-    }
+      if (estado === 'ANULADA') {
+        throw new BadRequestError('No se pueden editar facturas anuladas');
+      }
 
-    if (estado === 'FACTURADA' && !isAdmin) {
-      throw new BadRequestError('Solo administradores pueden editar facturas ya facturadas');
-    }
+      if (estado === 'FACTURADA' && !isAdmin) {
+        throw new BadRequestError('Solo administradores pueden editar facturas ya facturadas');
+      }
 
-    if (!['PREFACTURA', 'FACTURADA'].includes(estado)) {
-      throw new BadRequestError('La factura no se encuentra en un estado editable');
-    }
+      if (!['PREFACTURA', 'FACTURADA'].includes(estado)) {
+        throw new BadRequestError('La factura no se encuentra en un estado editable');
+      }
 
-    // Recalcular subtotal e iva proporcional al nuevo total
-    const totalNum = parseFloat(total);
-    if (isNaN(totalNum) || totalNum < 0) {
-      throw new BadRequestError('El monto debe ser un número válido');
-    }
+      // Recalcular subtotal e iva proporcional al nuevo total
+      const totalNum = parseFloat(total);
+      if (isNaN(totalNum) || totalNum < 0) {
+        throw new BadRequestError('El monto debe ser un número válido');
+      }
 
-    const subtotal = totalNum / 1.19;
-    const iva_valor = totalNum - subtotal;
+      const subtotal = totalNum / 1.19;
+      const iva_valor = totalNum - subtotal;
 
-    const updSql = `
-      UPDATE facturas SET
-        numero_factura = $1,
-        fecha_factura = $2,
-        subtotal = $3,
-        iva_valor = $4,
-        total = $5,
-        notas = $6,
-        updated_at = NOW()
-      WHERE id = $7
-      RETURNING *
-    `;
-    const updRes = await query(updSql, [
-      numero_factura || null,
-      fecha_factura || null,
-      subtotal,
-      iva_valor,
-      totalNum,
-      notas || null,
-      id
-    ]);
+      const oldTotal = parseFloat(factura.total);
+      const diferencia = oldTotal - totalNum;
 
-    return updRes.rows[0];
+      // 1. Actualizar la factura con el nuevo monto
+      const updSql = `
+        UPDATE facturas SET
+          numero_factura = $1,
+          fecha_factura = $2,
+          subtotal = $3,
+          iva_valor = $4,
+          total = $5,
+          notas = $6,
+          updated_at = NOW()
+        WHERE id = $7
+        RETURNING *
+      `;
+      const updRes = await client.query(updSql, [
+        numero_factura || null,
+        fecha_factura || null,
+        subtotal,
+        iva_valor,
+        totalNum,
+        notas || null,
+        id
+      ]);
+
+      // 2. Si es FACTURADA y se redujo el monto, crear PREFACTURA complementaria con el restante
+      if (estado === 'FACTURADA' && diferencia > 0.05) {
+        // Obtener remisiones vinculadas
+        const remsRes = await client.query(
+          'SELECT fr.*, r.total_neto AS orig_total, r.total_bruto AS orig_subtotal, r.iva_valor AS orig_iva FROM factura_remisiones fr JOIN remisiones r ON r.id = fr.remision_id WHERE fr.factura_id = $1',
+          [id]
+        );
+        // Obtener OTs vinculadas
+        const otsRes = await client.query(
+          'SELECT fo.*, liq.total_final AS orig_total, liq.subtotal AS orig_subtotal, liq.impuesto_valor AS orig_iva FROM factura_ots fo JOIN ordenes_trabajo ot ON ot.id = fo.ot_id JOIN ot_liquidacion liq ON liq.orden_trabajo_id = ot.id WHERE fo.factura_id = $1',
+          [id]
+        );
+
+        const hasRemisiones = remsRes.rows.length > 0;
+        const hasOts = otsRes.rows.length > 0;
+
+        // Proporción del recorte respecto al total original de la factura
+        const proporcionRecorte = diferencia / oldTotal;
+
+        // Generar consecutivo para la PREFACTURA complementaria
+        const consRes = await client.query(`
+          UPDATE consecutivos SET ultimo_valor = ultimo_valor + 1 WHERE id = 'FAC' RETURNING ultimo_valor
+        `);
+        const nro = consRes.rows[0].ultimo_valor;
+        const consecutivo_prefactura = `FAC-${String(nro).padStart(5, '0')}`;
+
+        const prefSubtotal = diferencia / 1.19;
+        const prefIva = diferencia - prefSubtotal;
+
+        // Crear PREFACTURA complementaria
+        const prefRes = await client.query(`
+          INSERT INTO facturas (
+            consecutivo_interno, numero_factura, fecha_factura, empresa_id, estado,
+            subtotal, iva_valor, total, condicion_pago, fecha_vencimiento, notas,
+            creada_por, facturada_por
+          ) VALUES ($1, NULL, NULL, $2, 'PREFACTURA', $3, $4, $5, $6, $7, $8, $9, NULL)
+          RETURNING *
+        `, [
+          consecutivo_prefactura, factura.empresa_id,
+          prefSubtotal, prefIva, diferencia,
+          factura.condicion_pago || null, factura.fecha_vencimiento || null,
+          `Saldo pendiente de factura ${factura.numero_factura || factura.consecutivo_interno}`,
+          factura.creada_por
+        ]);
+        const prefactura = prefRes.rows[0];
+
+        // Vincular remisiones a la PREFACTURA y actualizar proporciones en factura original
+        if (hasRemisiones) {
+          for (const fr of remsRes.rows) {
+            const oldTotalRem = parseFloat(fr.total_rem);
+            const recorteRem = oldTotalRem * proporcionRecorte;
+            const nuevoTotalRem = oldTotalRem - recorteRem;
+
+            // Actualizar la factura_remisiones original con el monto reducido
+            const nuevoSubRem = nuevoTotalRem / 1.19;
+            const nuevoIvaRem = nuevoTotalRem - nuevoSubRem;
+            await client.query(
+              'UPDATE factura_remisiones SET subtotal_rem = $1, iva_rem = $2, total_rem = $3 WHERE factura_id = $4 AND remision_id = $5',
+              [nuevoSubRem, nuevoIvaRem, nuevoTotalRem, id, fr.remision_id]
+            );
+
+            // Insertar remisión en la PREFACTURA con el saldo recortado
+            const prefSubRem = recorteRem / 1.19;
+            const prefIvaRem = recorteRem - prefSubRem;
+            await client.query(`
+              INSERT INTO factura_remisiones (factura_id, remision_id, remision_numero, subtotal_rem, iva_rem, total_rem)
+              VALUES ($1, $2, $3, $4, $5, $6)
+            `, [prefactura.id, fr.remision_id, fr.remision_numero, prefSubRem, prefIvaRem, recorteRem]);
+
+            // Actualizar estado de la remisión a PARCIALMENTE_FACTURADA
+            await client.query('UPDATE remisiones SET estado = $1 WHERE id = $2', ['PARCIALMENTE_FACTURADA', fr.remision_id]);
+          }
+        }
+
+        // Vincular OTs a la PREFACTURA y actualizar proporciones en factura original
+        if (hasOts) {
+          for (const fo of otsRes.rows) {
+            const oldTotalOt = parseFloat(fo.total_ot);
+            const recorteOt = oldTotalOt * proporcionRecorte;
+            const nuevoTotalOt = oldTotalOt - recorteOt;
+
+            // Actualizar la factura_ots original con el monto reducido
+            const nuevoSubOt = nuevoTotalOt / 1.19;
+            const nuevoIvaOt = nuevoTotalOt - nuevoSubOt;
+            await client.query(
+              'UPDATE factura_ots SET subtotal_ot = $1, iva_ot = $2, total_ot = $3 WHERE factura_id = $4 AND ot_id = $5',
+              [nuevoSubOt, nuevoIvaOt, nuevoTotalOt, id, fo.ot_id]
+            );
+
+            // Insertar OT en la PREFACTURA con el saldo recortado
+            const prefSubOt = recorteOt / 1.19;
+            const prefIvaOt = recorteOt - prefSubOt;
+            await client.query(`
+              INSERT INTO factura_ots (factura_id, ot_id, ot_consecutivo, subtotal_ot, iva_ot, total_ot)
+              VALUES ($1, $2, $3, $4, $5, $6)
+            `, [prefactura.id, fo.ot_id, fo.ot_consecutivo, prefSubOt, prefIvaOt, recorteOt]);
+
+            // Actualizar estado de la OT a PARCIALMENTE_FACTURADA
+            await client.query('UPDATE ordenes_trabajo SET estado = $1 WHERE id = $2', ['PARCIALMENTE_FACTURADA', fo.ot_id]);
+          }
+        }
+      }
+
+      return updRes.rows[0];
+    });
   }
 }

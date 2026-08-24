@@ -2,10 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { 
-  Search, 
-  FilePlus, 
-  CheckCircle2, 
+import {
+  Search,
+  FilePlus,
+  CheckCircle2,
   AlertTriangle,
   Building2,
   Calendar,
@@ -28,7 +28,7 @@ export const OtsPendientesPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  
+
   const [search, setSearch] = useState('');
   const [selectedItems, setSelectedItems] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -95,7 +95,7 @@ export const OtsPendientesPage = () => {
       if (exists) {
         return prev.filter(o => o.id !== item.id);
       }
-      
+
       if (prev.length > 0 && prev[0].empresa_id !== item.empresa_id) {
         toast.error('Solo puedes facturar ítems de la misma empresa');
         return prev;
@@ -106,12 +106,12 @@ export const OtsPendientesPage = () => {
 
   const updateItemTotal = (id, newTotalStr) => {
     const newTotal = parseFloat(newTotalStr) || 0;
-    
+
     setSelectedItems(prev => prev.map(item => {
       if (item.id === id) {
         const originalSaldo = items?.data?.find(d => d.id === id)?.total || item.total;
         const finalTotal = newTotal > originalSaldo ? originalSaldo : newTotal;
-        
+
         const subtotalCalc = finalTotal / 1.19;
         const ivaCalc = finalTotal - subtotalCalc;
 
@@ -270,9 +270,9 @@ export const OtsPendientesPage = () => {
 
   return (
     <Layout title={
-      activeTab === 'ots' ? 'Órdenes de Trabajo por Facturar' : 
-      activeTab === 'remisiones' ? 'Remisiones por Facturar' : 
-      'Facturas Complementarias'
+      activeTab === 'ots' ? 'Órdenes de Trabajo por Facturar' :
+        activeTab === 'remisiones' ? 'Remisiones por Facturar' :
+          'Facturas Complementarias'
     }>
       <div className="space-y-6 animate-in fade-in duration-500">
 
@@ -283,11 +283,10 @@ export const OtsPendientesPage = () => {
               role="tab"
               aria-selected={activeTab === 'ots'}
               onClick={() => setTab('ots')}
-              className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all ${
-                activeTab === 'ots' 
-                  ? 'btn-primary shadow-lg shadow-accent/20' 
+              className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all ${activeTab === 'ots'
+                  ? 'btn-primary shadow-lg shadow-accent/20'
                   : 'text-muted hover:text-foreground bg-subtle/30 hover:bg-subtle'
-              }`}
+                }`}
               style={{ borderRadius: '0.75rem' }}
             >
               <Layers size={16} />
@@ -297,11 +296,10 @@ export const OtsPendientesPage = () => {
               role="tab"
               aria-selected={activeTab === 'remisiones'}
               onClick={() => setTab('remisiones')}
-              className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all ${
-                activeTab === 'remisiones' 
-                  ? 'btn-primary shadow-lg shadow-accent/20' 
+              className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all ${activeTab === 'remisiones'
+                  ? 'btn-primary shadow-lg shadow-accent/20'
                   : 'text-muted hover:text-foreground bg-subtle/30 hover:bg-subtle'
-              }`}
+                }`}
               style={{ borderRadius: '0.75rem' }}
             >
               <Receipt size={16} />
@@ -311,8 +309,8 @@ export const OtsPendientesPage = () => {
 
           <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={18} />
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Buscar por OT, remisión o empresa..."
               className="input-premium pl-10 w-full"
               value={search}
@@ -327,11 +325,10 @@ export const OtsPendientesPage = () => {
             role="tab"
             aria-selected={subTab === 'pendientes'}
             onClick={() => setSubTab('pendientes')}
-            className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all ${
-              subTab === 'pendientes' 
-                ? 'btn-primary shadow-lg shadow-accent/20' 
+            className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all ${subTab === 'pendientes'
+                ? 'btn-primary shadow-lg shadow-accent/20'
                 : 'text-muted hover:text-foreground bg-subtle/30 hover:bg-subtle'
-            }`}
+              }`}
             style={{ borderRadius: '0.75rem' }}
           >
             <Clock size={16} />
@@ -341,11 +338,10 @@ export const OtsPendientesPage = () => {
             role="tab"
             aria-selected={subTab === 'complementarias'}
             onClick={() => setSubTab('complementarias')}
-            className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all ${
-              subTab === 'complementarias' 
-                ? 'btn-primary shadow-lg shadow-accent/20' 
+            className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all ${subTab === 'complementarias'
+                ? 'btn-primary shadow-lg shadow-accent/20'
                 : 'text-muted hover:text-foreground bg-subtle/30 hover:bg-subtle'
-            }`}
+              }`}
             style={{ borderRadius: '0.75rem' }}
           >
             <FileText size={16} />
@@ -355,7 +351,7 @@ export const OtsPendientesPage = () => {
 
         {/* ─── Resumen Prefactura (Arriba de la tabla para Mantenimiento/Servicios) ──────────────── */}
         {subTab === 'pendientes' && selectedItems.length > 0 ? (
-          <div 
+          <div
             className="card-premium border-l-4 border-l-accent animate-in slide-in-from-top-2 duration-300"
             style={{ padding: '1.5rem 2.5rem' }}
           >
@@ -400,14 +396,14 @@ export const OtsPendientesPage = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button 
+                  <button
                     className="btn-ghost p-2 rounded-xl text-muted hover:text-red-500 transition-colors"
                     onClick={() => setSelectedItems([])}
                     title="Limpiar selección"
                   >
                     <Trash2 size={18} />
                   </button>
-                  <button 
+                  <button
                     className="btn-primary px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-accent/20 font-bold"
                     onClick={handleCreate}
                   >
@@ -443,12 +439,11 @@ export const OtsPendientesPage = () => {
               <thead className="bg-subtle text-xs uppercase tracking-wider text-muted">
                 <tr>
                   <th className="px-5 py-4 text-center w-12">
-                    <div 
-                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer mx-auto ${
-                        items?.data?.length > 0 && selectedItems.length === items.data.length 
-                          ? 'bg-accent border-accent text-white' 
+                    <div
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer mx-auto ${items?.data?.length > 0 && selectedItems.length === items.data.length
+                          ? 'bg-accent border-accent text-white'
                           : 'border-color hover:border-accent/50'
-                      }`}
+                        }`}
                       onClick={selectAll}
                     />
                   </th>
@@ -463,19 +458,17 @@ export const OtsPendientesPage = () => {
                 {items?.data?.map((item) => {
                   const isSelected = selectedItems.find(o => o.id === item.id);
                   return (
-                    <tr 
-                      key={item.id} 
-                      className={`transition-all cursor-pointer ${
-                        isSelected 
-                          ? 'bg-accent/5 hover:bg-accent/10' 
+                    <tr
+                      key={item.id}
+                      className={`transition-all cursor-pointer ${isSelected
+                          ? 'bg-accent/5 hover:bg-accent/10'
                           : 'hover:bg-subtle/30'
-                      }`}
+                        }`}
                       onClick={() => toggleSelect(item)}
                     >
                       <td className="px-5 py-4 text-center">
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all mx-auto ${
-                          isSelected ? 'bg-accent border-accent text-white' : 'border-color'
-                        }`}>
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all mx-auto ${isSelected ? 'bg-accent border-accent text-white' : 'border-color'
+                          }`}>
                           {isSelected && <CheckCircle2 size={12} />}
                         </div>
                       </td>
@@ -505,7 +498,7 @@ export const OtsPendientesPage = () => {
                         {isSelected ? (
                           <div className="flex items-center justify-end">
                             <span className="text-muted mr-1">$</span>
-                            <input 
+                            <input
                               type="number"
                               className="input-premium text-right w-32 py-1 px-2 text-accent font-bold"
                               value={isSelected.total}
@@ -550,6 +543,7 @@ export const OtsPendientesPage = () => {
                   <th className="px-5 py-4 text-center w-12">Sel</th>
                   <th className="px-5 py-4 text-left">Nro Factura</th>
                   <th className="px-5 py-4 text-left">Empresa</th>
+                  <th className="px-5 py-4 text-left">Nro Remisión</th>
                   <th className="px-5 py-4 text-left">Fecha</th>
                   <th className="px-5 py-4 text-right">Monto</th>
                   <th className="px-5 py-4 text-left">Descripción</th>
@@ -560,19 +554,17 @@ export const OtsPendientesPage = () => {
                 {currentPrefacturas.map((factura) => {
                   const isSelected = selectedItems.find(o => o.id === factura.id);
                   return (
-                    <tr 
-                      key={factura.id} 
-                      className={`transition-all cursor-pointer ${
-                        isSelected 
-                          ? 'bg-accent/5 hover:bg-accent/10 ring-1 ring-inset ring-accent/20' 
+                    <tr
+                      key={factura.id}
+                      className={`transition-all cursor-pointer ${isSelected
+                          ? 'bg-accent/5 hover:bg-accent/10 ring-1 ring-inset ring-accent/20'
                           : 'hover:bg-subtle/30'
-                      }`}
+                        }`}
                       onClick={() => toggleSelect({ ...factura, isPrefactura: true })}
                     >
                       <td className="px-5 py-4 text-center">
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mx-auto transition-all ${
-                          isSelected ? 'bg-accent border-accent text-white' : 'border-color'
-                        }`}>
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mx-auto transition-all ${isSelected ? 'bg-accent border-accent text-white' : 'border-color'
+                          }`}>
                           {isSelected && <CheckCircle2 size={12} />}
                         </div>
                       </td>
@@ -599,6 +591,11 @@ export const OtsPendientesPage = () => {
                         </div>
                       </td>
                       <td className="px-5 py-4">
+                        <span className="font-bold text-sm text-muted">
+                          {isRemisiones ? factura.remisiones_list : factura.ots_list}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
                         <div className="flex items-center gap-2 text-muted text-sm">
                           <Calendar size={14} />
                           <span>{formatDateLocal(factura.fecha_factura)}</span>
@@ -614,14 +611,14 @@ export const OtsPendientesPage = () => {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex justify-center gap-1">
-                          <button 
+                          <button
                             className="p-2 rounded-lg hover:bg-subtle text-muted hover:text-accent transition-all"
                             onClick={(e) => { e.stopPropagation(); navigate(`/facturacion/facturas/${factura.id}`); }}
                             title="Ver detalle"
                           >
                             <ChevronRight size={18} />
                           </button>
-                          <button 
+                          <button
                             className="p-2 rounded-lg hover:bg-subtle text-muted hover:text-accent transition-all"
                             onClick={(e) => { e.stopPropagation(); openEditModal(factura); }}
                             title="Editar"
@@ -635,7 +632,7 @@ export const OtsPendientesPage = () => {
                 })}
                 {currentPrefacturas.length === 0 && !loadingPrefacturas && (
                   <tr>
-                    <td colSpan="7" className="px-6 py-12 text-center text-muted italic">
+                    <td colSpan="8" className="px-6 py-12 text-center text-muted italic">
                       No hay facturas complementarias de {isRemisiones ? 'servicios' : 'mantenimiento'} pendientes.
                     </td>
                   </tr>
@@ -684,14 +681,14 @@ export const OtsPendientesPage = () => {
               </div>
 
               <div className="flex items-center gap-2 border-l border-color pl-6">
-                <button 
+                <button
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-muted hover:bg-danger/10 hover:text-danger transition-colors"
                   onClick={() => setSelectedItems([])}
                   title="Cancelar Selección"
                 >
                   <Trash2 size={18} />
                 </button>
-                <button 
+                <button
                   className="btn-primary px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-accent/20"
                   onClick={() => {
                     const factura = selectedItems[0];
@@ -711,7 +708,7 @@ export const OtsPendientesPage = () => {
 
       {/* ─── Modal Overlay: Generar Factura (Portal a body) ─────────── */}
       {isModalOpen && createPortal(
-        <div 
+        <div
           style={{
             position: 'fixed',
             top: 0,
@@ -728,7 +725,7 @@ export const OtsPendientesPage = () => {
           }}
           onClick={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}
         >
-          <div 
+          <div
             className="card-premium"
             style={{
               width: '100%',
@@ -751,21 +748,21 @@ export const OtsPendientesPage = () => {
                     {selectedItems[0]?.isPrefactura ? 'Confirmar Facturación' : 'Generar Factura'}
                   </h3>
                   <p className="text-sm text-muted font-medium">
-                    {selectedItems[0]?.isPrefactura 
+                    {selectedItems[0]?.isPrefactura
                       ? 'Asignar número definitivo a la prefactura'
                       : `${selectedItems.length} ${isRemisiones ? 'remisiones' : 'OTs'} seleccionadas`
                     }
                   </p>
                 </div>
               </div>
-              <button 
-                onClick={() => setIsModalOpen(false)} 
+              <button
+                onClick={() => setIsModalOpen(false)}
                 className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-subtle transition-colors text-muted hover:text-foreground"
               >
                 <X size={20} />
               </button>
             </div>
-            
+
             {/* Body */}
             <div className="space-y-10" style={{ padding: '2.5rem 3rem' }}>
               {/* Resumen */}
@@ -790,8 +787,8 @@ export const OtsPendientesPage = () => {
                   <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
                     Número de Factura <span className="text-red-500">*</span>
                   </label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     className="input-premium w-full font-bold text-accent text-xl py-4 px-5"
                     placeholder="Ej: FE-1234"
                     value={nroFactura}
@@ -805,8 +802,8 @@ export const OtsPendientesPage = () => {
                   <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
                     Fecha de Factura <span className="text-red-500">*</span>
                   </label>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     className="input-premium w-full font-bold text-base py-3 px-5"
                     value={fechaFactura}
                     onChange={(e) => setFechaFactura(e.target.value)}
@@ -817,7 +814,7 @@ export const OtsPendientesPage = () => {
                   <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
                     Descripción
                   </label>
-                  <textarea 
+                  <textarea
                     className="input-premium w-full h-36 resize-none text-base py-4 px-5"
                     placeholder="Ej: Servicios correspondientes al mes de Abril..."
                     value={notas}
@@ -829,14 +826,14 @@ export const OtsPendientesPage = () => {
 
             {/* Footer */}
             <div className="flex gap-4 border-t border-color" style={{ padding: '2rem 3rem', background: 'var(--color-subtle, rgba(255,255,255,0.02))' }}>
-              <button 
-                className="btn-secondary flex-1 py-4 rounded-2xl font-bold text-base hover:bg-subtle transition-colors" 
+              <button
+                className="btn-secondary flex-1 py-4 rounded-2xl font-bold text-base hover:bg-subtle transition-colors"
                 onClick={() => setIsModalOpen(false)}
               >
                 Cancelar
               </button>
-              <button 
-                className="btn-primary flex-[2] py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 shadow-xl shadow-accent/20 transition-all hover:scale-[1.02] active:scale-[0.98]" 
+              <button
+                className="btn-primary flex-[2] py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 shadow-xl shadow-accent/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                 onClick={() => {
                   if (selectedItems[0]?.isPrefactura) {
                     // LLamar a confirmarFactura (esto lo podemos hacer con otra mutación)
@@ -872,7 +869,7 @@ export const OtsPendientesPage = () => {
 
       {/* ─── Modal: Editar Factura Complementaria (Portal a body) ──── */}
       {isEditModalOpen && editingFactura && createPortal(
-        <div 
+        <div
           style={{
             position: 'fixed',
             top: 0,
@@ -889,7 +886,7 @@ export const OtsPendientesPage = () => {
           }}
           onClick={(e) => { if (e.target === e.currentTarget && !editMutation.isLoading) setIsEditModalOpen(false); }}
         >
-          <div 
+          <div
             className="card-premium"
             style={{
               width: '100%',
@@ -912,22 +909,22 @@ export const OtsPendientesPage = () => {
                   <p className="text-sm text-muted font-medium">{editingFactura.consecutivo_interno} — {editingFactura.empresa_nombre}</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => { if (!editMutation.isLoading) setIsEditModalOpen(false); }}
                 className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-subtle transition-colors text-muted hover:text-foreground"
               >
                 <X size={20} />
               </button>
             </div>
-            
+
             {/* Body */}
             <div className="space-y-6" style={{ padding: '2.5rem 3rem' }}>
               <div>
                 <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
                   Número de Factura
                 </label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   className="input-premium w-full font-bold text-accent text-lg py-4 px-5"
                   placeholder="Ej: FV-2026-00123"
                   value={editNumFactura}
@@ -940,8 +937,8 @@ export const OtsPendientesPage = () => {
                 <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
                   Fecha
                 </label>
-                <input 
-                  type="date" 
+                <input
+                  type="date"
                   className="input-premium w-full font-bold text-base py-4 px-5"
                   value={editFechaFactura}
                   onChange={(e) => setEditFechaFactura(e.target.value)}
@@ -954,8 +951,8 @@ export const OtsPendientesPage = () => {
                 </label>
                 <div className="relative">
                   <span className="absolute left-5 top-1/2 -translate-y-1/2 text-muted font-bold text-lg">$</span>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     className="input-premium w-full font-bold text-accent text-lg py-4 pl-10 pr-5"
                     placeholder="0"
                     value={editMonto}
@@ -970,7 +967,7 @@ export const OtsPendientesPage = () => {
                 <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
                   Descripción
                 </label>
-                <textarea 
+                <textarea
                   className="input-premium w-full py-4 px-5 text-sm resize-none"
                   rows="3"
                   placeholder="Notas opcionales sobre la factura..."
@@ -982,15 +979,15 @@ export const OtsPendientesPage = () => {
 
             {/* Footer */}
             <div className="flex gap-4 border-t border-color" style={{ padding: '2rem 3rem', background: 'var(--color-subtle, rgba(255,255,255,0.02))' }}>
-              <button 
-                className="btn-secondary flex-1 py-4 rounded-2xl font-bold text-base hover:bg-subtle transition-colors" 
+              <button
+                className="btn-secondary flex-1 py-4 rounded-2xl font-bold text-base hover:bg-subtle transition-colors"
                 onClick={() => { if (!editMutation.isLoading) setIsEditModalOpen(false); }}
                 disabled={editMutation.isLoading}
               >
                 Cancelar
               </button>
-              <button 
-                className="btn-primary flex-[2] py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 shadow-xl shadow-accent/20 transition-all hover:scale-[1.02] active:scale-[0.98]" 
+              <button
+                className="btn-primary flex-[2] py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 shadow-xl shadow-accent/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                 onClick={handleSaveEdit}
                 disabled={editMutation.isLoading}
               >
