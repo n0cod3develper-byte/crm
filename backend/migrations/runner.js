@@ -147,6 +147,7 @@ const MIGRATION_FILES = [
   '114_reset_consecutivo_cotizacion_servicio.sql',
   '115_sync_ordenes_trabajo_columns.sql',
   '116_facturacion_parcial_remisiones.sql',
+  '118_gestion_humana_subrayados.sql',
 ];
 
 async function ensureMigrationsTable(client) {

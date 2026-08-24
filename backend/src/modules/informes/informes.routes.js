@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../../middleware/auth.js';
+import { requireAuth, authorize } from '../../middleware/auth.js';
 import { informesController } from './informes.controller.js';
 import mantenimientoRoutes from './informes-mantenimiento.routes.js';
 
@@ -25,6 +25,7 @@ router.get('/kpi/hours-by-operator/:operator_id', informesController.getHoursByO
 
 // Gestión Humana
 router.get('/gestion-humana/liquidacion-bonificacion', informesController.getLiquidacionBonificacion);
+router.post('/gestion-humana/subrayar', requireAuth, authorize('SUPERADMIN', 'GERENTE', 'COORDINADOR', 'AUDITOR', 'FACTURACION', 'CARTERA', 'CONTABILIDAD', 'SST'), informesController.toggleSubrayado);
 router.get('/gestion-humana/liquidacion-ajustes', informesController.getLiquidacionAjustes);
 router.put('/gestion-humana/liquidacion-ajustes', informesController.upsertLiquidacionAjustes);
 

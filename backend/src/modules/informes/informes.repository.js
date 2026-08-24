@@ -454,8 +454,13 @@ export class InformesRepository {
    * Bonificación: usa la de la remisión; si es 0, toma la del equipo.
    * Alerta si ambas son 0.
    */
-  async getLiquidacionBonificacion(fecha_inicio, fecha_fin) {
+  async getLiquidacionBonificacion(fecha_inicio, fecha_fin, usuario_id = null) {
     const params = [fecha_inicio, fecha_fin];
+    let usuarioParamIdx = null;
+    if (usuario_id) {
+      params.push(usuario_id);
+      usuarioParamIdx = params.length;
+    }
 
     const detalleSql = `
       SELECT
@@ -483,11 +488,11 @@ export class InformesRepository {
         em.full_name AS operario_nombre,
         em.numero_documento AS cedula,
         em.tipo_documento   AS tipo_doc,
-        COALESCE(e.marca || ' ' || e.modelo, r.numero_maquina, 'Sin equipo') AS maquina_nombre,
+        COALESCE(e.numero_equipo, r.numero_maquina, 'Sin equipo') AS maquina_nombre,
         e.serial      AS equipo_serial,
         e.capacidad_carga,
         false         AS is_servicio_fijo,
-        CASE
+        GREATEST(1, CASE
           WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
             CASE
               WHEN r.hora_llegada_cargar::time >= r.hora_salida_cargar::time
@@ -495,13 +500,14 @@ export class InformesRepository {
               ELSE EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time + INTERVAL '24 hours')) / 3600.0
             END
           ELSE 0
-        END AS horas_efectivas
+        END) AS horas_efectivas,
+        CASE WHEN ghs.id IS NOT NULL THEN true ELSE false END AS is_subrayada
       FROM remisiones r
-      JOIN  remision_operarios ro ON ro.remision_id = r.id
-      JOIN  employees em ON em.id = ro.empleado_id
+      LEFT JOIN remision_operarios ro ON ro.remision_id = r.id
+      LEFT JOIN employees em ON em.id = ro.empleado_id
       LEFT JOIN equipos e ON e.id = r.equipo_id
+      LEFT JOIN gestion_humana_subrayados ghs ON ghs.remision_id = r.id ${usuarioParamIdx ? `AND ghs.usuario_id = $${usuarioParamIdx}` : 'AND false'}
       WHERE r.deleted_at IS NULL
-        AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
         AND r.is_servicio_fijo = false
         AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
         AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
@@ -527,17 +533,18 @@ export class InformesRepository {
         em.full_name AS operario_nombre,
         em.numero_documento AS cedula,
         em.tipo_documento   AS tipo_doc,
-        COALESCE(e.marca || ' ' || e.modelo, r.numero_maquina, 'Sin equipo') AS maquina_nombre,
+        COALESCE(e.numero_equipo, r.numero_maquina, 'Sin equipo') AS maquina_nombre,
         e.serial      AS equipo_serial,
         e.capacidad_carga,
         true          AS is_servicio_fijo,
-        rdf.horas_netas AS horas_efectivas
+        GREATEST(1, rdf.horas_netas) AS horas_efectivas,
+        CASE WHEN ghs.id IS NOT NULL THEN true ELSE false END AS is_subrayada
       FROM remision_dias_fijo rdf
       JOIN remisiones r ON r.id = rdf.remision_id
-      JOIN employees em ON em.id = rdf.empleado_id
+      LEFT JOIN employees em ON em.id = rdf.empleado_id
       LEFT JOIN equipos e ON e.id = r.equipo_id
+      LEFT JOIN gestion_humana_subrayados ghs ON ghs.remision_id = r.id ${usuarioParamIdx ? `AND ghs.usuario_id = $${usuarioParamIdx}` : 'AND false'}
       WHERE r.deleted_at IS NULL
-        AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
         AND rdf.fecha >= $1
         AND rdf.fecha <= $2
       ORDER BY operario_nombre ASC, fecha_servicio ASC, numero_remision ASC
@@ -545,11 +552,10 @@ export class InformesRepository {
 
     // Alerta 1: sin operario asignado
     const sinOperarioSql = `
-      SELECT r.numero_remision, COALESCE(r.hora_acordada, r.fecha_servicio) AS fecha_servicio, r.estado,
+      SELECT r.id AS remision_id, r.numero_remision, COALESCE(r.hora_acordada, r.fecha_servicio) AS fecha_servicio, r.estado,
              COALESCE(r.numero_maquina, 'S/N') AS numero_maquina
       FROM remisiones r
       WHERE r.deleted_at IS NULL
-        AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
         AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
         AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
         AND NOT EXISTS (SELECT 1 FROM remision_operarios ro WHERE ro.remision_id = r.id)
@@ -558,11 +564,10 @@ export class InformesRepository {
 
     // Alerta 2: con operario pero sin horas registradas
     const sinHorasSql = `
-      SELECT DISTINCT r.numero_remision, COALESCE(r.hora_acordada, r.fecha_servicio) AS fecha_servicio, r.estado
+      SELECT DISTINCT r.id AS remision_id, r.numero_remision, COALESCE(r.hora_acordada, r.fecha_servicio) AS fecha_servicio, r.estado
       FROM remisiones r
-      JOIN remision_operarios ro ON ro.remision_id = r.id
+      LEFT JOIN remision_operarios ro ON ro.remision_id = r.id
       WHERE r.deleted_at IS NULL
-        AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
         AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
         AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
         AND (r.hora_salida_cargar IS NULL OR r.hora_llegada_cargar IS NULL)
@@ -571,13 +576,12 @@ export class InformesRepository {
 
     // Alerta 3: bonificación = 0 en AMBAS fuentes (remisión Y equipo)
     const bonificacionCeroSql = `
-      SELECT DISTINCT r.numero_remision, COALESCE(r.hora_acordada, r.fecha_servicio) AS fecha_servicio, r.estado,
+      SELECT DISTINCT r.id AS remision_id, r.numero_remision, COALESCE(r.hora_acordada, r.fecha_servicio) AS fecha_servicio, r.estado,
              COALESCE(r.numero_maquina, 'S/N') AS numero_maquina
       FROM remisiones r
-      JOIN remision_operarios ro ON ro.remision_id = r.id
+      LEFT JOIN remision_operarios ro ON ro.remision_id = r.id
       LEFT JOIN equipos e ON e.id = r.equipo_id
       WHERE r.deleted_at IS NULL
-        AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
         AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
         AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
         AND (r.bonificacion_hora IS NULL OR r.bonificacion_hora = 0)
@@ -585,11 +589,13 @@ export class InformesRepository {
       ORDER BY fecha_servicio ASC
     `;
 
+    const alertParams = [fecha_inicio, fecha_fin];
+
     const [detalleRes, sinOperarioRes, sinHorasRes, bonCeroRes] = await Promise.all([
       query(detalleSql, params),
-      query(sinOperarioSql, params),
-      query(sinHorasSql, params),
-      query(bonificacionCeroSql, params),
+      query(sinOperarioSql, alertParams),
+      query(sinHorasSql, alertParams),
+      query(bonificacionCeroSql, alertParams),
     ]);
 
     const detalleRows = detalleRes.rows.map(r => {
@@ -605,8 +611,8 @@ export class InformesRepository {
 
     // Alerta 4: horas = 0 aunque tienen timestamps (posible error)
     const horasInvalidas = detalleRows
-      .filter(r => r.hora_salida_cargar && r.hora_llegada_cargar && r.horas_efectivas <= 0)
-      .map(r => ({ numero_remision: r.numero_remision, fecha_servicio: r.fecha_servicio }));
+      .filter(r => r.hora_salida_cargar && r.hora_llegada_cargar && r.horas_efectivas <= 0) // It won't be <=0 now because of GREATEST(1), but keep logic
+      .map(r => ({ remision_id: r.remision_id, numero_remision: r.numero_remision, fecha_servicio: r.fecha_servicio }));
 
     return {
       fecha_inicio,
@@ -631,12 +637,12 @@ export class InformesRepository {
         operario_id,
         operario_nombre,
         cedula,
-        COALESCE(marca || ' ' || modelo, 'Sin equipo') AS maquina_nombre,
+        COALESCE(numero_equipo, 'Sin equipo') AS maquina_nombre,
         SUM(horas_efectivas) AS horas_total
       FROM (
         SELECT em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
-               e.marca, e.modelo,
-               CASE
+               e.numero_equipo,
+               GREATEST(1, CASE
                  WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
                    CASE
                      WHEN r.hora_llegada_cargar::time >= r.hora_salida_cargar::time
@@ -644,28 +650,29 @@ export class InformesRepository {
                      ELSE EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time + INTERVAL '24 hours')) / 3600.0
                    END
                  ELSE 0
-               END AS horas_efectivas
+               END) AS horas_efectivas
         FROM remisiones r
-        JOIN remision_operarios ro ON ro.remision_id = r.id
-        JOIN employees em ON em.id = ro.empleado_id
+        LEFT JOIN remision_operarios ro ON ro.remision_id = r.id
+        LEFT JOIN employees em ON em.id = ro.empleado_id
         LEFT JOIN equipos e ON e.id = r.equipo_id
-        WHERE r.deleted_at IS NULL AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
+        WHERE r.deleted_at IS NULL
           AND r.is_servicio_fijo = false
           AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1 AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
 
         UNION ALL
 
         SELECT em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
-               e.marca, e.modelo,
-               rdf.horas_netas AS horas_efectivas
+               e.numero_equipo,
+               GREATEST(1, rdf.horas_netas) AS horas_efectivas
         FROM remision_dias_fijo rdf
         JOIN remisiones r ON r.id = rdf.remision_id
-        JOIN employees em ON em.id = rdf.empleado_id
+        LEFT JOIN employees em ON em.id = rdf.empleado_id
         LEFT JOIN equipos e ON e.id = r.equipo_id
-        WHERE r.deleted_at IS NULL AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
+        WHERE r.deleted_at IS NULL
           AND rdf.fecha >= $1 AND rdf.fecha <= $2
       ) base
-      GROUP BY operario_id, operario_nombre, cedula, marca, modelo
+      WHERE operario_id IS NOT NULL
+      GROUP BY operario_id, operario_nombre, cedula, numero_equipo
       ORDER BY operario_nombre ASC
     `;
     const result = await query(sql, [fecha_inicio, fecha_fin]);
@@ -673,6 +680,31 @@ export class InformesRepository {
       ...r,
       horas_total: parseFloat(parseFloat(r.horas_total || 0).toFixed(2)),
     }));
+  }
+
+  /**
+   * Toggle el estado de subrayado de una remisión para un usuario específico.
+   */
+  async toggleSubrayado(usuario_id, remision_id) {
+    return await withTransaction(async (client) => {
+      const check = await client.query(
+        'SELECT id FROM gestion_humana_subrayados WHERE usuario_id = $1 AND remision_id = $2',
+        [usuario_id, remision_id]
+      );
+      if (check.rows.length > 0) {
+        await client.query(
+          'DELETE FROM gestion_humana_subrayados WHERE id = $1',
+          [check.rows[0].id]
+        );
+        return { is_subrayada: false };
+      } else {
+        await client.query(
+          'INSERT INTO gestion_humana_subrayados (usuario_id, remision_id) VALUES ($1, $2)',
+          [usuario_id, remision_id]
+        );
+        return { is_subrayada: true };
+      }
+    });
   }
 
 
