@@ -462,7 +462,7 @@ export class InformesRepository {
         r.id,
         r.id AS remision_id,
         r.numero_remision,
-        r.fecha_servicio,
+        COALESCE(r.hora_acordada, r.fecha_servicio) AS fecha_servicio,
         r.hora_salida_cargar,
         r.hora_llegada_cargar,
         r.estado,
@@ -501,10 +501,10 @@ export class InformesRepository {
       JOIN  employees em ON em.id = ro.empleado_id
       LEFT JOIN equipos e ON e.id = r.equipo_id
       WHERE r.deleted_at IS NULL
-        AND r.estado IN ('LIQUIDADA', 'REALIZADA')
+        AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
         AND r.is_servicio_fijo = false
-        AND r.fecha_servicio >= $1
-        AND r.fecha_servicio <= $2
+        AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
+        AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
 
       UNION ALL
 
@@ -537,7 +537,7 @@ export class InformesRepository {
       JOIN employees em ON em.id = rdf.empleado_id
       LEFT JOIN equipos e ON e.id = r.equipo_id
       WHERE r.deleted_at IS NULL
-        AND r.estado IN ('LIQUIDADA', 'REALIZADA')
+        AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
         AND rdf.fecha >= $1
         AND rdf.fecha <= $2
       ORDER BY operario_nombre ASC, fecha_servicio ASC, numero_remision ASC
@@ -545,44 +545,44 @@ export class InformesRepository {
 
     // Alerta 1: sin operario asignado
     const sinOperarioSql = `
-      SELECT r.numero_remision, r.fecha_servicio, r.estado,
+      SELECT r.numero_remision, COALESCE(r.hora_acordada, r.fecha_servicio) AS fecha_servicio, r.estado,
              COALESCE(r.numero_maquina, 'S/N') AS numero_maquina
       FROM remisiones r
       WHERE r.deleted_at IS NULL
-        AND r.estado IN ('LIQUIDADA', 'REALIZADA')
-        AND r.fecha_servicio >= $1
-        AND r.fecha_servicio <= $2
+        AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
+        AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
+        AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
         AND NOT EXISTS (SELECT 1 FROM remision_operarios ro WHERE ro.remision_id = r.id)
-      ORDER BY r.fecha_servicio ASC
+      ORDER BY fecha_servicio ASC
     `;
 
     // Alerta 2: con operario pero sin horas registradas
     const sinHorasSql = `
-      SELECT DISTINCT r.numero_remision, r.fecha_servicio, r.estado
+      SELECT DISTINCT r.numero_remision, COALESCE(r.hora_acordada, r.fecha_servicio) AS fecha_servicio, r.estado
       FROM remisiones r
       JOIN remision_operarios ro ON ro.remision_id = r.id
       WHERE r.deleted_at IS NULL
-        AND r.estado IN ('LIQUIDADA', 'REALIZADA')
-        AND r.fecha_servicio >= $1
-        AND r.fecha_servicio <= $2
+        AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
+        AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
+        AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
         AND (r.hora_salida_cargar IS NULL OR r.hora_llegada_cargar IS NULL)
-      ORDER BY r.fecha_servicio ASC
+      ORDER BY fecha_servicio ASC
     `;
 
     // Alerta 3: bonificación = 0 en AMBAS fuentes (remisión Y equipo)
     const bonificacionCeroSql = `
-      SELECT DISTINCT r.numero_remision, r.fecha_servicio, r.estado,
+      SELECT DISTINCT r.numero_remision, COALESCE(r.hora_acordada, r.fecha_servicio) AS fecha_servicio, r.estado,
              COALESCE(r.numero_maquina, 'S/N') AS numero_maquina
       FROM remisiones r
       JOIN remision_operarios ro ON ro.remision_id = r.id
       LEFT JOIN equipos e ON e.id = r.equipo_id
       WHERE r.deleted_at IS NULL
-        AND r.estado IN ('LIQUIDADA', 'REALIZADA')
-        AND r.fecha_servicio >= $1
-        AND r.fecha_servicio <= $2
+        AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
+        AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
+        AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
         AND (r.bonificacion_hora IS NULL OR r.bonificacion_hora = 0)
         AND (e.bonificacion_hora IS NULL OR e.bonificacion_hora = 0)
-      ORDER BY r.fecha_servicio ASC
+      ORDER BY fecha_servicio ASC
     `;
 
     const [detalleRes, sinOperarioRes, sinHorasRes, bonCeroRes] = await Promise.all([
@@ -649,9 +649,9 @@ export class InformesRepository {
         JOIN remision_operarios ro ON ro.remision_id = r.id
         JOIN employees em ON em.id = ro.empleado_id
         LEFT JOIN equipos e ON e.id = r.equipo_id
-        WHERE r.deleted_at IS NULL AND r.estado IN ('LIQUIDADA', 'REALIZADA')
+        WHERE r.deleted_at IS NULL AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
           AND r.is_servicio_fijo = false
-          AND r.fecha_servicio >= $1 AND r.fecha_servicio <= $2
+          AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1 AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
 
         UNION ALL
 
@@ -662,7 +662,7 @@ export class InformesRepository {
         JOIN remisiones r ON r.id = rdf.remision_id
         JOIN employees em ON em.id = rdf.empleado_id
         LEFT JOIN equipos e ON e.id = r.equipo_id
-        WHERE r.deleted_at IS NULL AND r.estado IN ('LIQUIDADA', 'REALIZADA')
+        WHERE r.deleted_at IS NULL AND r.estado IN ('PENDIENTE', 'REALIZADA', 'LIQUIDADA', 'FACTURADA')
           AND rdf.fecha >= $1 AND rdf.fecha <= $2
       ) base
       GROUP BY operario_id, operario_nombre, cedula, marca, modelo

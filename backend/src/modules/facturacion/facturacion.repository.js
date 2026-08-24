@@ -740,4 +740,61 @@ export class FacturacionRepository {
       return { success: true };
     });
   }
+
+  /**
+   * Actualizar campos simples de una factura (numero_factura, fecha, monto, descripción)
+   * PREFACTURA: cualquier usuario con permiso editar
+   * FACTURADA: solo administradores
+   */
+  async updateFacturaFields(id, { numero_factura, fecha_factura, total, notas }, isAdmin) {
+    const factRes = await query('SELECT id, estado FROM facturas WHERE id = $1', [id]);
+    if (factRes.rows.length === 0) throw new NotFoundError('Factura');
+
+    const estado = factRes.rows[0].estado;
+
+    if (estado === 'ANULADA') {
+      throw new BadRequestError('No se pueden editar facturas anuladas');
+    }
+
+    if (estado === 'FACTURADA' && !isAdmin) {
+      throw new BadRequestError('Solo administradores pueden editar facturas ya facturadas');
+    }
+
+    if (!['PREFACTURA', 'FACTURADA'].includes(estado)) {
+      throw new BadRequestError('La factura no se encuentra en un estado editable');
+    }
+
+    // Recalcular subtotal e iva proporcional al nuevo total
+    const totalNum = parseFloat(total);
+    if (isNaN(totalNum) || totalNum < 0) {
+      throw new BadRequestError('El monto debe ser un número válido');
+    }
+
+    const subtotal = totalNum / 1.19;
+    const iva_valor = totalNum - subtotal;
+
+    const updSql = `
+      UPDATE facturas SET
+        numero_factura = $1,
+        fecha_factura = $2,
+        subtotal = $3,
+        iva_valor = $4,
+        total = $5,
+        notas = $6,
+        updated_at = NOW()
+      WHERE id = $7
+      RETURNING *
+    `;
+    const updRes = await query(updSql, [
+      numero_factura || null,
+      fecha_factura || null,
+      subtotal,
+      iva_valor,
+      totalNum,
+      notas || null,
+      id
+    ]);
+
+    return updRes.rows[0];
+  }
 }

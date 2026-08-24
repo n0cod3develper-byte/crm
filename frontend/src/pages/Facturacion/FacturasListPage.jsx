@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -9,52 +10,35 @@ import {
   Building2,
   Calendar,
   ChevronRight,
-  CheckCircle2,
   X,
-  Trash2
+  Edit,
+  Save
 } from 'lucide-react';
 import { facturacionApi } from '../../services/facturacionApi';
 import { Layout } from '../../components/Layout';
 import { formatCurrency, formatDateLocal } from '../../utils/formatters';
 import { toast } from 'react-hot-toast';
+import { usePermissions } from '../../contexts/PermissionsContext';
 
 export const FacturasListPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { esAdmin } = usePermissions();
   const [search, setSearch] = useState('');
-  const [tab, setTab] = useState('PREFACTURA');
-  const [selectedFactura, setSelectedFactura] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [numFactura, setNumFactura] = useState('');
-  const [fechaFactura, setFechaFactura] = useState(new Date().toISOString().split('T')[0]);
-  const [descripcionFactura, setDescripcionFactura] = useState('');
+  const [tab, setTab] = useState('FACTURADA');
+
+  // ─── Estado del modal de edición (admin) ───────────────────────
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingFactura, setEditingFactura] = useState(null);
+  const [editNumFactura, setEditNumFactura] = useState('');
+  const [editFechaFactura, setEditFechaFactura] = useState('');
+  const [editMonto, setEditMonto] = useState('');
+  const [editDescripcion, setEditDescripcion] = useState('');
 
   const { data: facturas, isLoading, isFetching } = useQuery({
     queryKey: ['facturas', tab, search],
     queryFn: () => facturacionApi.getFacturas({ estado: tab, search }),
     keepPreviousData: true
-  });
-
-  // Fetch full factura details when one is selected and modal is open
-  const { data: fullFacturaRes } = useQuery({
-    queryKey: ['factura', selectedFactura?.id],
-    queryFn: () => facturacionApi.getFactura(selectedFactura?.id),
-    enabled: !!selectedFactura && isModalOpen
-  });
-  const fullFactura = fullFacturaRes?.data;
-
-  const confirmMutation = useMutation({
-    mutationFn: (data) => facturacionApi.confirmarFactura(selectedFactura?.id, data),
-    onSuccess: () => {
-      toast.success('Factura confirmada correctamente');
-      queryClient.invalidateQueries(['facturas']);
-      setIsModalOpen(false);
-      setSelectedFactura(null);
-      setNumFactura('');
-    },
-    onError: (err) => {
-      toast.error(err.response?.data?.error || 'Error al confirmar la factura');
-    }
   });
 
   const handleDownloadPDF = async (factura) => {
@@ -78,17 +62,7 @@ export const FacturasListPage = () => {
     }
   };
 
-  const toggleSelect = (factura, e) => {
-    e.stopPropagation();
-    if (selectedFactura?.id === factura.id) {
-      setSelectedFactura(null);
-    } else {
-      setSelectedFactura(factura);
-    }
-  };
-
   const tabs = [
-    { id: 'PREFACTURA', label: 'Prefacturas', count: 0 },
     { id: 'FACTURADA', label: 'Facturadas', count: 0 },
     { id: 'ANULADA', label: 'Anuladas', count: 0 }
   ];
@@ -102,8 +76,53 @@ export const FacturasListPage = () => {
     return list;
   }, [facturas?.data, tab]);
 
+  // ─── Edición de factura (admin) ────────────────────────────────
+  const openEditModal = (factura) => {
+    setEditingFactura(factura);
+    setEditNumFactura(factura.numero_factura || '');
+    setEditFechaFactura(factura.fecha_factura ? factura.fecha_factura.split('T')[0] : '');
+    setEditMonto(parseFloat(factura.total) || '');
+    setEditDescripcion(factura.notas || '');
+    setIsEditModalOpen(true);
+  };
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, data }) => facturacionApi.updateFacturaFields(id, data),
+    onSuccess: () => {
+      toast.success('Factura actualizada correctamente');
+      queryClient.invalidateQueries(['facturas']);
+      setIsEditModalOpen(false);
+      setEditingFactura(null);
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || 'Error al actualizar la factura');
+    }
+  });
+
+  const handleSaveEdit = () => {
+    const montoNum = parseFloat(editMonto);
+    if (isNaN(montoNum) || montoNum < 0) {
+      toast.error('El monto debe ser un número válido');
+      return;
+    }
+    if (editFechaFactura && isNaN(new Date(editFechaFactura).getTime())) {
+      toast.error('La fecha ingresada no es válida');
+      return;
+    }
+
+    editMutation.mutate({
+      id: editingFactura.id,
+      data: {
+        numero_factura: editNumFactura,
+        fecha_factura: editFechaFactura || null,
+        total: montoNum,
+        notas: editDescripcion
+      }
+    });
+  };
+
   return (
-    <Layout title="Listado de Facturas / Prefacturas">
+    <Layout title="Listado de Facturas">
       <div className="space-y-6 animate-in fade-in duration-500">
         
         {/* Tabs and Search */}
@@ -114,7 +133,7 @@ export const FacturasListPage = () => {
                 key={t.id}
                 role="tab"
                 aria-selected={tab === t.id}
-                onClick={() => { setTab(t.id); setSelectedFactura(null); }}
+                onClick={() => setTab(t.id)}
                 className={`px-6 py-3 text-sm font-bold transition-all ${
                   tab === t.id 
                     ? 'btn-primary shadow-lg shadow-accent/20' 
@@ -161,28 +180,11 @@ export const FacturasListPage = () => {
               {sortedFacturas.map((factura) => (
                 <tr 
                   key={factura.id} 
-                  className={`transition-all group cursor-pointer ${
-                    selectedFactura?.id === factura.id 
-                      ? 'bg-accent/5 hover:bg-accent/10 ring-1 ring-inset ring-accent/20' 
-                      : 'hover:bg-subtle/30'
-                  }`}
-                  onClick={(e) => {
-                    if (tab === 'PREFACTURA') {
-                      toggleSelect(factura, e);
-                    } else {
-                      navigate(`/facturacion/facturas/${factura.id}`);
-                    }
-                  }}
+                  className="transition-all group cursor-pointer hover:bg-subtle/30"
+                  onClick={() => navigate(`/facturacion/facturas/${factura.id}`)}
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      {tab === 'PREFACTURA' && (
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                          selectedFactura?.id === factura.id ? 'bg-accent border-accent text-white' : 'border-color'
-                        }`}>
-                          {selectedFactura?.id === factura.id && <CheckCircle2 size={12} />}
-                        </div>
-                      )}
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${factura.estado === 'FACTURADA' ? 'bg-green-500/10 text-green-500' : 'bg-orange-500/10 text-orange-500'}`}>
                         <Receipt size={18} />
                       </div>
@@ -230,6 +232,18 @@ export const FacturasListPage = () => {
                       >
                         <Download size={18} />
                       </button>
+                      {esAdmin() && tab === 'FACTURADA' && (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditModal(factura);
+                          }}
+                          className="p-2 rounded-lg hover:bg-subtle text-muted hover:text-accent transition-all"
+                          title="Editar Factura"
+                        >
+                          <Edit size={18} />
+                        </button>
+                      )}
                       <button 
                         className="p-2 rounded-lg hover:bg-subtle text-muted hover:text-accent transition-all"
                         onClick={(e) => {
@@ -255,77 +269,34 @@ export const FacturasListPage = () => {
         </div>
       </div>
 
-      {/* ─── Barra Flotante Inferior (solo Prefacturas) ─────────────────── */}
-      {selectedFactura && tab === 'PREFACTURA' && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-10 fade-in duration-300 w-full px-4" style={{ maxWidth: '1200px' }}>
-          <div className="card-premium flex items-center justify-between px-8 py-6 shadow-2xl shadow-black/50 border border-accent/30 bg-background/95 backdrop-blur-xl" style={{ borderRadius: '1.25rem' }}>
-            <div className="flex items-center gap-6 pl-2">
-              <div className="flex items-center gap-3 border-r border-color pr-6">
-                <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent">
-                  <FileText size={20} />
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase text-muted tracking-wider">Prefactura</p>
-                  <p className="font-bold text-sm">1 Seleccionada</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted">
-                <Building2 size={16} />
-                <span className="font-bold text-foreground">{selectedFactura.empresa_nombre}</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-6 text-sm">
-                <div className="text-right">
-                  <p className="text-[10px] uppercase text-muted font-bold tracking-widest">Subtotal</p>
-                  <p className="font-semibold">{formatCurrency(parseFloat(selectedFactura.subtotal) || 0)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] uppercase text-muted font-bold tracking-widest">IVA</p>
-                  <p className="font-semibold">{formatCurrency(parseFloat(selectedFactura.iva_valor) || 0)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] uppercase text-accent font-bold tracking-widest">Total</p>
-                  <p className="font-bold text-lg text-accent">{formatCurrency(parseFloat(selectedFactura.total) || 0)}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 border-l border-color pl-6">
-                <button 
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-muted hover:bg-danger/10 hover:text-danger transition-colors"
-                  onClick={() => setSelectedFactura(null)}
-                  title="Cancelar Selección"
-                >
-                  <Trash2 size={18} />
-                </button>
-                <button 
-                  className="btn-primary px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-accent/20"
-                  onClick={() => {
-                    setNumFactura('');
-                    setFechaFactura(new Date().toISOString().split('T')[0]);
-                    setDescripcionFactura('');
-                    setIsModalOpen(true);
-                  }}
-                >
-                  <CheckCircle2 size={18} /> Generar Factura
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Modal: Confirmar Facturación ──────────────────────────────── */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" style={{ zIndex: 9999 }} onClick={() => setIsModalOpen(false)}>
+      {/* ─── Modal: Editar Factura (Admin) ──────────────────────────── */}
+      {isEditModalOpen && editingFactura && createPortal(
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(6px)',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget && !editMutation.isLoading) setIsEditModalOpen(false); }}
+        >
           <div 
-            className="card-premium w-full animate-in zoom-in-95 duration-200"
-            style={{ 
-              maxWidth: '700px',
+            className="card-premium"
+            style={{
+              width: '100%',
+              maxWidth: '600px',
               padding: 0,
               overflow: 'hidden',
               boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
+              animation: 'modalIn 0.2s ease-out',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -333,15 +304,15 @@ export const FacturasListPage = () => {
             <div className="flex justify-between items-center border-b border-color" style={{ padding: '2rem 3rem', background: 'var(--color-subtle, rgba(255,255,255,0.03))' }}>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center">
-                  <FileText size={24} className="text-accent" />
+                  <Edit size={24} className="text-accent" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-black text-foreground tracking-tight">Confirmar Facturación</h3>
-                  <p className="text-sm text-muted font-medium">Asignar número definitivo a la prefactura</p>
+                  <h3 className="text-2xl font-black text-foreground tracking-tight">Editar Factura</h3>
+                  <p className="text-sm text-muted font-medium">{editingFactura.consecutivo_interno} — {editingFactura.empresa_nombre}</p>
                 </div>
               </div>
               <button 
-                onClick={() => setIsModalOpen(false)} 
+                onClick={() => { if (!editMutation.isLoading) setIsEditModalOpen(false); }}
                 className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-subtle transition-colors text-muted hover:text-foreground"
               >
                 <X size={20} />
@@ -349,83 +320,62 @@ export const FacturasListPage = () => {
             </div>
             
             {/* Body */}
-            <div className="space-y-8" style={{ padding: '2.5rem 3rem' }}>
-              
-              {/* Tabla Resumen */}
-              {fullFactura && (
-                <div className="bg-subtle/40 rounded-2xl border border-color overflow-hidden max-h-48 overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-subtle/50 text-xs uppercase text-muted sticky top-0 backdrop-blur-md">
-                      <tr>
-                        <th className="px-5 py-3 text-left tracking-wider">Documento</th>
-                        <th className="px-5 py-3 text-right tracking-wider">Monto a Confirmar</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-color">
-                      {fullFactura.remisiones?.map(r => (
-                        <tr key={r.id} className="hover:bg-subtle/20 transition-colors">
-                          <td className="px-5 py-3 font-bold">{r.numero_remision}</td>
-                          <td className="px-5 py-3 text-right font-medium text-accent">{formatCurrency(r.total_rem)}</td>
-                        </tr>
-                      ))}
-                      {fullFactura.ots?.map(o => (
-                        <tr key={o.id} className="hover:bg-subtle/20 transition-colors">
-                          <td className="px-5 py-3 font-bold">{o.ot_consecutivo}</td>
-                          <td className="px-5 py-3 text-right font-medium text-accent">{formatCurrency(o.total_ot)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-subtle/50 sticky bottom-0 border-t border-color">
-                      <tr>
-                        <td className="px-5 py-3 text-right font-bold uppercase text-muted tracking-widest text-[11px]">Total General:</td>
-                        <td className="px-5 py-3 text-right font-black text-lg text-accent">{formatCurrency(fullFactura.total)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
+            <div className="space-y-6" style={{ padding: '2.5rem 3rem' }}>
+              <div>
+                <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
+                  Número de Factura
+                </label>
+                <input 
+                  type="text" 
+                  className="input-premium w-full font-bold text-accent text-lg py-4 px-5"
+                  placeholder="Ej: FV-2026-00123"
+                  value={editNumFactura}
+                  onChange={(e) => setEditNumFactura(e.target.value)}
+                  autoFocus
+                />
+              </div>
 
-              {/* Campos del formulario */}
-              <div className="space-y-6">
-                <div>
-                  <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
-                    Número de Factura Real <span className="text-red-500">*</span>
-                  </label>
+              <div>
+                <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
+                  Fecha
+                </label>
+                <input 
+                  type="date" 
+                  className="input-premium w-full font-bold text-base py-4 px-5"
+                  value={editFechaFactura}
+                  onChange={(e) => setEditFechaFactura(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
+                  Monto <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-muted font-bold text-lg">$</span>
                   <input 
-                    type="text" 
-                    className="input-premium w-full font-bold text-accent text-xl py-4 px-5"
-                    placeholder="Ej: FV-2026-00123"
-                    value={numFactura}
-                    onChange={(e) => setNumFactura(e.target.value)}
-                    autoFocus
+                    type="number" 
+                    className="input-premium w-full font-bold text-accent text-lg py-4 pl-10 pr-5"
+                    placeholder="0"
+                    value={editMonto}
+                    onChange={(e) => setEditMonto(e.target.value)}
+                    min="0"
+                    step="0.01"
                   />
-                  <p className="text-xs text-muted mt-2 font-medium">Ingresa el número generado en su sistema contable externo.</p>
                 </div>
+              </div>
 
-                <div>
-                  <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
-                    Fecha Factura <span className="text-red-500">*</span>
-                  </label>
-                  <input 
-                    type="date" 
-                    className="input-premium w-full font-bold text-base py-4 px-5"
-                    value={fechaFactura}
-                    onChange={(e) => setFechaFactura(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
-                    Descripción / Notas
-                  </label>
-                  <textarea 
-                    className="input-premium w-full py-4 px-5 text-sm"
-                    rows="3"
-                    placeholder="Notas opcionales sobre la factura..."
-                    value={descripcionFactura}
-                    onChange={(e) => setDescripcionFactura(e.target.value)}
-                  />
-                </div>
+              <div>
+                <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
+                  Descripción
+                </label>
+                <textarea 
+                  className="input-premium w-full py-4 px-5 text-sm resize-none"
+                  rows="3"
+                  placeholder="Notas opcionales sobre la factura..."
+                  value={editDescripcion}
+                  onChange={(e) => setEditDescripcion(e.target.value)}
+                />
               </div>
             </div>
 
@@ -433,35 +383,32 @@ export const FacturasListPage = () => {
             <div className="flex gap-4 border-t border-color" style={{ padding: '2rem 3rem', background: 'var(--color-subtle, rgba(255,255,255,0.02))' }}>
               <button 
                 className="btn-secondary flex-1 py-4 rounded-2xl font-bold text-base hover:bg-subtle transition-colors" 
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => { if (!editMutation.isLoading) setIsEditModalOpen(false); }}
+                disabled={editMutation.isLoading}
               >
                 Cancelar
               </button>
               <button 
                 className="btn-primary flex-[2] py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 shadow-xl shadow-accent/20 transition-all hover:scale-[1.02] active:scale-[0.98]" 
-                onClick={() => confirmMutation.mutate({
-                  numero_factura: numFactura,
-                  fecha_factura: fechaFactura,
-                  sistema_contable: 'SIIGO',
-                  notas: descripcionFactura
-                })}
-                disabled={!numFactura.trim() || confirmMutation.isLoading}
+                onClick={handleSaveEdit}
+                disabled={editMutation.isLoading}
               >
-                {confirmMutation.isLoading ? (
+                {editMutation.isLoading ? (
                   <>
                     <div className="spinner h-5 w-5 border-2" />
-                    Procesando...
+                    Guardando...
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 size={20} strokeWidth={2.5} />
-                    Confirmar y Finalizar
+                    <Save size={20} strokeWidth={2.5} />
+                    Guardar
                   </>
                 )}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </Layout>
   );
