@@ -284,8 +284,8 @@ export const OtsPendientesPage = () => {
               aria-selected={activeTab === 'ots'}
               onClick={() => setTab('ots')}
               className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all ${activeTab === 'ots'
-                  ? 'btn-primary shadow-lg shadow-accent/20'
-                  : 'text-muted hover:text-foreground bg-subtle/30 hover:bg-subtle'
+                ? 'btn-primary shadow-lg shadow-accent/20'
+                : 'text-muted hover:text-foreground bg-subtle/30 hover:bg-subtle'
                 }`}
               style={{ borderRadius: '0.75rem' }}
             >
@@ -297,8 +297,8 @@ export const OtsPendientesPage = () => {
               aria-selected={activeTab === 'remisiones'}
               onClick={() => setTab('remisiones')}
               className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all ${activeTab === 'remisiones'
-                  ? 'btn-primary shadow-lg shadow-accent/20'
-                  : 'text-muted hover:text-foreground bg-subtle/30 hover:bg-subtle'
+                ? 'btn-primary shadow-lg shadow-accent/20'
+                : 'text-muted hover:text-foreground bg-subtle/30 hover:bg-subtle'
                 }`}
               style={{ borderRadius: '0.75rem' }}
             >
@@ -326,8 +326,8 @@ export const OtsPendientesPage = () => {
             aria-selected={subTab === 'pendientes'}
             onClick={() => setSubTab('pendientes')}
             className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all ${subTab === 'pendientes'
-                ? 'btn-primary shadow-lg shadow-accent/20'
-                : 'text-muted hover:text-foreground bg-subtle/30 hover:bg-subtle'
+              ? 'btn-primary shadow-lg shadow-accent/20'
+              : 'text-muted hover:text-foreground bg-subtle/30 hover:bg-subtle'
               }`}
             style={{ borderRadius: '0.75rem' }}
           >
@@ -339,8 +339,8 @@ export const OtsPendientesPage = () => {
             aria-selected={subTab === 'complementarias'}
             onClick={() => setSubTab('complementarias')}
             className={`flex items-center gap-2 px-6 py-3 text-sm font-bold transition-all ${subTab === 'complementarias'
-                ? 'btn-primary shadow-lg shadow-accent/20'
-                : 'text-muted hover:text-foreground bg-subtle/30 hover:bg-subtle'
+              ? 'btn-primary shadow-lg shadow-accent/20'
+              : 'text-muted hover:text-foreground bg-subtle/30 hover:bg-subtle'
               }`}
             style={{ borderRadius: '0.75rem' }}
           >
@@ -441,8 +441,8 @@ export const OtsPendientesPage = () => {
                   <th className="px-5 py-4 text-center w-12">
                     <div
                       className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all cursor-pointer mx-auto ${items?.data?.length > 0 && selectedItems.length === items.data.length
-                          ? 'bg-accent border-accent text-white'
-                          : 'border-color hover:border-accent/50'
+                        ? 'bg-accent border-accent text-white'
+                        : 'border-color hover:border-accent/50'
                         }`}
                       onClick={selectAll}
                     />
@@ -461,8 +461,8 @@ export const OtsPendientesPage = () => {
                     <tr
                       key={item.id}
                       className={`transition-all cursor-pointer ${isSelected
-                          ? 'bg-accent/5 hover:bg-accent/10'
-                          : 'hover:bg-subtle/30'
+                        ? 'bg-accent/5 hover:bg-accent/10'
+                        : 'hover:bg-subtle/30'
                         }`}
                       onClick={() => toggleSelect(item)}
                     >
@@ -543,7 +543,7 @@ export const OtsPendientesPage = () => {
                   <th className="px-5 py-4 text-center w-12">Sel</th>
                   <th className="px-5 py-4 text-left">Nro Factura</th>
                   <th className="px-5 py-4 text-left">Empresa</th>
-                  <th className="px-5 py-4 text-left">Nro Remisión</th>
+                  <th className="px-5 py-4 text-left">Nro Orden</th>
                   <th className="px-5 py-4 text-left">Fecha</th>
                   <th className="px-5 py-4 text-right">Monto</th>
                   <th className="px-5 py-4 text-left">Descripción</th>
@@ -557,8 +557,8 @@ export const OtsPendientesPage = () => {
                     <tr
                       key={factura.id}
                       className={`transition-all cursor-pointer ${isSelected
-                          ? 'bg-accent/5 hover:bg-accent/10 ring-1 ring-inset ring-accent/20'
-                          : 'hover:bg-subtle/30'
+                        ? 'bg-accent/5 hover:bg-accent/10 ring-1 ring-inset ring-accent/20'
+                        : 'hover:bg-subtle/30'
                         }`}
                       onClick={() => toggleSelect({ ...factura, isPrefactura: true })}
                     >

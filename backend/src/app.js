@@ -275,12 +275,16 @@ async function bootstrap() {
     logger.warn('[Festivos] No se pudieron inicializar los festivos', { error: err.message })
   );
 
-  // Ejecutar migración automática pendiente para quitar el UNIQUE (solicitado para producción)
+  // Ejecutar migración automática pendiente para quitar UNIQUEs (solicitado para producción)
   try {
     await db.query('ALTER TABLE facturas DROP CONSTRAINT IF EXISTS facturas_numero_factura_key;');
     logger.info('✅ Constraint UNIQUE facturas_numero_factura_key eliminado (si existía)');
+    await db.query('ALTER TABLE factura_remisiones DROP CONSTRAINT IF EXISTS factura_remisiones_remision_id_key;');
+    logger.info('✅ Constraint UNIQUE factura_remisiones_remision_id_key eliminado (si existía)');
+    await db.query('ALTER TABLE factura_ots DROP CONSTRAINT IF EXISTS factura_ots_ot_id_key;');
+    logger.info('✅ Constraint UNIQUE factura_ots_ot_id_key eliminado (si existía)');
   } catch (err) {
-    logger.warn('⚠️ No se pudo eliminar el constraint UNIQUE de facturas', { error: err.message });
+    logger.warn('⚠️ No se pudo eliminar algún constraint UNIQUE de facturación', { error: err.message });
   }
 
   httpServer.listen(env.PORT, () => {
