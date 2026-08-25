@@ -450,6 +450,33 @@ export function InformesGestionHumanaPage() {
         `Suma ${totalGeneral.comision.toLocaleString('es-CO', { minimumFractionDigits: 2 })}`,
         '',
       ]);
+      
+      aoa1.push([]);
+      aoa1.push([]);
+      aoa1.push(['DETALLE DE SERVICIOS POR OPERARIO']);
+      aoa1.push([]);
+
+      for (const g of gruposOperario) {
+        // Encabezado del operario
+        aoa1.push([ `OPERARIO: ${g.operario_nombre} ${g.cedula && g.cedula !== '—' ? `(CC ${g.cedula})` : ''}` ]);
+        aoa1.push(['N° Orden', 'Máquina', 'Fecha', 'Estado', 'Bonif. x Hora', 'Horas Liq.', 'Comisión $']);
+        
+        for (const f of g.filas) {
+          aoa1.push([
+            f.numero_remision + (f.is_servicio_fijo ? ' (FIJO)' : ''),
+            f.maquina_nombre || 'Sin equipo',
+            formatDate(f.fecha_servicio),
+            f.estado,
+            parseFloat(f.bonificacion_hora || 0),
+            parseFloat(f.horas_efectivas || 0),
+            parseFloat(f.comision || 0)
+          ]);
+        }
+        // Subtotales del operario
+        aoa1.push(['', '', '', 'Subtotal:', '', parseFloat(g.subtotal_horas.toFixed(2)), parseFloat(g.subtotal_comision.toFixed(2))]);
+        aoa1.push([]); // Espacio entre operarios
+      }
+
       aoa1.push([]); // espacio
       // Pie de página
       aoa1.push([`Generado por ${fechaGen} en Mercadeo Cargar`]);
@@ -464,19 +491,18 @@ export function InformesGestionHumanaPage() {
 
       const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
       ws1['!cols'] = [
-        { wch: 18 }, // Cédula
-        { wch: 35 }, // Operario
-        { wch: 18 }, // Productividad
-        { wch: 22 }, // Horas actuales
-        { wch: 22 }, // Horas anteriores
-        { wch: 18 }, // Variación hrs
-        { wch: 14 }, // Variación %
+        { wch: 18 }, // Cédula / N° Orden
+        { wch: 35 }, // Operario / Máquina
+        { wch: 22 }, // Horas actuales / Fecha
+        { wch: 22 }, // Horas anteriores / Estado
+        { wch: 18 }, // Variación hrs / Bonif
+        { wch: 14 }, // Variación % / Horas Liq
         { wch: 30 }, // Comisión
         { wch: 60 }, // Observación
       ];
-      // Merge título (fila 1, columnas A-I)
+      // Merge título (fila 1, columnas A-H) y título de detalles
       ws1['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }
       ];
       XLSX.utils.book_append_sheet(wb, ws1, 'Informe Bonificación');
 
@@ -744,9 +770,6 @@ export function InformesGestionHumanaPage() {
                             </td>
                             <td>
                               <span style={{ fontWeight: 500, fontSize: '13px' }}>{f.maquina_nombre}</span>
-                              {f.equipo_serial && (
-                                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>S/N: {f.equipo_serial}</div>
-                              )}
                             </td>
                             <td style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{formatDate(f.fecha_servicio)}</td>
                             <td style={{ textAlign: 'center' }}>

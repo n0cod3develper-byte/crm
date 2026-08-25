@@ -96,9 +96,9 @@ export const FacturaDetailPage = () => {
   const isPrefactura = fact.estado === 'PREFACTURA';
   const isFacturada = fact.estado === 'FACTURADA';
   
-  const titleNumbers = fact.ots?.length > 0 
+  const titleNumbers = fact.numero_factura || (fact.ots?.length > 0 
     ? fact.ots.map(ot => ot.ot_consecutivo).join(', ') 
-    : fact.consecutivo_interno;
+    : fact.consecutivo_interno);
 
   // Compute proportional display values for each remision so they add up exactly to total_rem.
   // Formula: total_neto = total_bruto + recargos - descuentos + iva

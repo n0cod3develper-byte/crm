@@ -541,7 +541,6 @@ export const OtsPendientesPage = () => {
               <thead className="bg-subtle text-xs uppercase tracking-wider text-muted">
                 <tr>
                   <th className="px-5 py-4 text-center w-12">Sel</th>
-                  <th className="px-5 py-4 text-left">Nro Factura</th>
                   <th className="px-5 py-4 text-left">Empresa</th>
                   <th className="px-5 py-4 text-left">Nro Orden</th>
                   <th className="px-5 py-4 text-left">Fecha</th>
@@ -566,22 +565,6 @@ export const OtsPendientesPage = () => {
                         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mx-auto transition-all ${isSelected ? 'bg-accent border-accent text-white' : 'border-color'
                           }`}>
                           {isSelected && <CheckCircle2 size={12} />}
-                        </div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center flex-shrink-0">
-                            <Receipt size={14} className="text-orange-500" />
-                          </div>
-                          <span className="font-bold text-sm" title={factura.numero_factura || factura.consecutivo_interno}>
-                            {factura.numero_factura ? (
-                              <span className="px-2 py-0.5 rounded-lg bg-green-500/10 text-green-500 font-bold text-xs uppercase">
-                                {factura.numero_factura}
-                              </span>
-                            ) : (
-                              <span className="text-muted text-xs">{factura.consecutivo_interno}</span>
-                            )}
-                          </span>
                         </div>
                       </td>
                       <td className="px-5 py-4">
