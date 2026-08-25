@@ -5,6 +5,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import { execSync } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import passport from 'passport';
 import { createServer } from 'http';
 
@@ -255,12 +257,15 @@ async function bootstrap() {
 
   // Ejecutar migraciones automáticamente
   try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const backendRoot = path.resolve(__dirname, '..');
+    const runnerPath = path.join(backendRoot, 'migrations', 'runner.js');
     logger.info('🔄 Ejecutando migraciones automáticas...');
-    const output = execSync('node migrations/runner.js', { stdio: 'pipe', encoding: 'utf-8' });
+    const output = execSync(`node "${runnerPath}"`, { cwd: backendRoot, stdio: 'pipe', encoding: 'utf-8' });
     logger.info('✅ Migraciones completadas:\n' + output);
   } catch (err) {
-    logger.error('❌ Error ejecutando migraciones:', { error: err.message, output: err.stdout });
-    process.exit(1);
+    logger.warn('⚠️ Error ejecutando migraciones (el servidor continuará):', { error: err.message, output: err.stdout || '' });
   }
 
   await connectRedis();
