@@ -801,8 +801,8 @@ export class FacturacionRepository {
         id
       ]);
 
-      // 2. Si es FACTURADA y se redujo el monto, crear PREFACTURA complementaria con el restante
-      if (estado === 'FACTURADA' && diferencia > 0.05) {
+      // 2. Si es FACTURADA y se cambió el monto, sincronizar con las remisiones
+      if (estado === 'FACTURADA') {
         // Obtener remisiones vinculadas
         const remsRes = await client.query(
           'SELECT fr.*, r.total_neto AS orig_total, r.total_bruto AS orig_subtotal, r.iva_valor AS orig_iva FROM factura_remisiones fr JOIN remisiones r ON r.id = fr.remision_id WHERE fr.factura_id = $1',
@@ -817,44 +817,12 @@ export class FacturacionRepository {
         const hasRemisiones = remsRes.rows.length > 0;
         const hasOts = otsRes.rows.length > 0;
 
-        // Proporción del recorte respecto al total original de la factura
-        const proporcionRecorte = diferencia / oldTotal;
-
-        // Generar consecutivo para la PREFACTURA complementaria
-        const consRes = await client.query(`
-          UPDATE consecutivos SET ultimo_valor = ultimo_valor + 1 WHERE id = 'FAC' RETURNING ultimo_valor
-        `);
-        const nro = consRes.rows[0].ultimo_valor;
-        const consecutivo_prefactura = `FAC-${String(nro).padStart(5, '0')}`;
-
-        const prefSubtotal = diferencia / 1.19;
-        const prefIva = diferencia - prefSubtotal;
-
-        // Crear PREFACTURA complementaria
-        const prefRes = await client.query(`
-          INSERT INTO facturas (
-            consecutivo_interno, numero_factura, fecha_factura, empresa_id, estado,
-            subtotal, iva_valor, total, condicion_pago, fecha_vencimiento, notas,
-            creada_por, facturada_por
-          ) VALUES ($1, NULL, NULL, $2, 'PREFACTURA', $3, $4, $5, $6, $7, $8, $9, NULL)
-          RETURNING *
-        `, [
-          consecutivo_prefactura, factura.empresa_id,
-          prefSubtotal, prefIva, diferencia,
-          factura.condicion_pago || null, factura.fecha_vencimiento || null,
-          `Saldo pendiente de factura ${factura.numero_factura || factura.consecutivo_interno}`,
-          factura.creada_por
-        ]);
-        const prefactura = prefRes.rows[0];
-
-        // Vincular remisiones a la PREFACTURA y actualizar proporciones en factura original
+        // Actualizar proporciones de remisiones en factura_remisiones
         if (hasRemisiones) {
+          const proporcion = totalNum / oldTotal;
           for (const fr of remsRes.rows) {
             const oldTotalRem = parseFloat(fr.total_rem);
-            const recorteRem = oldTotalRem * proporcionRecorte;
-            const nuevoTotalRem = oldTotalRem - recorteRem;
-
-            // Actualizar la factura_remisiones original con el monto reducido
+            const nuevoTotalRem = oldTotalRem * proporcion;
             const nuevoSubRem = nuevoTotalRem / 1.19;
             const nuevoIvaRem = nuevoTotalRem - nuevoSubRem;
             await client.query(
@@ -862,27 +830,120 @@ export class FacturacionRepository {
               [nuevoSubRem, nuevoIvaRem, nuevoTotalRem, id, fr.remision_id]
             );
 
-            // Insertar remisión en la PREFACTURA con el saldo recortado
-            const prefSubRem = recorteRem / 1.19;
-            const prefIvaRem = recorteRem - prefSubRem;
-            await client.query(`
-              INSERT INTO factura_remisiones (factura_id, remision_id, remision_numero, subtotal_rem, iva_rem, total_rem)
-              VALUES ($1, $2, $3, $4, $5, $6)
-            `, [prefactura.id, fr.remision_id, fr.remision_numero, prefSubRem, prefIvaRem, recorteRem]);
+            // Verificar si la remisión tiene saldo pendiente después del ajuste
+            const totalFacturadoRemRes = await client.query(
+              'SELECT COALESCE(SUM(total_rem),0) AS total_facturado FROM factura_remisiones WHERE remision_id = $1',
+              [fr.remision_id]
+            );
+            const totalFacturadoRem = parseFloat(totalFacturadoRemRes.rows[0].total_facturado);
+            const origTotalRem = parseFloat(fr.orig_total);
+            const saldoPendiente = origTotalRem - totalFacturadoRem;
 
-            // Actualizar estado de la remisión a PARCIALMENTE_FACTURADA
-            await client.query('UPDATE remisiones SET estado = $1 WHERE id = $2', ['PARCIALMENTE_FACTURADA', fr.remision_id]);
+            if (saldoPendiente > 0.05) {
+              // Hay saldo pendiente → buscar si ya existe una prefactura complementaria
+              const prefExRes = await client.query(`
+                SELECT fr2.factura_id FROM factura_remisiones fr2
+                JOIN facturas f2 ON f2.id = fr2.factura_id
+                WHERE fr2.remision_id = $1 AND f2.estado = 'PREFACTURA' AND f2.id != $2
+              `, [fr.remision_id, id]);
+
+              if (prefExRes.rows.length > 0) {
+                // Actualizar la prefactura existente
+                const prefId = prefExRes.rows[0].factura_id;
+                const prefSub = saldoPendiente / 1.19;
+                const prefIva = saldoPendiente - prefSub;
+                await client.query(
+                  'UPDATE factura_remisiones SET subtotal_rem = $1, iva_rem = $2, total_rem = $3 WHERE factura_id = $4 AND remision_id = $5',
+                  [prefSub, prefIva, saldoPendiente, prefId, fr.remision_id]
+                );
+                const recalcPref = await client.query(
+                  'SELECT COALESCE(SUM(total_rem),0) AS total, COALESCE(SUM(subtotal_rem),0) AS sub, COALESCE(SUM(iva_rem),0) AS iva FROM factura_remisiones WHERE factura_id = $1',
+                  [prefId]
+                );
+                const rp = recalcPref.rows[0];
+                await client.query(
+                  'UPDATE facturas SET subtotal = $1, iva_valor = $2, total = $3, updated_at = NOW() WHERE id = $4',
+                  [rp.sub, rp.iva, rp.total, prefId]
+                );
+              } else {
+                // Crear nueva PREFACTURA complementaria
+                const consRes2 = await client.query(`
+                  UPDATE consecutivos SET ultimo_valor = ultimo_valor + 1 WHERE id = 'FAC' RETURNING ultimo_valor
+                `);
+                const nro2 = consRes2.rows[0].ultimo_valor;
+                const consecutivo_prefactura = `FAC-${String(nro2).padStart(5, '0')}`;
+
+                const prefSub = saldoPendiente / 1.19;
+                const prefIva = saldoPendiente - prefSub;
+
+                const prefRes2 = await client.query(`
+                  INSERT INTO facturas (
+                    consecutivo_interno, numero_factura, fecha_factura, empresa_id, estado,
+                    subtotal, iva_valor, total, condicion_pago, notas, creada_por
+                  ) VALUES ($1, NULL, NULL, $2, 'PREFACTURA', $3, $4, $5, $6, $7, $8)
+                  RETURNING *
+                `, [
+                  consecutivo_prefactura, factura.empresa_id,
+                  prefSub, prefIva, saldoPendiente,
+                  factura.condicion_pago || null,
+                  `Saldo pendiente de factura ${factura.numero_factura || factura.consecutivo_interno}`,
+                  factura.creada_por
+                ]);
+
+                await client.query(`
+                  INSERT INTO factura_remisiones (factura_id, remision_id, remision_numero, subtotal_rem, iva_rem, total_rem)
+                  VALUES ($1, $2, $3, $4, $5, $6)
+                `, [prefRes2.rows[0].id, fr.remision_id, fr.remision_numero, prefSub, prefIva, saldoPendiente]);
+              }
+
+              await client.query('UPDATE remisiones SET estado = $1 WHERE id = $2', ['PARCIALMENTE_FACTURADA', fr.remision_id]);
+            } else {
+              // No hay saldo pendiente → eliminar prefacturas complementarias huérfanas
+              const prefOrfanasRes = await client.query(`
+                SELECT fr2.factura_id FROM factura_remisiones fr2
+                JOIN facturas f2 ON f2.id = fr2.factura_id
+                WHERE fr2.remision_id = $1 AND f2.estado = 'PREFACTURA'
+              `, [fr.remision_id]);
+
+              for (const pf of prefOrfanasRes.rows) {
+                const otrasRemsRes = await client.query(
+                  'SELECT COUNT(*) AS cnt FROM factura_remisiones WHERE factura_id = $1 AND remision_id != $2',
+                  [pf.factura_id, fr.remision_id]
+                );
+                const otrasOtsRes2 = await client.query(
+                  'SELECT COUNT(*) AS cnt FROM factura_ots WHERE factura_id = $1',
+                  [pf.factura_id]
+                );
+                const tieneOtros = parseInt(otrasRemsRes.rows[0].cnt) > 0 || parseInt(otrasOtsRes2.rows[0].cnt) > 0;
+
+                if (!tieneOtros) {
+                  await client.query('DELETE FROM factura_remisiones WHERE factura_id = $1', [pf.factura_id]);
+                  await client.query('DELETE FROM facturas WHERE id = $1', [pf.factura_id]);
+                } else {
+                  await client.query('DELETE FROM factura_remisiones WHERE factura_id = $1 AND remision_id = $2', [pf.factura_id, fr.remision_id]);
+                  const recalcRes = await client.query(
+                    'SELECT COALESCE(SUM(subtotal_rem),0) AS sub, COALESCE(SUM(iva_rem),0) AS iva, COALESCE(SUM(total_rem),0) AS total FROM factura_remisiones WHERE factura_id = $1',
+                    [pf.factura_id]
+                  );
+                  const r = recalcRes.rows[0];
+                  await client.query(
+                    'UPDATE facturas SET subtotal = $1, iva_valor = $2, total = $3, updated_at = NOW() WHERE id = $4',
+                    [r.sub, r.iva, r.total, pf.factura_id]
+                  );
+                }
+              }
+
+              await client.query('UPDATE remisiones SET estado = $1 WHERE id = $2', ['FACTURADA', fr.remision_id]);
+            }
           }
         }
 
-        // Vincular OTs a la PREFACTURA y actualizar proporciones en factura original
+        // Actualizar proporciones de OTs
         if (hasOts) {
+          const proporcion = totalNum / oldTotal;
           for (const fo of otsRes.rows) {
             const oldTotalOt = parseFloat(fo.total_ot);
-            const recorteOt = oldTotalOt * proporcionRecorte;
-            const nuevoTotalOt = oldTotalOt - recorteOt;
-
-            // Actualizar la factura_ots original con el monto reducido
+            const nuevoTotalOt = oldTotalOt * proporcion;
             const nuevoSubOt = nuevoTotalOt / 1.19;
             const nuevoIvaOt = nuevoTotalOt - nuevoSubOt;
             await client.query(
@@ -890,16 +951,19 @@ export class FacturacionRepository {
               [nuevoSubOt, nuevoIvaOt, nuevoTotalOt, id, fo.ot_id]
             );
 
-            // Insertar OT en la PREFACTURA con el saldo recortado
-            const prefSubOt = recorteOt / 1.19;
-            const prefIvaOt = recorteOt - prefSubOt;
-            await client.query(`
-              INSERT INTO factura_ots (factura_id, ot_id, ot_consecutivo, subtotal_ot, iva_ot, total_ot)
-              VALUES ($1, $2, $3, $4, $5, $6)
-            `, [prefactura.id, fo.ot_id, fo.ot_consecutivo, prefSubOt, prefIvaOt, recorteOt]);
+            const totalFacturadoOtRes = await client.query(
+              'SELECT COALESCE(SUM(total_ot),0) AS total_facturado FROM factura_ots WHERE ot_id = $1',
+              [fo.ot_id]
+            );
+            const totalFacturadoOt = parseFloat(totalFacturadoOtRes.rows[0].total_facturado);
+            const origTotalOt = parseFloat(fo.orig_total);
+            const saldoPendienteOt = origTotalOt - totalFacturadoOt;
 
-            // Actualizar estado de la OT a PARCIALMENTE_FACTURADA
-            await client.query('UPDATE ordenes_trabajo SET estado = $1 WHERE id = $2', ['PARCIALMENTE_FACTURADA', fo.ot_id]);
+            if (saldoPendienteOt > 0.05) {
+              await client.query('UPDATE ordenes_trabajo SET estado = $1 WHERE id = $2', ['PARCIALMENTE_FACTURADA', fo.ot_id]);
+            } else {
+              await client.query('UPDATE ordenes_trabajo SET estado = $1 WHERE id = $2', ['FACTURADA', fo.ot_id]);
+            }
           }
         }
       }
