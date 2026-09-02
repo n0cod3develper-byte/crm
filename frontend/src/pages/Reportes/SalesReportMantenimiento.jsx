@@ -207,7 +207,7 @@ export function SalesReportMantenimiento() {
         'Consecutivo OT': item.consecutivo,
         'Fecha Liquidación': formatDate(item.fecha_liquidacion),
         'Cliente': item.empresa_nombre,
-        'Equipo': `${item.equipo_marca} ${item.equipo_modelo} (S/N: ${item.equipo_serial})`,
+        'Equipo': `${item.equipo_marca} ${item.equipo_modelo} (Cód: ${item.equipo_numero_interno || 'N/A'})`,
         'Tipo Mantenimiento': item.tipo_mantenimiento,
         'Mano de Obra': parseFloat(item.total_mano_obra || 0),
         'Repuestos': parseFloat(item.total_repuestos || 0),
@@ -351,8 +351,8 @@ export function SalesReportMantenimiento() {
                     <span style={{ fontSize: '12px', display: 'block', fontWeight: 500 }}>
                       {item.equipo_marca} {item.equipo_modelo}
                     </span>
-                    {item.equipo_serial && (
-                      <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>S/N: {item.equipo_serial}</span>
+                    {item.equipo_numero_interno && (
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Cód: {item.equipo_numero_interno}</span>
                     )}
                   </td>
                   <td style={{ textAlign: 'center' }}>
