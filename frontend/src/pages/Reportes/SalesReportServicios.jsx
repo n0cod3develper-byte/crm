@@ -146,7 +146,7 @@ export function SalesReportServicios() {
           item.empresa_nombre,
           item.servicio_nombre,
           item.tipo_servicio || '—',
-          `${item.equipo_marca} ${item.equipo_modelo}`,
+          item.equipo_numero_interno || '—',
           horas > 0 ? horas.toFixed(2) : '—',
           formatCOP(bruto),
           formatCOP(iva),
@@ -230,7 +230,7 @@ export function SalesReportServicios() {
           'Cliente': item.empresa_nombre,
           'Servicio': item.servicio_nombre,
           'Tipo': item.tipo_servicio || '—',
-          'Equipo': `${item.equipo_marca} ${item.equipo_modelo} (S/N: ${item.equipo_serial})`,
+          'Código Equipo': item.equipo_numero_interno || '—',
           'Cant. Horas': horas,
           'Valor Bruto': bruto,
           'Valor IVA': iva,
@@ -349,7 +349,7 @@ export function SalesReportServicios() {
                 <th><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Building2 size={12} />Cliente</span></th>
                 <th>Servicio</th>
                 <th style={{ width: 80, textAlign: 'center' }}>Tipo</th>
-                <th><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Truck size={12} />Equipo</span></th>
+                <th style={{ width: 100, textAlign: 'center' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}><Truck size={12} />Código</span></th>
                 <th style={{ width: 70, textAlign: 'center' }}>Horas</th>
                 <th style={{ width: 120, textAlign: 'right' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Bruto</span></th>
                 <th style={{ width: 100, textAlign: 'right' }}>IVA</th>
@@ -386,13 +386,10 @@ export function SalesReportServicios() {
                         {item.tipo_servicio || '—'}
                       </span>
                     </td>
-                    <td>
-                      <span style={{ fontSize: '12px', display: 'block', fontWeight: 500 }}>
-                        {item.equipo_marca} {item.equipo_modelo}
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600 }}>
+                        {item.equipo_numero_interno || '—'}
                       </span>
-                      {item.equipo_serial && (
-                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>S/N: {item.equipo_serial}</span>
-                      )}
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>

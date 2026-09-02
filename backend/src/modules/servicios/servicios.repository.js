@@ -26,7 +26,7 @@ export class ServiciosRepository {
     const sql = `
       SELECT r.*,
         c.name AS empresa_nombre, c.nit AS empresa_nit,
-        e.marca AS equipo_marca, e.modelo AS equipo_modelo, e.serial AS equipo_serial, e.serie AS equipo_serie,
+        e.marca AS equipo_marca, e.modelo AS equipo_modelo, e.serial AS equipo_serial, e.serie AS equipo_serie, e.numero_equipo AS equipo_codigo,
         COALESCE(
           (
             SELECT string_agg(COALESCE(inv_sub.nombre_comercial, cs_sub.nombre), ' + ')

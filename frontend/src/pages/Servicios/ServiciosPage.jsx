@@ -121,7 +121,7 @@ export function ServiciosPage() {
                   <th style={{ width: 100 }}><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={12} />Fecha</span></th>
                   <th><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Building2 size={12} />Empresa</span></th>
                   <th><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Truck size={12} />Equipo / Servicio</span></th>
-                  <th style={{ width: 120 }}>No. Serie</th>
+                  <th style={{ width: 120 }}>Código</th>
                   <th style={{ width: 90, textAlign: 'center' }}>Horas</th>
                   <th style={{ width: 120, textAlign: 'right' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Neto</span></th>
                   <th style={{ width: 110, textAlign: 'center' }}>Estado</th>
@@ -175,11 +175,11 @@ export function ServiciosPage() {
                         </span>
                       </td>
 
-                      {/* No. Serie */}
+                      {/* Código */}
                       <td>
-                        {item.equipo_serie ? (
+                        {item.equipo_codigo ? (
                           <code style={{ fontWeight: 600, fontSize: 11, background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4, color: 'var(--text-primary)' }}>
-                            {item.equipo_serie}
+                            {item.equipo_codigo}
                           </code>
                         ) : (
                           <span style={{ color: 'var(--text-muted)' }}>—</span>
