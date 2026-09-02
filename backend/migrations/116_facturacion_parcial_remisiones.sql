@@ -45,7 +45,9 @@ WHERE r.estado IN ('LIQUIDADA', 'PARCIALMENTE_FACTURADA')
 -- 3. Actualizar constraint de estado de remisiones
 ALTER TABLE remisiones DROP CONSTRAINT IF EXISTS remisiones_estado_check;
 ALTER TABLE remisiones ADD CONSTRAINT remisiones_estado_check 
-  CHECK (estado IN ('BORRADOR', 'ASIGNADA', 'EN_CAMINO', 'EN_SITIO', 'FINALIZADA', 'REALIZADA', 'RECHAZADA', 'LIQUIDADA', 'PARCIALMENTE_FACTURADA', 'FACTURADA', 'ANULADO'));
+  CHECK (estado IN ('BORRADOR', 'PENDIENTE', 'ASIGNADA', 'EN_CAMINO', 'EN_SITIO', 'FINALIZADA', 'REALIZADA', 'RECHAZADA', 'LIQUIDADA', 'PARCIALMENTE_FACTURADA', 'FACTURADA', 'ANULADO'));
+--ALTER TABLE remisiones ADD CONSTRAINT remisiones_estado_check 
+  --CHECK (estado IN ('BORRADOR', 'ASIGNADA', 'EN_CAMINO', 'EN_SITIO', 'FINALIZADA', 'REALIZADA', 'RECHAZADA', 'LIQUIDADA', 'PARCIALMENTE_FACTURADA', 'FACTURADA', 'ANULADO'));
 
 -- 4. Actualizar la vista resumen_cartera_por_empresa
 CREATE OR REPLACE VIEW resumen_cartera_por_empresa AS
