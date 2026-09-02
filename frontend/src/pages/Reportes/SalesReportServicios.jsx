@@ -138,6 +138,7 @@ export function SalesReportServicios() {
         const iva = parseFloat(item.iva_valor || 0);
         const descuentos = parseFloat(item.descuentos || 0);
         const neto = bruto + iva - descuentos;
+        const horas = parseFloat(item.cantidad_horas || 0);
 
         return [
           item.numero_remision,
@@ -146,6 +147,7 @@ export function SalesReportServicios() {
           item.servicio_nombre,
           item.tipo_servicio || '—',
           `${item.equipo_marca} ${item.equipo_modelo}`,
+          horas > 0 ? horas.toFixed(2) : '—',
           formatCOP(bruto),
           formatCOP(iva),
           formatCOP(descuentos),
@@ -162,6 +164,7 @@ export function SalesReportServicios() {
         '',
         '',
         `${totals.count} Remisiones`,
+        '',
         formatCOP(totals.bruto),
         formatCOP(totals.iva),
         formatCOP(totals.descuentos),
@@ -171,23 +174,24 @@ export function SalesReportServicios() {
 
       autoTable(doc, {
         startY: 44,
-        head: [['No. Rem', 'Fecha', 'Cliente', 'Servicio', 'Tipo', 'Equipo', 'Bruto', 'IVA', 'Descuento', 'Neto', 'Estado']],
+        head: [['No. Rem', 'Fecha', 'Cliente', 'Servicio', 'Tipo', 'Equipo', 'Horas', 'Bruto', 'IVA', 'Descuento', 'Neto', 'Estado']],
         body: tableBody,
         theme: 'grid',
         headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
         styles: { fontSize: 8, cellPadding: 3 },
         columnStyles: {
           0: { fontStyle: 'bold', cellWidth: 20 },
-          1: { halign: 'center', cellWidth: 20 },
-          2: { cellWidth: 42 },
-          3: { cellWidth: 42 },
+          1: { halign: 'center', cellWidth: 18 },
+          2: { cellWidth: 38 },
+          3: { cellWidth: 38 },
           4: { halign: 'center', cellWidth: 16 },
-          5: { cellWidth: 35 },
-          6: { halign: 'right', cellWidth: 22 },
-          7: { halign: 'right', cellWidth: 22 },
-          8: { halign: 'right', cellWidth: 20 },
-          9: { halign: 'right', fontStyle: 'bold', cellWidth: 22 },
-          10: { halign: 'center', cellWidth: 17 }
+          5: { cellWidth: 34 },
+          6: { halign: 'center', cellWidth: 12 },
+          7: { halign: 'right', cellWidth: 20 },
+          8: { halign: 'right', cellWidth: 18 },
+          9: { halign: 'right', cellWidth: 18 },
+          10: { halign: 'right', fontStyle: 'bold', cellWidth: 20 },
+          11: { halign: 'center', cellWidth: 16 }
         },
         didParseCell: function (data) {
           // Destacar fila de totales
@@ -218,6 +222,7 @@ export function SalesReportServicios() {
         const iva = parseFloat(item.iva_valor || 0);
         const descuentos = parseFloat(item.descuentos || 0);
         const neto = bruto + iva - descuentos;
+        const horas = parseFloat(item.cantidad_horas || 0);
 
         return {
           'No. Remisión': item.numero_remision,
@@ -226,6 +231,7 @@ export function SalesReportServicios() {
           'Servicio': item.servicio_nombre,
           'Tipo': item.tipo_servicio || '—',
           'Equipo': `${item.equipo_marca} ${item.equipo_modelo} (S/N: ${item.equipo_serial})`,
+          'Cant. Horas': horas,
           'Valor Bruto': bruto,
           'Valor IVA': iva,
           'Descuentos': descuentos,
@@ -242,6 +248,7 @@ export function SalesReportServicios() {
         'Servicio': '',
         'Tipo': '',
         'Equipo': `${totals.count} Remisiones`,
+        'Cant. Horas': '',
         'Valor Bruto': totals.bruto,
         'Valor IVA': totals.iva,
         'Descuentos': totals.descuentos,
@@ -343,6 +350,7 @@ export function SalesReportServicios() {
                 <th>Servicio</th>
                 <th style={{ width: 80, textAlign: 'center' }}>Tipo</th>
                 <th><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Truck size={12} />Equipo</span></th>
+                <th style={{ width: 70, textAlign: 'center' }}>Horas</th>
                 <th style={{ width: 120, textAlign: 'right' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Bruto</span></th>
                 <th style={{ width: 100, textAlign: 'right' }}>IVA</th>
                 <th style={{ width: 100, textAlign: 'right' }}>Descuentos</th>
@@ -386,6 +394,11 @@ export function SalesReportServicios() {
                         <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>S/N: {item.equipo_serial}</span>
                       )}
                     </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                        {parseFloat(item.cantidad_horas || 0) > 0 ? parseFloat(item.cantidad_horas).toFixed(2) : '—'}
+                      </span>
+                    </td>
                     <td style={{ textAlign: 'right' }}>
                       <span style={{ fontSize: '13px' }}>{formatCOP(bruto)}</span>
                     </td>
@@ -418,6 +431,7 @@ export function SalesReportServicios() {
                 <td>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{totals.count} registros</span>
                 </td>
+                <td></td>
                 <td style={{ textAlign: 'right', fontSize: '13px' }}>{formatCOP(totals.bruto)}</td>
                 <td style={{ textAlign: 'right', fontSize: '13px', color: 'var(--text-muted)' }}>{formatCOP(totals.iva)}</td>
                 <td style={{ textAlign: 'right', fontSize: '13px', color: 'var(--clr-danger-400)' }}>{formatCOP(totals.descuentos)}</td>
