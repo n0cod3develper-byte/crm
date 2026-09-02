@@ -6,12 +6,15 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
+import { Modal } from '../../components/common/Modal';
 import api from '../../lib/api';
 
 export function CortesContablesPage() {
   const qc = useQueryClient();
   const [selectedCorteId, setSelectedCorteId] = React.useState(null);
   const [fechaCorte, setFechaCorte] = React.useState('');
+  const [isReabrirModalOpen, setIsReabrirModalOpen] = React.useState(false);
+  const [justificacion, setJustificacion] = React.useState('');
 
   // Cargar lista de cortes
   const { data: cortesData, isLoading: loadingList, refetch } = useQuery({
@@ -31,6 +34,9 @@ export function CortesContablesPage() {
     },
     enabled: Boolean(selectedCorteId)
   });
+
+  const hoyStr = new Date().toISOString().split('T')[0];
+  const vencido = corteDetalle && corteDetalle.estado === 'EN_GRACIA' && corteDetalle.fecha_vencimiento_gracia && corteDetalle.fecha_vencimiento_gracia <= hoyStr;
 
   // Mutaciones
   const generarMut = useMutation({
@@ -58,11 +64,33 @@ export function CortesContablesPage() {
   const ejecutarMut = useMutation({
     mutationFn: (id) => api.post(`/mantenimiento/cortes/${id}/ejecutar`),
     onSuccess: () => {
-      toast.success('Corte ejecutado y órdenes cerradas/continuadas.');
+      toast.success('Corte ejecutado. El periodo ahora se encuentra EN GRACIA.');
       refetch();
       qc.invalidateQueries({ queryKey: ['corte-detalle', selectedCorteId] });
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Error al ejecutar corte')
+  });
+
+  const cerrarMut = useMutation({
+    mutationFn: (id) => api.post(`/mantenimiento/cortes/${id}/cerrar`),
+    onSuccess: () => {
+      toast.success('Periodo cerrado definitivamente. Ediciones retroactivas bloqueadas.');
+      refetch();
+      qc.invalidateQueries({ queryKey: ['corte-detalle', selectedCorteId] });
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Error al cerrar periodo contable')
+  });
+
+  const reabrirMut = useMutation({
+    mutationFn: ({ id, justificacion }) => api.post(`/mantenimiento/cortes/${id}/reabrir`, { justificacion }),
+    onSuccess: () => {
+      toast.success('Periodo reabierto con éxito. Ediciones habilitadas temporalmente.');
+      setIsReabrirModalOpen(false);
+      setJustificacion('');
+      refetch();
+      qc.invalidateQueries({ queryKey: ['corte-detalle', selectedCorteId] });
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Error al reabrir periodo contable')
   });
 
   const cancelarMut = useMutation({
@@ -85,6 +113,9 @@ export function CortesContablesPage() {
     const map = {
       PROPUESTO: { bg: 'rgba(245,158,11,0.15)', color: '#fbbf24', label: 'Propuesto' },
       CONFIRMADO: { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa', label: 'Confirmado' },
+      EN_GRACIA: { bg: 'rgba(249,115,22,0.15)', color: '#fb923c', label: 'En Gracia' },
+      CERRADO: { bg: 'rgba(34,197,94,0.15)', color: '#4ade80', label: 'Cerrado' },
+      REABIERTO: { bg: 'rgba(239,68,68,0.15)', color: '#f87171', label: 'Reabierto' },
       EJECUTADO: { bg: 'rgba(34,197,94,0.15)', color: '#4ade80', label: 'Ejecutado' },
       CANCELADO: { bg: 'rgba(100,116,139,0.15)', color: '#94a3b8', label: 'Cancelado' }
     };
@@ -189,8 +220,18 @@ export function CortesContablesPage() {
                   <div>
                     <h2 style={{ fontSize: '18px', fontWeight: 800 }}>Detalle del Corte Periodo {corteDetalle.periodo}</h2>
                     <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                      Fecha límite de liquidación: <strong>{new Date(corteDetalle.fecha_corte).toLocaleDateString('es-CO')}</strong>
+                      Fecha de Corte Contable: <strong>{new Date(corteDetalle.fecha_corte).toLocaleDateString('es-CO')}</strong>
                     </p>
+                    {corteDetalle.fecha_vencimiento_gracia && (
+                      <p style={{ fontSize: '12px', color: new Date(corteDetalle.fecha_vencimiento_gracia) < new Date() ? '#ef4444' : 'var(--clr-primary-400)', fontWeight: 600, marginTop: '0.25rem' }}>
+                        Vencimiento de gracia: {new Date(corteDetalle.fecha_vencimiento_gracia).toLocaleDateString('es-CO')}
+                      </p>
+                    )}
+                    {corteDetalle.estado === 'REABIERTO' && corteDetalle.justificacion_reapertura && (
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: '0.25rem' }}>
+                        Motivo reapertura: "{corteDetalle.justificacion_reapertura}"
+                      </p>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                     {getCorteEstadoBadge(corteDetalle.estado)}
@@ -222,13 +263,13 @@ export function CortesContablesPage() {
                           className="btn btn--primary btn--sm" 
                           style={{ gap: '0.5rem' }}
                           onClick={() => {
-                            if(window.confirm('¿Está seguro de ejecutar este corte contable? Se liquidarán las OTs actuales y se generarán de manera irreversible las nuevas de continuación.')) {
+                            if(window.confirm('¿Está seguro de ejecutar este corte contable? Se registrará el snapshot de consumo sin cerrar operativamente las OTs y se iniciará la ventana de gracia.')) {
                               ejecutarMut.mutate(corteDetalle.id);
                             }
                           }}
                           disabled={ejecutarMut.isPending}
                         >
-                          <Play size={16} /> Ejecutar Cierre
+                          <Play size={16} /> Ejecutar Corte
                         </button>
                         <button 
                           className="btn btn--secondary btn--sm" 
@@ -240,8 +281,53 @@ export function CortesContablesPage() {
                         </button>
                       </>
                     )}
+
+                    {(corteDetalle.estado === 'EN_GRACIA' || corteDetalle.estado === 'REABIERTO') && (
+                      <button 
+                        className="btn btn--success btn--sm" 
+                        style={{ gap: '0.5rem' }}
+                        onClick={() => {
+                          if(window.confirm('¿Está seguro de realizar el cierre definitivo? A partir de ahora, se bloqueará la edición retroactiva de todos los consumos previos al corte.')) {
+                            cerrarMut.mutate(corteDetalle.id);
+                          }
+                        }}
+                        disabled={cerrarMut.isPending}
+                      >
+                        <CheckCircle size={16} /> Cerrar Periodo
+                      </button>
+                    )}
+
+                    {(corteDetalle.estado === 'CERRADO' || corteDetalle.estado === 'EJECUTADO') && (
+                      <button 
+                        className="btn btn--danger btn--sm" 
+                        style={{ gap: '0.5rem' }}
+                        onClick={() => setIsReabrirModalOpen(true)}
+                        disabled={reabrirMut.isPending}
+                      >
+                        <RefreshCw size={16} /> Reabrir Periodo
+                      </button>
+                    )}
                   </div>
                 </div>
+
+                {vencido && (
+                  <div style={{
+                    padding: '0.75rem 1rem',
+                    background: 'rgba(239,68,68,0.1)',
+                    border: '1px solid rgba(239,68,68,0.3)',
+                    color: '#ef4444',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontWeight: 500,
+                    marginBottom: '1.5rem'
+                  }}>
+                    <XCircle size={18} />
+                    <span>¡Alerta! La ventana de gracia para este periodo venció el {new Date(corteDetalle.fecha_vencimiento_gracia).toLocaleDateString('es-CO')}. Por favor, ejecute el cierre definitivo.</span>
+                  </div>
+                )}
 
                 {/* Grid de Items del Lote */}
                 <div style={{ overflowX: 'auto' }}>
@@ -300,6 +386,53 @@ export function CortesContablesPage() {
         </div>
 
       </main>
+
+      {isReabrirModalOpen && (
+        <Modal
+          title="Reabrir Periodo Contable"
+          onClose={() => {
+            setIsReabrirModalOpen(false);
+            setJustificacion('');
+          }}
+          footer={
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', width: '100%' }}>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                onClick={() => {
+                  setIsReabrirModalOpen(false);
+                  setJustificacion('');
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger"
+                disabled={justificacion.trim().length < 20 || reabrirMut.isPending}
+                onClick={() => reabrirMut.mutate({ id: selectedCorteId, justificacion })}
+              >
+                {reabrirMut.isPending ? 'Reabriendo...' : 'Reabrir Periodo'}
+              </button>
+            </div>
+          }
+        >
+          <div className="input-group">
+            <label className="input-label">Justificación de la Reapertura *</label>
+            <textarea
+              className="input"
+              rows={4}
+              value={justificacion}
+              onChange={(e) => setJustificacion(e.target.value)}
+              placeholder="Explique el motivo detallado de la reapertura (mínimo 20 caracteres)..."
+              required
+            />
+            <span style={{ fontSize: '11px', color: justificacion.trim().length < 20 ? '#ef4444' : '#22c55e', alignSelf: 'flex-end', marginTop: '0.25rem' }}>
+              {justificacion.trim().length} / 20 caracteres mínimo
+            </span>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

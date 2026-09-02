@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../../middleware/auth.js';
+import { authenticate, authorize } from '../../middleware/auth.js';
 import * as ctrl from './mantenimiento.controller.js';
 import { addManoObraAdicional, removeManoObraAdicional } from './mantenimiento.controller.js';
 import * as pmCtrl from './pm.controller.js';
@@ -13,9 +13,11 @@ router.use(authenticate);
 router.get('/cortes',                  corteCtrl.getAllCortes);
 router.post('/cortes/generar',         corteCtrl.generarPropuesta);
 router.get('/cortes/:id',              corteCtrl.getCorte);
-router.post('/cortes/:id/confirmar',   corteCtrl.confirmarCorte);
-router.post('/cortes/:id/ejecutar',    corteCtrl.ejecutarCorte);
-router.delete('/cortes/:id',           corteCtrl.cancelarCorte);
+router.post('/cortes/:id/confirmar',   authorize('admin', 'contabilidad'), corteCtrl.confirmarCorte);
+router.post('/cortes/:id/ejecutar',    authorize('admin', 'contabilidad'), corteCtrl.ejecutarCorte);
+router.post('/cortes/:id/cerrar',      authorize('admin', 'contabilidad'), corteCtrl.cerrarCorte);
+router.post('/cortes/:id/reabrir',     authorize('admin', 'contabilidad'), corteCtrl.reabrirCorte);
+router.delete('/cortes/:id',           authorize('admin', 'contabilidad'), corteCtrl.cancelarCorte);
 router.get('/cadena/:cadena_id',       corteCtrl.getHistorialCadena);
 
 // ─── KPIs (Dashboard) ────────────────────────────────────────

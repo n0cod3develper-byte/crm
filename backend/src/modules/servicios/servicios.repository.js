@@ -812,4 +812,41 @@ export class ServiciosRepository {
     );
     return true;
   }
+
+  // ============================================================
+  // TRAMOS DE SUSTITUCIÓN DE EQUIPO
+  // ============================================================
+
+  /**
+   * Devuelve todos los tramos de equipo asignados a una remisión,
+   * ordenados cronológicamente.
+   */
+  async findTramosEquipo(remision_id) {
+    const res = await query(
+      `SELECT
+         t.id,
+         t.remision_id,
+         t.equipo_id,
+         e.marca          AS equipo_marca,
+         e.modelo         AS equipo_modelo,
+         e.serie          AS equipo_serie,
+         e.serial         AS equipo_serial,
+         e.capacidad_carga AS equipo_capacidad,
+         t.fecha_inicio,
+         t.fecha_fin,
+         t.dias_facturables,
+         t.motivo,
+         t.usuario_autorizo_id,
+         u.full_name      AS autorizo_nombre,
+         t.created_at,
+         (t.fecha_fin IS NULL) AS vigente
+       FROM remision_tramos_equipo t
+       JOIN equipos e ON e.id = t.equipo_id
+       LEFT JOIN users u ON u.id = t.usuario_autorizo_id
+       WHERE t.remision_id = $1
+       ORDER BY t.fecha_inicio ASC`,
+      [remision_id]
+    );
+    return res.rows;
+  }
 }

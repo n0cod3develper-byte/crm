@@ -1,8 +1,10 @@
 import { ServiciosRepository } from './servicios.repository.js';
+import { RemisionSustitucionService } from './remisionSustitucion.service.js';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../utils/errors.js';
 import { generateRemisionPdf } from '../../utils/remisionPdfGenerator.js';
 
 const repo = new ServiciosRepository();
+const sustitucionService = new RemisionSustitucionService();
 
 export const serviciosController = {
   async list(req, res, next) {
@@ -116,9 +118,13 @@ export const serviciosController = {
     try {
       const remision = await repo.findById(req.params.id);
       if (!remision) throw new NotFoundError('Remisión');
-      
+
       const horasLaborales = await repo.findHorasLaborales(req.params.id) || [];
-      const pdfBuffer = await generateRemisionPdf(remision, horasLaborales);
+      // Cargar tramos de sustitución si los hay (sin costo extra para remisiones normales)
+      const tramos = remision.tiene_sustitucion
+        ? await repo.findTramosEquipo(req.params.id)
+        : [];
+      const pdfBuffer = await generateRemisionPdf(remision, horasLaborales, tramos);
 
       res.set({
         'Content-Type': 'application/pdf',
@@ -180,6 +186,30 @@ export const serviciosController = {
     try {
       await repo.deleteDiaFijo(req.params.id, req.params.did);
       res.json({ success: true, message: 'Día de servicio fijo eliminado' });
+    } catch (err) { next(err); }
+  },
+
+  // ─── Sustitución de Equipo ─────────────────────────────────────────────
+
+  async reemplazarEquipo(req, res, next) {
+    try {
+      const { equipo_nuevo_id, fecha_efectiva, motivo, usuario_autorizo_id } = req.body;
+      if (!equipo_nuevo_id) throw new BadRequestError('equipo_nuevo_id es requerido');
+      if (!fecha_efectiva)  throw new BadRequestError('fecha_efectiva es requerida');
+
+      const result = await sustitucionService.reemplazarEquipo(
+        req.params.id,
+        { equipo_nuevo_id, fecha_efectiva, motivo, usuario_autorizo_id },
+        req.user
+      );
+      res.json({ success: true, data: result });
+    } catch (err) { next(err); }
+  },
+
+  async getTramosEquipo(req, res, next) {
+    try {
+      const tramos = await repo.findTramosEquipo(req.params.id);
+      res.json({ success: true, data: tramos });
     } catch (err) { next(err); }
   },
 };

@@ -1,13 +1,14 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, FileText, Plus, Trash2, UserCheck, Edit, DollarSign, Copy } from 'lucide-react';
+import { ArrowLeft, FileText, Plus, Trash2, UserCheck, Edit, DollarSign, Copy, RefreshCw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 import { usePermissions } from '../../contexts/PermissionsContext';
 import { LiquidacionHorasModal } from './LiquidacionHorasModal';
 import { RegistroDiasFijoPanel } from './RegistroDiasFijoPanel';
+import { ReemplazarEquipoModal } from './ReemplazarEquipoModal';
 
 const labelStyle = { fontSize: '10px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 };
 const valueStyle = { fontWeight: 500, fontSize: '13px' };
@@ -32,6 +33,7 @@ export function RemisionDetailPage() {
   const { esAdmin } = usePermissions();
   const [selectedOperario, setSelectedOperario] = React.useState('');
   const [showLiqModal, setShowLiqModal] = React.useState(false);
+  const [showReemplazoModal, setShowReemplazoModal] = React.useState(false);
 
   const { data: remision, isLoading } = useQuery({
     queryKey: ['servicios', id],
@@ -47,6 +49,12 @@ export function RemisionDetailPage() {
   const { data: operariosDisp = [] } = useQuery({
     queryKey: ['operarios-disponibles'],
     queryFn: async () => { const { data } = await api.get('/servicios/operarios-disponibles'); return data.data || []; },
+  });
+
+  const { data: tramosEquipo = [] } = useQuery({
+    queryKey: ['tramos-equipo', id],
+    queryFn: async () => { const { data } = await api.get(`/servicios/${id}/tramos-equipo`); return data.data || []; },
+    enabled: !!id,
   });
 
   const addOperarioMutation = useMutation({
@@ -111,6 +119,11 @@ export function RemisionDetailPage() {
             {remision.estado !== 'ANULADO' && (
               <button className="btn btn--outline" style={{ borderColor: 'rgba(34,197,94,0.5)', color: '#22c55e' }} onClick={() => setShowLiqModal(true)}>
                 <DollarSign size={16} /> Horas Extras
+              </button>
+            )}
+            {!['ANULADO', 'ANULADA', 'FACTURADA'].includes(remision.estado) && esAdmin() && (
+              <button className="btn btn--outline" style={{ borderColor: 'rgba(234,179,8,0.5)', color: '#d97706' }} onClick={() => setShowReemplazoModal(true)}>
+                <RefreshCw size={16} /> Reemplazar Máquina
               </button>
             )}
             {(esAdmin() || remision.estado === 'BORRADOR' || remision.estado === 'PENDIENTE' || remision.estado === 'REALIZADA') && (
@@ -180,12 +193,58 @@ export function RemisionDetailPage() {
             <p style={sectionTitle}>Servicio Prestado</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem 1.5rem' }}>
               <div style={{ gridColumn: '1 / -1' }}><span style={labelStyle}>Servicio</span><span style={valueStyle}>{remision.servicio_codigo} — {remision.servicio_nombre}</span></div>
-              <div><span style={labelStyle}>Equipo</span><span style={valueStyle}>{remision.equipo_marca ? `${remision.equipo_marca} ${remision.equipo_modelo} (${remision.equipo_serial || remision.equipo_serie || '—'})` : 'Sin equipo asignado'}</span></div>
+              <div><span style={labelStyle}>Equipo Actual</span><span style={valueStyle}>{remision.equipo_marca ? `${remision.equipo_marca} ${remision.equipo_modelo} (${remision.equipo_serial || remision.equipo_serie || '—'})` : 'Sin equipo asignado'}</span></div>
               <div><span style={labelStyle}>No. Máquina</span><span style={valueStyle}>{remision.equipo_serie || remision.numero_maquina || '—'}</span></div>
               <div><span style={labelStyle}>Bonificación por Hora</span><span style={valueStyle}>{formatCOP(remision.bonificacion_hora)}</span></div>
               <div><span style={labelStyle}>Cantidad Horas</span><span style={valueStyle}>{remision.cantidad_horas}</span></div>
               <div><span style={labelStyle}>Valor Hora</span><span style={valueStyle}>{formatCOP(remision.valor_hora)}</span></div>
             </div>
+
+            {/* Historial de Sustituciones */}
+            {tramosEquipo.length > 0 && (
+              <div style={{ marginTop: '1.25rem' }}>
+                <p style={{ ...sectionTitle, margin: '0 0 0.5rem 0' }}>Historial de Equipos Asignados</p>
+                <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)' }}>
+                        <th style={{ padding: '6px 10px', textAlign: 'left' }}>Máquina</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'left' }}>Período</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'center' }}>Días</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'left' }}>Motivo</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'center' }}>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tramosEquipo.map((t) => (
+                        <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '6px 10px', fontWeight: 600 }}>
+                            {t.equipo_marca} {t.equipo_modelo} ({t.equipo_serie || t.equipo_serial})
+                          </td>
+                          <td style={{ padding: '6px 10px' }}>
+                            {formatDate(t.fecha_inicio)} – {t.fecha_fin ? formatDate(t.fecha_fin) : 'Vigente'}
+                          </td>
+                          <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600 }}>
+                            {t.dias_facturables != null ? t.dias_facturables : 'En curso'}
+                          </td>
+                          <td style={{ padding: '6px 10px', color: 'var(--text-secondary)' }}>
+                            {t.motivo || '—'}
+                          </td>
+                          <td style={{ padding: '6px 10px', textAlign: 'center' }}>
+                            <span
+                              className={`badge badge--${t.vigente ? 'green' : 'gray'}`}
+                              style={{ fontSize: '10px' }}
+                            >
+                              {t.vigente ? 'Vigente' : 'Cerrado'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             <div style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <p style={{ ...sectionTitle, margin: 0, border: 'none', padding: 0 }}>Tiempos — Operario Inicial</p>
@@ -401,6 +460,17 @@ export function RemisionDetailPage() {
             setShowLiqModal(false);
             qc.invalidateQueries({ queryKey: ['servicios', id] });
             qc.invalidateQueries({ queryKey: ['horas-laborales', id] });
+          }}
+        />
+      )}
+
+      {showReemplazoModal && remision && (
+        <ReemplazarEquipoModal
+          remision={remision}
+          onClose={() => setShowReemplazoModal(false)}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ['servicios', id] });
+            qc.invalidateQueries({ queryKey: ['tramos-equipo', id] });
           }}
         />
       )}

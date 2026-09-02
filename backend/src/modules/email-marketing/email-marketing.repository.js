@@ -302,12 +302,21 @@ export class EmailMarketingRepository {
     );
 
     const todos = [
-      ...emails.map(e => ({ nombre: empresa.name, correo: e, empresa_id: empresaId, origen: 'importado_empresa' })),
+      ...emails.map(e => ({
+        nombre: empresa.name,
+        correo: e,
+        empresa_id: empresaId,
+        origen: 'importado_empresa',
+        consentimiento_tipo: 'relacion_comercial',
+        consentimiento_fuente: 'Importado Empresas - relacion comercial preexistente'
+      })),
       ...contactos.rows.map(c => ({
         nombre: `${c.first_name} ${c.last_name || ''}`.trim(),
         correo: c.email,
         empresa_id: empresaId,
         origen: 'importado_crm',
+        consentimiento_tipo: 'relacion_comercial',
+        consentimiento_fuente: 'Importado CRM - relacion comercial preexistente'
       })),
     ].filter(c => c.correo && c.correo.includes('@'));
 
@@ -319,6 +328,11 @@ export class EmailMarketingRepository {
       try {
         const existe = await this.getContactoByCorreo(item.correo);
         if (existe) {
+          // Si ya existe, actualizamos nombre y empresa_id (dejamos estado, origen y consentimiento intactos)
+          await this.updateContacto(existe.id, {
+            nombre: item.nombre,
+            empresa_id: item.empresa_id
+          });
           await this.agregarContactoALista(listaId, existe.id);
           ya_existian++;
         } else {

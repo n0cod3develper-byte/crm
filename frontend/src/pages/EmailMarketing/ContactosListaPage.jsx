@@ -6,6 +6,7 @@ import api from '../../lib/api'; // para cargar empresas/contactos del CRM
 import { Plus, Search, Trash2, Edit2, List, Users, Check, Import, X, UserPlus } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Modal } from '../../components/common/Modal';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 
 export function ContactosListaPage() {
   const [activeTab, setActiveTab] = useState('listas');
@@ -39,13 +40,12 @@ export function ContactosListaPage() {
     }),
   });
 
-  const { data: CRMCompanies } = useQuery({
-    queryKey: ['crm_companies_all'],
-    queryFn: async () => {
-      const { data } = await api.get('/companies', { params: { limit: 1000 } });
-      return data?.data || [];
-    }
-  });
+  const searchCompanies = React.useCallback(async (searchTerm) => {
+    const { data } = await api.get('/companies', {
+      params: { search: searchTerm || undefined, limit: 50 }
+    });
+    return data.data || [];
+  }, []);
 
   // Mutations Listas
   const createListaMutation = useMutation({
@@ -357,12 +357,17 @@ export function ContactosListaPage() {
             </div>
             <div>
               <label className="label">Empresa vinculada (opcional)</label>
-              <select className="input" value={contactoForm.empresa_id} onChange={e => setContactoForm({ ...contactoForm, empresa_id: e.target.value })}>
-                <option value="">Ninguna</option>
-                {CRMCompanies?.map(comp => (
-                  <option key={comp.id} value={comp.id}>{comp.name}</option>
-                ))}
-              </select>
+              <SearchableSelect
+                fetchFn={searchCompanies}
+                value={contactoForm.empresa_id}
+                onChange={(val) => setContactoForm({ ...contactoForm, empresa_id: val })}
+                initialItem={editingContacto?.empresa_id ? { id: editingContacto.empresa_id, name: editingContacto.empresa_nombre } : null}
+                getOptionLabel={(item) => item.name || ''}
+                placeholder="Buscar empresa..."
+                name="empresa_id"
+                noOptionsMessage="No se encontraron empresas"
+                minSearchLength={0}
+              />
             </div>
             <div>
               <label className="label">Base Legal / Consentimiento (Habeas Data Ley 1581)</label>
@@ -402,12 +407,22 @@ export function ContactosListaPage() {
             </p>
             <div>
               <label className="label">Empresa del CRM</label>
-              <select className="input" required value={importForm.empresa_id} onChange={e => setImportForm({ empresa_id: e.target.value })}>
-                <option value="">Seleccionar empresa...</option>
-                {CRMCompanies?.map(comp => (
-                  <option key={comp.id} value={comp.id}>{comp.name} {comp.nit ? `(${comp.nit})` : ''}</option>
-                ))}
-              </select>
+              <SearchableSelect
+                fetchFn={searchCompanies}
+                value={importForm.empresa_id}
+                onChange={(val) => setImportForm({ empresa_id: val })}
+                getOptionLabel={(item) => item.name || ''}
+                renderOption={(comp) => (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                    <span style={{ fontWeight: 600 }}>{comp.name}</span>
+                    {comp.nit && <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>NIT: {comp.nit}</span>}
+                  </div>
+                )}
+                placeholder="Buscar por nombre o NIT..."
+                name="empresa_id"
+                noOptionsMessage="No se encontraron empresas"
+                minSearchLength={0}
+              />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '1rem' }}>
               <button type="button" className="btn btn--secondary" onClick={() => setIsImportModalOpen(false)}>Cancelar</button>

@@ -27,116 +27,144 @@ export const DashboardFacturacionPage = () => {
     queryFn: () => facturacionApi.getOtsPendientes({ limit: 10 })
   });
 
-  const stats = [
+  /* ── KPIs primarios: acción requerida ─────────────────────── */
+  const statsPrimary = [
     {
       label: 'OTs por Facturar',
       value: resumen?.data?.reduce((acc, curr) => acc + parseInt(curr.ots_por_facturar), 0) || 0,
       icon: Clock,
-      color: 'var(--accent-orange)',
-      bg: 'rgba(245, 158, 11, 0.1)'
+      accent: 'amber',
     },
     {
       label: 'Total Pendiente',
       value: formatCurrency(resumen?.data?.reduce((acc, curr) => acc + parseFloat(curr.valor_pendiente_facturar), 0) || 0),
       icon: TrendingUp,
-      color: 'var(--accent-blue)',
-      bg: 'rgba(59, 130, 246, 0.1)'
+      accent: 'indigo',
     },
+  ];
+
+  /* ── KPIs secundarios: historial / logros ─────────────────── */
+  const statsSecondary = [
     {
       label: 'OTs Facturadas',
       value: resumen?.data?.reduce((acc, curr) => acc + parseInt(curr.ots_facturadas), 0) || 0,
       icon: FileCheck,
-      color: 'var(--accent-green)',
-      bg: 'rgba(34, 197, 94, 0.1)'
+      accent: 'emerald',
     },
     {
       label: 'Valor Facturado Total',
       value: formatCurrency(resumen?.data?.reduce((acc, curr) => acc + parseFloat(curr.valor_facturado_total), 0) || 0),
       icon: Receipt,
-      color: 'var(--accent-purple)',
-      bg: 'rgba(168, 85, 247, 0.1)'
-    }
+      accent: 'violet',
+    },
   ];
 
+  /* ── Badge de días por umbral de urgencia ─────────────────── */
+  const getDaysClass = (dias) => {
+    if (dias > 30) return 'billing-ot-days billing-ot-days--critical';
+    if (dias > 15) return 'billing-ot-days billing-ot-days--warning';
+    return 'billing-ot-days';
+  };
+
+  /* ── Loading ──────────────────────────────────────────────── */
   if (isLoading) return (
     <Layout title="Dashboard de Facturación">
-      <div className="flex items-center justify-center py-20">
-        <div className="spinner h-12 w-12" />
+      <div className="billing-loading">
+        <div className="spinner" style={{ width: '3rem', height: '3rem' }} />
       </div>
     </Layout>
   );
 
   return (
     <Layout title="Dashboard de Facturación">
-      <div className="space-y-8 animate-in fade-in duration-700">
-        
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stats.map((stat, i) => (
-            <div key={i} className="card-premium p-6 flex items-center gap-4 hover-scale">
-              <div 
-                className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
-                style={{ backgroundColor: stat.bg, color: stat.color }}
-              >
-                <stat.icon size={24} />
+      <div className="billing-dashboard animate-in fade-in">
+
+        {/* ── KPI Grid 2×2 ────────────────────────────────────── */}
+        <div className="billing-kpi-grid">
+
+          {/* Fila superior: KPIs de acción requerida (más prominentes) */}
+          {statsPrimary.map((stat, i) => (
+            <div
+              key={i}
+              className={`billing-kpi-card billing-kpi-card--primary billing-kpi-card--${stat.accent}`}
+            >
+              <div className="billing-kpi-icon-wrap">
+                <stat.icon size={22} />
               </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted">{stat.label}</p>
-                <p className="text-2xl font-bold mt-1">{stat.value}</p>
+              <div className="billing-kpi-content">
+                <p className="billing-kpi-label">{stat.label}</p>
+                <p className="billing-kpi-value billing-kpi-value--primary">{stat.value}</p>
               </div>
             </div>
           ))}
+
+          {/* Fila inferior: KPIs de historial (más compactos) */}
+          {statsSecondary.map((stat, i) => (
+            <div
+              key={i}
+              className={`billing-kpi-card billing-kpi-card--secondary billing-kpi-card--${stat.accent}`}
+            >
+              <div className="billing-kpi-icon-wrap billing-kpi-icon-wrap--sm">
+                <stat.icon size={18} />
+              </div>
+              <div className="billing-kpi-content">
+                <p className="billing-kpi-label">{stat.label}</p>
+                <p className="billing-kpi-value billing-kpi-value--secondary">{stat.value}</p>
+              </div>
+            </div>
+          ))}
+
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
-          {/* Cartera por Empresa */}
-          <div className="card-premium overflow-hidden">
-            <div className="p-6 border-b border-color flex justify-between items-center bg-subtle">
-              <div className="flex items-center gap-2">
-                <Building2 size={20} className="text-accent" />
-                <h3 className="font-bold text-lg">Cartera por Empresa</h3>
+        {/* ── Secciones: Cartera + OTs ─────────────────────────── */}
+        <div className="billing-sections-grid">
+
+          {/* ── Cartera por Empresa ─────────────────────────────── */}
+          <div className="card-premium billing-panel">
+            <div className="billing-section-header">
+              <div className="billing-section-title">
+                <Building2 size={18} className="billing-section-icon" />
+                <h3>Cartera por Empresa</h3>
               </div>
-              <button 
+              <button
                 onClick={() => navigate('/facturacion/pendientes')}
-                className="btn-ghost flex items-center gap-1 text-accent hover:underline"
+                className="billing-link-btn"
               >
-                Ver todas <ArrowRight size={14} />
+                Ver todas <ArrowRight size={13} />
               </button>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-subtle/50 text-xs uppercase tracking-wider text-muted">
+
+            <div className="billing-table-wrap">
+              <table className="billing-table">
+                <thead>
                   <tr>
-                    <th className="px-6 py-4 text-left">Empresa</th>
-                    <th className="px-6 py-4 text-center">OTs Pend.</th>
-                    <th className="px-6 py-4 text-right">Valor Pendiente</th>
+                    <th className="billing-th billing-th--left">Empresa</th>
+                    <th className="billing-th billing-th--center">OTs Pend.</th>
+                    <th className="billing-th billing-th--right">Valor Pendiente</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-color">
+                <tbody>
                   {resumen?.data?.slice(0, 8).map((emp, i) => (
-                    <tr 
-                      key={i} 
-                      className="hover:bg-subtle/30 transition-colors cursor-pointer"
+                    <tr
+                      key={i}
+                      className="billing-table-row"
                       onClick={() => navigate(`/facturacion/pendientes?empresa_id=${emp.empresa_id}`)}
                     >
-                      <td className="px-6 py-4">
-                        <div className="font-semibold">{emp.name}</div>
-                        <div className="text-xs text-muted">NIT: {emp.nit}</div>
+                      <td className="billing-td">
+                        <div className="billing-company-name">{emp.name}</div>
+                        <div className="billing-company-nit">NIT: {emp.nit}</div>
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="px-2 py-1 rounded-full bg-orange-500/10 text-orange-500 font-bold text-xs">
-                          {emp.ots_por_facturar}
-                        </span>
+                      <td className="billing-td billing-td--center">
+                        <span className="billing-ots-badge">{emp.ots_por_facturar}</span>
                       </td>
-                      <td className="px-6 py-4 text-right font-bold text-accent">
+                      <td className="billing-td billing-td--right billing-amount">
                         {formatCurrency(emp.valor_pendiente_facturar)}
                       </td>
                     </tr>
                   ))}
                   {(!resumen?.data || resumen.data.length === 0) && (
                     <tr>
-                      <td colSpan="3" className="px-6 py-12 text-center text-muted">
+                      <td colSpan="3" className="billing-empty">
                         No hay cartera pendiente de facturación.
                       </td>
                     </tr>
@@ -146,42 +174,51 @@ export const DashboardFacturacionPage = () => {
             </div>
           </div>
 
-          {/* OTs Recientes sin Facturar */}
-          <div className="card-premium overflow-hidden">
-            <div className="p-6 border-b border-color flex justify-between items-center bg-subtle">
-              <div className="flex items-center gap-2">
-                <Clock size={20} className="text-accent" />
-                <h3 className="font-bold text-lg">OTs Antiguas por Facturar</h3>
+          {/* ── OTs Antiguas por Facturar ────────────────────────── */}
+          <div className="card-premium billing-panel">
+            <div className="billing-section-header">
+              <div className="billing-section-title">
+                <Clock size={18} className="billing-section-icon" />
+                <h3>OTs Antiguas por Facturar</h3>
               </div>
-              <div className="flex items-center gap-2 text-xs text-muted">
-                <AlertCircle size={14} className="text-orange-500" />
+              <span className="billing-priority-badge">
+                <AlertCircle size={12} />
                 Prioridad Crítica
-              </div>
+              </span>
             </div>
-            <div className="p-4 space-y-4">
+
+            <div className="billing-ot-list">
               {otsPendientes?.data?.slice(0, 6).map((ot, i) => (
-                <div 
-                  key={i} 
-                  className="flex items-center justify-between p-4 rounded-xl border border-color bg-subtle/20 hover:border-accent transition-all group cursor-pointer"
+                <div
+                  key={i}
+                  className="billing-ot-row"
                   onClick={() => navigate(`/mantenimiento/${ot.id}`)}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs ${ot.dias_desde_liquidacion > 30 ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-subtle text-muted'}`}>
-                      {ot.dias_desde_liquidacion}d
-                    </div>
-                    <div>
-                      <div className="font-bold group-hover:text-accent transition-colors">{ot.consecutivo}</div>
-                      <div className="text-xs text-muted">{ot.empresa_nombre}</div>
+                  {/* Col 1: Badge de días */}
+                  <div className={getDaysClass(ot.dias_desde_liquidacion)}>
+                    {ot.dias_desde_liquidacion}d
+                  </div>
+
+                  {/* Col 2: Número OT + Empresa */}
+                  <div className="billing-ot-info">
+                    <div className="billing-ot-number">{ot.consecutivo}</div>
+                    <div className="billing-ot-company">{ot.empresa_nombre}</div>
+                  </div>
+
+                  {/* Col 3: Monto + Fecha */}
+                  <div className="billing-ot-amount-wrap">
+                    <div className="billing-ot-amount">{formatCurrency(ot.total)}</div>
+                    <div className="billing-ot-date">
+                      Liq. {new Date(ot.fecha_liquidacion).toLocaleDateString()}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-bold">{formatCurrency(ot.total)}</div>
-                    <div className="text-[10px] uppercase text-muted">Liquidada el {new Date(ot.fecha_liquidacion).toLocaleDateString()}</div>
-                  </div>
+
+                  {/* Col 4: Flecha hover */}
+                  <ArrowRight size={14} className="billing-ot-arrow" />
                 </div>
               ))}
               {(!otsPendientes?.data || otsPendientes.data.length === 0) && (
-                <div className="text-center py-12 text-muted">
+                <div className="billing-empty">
                   No hay órdenes de trabajo pendientes de facturar.
                 </div>
               )}

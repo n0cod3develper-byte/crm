@@ -72,13 +72,37 @@ export class InformesRepository {
     }
 
     const sql = `
+      WITH tramo_calc AS (
+        SELECT 
+          r.id AS remision_id,
+          r.total_bruto,
+          r.tiene_sustitucion,
+          r.equipo_id AS remision_equipo_id,
+          t.equipo_id AS tramo_equipo_id,
+          COALESCE(t.dias_facturables, GREATEST(1, CURRENT_DATE - t.fecha_inicio + 1)) AS dias_tramo
+        FROM remisiones r
+        LEFT JOIN remision_tramos_equipo t ON t.remision_id = r.id AND r.tiene_sustitucion = TRUE
+        WHERE ${conditions.join(' AND ')}
+      ),
+      tramo_totals AS (
+        SELECT 
+          tc.*,
+          SUM(tc.dias_tramo) OVER (PARTITION BY tc.remision_id) AS total_dias_remision
+        FROM tramo_calc tc
+      )
       SELECT 
         COALESCE(e.marca || ' - ' || e.serie, 'Sin Equipo / Otros') AS equipo_nombre,
         e.serie,
-        SUM(r.total_bruto) AS total_ventas
-      FROM remisiones r
-      LEFT JOIN equipos e ON e.id = r.equipo_id
-      WHERE ${conditions.join(' AND ')}
+        SUM(
+          CASE 
+            WHEN tt.tiene_sustitucion = TRUE AND tt.total_dias_remision > 0 THEN 
+              tt.total_bruto * (tt.dias_tramo / tt.total_dias_remision)
+            ELSE 
+              tt.total_bruto
+          END
+        ) AS total_ventas
+      FROM tramo_totals tt
+      LEFT JOIN equipos e ON e.id = COALESCE(tt.tramo_equipo_id, tt.remision_equipo_id)
       GROUP BY e.marca, e.serie
       ORDER BY total_ventas DESC
     `;
@@ -106,7 +130,7 @@ export class InformesRepository {
       salesParams.push(targetEmpresaId);
       i = 2;
     } else {
-      salesConditions.push('r.equipo_id = $1');
+      salesConditions.push('(r.equipo_id = $1 OR EXISTS (SELECT 1 FROM remision_tramos_equipo t WHERE t.remision_id = r.id AND t.equipo_id = $1))');
       salesParams.push(equipment_id);
       i = 2;
     }
@@ -121,13 +145,44 @@ export class InformesRepository {
     }
 
     const salesSql = `
+      WITH remision_base AS (
+        SELECT 
+          r.id,
+          r.fecha_servicio,
+          r.total_bruto,
+          r.tiene_sustitucion,
+          r.equipo_id AS remision_equipo_id
+        FROM remisiones r
+        ${isAll ? 'JOIN equipos e ON e.id = r.equipo_id' : ''}
+        WHERE ${salesConditions.join(' AND ')}
+      ),
+      tramos_base AS (
+        SELECT 
+          rb.*,
+          t.equipo_id AS tramo_equipo_id,
+          COALESCE(t.dias_facturables, GREATEST(1, CURRENT_DATE - t.fecha_inicio + 1)) AS dias_tramo
+        FROM remision_base rb
+        LEFT JOIN remision_tramos_equipo t ON t.remision_id = rb.id AND rb.tiene_sustitucion = TRUE
+      ),
+      tramos_totals AS (
+        SELECT 
+          tb.*,
+          SUM(tb.dias_tramo) OVER (PARTITION BY tb.id) AS total_dias_remision
+        FROM tramos_base tb
+      )
       SELECT 
-        to_char(date_trunc('month', r.fecha_servicio), 'YYYY-MM') AS month,
-        SUM(r.total_bruto) AS sales
-      FROM remisiones r
-      ${isAll ? 'JOIN equipos e ON e.id = r.equipo_id' : ''}
-      WHERE ${salesConditions.join(' AND ')}
-      GROUP BY date_trunc('month', r.fecha_servicio)
+        to_char(date_trunc('month', tt.fecha_servicio), 'YYYY-MM') AS month,
+        SUM(
+          CASE 
+            WHEN tt.tiene_sustitucion = TRUE AND tt.total_dias_remision > 0 THEN 
+              tt.total_bruto * (tt.dias_tramo / tt.total_dias_remision)
+            ELSE 
+              tt.total_bruto
+          END
+        ) AS sales
+      FROM tramos_totals tt
+      ${!isAll ? `WHERE (tt.tiene_sustitucion = FALSE AND tt.remision_equipo_id = $1) OR (tt.tiene_sustitucion = TRUE AND tt.tramo_equipo_id = $1)` : ''}
+      GROUP BY date_trunc('month', tt.fecha_servicio)
       ORDER BY month ASC
     `;
     const salesRes = await query(salesSql, salesParams);

@@ -7,6 +7,66 @@ import { quotesService } from '../quotes/quotes.service.js';
 const pmRepo = new PMRepository();
 
 export class MantenimientoRepository {
+
+  async verificarBloqueoCorte(otId, fechaReferencia = null, registroTabla = null, registroId = null, client = null) {
+    const runQuery = client ? client.query.bind(client) : query;
+    
+    const otRes = await runQuery(
+      `SELECT fecha_ultimo_corte, periodo_cierre_id FROM ordenes_trabajo WHERE id = $1`,
+      [otId]
+    );
+    if (otRes.rows.length === 0) return;
+    const { fecha_ultimo_corte, periodo_cierre_id } = otRes.rows[0];
+    if (!fecha_ultimo_corte) return;
+    
+    const corteRes = await runQuery(
+      `SELECT estado FROM ot_cortes_contables WHERE id = $1`,
+      [periodo_cierre_id]
+    );
+    if (corteRes.rows.length === 0) return;
+    const { estado } = corteRes.rows[0];
+    
+    if (estado !== 'CERRADO' && estado !== 'EJECUTADO') return;
+    
+    const limiteCorte = new Date(fecha_ultimo_corte);
+    limiteCorte.setHours(23, 59, 59, 999);
+    
+    if (fechaReferencia) {
+      const refDate = new Date(fechaReferencia);
+      if (refDate <= limiteCorte) {
+        const formattedCorte = fecha_ultimo_corte instanceof Date 
+          ? fecha_ultimo_corte.toISOString().split('T')[0]
+          : String(fecha_ultimo_corte).split('T')[0];
+        throw new Error(`Registro bloqueado: la fecha de imputación (${fechaReferencia}) pertenece al periodo cerrado [${formattedCorte}]. Contacte a Contabilidad para reabrir el periodo.`);
+      }
+    }
+    
+    if (registroTabla && registroId) {
+      let fechaRegistro = null;
+      if (registroTabla === 'ot_repuestos_insumos') {
+        const regRes = await runQuery(`SELECT created_at FROM ot_repuestos_insumos WHERE id = $1`, [registroId]);
+        if (regRes.rows[0]) fechaRegistro = regRes.rows[0].created_at;
+      } else if (registroTabla === 'ot_mano_obra_adicional') {
+        const regRes = await runQuery(`SELECT created_at FROM ot_mano_obra_adicional WHERE id = $1`, [registroId]);
+        if (regRes.rows[0]) fechaRegistro = regRes.rows[0].created_at;
+      } else if (registroTabla === 'ot_tecnicos') {
+        const regRes = await runQuery(`SELECT fecha_salida, fecha_regreso FROM ot_tecnicos WHERE id = $1`, [registroId]);
+        if (regRes.rows[0]) {
+          fechaRegistro = regRes.rows[0].fecha_regreso || regRes.rows[0].fecha_salida;
+        }
+      }
+      
+      if (fechaRegistro) {
+        const regDate = new Date(fechaRegistro);
+        if (regDate <= limiteCorte) {
+          const formattedCorte = fecha_ultimo_corte instanceof Date 
+            ? fecha_ultimo_corte.toISOString().split('T')[0]
+            : String(fecha_ultimo_corte).split('T')[0];
+          throw new Error(`Registro bloqueado: pertenece al periodo cerrado [${formattedCorte}]. Contacte a Contabilidad para reabrir el periodo.`);
+        }
+      }
+    }
+  }
   
   // ==========================================
   // ORDENES DE TRABAJO (OT)
@@ -308,6 +368,7 @@ export class MantenimientoRepository {
   // ==========================================
 
   async addTecnico(ot_id, data) {
+    await this.verificarBloqueoCorte(ot_id);
     const { empleado_id, tarifa_hora } = data;
     const res = await query(
         `INSERT INTO ot_tecnicos (orden_trabajo_id, empleado_id, tarifa_hora) VALUES ($1, $2, $3) RETURNING *`,
@@ -317,6 +378,10 @@ export class MantenimientoRepository {
   }
 
   async updateTecnico(ot_id, tid, data) {
+      await this.verificarBloqueoCorte(ot_id, null, 'ot_tecnicos', tid);
+      if (data.fecha_salida) await this.verificarBloqueoCorte(ot_id, data.fecha_salida);
+      if (data.fecha_regreso) await this.verificarBloqueoCorte(ot_id, data.fecha_regreso);
+
       const { fecha_salida, hora_salida, hora_llegada_cliente, hora_salida_cliente, fecha_regreso, hora_regreso } = data;
       
       let tiempo_total_min = null;
@@ -346,6 +411,7 @@ export class MantenimientoRepository {
   }
 
   async removeTecnico(ot_id, tid) {
+      await this.verificarBloqueoCorte(ot_id, null, 'ot_tecnicos', tid);
       await query(`DELETE FROM ot_tecnicos WHERE id = $1 AND orden_trabajo_id = $2`, [tid, ot_id]);
       return true;
   }
@@ -507,6 +573,7 @@ export class MantenimientoRepository {
   }
 
   async addRepuesto(ot_id, data) {
+      await this.verificarBloqueoCorte(ot_id);
       const { item_inventario_id, descripcion, cantidad, unidad, precio_unitario, origen, pm_insumo_id } = data;
       const total = cantidad * precio_unitario;
 
@@ -519,6 +586,7 @@ export class MantenimientoRepository {
   }
 
   async updateRepuesto(ot_id, rid, data) {
+      await this.verificarBloqueoCorte(ot_id, null, 'ot_repuestos_insumos', rid);
       const { cantidad, precio_unitario } = data;
       
       // Get current values if not provided
@@ -539,6 +607,7 @@ export class MantenimientoRepository {
   }
 
   async removeRepuesto(ot_id, rid) {
+      await this.verificarBloqueoCorte(ot_id, null, 'ot_repuestos_insumos', rid);
       await query(`DELETE FROM ot_repuestos_insumos WHERE id = $1 AND orden_trabajo_id = $2`, [rid, ot_id]);
       return true;
   }
@@ -725,6 +794,7 @@ export class MantenimientoRepository {
   // ==========================================
 
   async addManoObraAdicional(ot_id, data, user_id) {
+    await this.verificarBloqueoCorte(ot_id);
     const { descripcion, precio } = data;
     if (!descripcion || descripcion.trim() === '') throw new Error('La descripción es requerida');
     const res = await query(
@@ -736,6 +806,7 @@ export class MantenimientoRepository {
   }
 
   async removeManoObraAdicional(ot_id, item_id) {
+    await this.verificarBloqueoCorte(ot_id, null, 'ot_mano_obra_adicional', item_id);
     await query(
       `DELETE FROM ot_mano_obra_adicional WHERE id = $1 AND orden_trabajo_id = $2`,
       [item_id, ot_id]

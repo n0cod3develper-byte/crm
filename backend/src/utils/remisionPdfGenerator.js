@@ -32,6 +32,12 @@ function formatDate(dateStr) {
   return `${day}/${month}/${year}`;
 }
 
+function formatFechaCorta(dateStr) {
+  if (!dateStr) return 'hoy';
+  const d = new Date(dateStr);
+  return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}`;
+}
+
 function formatTime(t) {
   if (!t) return '';
   return String(t).substring(0, 5);
@@ -43,7 +49,7 @@ const TERMINOS = `CARGAR S.A.S. en la prestación de servicio en montacargas ha 
 3. En caso de siniestro o daños, las partes interesadas se responsabilizaran de manera equitativa por los hechos ocurridos, evitando una reclamacion o demanda futura por perdida o daños quedando por consiguiente CARGAR S.A.S. a paz y salvo y libre de toda responsabilidad.
 4. Si el servicio es después de las 4:15 PM se cobrará a la tarifa con el recargo correspondiente y los sábados después de las 10:50 AM.`;
 
-function buildRemisionHtml(rem, horasLaborales = []) {
+function buildRemisionHtml(rem, horasLaborales = [], tramos = []) {
   const logo = getLogoBase64();
   const logoHtml = logo
     ? `<img src="${logo}" style="height:55px;" alt="Logo" />`
@@ -208,6 +214,58 @@ function buildRemisionHtml(rem, horasLaborales = []) {
 
   <!-- LIQUIDACIÓN DEL SERVICIO -->
   <div class="section-title">LIQUIDACIÓN DEL SERVICIO</div>
+  ${tramos.length > 0 ? `
+  <!-- Historial de equipos asignados (sustituciones) -->
+  <table style="margin-bottom: 8px;">
+    <thead>
+      <tr>
+        <th>MÁQUINA</th>
+        <th>PERÍODO</th>
+        <th>DÍAS</th>
+        <th>MOTIVO</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${tramos.map(t => {
+        const maquina = t.equipo_serie || t.equipo_serial || '—';
+        const periodo = `${formatFechaCorta(t.fecha_inicio)} – ${t.fecha_fin ? formatFechaCorta(t.fecha_fin) : 'vigente'}`;
+        const dias = t.dias_facturables != null ? t.dias_facturables : (t.vigente ? 'en curso' : '—');
+        const motivo = t.motivo && t.motivo !== 'Tramo inicial' ? t.motivo : '';
+        return `<tr>
+          <td class="td-center">${maquina}</td>
+          <td class="td-center">${periodo}</td>
+          <td class="td-center">${dias}</td>
+          <td>${motivo}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>
+  <!-- Tiempos del operario (equipo vigente) -->
+  <table style="margin-bottom: 8px;">
+    <thead>
+      <tr>
+        <th>HORA SALIDA CARGAR</th>
+        <th>HORA LLEGADA CLIENTE</th>
+        <th>HORA SALIDA CLIENTE</th>
+        <th>HORA LLEGADA CARGAR</th>
+        <th>DESCUENTO</th>
+        <th>HORO. SALIDA</th>
+        <th>HORO. REGRESO</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="td-center">${formatTime(rem.hora_salida_cargar)}</td>
+        <td class="td-center">${formatTime(rem.hora_llegada_cliente)}</td>
+        <td class="td-center">${formatTime(rem.hora_salida_cliente)}</td>
+        <td class="td-center">${formatTime(rem.hora_llegada_cargar)}</td>
+        <td class="td-center">${rem.descuentos ? formatCOP(rem.descuentos) : ''}</td>
+        <td class="td-center">${rem.horometro_salida || ''}</td>
+        <td class="td-center">${rem.horometro_regreso || ''}</td>
+      </tr>
+    </tbody>
+  </table>
+  ` : `
   <table style="margin-bottom: 8px;">
     <thead>
       <tr>
@@ -251,6 +309,7 @@ function buildRemisionHtml(rem, horasLaborales = []) {
       </tr>`}
     </tbody>
   </table>
+  `}
 
   <!-- DESCRIPCIÓN SERVICIO -->
   <div style="font-weight: bold; margin-bottom: 2px;">DESCRIPCIÓN SERVICIO</div>
@@ -363,8 +422,8 @@ function buildRemisionHtml(rem, horasLaborales = []) {
 </html>`;
 }
 
-export async function generateRemisionPdf(remision, horasLaborales = []) {
-  const html = buildRemisionHtml(remision, horasLaborales);
+export async function generateRemisionPdf(remision, horasLaborales = [], tramos = []) {
+  const html = buildRemisionHtml(remision, horasLaborales, tramos);
 
   const launchOptions = {
     headless: 'new',

@@ -154,3 +154,29 @@ export async function inicializarFestivos() {
     }
   }
 }
+
+/**
+ * Calcula la fecha de vencimiento de la ventana de gracia.
+ * Avanza `n` días hábiles desde `fechaBase`, saltando sábados, domingos y festivos colombianos.
+ */
+export async function calcularFechaVencimientoGracia(fechaBase, n = 2) {
+  const fechaStr = fechaBase instanceof Date 
+    ? fechaBase.toISOString().split('T')[0] 
+    : String(fechaBase).split('T')[0];
+  
+  let fecha = new Date(fechaStr + 'T12:00:00');
+  let diasContados = 0;
+  
+  while (diasContados < n) {
+    fecha.setDate(fecha.getDate() + 1);
+    const diaSemana = fecha.getDay();
+    if (diaSemana === 0 || diaSemana === 6) continue; // domingo o sábado
+    
+    const check = await esDiaEspecial(fecha);
+    if (!check.esFestivo) {
+      diasContados++;
+    }
+  }
+  return fecha.toISOString().split('T')[0];
+}
+

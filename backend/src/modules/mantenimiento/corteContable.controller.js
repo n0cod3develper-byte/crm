@@ -55,6 +55,22 @@ export const ejecutarCorte = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+export const cerrarCorte = async (req, res, next) => {
+  try {
+    const result = await repo.cerrarPeriodo(req.params.id, req.user.id);
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+};
+
+export const reabrirCorte = async (req, res, next) => {
+  try {
+    const { justificacion } = req.body;
+    const userName = `${req.user.nombre} ${req.user.apellido}`;
+    const result = await repo.reabrirPeriodo(req.params.id, req.user.id, userName, justificacion);
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+};
+
 export const getHistorialCadena = async (req, res, next) => {
   try {
     const { cadena_id } = req.params;

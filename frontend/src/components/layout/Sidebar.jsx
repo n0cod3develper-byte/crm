@@ -58,6 +58,7 @@ const navItems = [
   { label: 'Solicitudes', icon: FileText, to: '/compras/solicitudes', modulo: 'ordenes_compra', indent: true },
   { label: 'Órdenes Compra', icon: ShoppingCart, to: '/compras/oc', modulo: 'ordenes_compra', indent: true },
   { section: 'Administración' },
+  { label: 'Contabilidad', icon: FileText, to: '/contabilidad', modulo: 'contabilidad' },
   { label: 'Presupuestos', icon: DollarSign, to: '/presupuestos' },
   { label: 'Informes', icon: BarChart3, to: '/informes' },
   { label: 'Informes Dinámicos', icon: PieChart, to: '/informes/dinamicos', indent: true },

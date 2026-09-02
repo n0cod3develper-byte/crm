@@ -33,4 +33,9 @@ router.get('/:id/dias-fijo',            serviciosController.getDiasFijo);
 router.post('/:id/dias-fijo',           serviciosController.upsertDiaFijo);
 router.delete('/:id/dias-fijo/:did',    serviciosController.deleteDiaFijo);
 
+// ─── Sustitución de Equipo ─────────────────────────────────────────
+router.post('/:id/reemplazar-equipo',   serviciosController.reemplazarEquipo);
+router.get('/:id/tramos-equipo',        serviciosController.getTramosEquipo);
+
 export default router;
+

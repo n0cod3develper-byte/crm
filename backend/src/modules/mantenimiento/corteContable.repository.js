@@ -1,6 +1,7 @@
 import { query, withTransaction } from '../../config/database.js';
 import { MantenimientoRepository } from './mantenimiento.repository.js';
 import { registrarMovimiento } from '../../services/inventoryMovements.service.js';
+import { calcularFechaVencimientoGracia } from '../../services/calendarioService.js';
 
 const otRepo = new MantenimientoRepository();
 
@@ -176,120 +177,36 @@ export class CorteContableRepository {
     const itemsRes = await query(`SELECT * FROM ot_corte_items WHERE corte_id = $1`, [corteId]);
     const items = itemsRes.rows;
 
-    // Procesar cada OT de manera independiente para que fallos individuales no rompan todo el proceso,
-    // pero marcando el error en el ítem correspondiente.
+    const fechaCorteStr = corte.fecha_corte instanceof Date 
+      ? corte.fecha_corte.toISOString().split('T')[0] 
+      : String(corte.fecha_corte).split('T')[0];
+
+    // Actualizar cada OT del corte
     for (const item of items) {
       try {
         await withTransaction(async (client) => {
-          // 1. Obtener la OT original
-          const otRes = await client.query(`
-            SELECT * FROM ordenes_trabajo WHERE id = $1 FOR UPDATE
-          `, [item.orden_trabajo_id]);
-          const ot = otRes.rows[0];
-          if (!ot) throw new Error('OT no encontrada');
-          if (ot.estado !== 'ABIERTA' && ot.estado !== 'EN_PROCESO') {
-             throw new Error(`La OT ya está en estado ${ot.estado}`);
-          }
-
-          // Definir cadena_servicio_id si no existe
-          const cadenaServicioId = ot.cadena_servicio_id || ot.id;
-          if (!ot.cadena_servicio_id) {
-             await client.query(`UPDATE ordenes_trabajo SET cadena_servicio_id = $1 WHERE id = $2`, [cadenaServicioId, ot.id]);
-          }
-
-          // 2. Liquidar conceptos de la OT original hasta la fecha de corte
-          const fechaCorteStr = corte.fecha_corte instanceof Date 
-            ? corte.fecha_corte.toISOString().split('T')[0] 
-            : String(corte.fecha_corte).split('T')[0];
-
-          // 2a. Repuestos a descargar
-          const reps = await client.query(`
-            SELECT * FROM ot_repuestos_insumos 
-            WHERE orden_trabajo_id = $1 AND created_at <= $2 FOR UPDATE
-          `, [ot.id, fechaCorteStr + ' 23:59:59']);
-
-          // Verificar stock
-          const insuficientes = [];
-          for(const rep of reps.rows) {
-              const invRes = await client.query(`SELECT stock_actual FROM inventario WHERE id = $1 FOR UPDATE`, [rep.item_inventario_id]);
-              if (invRes.rows.length === 0) throw new Error(`Item ${rep.descripcion} no existe en inventario.`);
-              const currentStock = parseFloat(invRes.rows[0].stock_actual);
-              const requested = parseFloat(rep.cantidad);
-              if (currentStock < requested) {
-                  insuficientes.push(`${rep.descripcion}: requiere ${requested}, disponible ${currentStock}`);
-              }
-          }
-          if (insuficientes.length > 0) {
-              throw new Error(`Stock insuficiente: \n${insuficientes.join('\n')}`);
-          }
-
-          // Descargar stock
-          for(const rep of reps.rows) {
-              const requested = parseFloat(rep.cantidad);
-              await registrarMovimiento({
-                  inventario_id: rep.item_inventario_id,
-                  tipo_movimiento: 'SALIDA_OT',
-                  cantidad: requested,
-                  numero_documento: ot.consecutivo,
-                  ot_id: ot.id,
-                  notas: `Corte mensual automático de OT ${ot.consecutivo}`,
-                  registrado_por: userId
-              }, client);
-
-              await client.query(`UPDATE ot_repuestos_insumos SET descargado = TRUE, fecha_descargo = NOW() WHERE id = $1`, [rep.id]);
-          }
-
-          // 3. Crear registro de liquidación (ot_liquidacion)
-          const subtotal = parseFloat(item.monto_mano_obra) + parseFloat(item.monto_repuestos) + parseFloat(item.monto_mo_adicional);
-          const impuesto_pct = 19.0;
-          const impuesto_valor = subtotal * (impuesto_pct / 100);
-          const total_final = subtotal + impuesto_valor;
-
-          await client.query(`
-            INSERT INTO ot_liquidacion (orden_trabajo_id, total_mano_obra, total_repuestos, subtotal, impuesto_pct, impuesto_valor, total_final, liquidado_por, notas_liquidacion)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-          `, [ot.id, parseFloat(item.monto_mano_obra) + parseFloat(item.monto_mo_adicional), parseFloat(item.monto_repuestos), subtotal, impuesto_pct, impuesto_valor, total_final, userId, `Cierre contable del periodo ${corte.periodo}.`]);
-
-          // Actualizar estado de OT original a LIQUIDADA_CORTE
-          await client.query(`UPDATE ordenes_trabajo SET estado = 'LIQUIDADA_CORTE', updated_at = NOW() WHERE id = $1`, [ot.id]);
-
-          // 4. Crear la nueva OT de continuación
-          const consecutivo = await otRepo.generarConsecutivo(item.empresa_nombre, client);
+          // Bloquear la OT
+          const otRes = await client.query(
+            `SELECT id, estado FROM ordenes_trabajo WHERE id = $1 FOR UPDATE`,
+            [item.orden_trabajo_id]
+          );
+          if (otRes.rows.length === 0) throw new Error('OT no encontrada');
           
-          const newOtRes = await client.query(`
-            INSERT INTO ordenes_trabajo 
-              (consecutivo, tipo_mantenimiento, empresa_id, equipo_id, componente_id, horometro_inicial, responsable, contacto_empresa, telefono_contacto, detalle_servicio, created_by, pm_frecuencia_id, es_servicio_continuo, orden_origen_id, cadena_servicio_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, TRUE, $13, $14)
-            RETURNING *
-          `, [
-            consecutivo,
-            ot.tipo_mantenimiento,
-            ot.empresa_id,
-            ot.equipo_id,
-            ot.componente_id,
-            ot.horometro_final || ot.horometro_inicial, // arranca con el último horómetro conocido
-            ot.responsable,
-            ot.contacto_empresa,
-            ot.telefono_contacto,
-            ot.detalle_servicio,
-            userId,
-            ot.pm_frecuencia_id,
-            ot.id,
-            cadenaServicioId
-          ]);
-          const nuevaOt = newOtRes.rows[0];
+          // Actualizar la OT original con la fecha de corte y el id de periodo de cierre sin cambiar su estado
+          await client.query(
+            `UPDATE ordenes_trabajo 
+             SET fecha_ultimo_corte = $1, periodo_cierre_id = $2, updated_at = NOW() 
+             WHERE id = $3`,
+            [fechaCorteStr, corte.id, item.orden_trabajo_id]
+          );
 
-          // Copiar técnicos sin horas trabajadas para que queden asignados
-          const tecnicos = await client.query(`SELECT empleado_id, tarifa_hora FROM ot_tecnicos WHERE orden_trabajo_id = $1`, [ot.id]);
-          for(const tech of tecnicos.rows) {
-            await client.query(
-              `INSERT INTO ot_tecnicos (orden_trabajo_id, empleado_id, tarifa_hora) VALUES ($1, $2, $3)`,
-              [nuevaOt.id, tech.empleado_id, tech.tarifa_hora]
-            );
-          }
-
-          // Guardar el vínculo en el item del corte
-          await client.query(`UPDATE ot_corte_items SET nueva_ot_id = $1, error_mensaje = NULL WHERE id = $2`, [nuevaOt.id, item.id]);
+          // Limpiar mensaje de error e indicar que no hay nueva_ot_id
+          await client.query(
+            `UPDATE ot_corte_items 
+             SET nueva_ot_id = NULL, error_mensaje = NULL 
+             WHERE id = $1`,
+            [item.id]
+          );
         });
       } catch (err) {
         console.error(`Error procesando corte de OT ${item.consecutivo_ot}:`, err.message);
@@ -297,14 +214,94 @@ export class CorteContableRepository {
       }
     }
 
-    // Cambiar estado del lote a EJECUTADO
+    // Calcular la fecha de vencimiento de gracia (2 días hábiles)
+    const fechaVencimientoGracia = await calcularFechaVencimientoGracia(fechaCorteStr, 2);
+
+    // Cambiar estado del lote a EN_GRACIA
     await query(`
       UPDATE ot_cortes_contables 
-      SET estado = 'EJECUTADO', ejecutado_at = NOW(), ejecutado_por = $1
+      SET estado = 'EN_GRACIA', 
+          ejecutado_at = NOW(), 
+          ejecutado_por = $1,
+          fecha_vencimiento_gracia = $2
+      WHERE id = $3
+    `, [userId, fechaVencimientoGracia, corteId]);
+
+    return await this.getCorteById(corteId);
+  }
+
+  async cerrarPeriodo(corteId, userId) {
+    const corteRes = await query(`SELECT * FROM ot_cortes_contables WHERE id = $1 FOR UPDATE`, [corteId]);
+    if (!corteRes.rows[0]) throw new Error('Corte no encontrado');
+    const corte = corteRes.rows[0];
+    if (corte.estado !== 'EN_GRACIA') {
+      throw new Error('Solo se pueden cerrar cortes que se encuentran en estado EN_GRACIA');
+    }
+
+    await query(`
+      UPDATE ot_cortes_contables
+      SET estado = 'CERRADO',
+          cerrado_at = NOW(),
+          cerrado_por = $1
       WHERE id = $2
     `, [userId, corteId]);
 
     return await this.getCorteById(corteId);
+  }
+
+  async reabrirPeriodo(corteId, userId, userName, justificacion) {
+    if (!justificacion || justificacion.trim().length < 20) {
+      throw new Error('La justificación es requerida y debe tener al menos 20 caracteres');
+    }
+
+    const corteRes = await query(`SELECT * FROM ot_cortes_contables WHERE id = $1 FOR UPDATE`, [corteId]);
+    if (!corteRes.rows[0]) throw new Error('Corte no encontrado');
+    const corte = corteRes.rows[0];
+    if (corte.estado !== 'CERRADO' && corte.estado !== 'EJECUTADO') {
+      throw new Error('Solo se pueden reabrir cortes que se encuentran en estado CERRADO');
+    }
+
+    return await withTransaction(async (client) => {
+      // 1. Cambiar estado a REABIERTO y guardar justificación
+      await client.query(`
+        UPDATE ot_cortes_contables
+        SET estado = 'REABIERTO',
+            reabierto_at = NOW(),
+            reabierto_por = $1,
+            justificacion_reapertura = $2
+        WHERE id = $3
+      `, [userId, justificacion, corteId]);
+
+      // 2. Registrar en log de auditoría
+      await client.query(`
+        INSERT INTO audit_logs (user_id, user_name, modulo, accion, ruta, metodo, datos_antes, datos_despues)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `, [
+        userId,
+        userName || null,
+        'cierre_contable',
+        'REAPERTURA_PERIODO',
+        `/cortes/${corteId}/reabrir`,
+        'POST',
+        JSON.stringify({ corte_id: corteId, estado_anterior: corte.estado }),
+        JSON.stringify({ estado_nuevo: 'REABIERTO', justificacion })
+      ]);
+
+      const itemsRes = await client.query(`
+        SELECT ci.*, ot.consecutivo as original_consecutivo, n_ot.consecutivo as nueva_consecutivo
+        FROM ot_corte_items ci
+        JOIN ordenes_trabajo ot ON ot.id = ci.orden_trabajo_id
+        LEFT JOIN ordenes_trabajo n_ot ON n_ot.id = ci.nueva_ot_id
+        WHERE ci.corte_id = $1
+      `, [corteId]);
+      corte.items = itemsRes.rows;
+      corte.estado = 'REABIERTO';
+      corte.reabierto_at = new Date();
+      corte.reabierto_por = userId;
+      corte.justificacion_reapertura = justificacion;
+
+      return corte;
+    });
   }
 
   async getHistorialCadena(cadenaServicioId) {

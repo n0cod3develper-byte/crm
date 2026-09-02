@@ -121,6 +121,7 @@ const SupplierQuoteDetail = lazy(() => import('./pages/SupplierQuotes/SupplierQu
 const SolicitarCertificadoPage = lazy(() => import('./pages/CertificadosPublico/SolicitarCertificadoPage').then(m => ({ default: m.SolicitarCertificadoPage })));
 const DescargarCertificadoPage = lazy(() => import('./pages/CertificadosPublico/DescargarCertificadoPage').then(m => ({ default: m.DescargarCertificadoPage })));
 const CertificadoTemplatesPage = lazy(() => import('./pages/Certificados/CertificadoTemplatesPage').then(m => ({ default: m.CertificadoTemplatesPage })));
+const ContabilidadDashboardPage = lazy(() => import('./pages/Contabilidad/ContabilidadDashboardPage').then(m => ({ default: m.ContabilidadDashboardPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -252,6 +253,9 @@ function App() {
 
                 {/* Centros de Costos */}
                 <Route path="/centros-costos" element={<ProtectedRoute modulo="centros_costos" accion="ver"><CentrosCostosPage /></ProtectedRoute>} />
+
+                {/* Contabilidad */}
+                <Route path="/contabilidad" element={<ProtectedRoute modulo="contabilidad" accion="ver"><ContabilidadDashboardPage /></ProtectedRoute>} />
 
                 {/* Logística */}
                 <Route path="/proveedores" element={<ProtectedRoute modulo="proveedores" accion="ver"><ProveedoresListPage /></ProtectedRoute>} />
