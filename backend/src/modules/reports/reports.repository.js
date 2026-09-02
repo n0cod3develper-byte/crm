@@ -28,7 +28,7 @@ export class ReportsRepository {
              e.marca AS equipo_marca,
              e.modelo AS equipo_modelo,
              e.serial AS equipo_serial,
-             e.numero_equipo AS equipo_numero_interno,
+             e.serie AS equipo_numero_interno,
              cs.nombre AS servicio_nombre,
              cs.tipo_servicio
       FROM remisiones r
@@ -67,7 +67,7 @@ export class ReportsRepository {
              e.marca AS equipo_marca,
              e.modelo AS equipo_modelo,
              e.serial AS equipo_serial,
-             e.numero_equipo AS equipo_numero_interno,
+             e.serie  AS equipo_numero_interno,
              l.fecha_liquidacion,
              l.total_mano_obra,
              l.total_repuestos,
