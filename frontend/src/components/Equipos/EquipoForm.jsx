@@ -1,7 +1,7 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-import { Search, ChevronDown, ChevronUp, AlertCircle, HardDrive, Settings, Activity, MapPin } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, AlertCircle, HardDrive, Settings, Activity, MapPin, Wrench, Plus } from 'lucide-react';
 import api from '../../lib/api';
 import { FotoEquipo } from './FotoEquipo';
 import {
@@ -81,6 +81,8 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel, isQu
     soat_vigente: equipo?.soat_vigente ?? false,
     soat_vencimiento: equipo?.soat_vencimiento || '',
     bonificacion_hora: equipo?.bonificacion_hora || 0,
+    centro_costo_nombre: equipo?.centro_costo_nombre || '',
+    repuestos_compatibles: equipo?.repuestos_compatibles || {},
   });
 
   // Cargar lista de empresas para el selector
@@ -93,6 +95,16 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel, isQu
     enabled: companySearch.length > 2 && companySearch !== equipo?.empresa_nombre,
   });
 
+  // Cargar centros de costos de la empresa seleccionada
+  const { data: centrosCostosData } = useQuery({
+    queryKey: ['centros-costos-empresa', form.empresa_id],
+    queryFn: async () => {
+      const { data } = await api.get('/centros-costos', { params: { empresa_id: form.empresa_id } });
+      return data.data || [];
+    },
+    enabled: !!form.empresa_id,
+  });
+
   const mutation = useMutation({
     mutationFn: (payload) => {
       if (equipo) return api.put(`/equipos/${equipo.id}`, payload);
@@ -102,6 +114,7 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel, isQu
       toast.success(equipo ? 'Equipo actualizado con éxito' : 'Equipo registrado con éxito');
       qc.invalidateQueries({ queryKey: ['equipos'] });
       qc.invalidateQueries({ queryKey: ['company-equipos'] });
+      qc.invalidateQueries({ queryKey: ['equipo-detail'] });
       onSuccess();
     },
     onError: (err) => {
@@ -118,6 +131,11 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel, isQu
     }
     if (!form.serial) {
       toast.error('El número de serial es obligatorio');
+      setOpenSection('general');
+      return;
+    }
+    if (!form.centro_costo_nombre) {
+      toast.error('El centro de costos es obligatorio');
       setOpenSection('general');
       return;
     }
@@ -142,6 +160,17 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel, isQu
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleRepuestosChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({
+      ...prev,
+      repuestos_compatibles: {
+        ...prev.repuestos_compatibles,
+        [name]: value
+      }
+    }));
   };
 
   // Sincronizar combustible de forma retrocompatible al cambiar propulsion
@@ -401,6 +430,39 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel, isQu
                 </div>
               )}
 
+              {/* Centro de Costos */}
+              <div style={fullField}>
+                <label style={label}>Centro de Costos *</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    name="centro_costo_nombre"
+                    list="centros-costos-list"
+                    className="input"
+                    style={inputPremium}
+                    placeholder="Escribe o selecciona un centro de costos..."
+                    value={form.centro_costo_nombre}
+                    onChange={handleChange}
+                    required
+                  />
+                  <datalist id="centros-costos-list">
+                    {(centrosCostosData || []).map(cc => (
+                      <option key={cc.id} value={cc.nombre} />
+                    ))}
+                  </datalist>
+                </div>
+                {!form.empresa_id && (
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                    Selecciona primero una empresa para ver sugerencias
+                  </div>
+                )}
+                {form.empresa_id && form.centro_costo_nombre && centrosCostosData?.length > 0 && !centrosCostosData.some(c => c.nombre.toLowerCase() === form.centro_costo_nombre.toLowerCase()) && (
+                  <div style={{ fontSize: '11px', color: 'var(--clr-primary-500)', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <Plus size={12} />
+                    Se creará este nuevo centro de costos al guardar el equipo.
+                  </div>
+                )}
+              </div>
+
               {/* Tarjetas de Tipo de Activo — ancho completo */}
               <div style={fullField}>
                 <label style={label}>Tipo de Activo *</label>
@@ -570,7 +632,70 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel, isQu
           </div>
 
           {/* ══════════════════════════════════════════════════
-              SECCIÓN 3: MÉTRICAS OPERATIVAS
+              SECCIÓN 3: REPUESTOS COMPATIBLES
+              ══════════════════════════════════════════════════ */}
+          <div>
+            <div
+              style={sectionHeaderStyle('repuestos')}
+              onClick={() => toggleSection('repuestos')}
+              onMouseEnter={(e) => { if (openSection !== 'repuestos') e.currentTarget.style.borderColor = 'var(--clr-primary-300)'; }}
+              onMouseLeave={(e) => { if (openSection !== 'repuestos') e.currentTarget.style.borderColor = ''; }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                <Wrench size={16} strokeWidth={2} />
+                <span>3. Repuestos Compatibles</span>
+              </div>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 24, height: 24, borderRadius: '50%',
+                background: openSection === 'repuestos' ? 'rgba(37,99,235,0.1)' : 'var(--bg-elevated)',
+                transition: 'background 200ms ease',
+              }}>
+                {openSection === 'repuestos'
+                  ? <ChevronUp size={14} strokeWidth={2.5} />
+                  : <ChevronDown size={14} strokeWidth={2.5} />
+                }
+              </div>
+            </div>
+            
+            <div style={sectionContentStyle('repuestos')} className="equipo-section-grid">
+              <div style={halfField}>
+                <label style={label}>Aceite Motor</label>
+                <input name="aceite_motor" className="input" style={inputPremium} value={form.repuestos_compatibles.aceite_motor || ''} onChange={handleRepuestosChange} placeholder="Ej: 15W-40" />
+              </div>
+              <div style={halfField}>
+                <label style={label}>Filtro GLP</label>
+                <input name="filtro_glp" className="input" style={inputPremium} value={form.repuestos_compatibles.filtro_glp || ''} onChange={handleRepuestosChange} placeholder="Referencia" />
+              </div>
+              <div style={halfField}>
+                <label style={label}>Filtro Aire</label>
+                <input name="filtro_aire" className="input" style={inputPremium} value={form.repuestos_compatibles.filtro_aire || ''} onChange={handleRepuestosChange} placeholder="Referencia" />
+              </div>
+              <div style={halfField}>
+                <label style={label}>Lubricante Cadena</label>
+                <input name="lubricante_cadena" className="input" style={inputPremium} value={form.repuestos_compatibles.lubricante_cadena || ''} onChange={handleRepuestosChange} placeholder="Referencia" />
+              </div>
+              <div style={halfField}>
+                <label style={label}>Grasa</label>
+                <input name="grasa" className="input" style={inputPremium} value={form.repuestos_compatibles.grasa || ''} onChange={handleRepuestosChange} placeholder="Referencia" />
+              </div>
+              <div style={halfField}>
+                <label style={label}>Filtro Combustible</label>
+                <input name="filtro_combustible" className="input" style={inputPremium} value={form.repuestos_compatibles.filtro_combustible || ''} onChange={handleRepuestosChange} placeholder="Referencia" />
+              </div>
+              <div style={halfField}>
+                <label style={label}>Filtro Motor</label>
+                <input name="filtro_motor" className="input" style={inputPremium} value={form.repuestos_compatibles.filtro_motor || ''} onChange={handleRepuestosChange} placeholder="Referencia" />
+              </div>
+              <div style={halfField}>
+                <label style={label}>Filtro Bomba Gasolina</label>
+                <input name="filtro_bomba_gasolina" className="input" style={inputPremium} value={form.repuestos_compatibles.filtro_bomba_gasolina || ''} onChange={handleRepuestosChange} placeholder="Referencia" />
+              </div>
+            </div>
+          </div>
+
+          {/* ══════════════════════════════════════════════════
+              SECCIÓN 4: MÉTRICAS OPERATIVAS
               ══════════════════════════════════════════════════ */}
           <div>
             <div
@@ -581,7 +706,7 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel, isQu
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
                 <Activity size={16} strokeWidth={2} />
-                <span>3. Métricas Operativas</span>
+                <span>4. Métricas Operativas</span>
               </div>
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -653,7 +778,7 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel, isQu
           </div>
 
           {/* ══════════════════════════════════════════════════
-              SECCIÓN 4: UBICACIÓN Y ESTADO
+              SECCIÓN 5: UBICACIÓN Y ESTADO
               ══════════════════════════════════════════════════ */}
           <div>
             <div
@@ -664,7 +789,7 @@ export function EquipoForm({ equipo, defaultCompanyId, onSuccess, onCancel, isQu
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
                 <MapPin size={16} strokeWidth={2} />
-                <span>4. Ubicación y Estado</span>
+                <span>5. Ubicación y Estado</span>
               </div>
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',

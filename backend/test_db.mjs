@@ -1,0 +1,1 @@
+import 'dotenv/config'; import { query } from './src/config/database.js'; query(\SELECT to_regclass('equipos_repuestos_compatibles') as tbl\).then(r => { console.log(r.rows); process.exit(0); }).catch(console.error);

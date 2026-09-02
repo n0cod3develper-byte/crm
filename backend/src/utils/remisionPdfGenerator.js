@@ -63,13 +63,39 @@ function buildRemisionHtml(rem, horasLaborales = [], tramos = []) {
     { label: 'CON RECARGO', horas: rem.horas_recargo, valor: rem.valor_hora_recargo },
   ];
 
+  // Items que NO son el servicio principal del operario (ej: batería, combustible, etc.)
+  let indexHora = 0;
+  const numOperarios = Math.max(1, (rem.operarios || []).length);
+  const nonHourItems = (rem.items || []).filter(it => {
+    const unidad = (it.unidad || '').trim().toLowerCase();
+    if (unidad === 'hora') {
+      if (indexHora < numOperarios) {
+        indexHora++;
+        return false; // Es el servicio del operario, se omite aquí porque va en HORARIO
+      }
+      indexHora++;
+      return true; // Es un ítem adicional aunque su unidad diga 'hora'
+    }
+    return true; // No es hora, es ítem adicional
+  }).map(it => ({
+    nombre: `${it.servicio_codigo || ''} - ${it.servicio_nombre || it.descripcion || 'Ítem adicional'}`.trim(),
+    cantidad: parseFloat(it.cantidad) || 1,
+    valor_unitario: parseFloat(it.valor_unitario) || 0,
+    subtotal: Math.round((parseFloat(it.cantidad) || 1) * (parseFloat(it.valor_unitario) || 0)),
+  }));
+
   const totalParcialDesglose =
     ((parseFloat(rem.horas_ordinarias) || 0) * (parseFloat(rem.valor_hora_ordinaria) || 0)) +
-    ((parseFloat(rem.horas_recargo) || 0) * (parseFloat(rem.valor_hora_recargo) || 0));
+    ((parseFloat(rem.horas_recargo) || 0) * (parseFloat(rem.valor_hora_recargo) || 0)) +
+    nonHourItems.reduce((sum, it) => sum + it.subtotal, 0);
 
   const totalHorasDesglose =
     (parseFloat(rem.horas_ordinarias) || 0) +
     (parseFloat(rem.horas_recargo) || 0);
+
+  const totalHorasValue =
+    ((parseFloat(rem.horas_ordinarias) || 0) * (parseFloat(rem.valor_hora_ordinaria) || 0)) +
+    ((parseFloat(rem.horas_recargo) || 0) * (parseFloat(rem.valor_hora_recargo) || 0));
 
 
   const totalLiquidado = horasLaborales.reduce((sum, h) => sum + parseFloat(h.total_liquidado || 0), 0);
@@ -365,9 +391,29 @@ function buildRemisionHtml(rem, horasLaborales = [], tramos = []) {
         <td class="td-center">${parseFloat(row.horas) > 0 && parseFloat(row.valor) > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(row.valor) : ''}</td>
         <td class="td-center">${(parseFloat(row.horas) > 0 && parseFloat(row.valor) > 0) ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(parseFloat(row.horas) * parseFloat(row.valor)) : ''}</td>
       </tr>`).join('')}
+      ${nonHourItems.length > 0 ? `
+      <tr style="font-weight: bold; background: #f0f0f0;">
+        <td></td>
+        <td class="td-center">${totalHorasDesglose > 0 ? totalHorasDesglose : ''}</td>
+        <td></td>
+        <td class="td-center">${totalHorasValue > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(totalHorasValue) : ''}</td>
+      </tr>
+      <tr style="background: #f9f9f9; font-size: 9px; font-weight: bold; text-align: center;">
+        <td style="text-align: left;">ITEM</td>
+        <td>UNIDAD</td>
+        <td>VR. UNITARIO</td>
+        <td>VR. PARCIAL</td>
+      </tr>
+      ` + nonHourItems.map(it => `
+      <tr>
+        <td style="font-size:9px;">${it.nombre}</td>
+        <td class="td-center">${it.cantidad}</td>
+        <td class="td-center">CO$ ${new Intl.NumberFormat('es-CO').format(it.valor_unitario)}</td>
+        <td class="td-center">CO$ ${new Intl.NumberFormat('es-CO').format(it.subtotal)}</td>
+      </tr>`).join('') : ''}
       <tr style="font-weight: bold; background: #f0f0f0; font-size: 12px;">
         <td style="padding: 10px 5px;">TOTAL</td>
-        <td class="td-center" style="padding: 10px 5px;">${totalHorasDesglose > 0 ? totalHorasDesglose : ''}</td>
+        <td style="padding: 10px 5px;"></td>
         <td style="padding: 10px 5px;"></td>
         <td class="td-center" style="padding: 10px 5px;">${totalParcialDesglose > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(totalParcialDesglose) : ''}</td>
       </tr>

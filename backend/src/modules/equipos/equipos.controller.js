@@ -120,8 +120,9 @@ export const equiposController = {
 
   async create(req, res, next) {
     try {
-      const { serial } = req.body;
+      const { serial, centro_costo_nombre } = req.body;
       if (!serial) throw new BadRequestError('El serial es obligatorio');
+      if (!centro_costo_nombre) throw new BadRequestError('El centro de costos es obligatorio');
 
       const existing = await repo.findBySerial(serial);
       if (existing) throw new BadRequestError(`El serial ${serial} ya está registrado`);
@@ -142,10 +143,15 @@ export const equiposController = {
   async update(req, res, next) {
     try {
       const { id } = req.params;
-      const { serial } = req.body;
+      const { serial, centro_costo_nombre } = req.body;
 
       const current = await repo.findById(id);
       if (!current) throw new NotFoundError('Equipo');
+
+      // Validar centro de costos: obligatorio si se envía explícitamente como null/vacío
+      if ('centro_costo_nombre' in req.body && !centro_costo_nombre) {
+        throw new BadRequestError('El centro de costos es obligatorio');
+      }
       
       if (serial) {
         const existing = await repo.findBySerial(serial);
@@ -454,6 +460,36 @@ export const equiposController = {
         data: liberados
       });
     } catch (err) { next(err); }
-  }
+  },
+
+  // ─── Detail Page Endpoints ─────────────────────────────
+  async getDetailOTs(req, res, next) {
+    try {
+      const { tipo_mantenimiento, fecha_desde, fecha_hasta, search, limit, cursor } = req.query;
+      const result = await repo.findDetailOTs(req.params.id, {
+        tipo_mantenimiento, fecha_desde, fecha_hasta, search,
+        limit: parseInt(limit) || 50, cursor
+      });
+      res.json({ success: true, ...result });
+    } catch (err) { next(err); }
+  },
+
+  async getDetailRemisiones(req, res, next) {
+    try {
+      const { estado, fecha_desde, fecha_hasta, search, limit, cursor } = req.query;
+      const result = await repo.findDetailRemisiones(req.params.id, {
+        estado, fecha_desde, fecha_hasta, search,
+        limit: parseInt(limit) || 50, cursor
+      });
+      res.json({ success: true, ...result });
+    } catch (err) { next(err); }
+  },
+
+  async getDetailTiempos(req, res, next) {
+    try {
+      const data = await repo.findTiempos(req.params.id);
+      res.json({ success: true, data });
+    } catch (err) { next(err); }
+  },
 };
 

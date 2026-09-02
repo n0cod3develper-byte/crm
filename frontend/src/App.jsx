@@ -34,6 +34,7 @@ const CampaignsPage = lazy(() => import('./pages/Campaigns/CampaignsPage').then(
 const SupportPage = lazy(() => import('./pages/Support/SupportPage').then(m => ({ default: m.SupportPage })));
 const EmployeesPage = lazy(() => import('./pages/Employees/EmployeesPage').then(m => ({ default: m.EmployeesPage })));
 const EquiposPage = lazy(() => import('./pages/Equipos/EquiposPage').then(m => ({ default: m.EquiposPage })));
+const EquipoDetailPage = lazy(() => import('./pages/Equipos/EquipoDetailPage').then(m => ({ default: m.EquipoDetailPage })));
 const MantenimientoPage = lazy(() => import('./pages/Mantenimiento/MantenimientoPage').then(m => ({ default: m.MantenimientoPage })));
 const OTFormPage = lazy(() => import('./pages/Mantenimiento/OTFormPage').then(m => ({ default: m.OTFormPage })));
 const OTDetailPage = lazy(() => import('./pages/Mantenimiento/OTDetailPage').then(m => ({ default: m.OTDetailPage })));
@@ -65,6 +66,7 @@ const FacturacionDashboard = lazy(() => import('./pages/Facturacion/DashboardFac
 const OtsPendientesPage = lazy(() => import('./pages/Facturacion/OtsPendientesPage').then(m => ({ default: m.OtsPendientesPage })));
 const FacturasListPage = lazy(() => import('./pages/Facturacion/FacturasListPage').then(m => ({ default: m.FacturasListPage })));
 const FacturaDetailPage = lazy(() => import('./pages/Facturacion/FacturaDetailPage').then(m => ({ default: m.FacturaDetailPage })));
+const FacturaEditPage = lazy(() => import('./pages/Facturacion/FacturaEditPage').then(m => ({ default: m.FacturaEditPage })));
 const CentrosCostosPage = lazy(() => import('./pages/CentrosCostos/CentrosCostosPage').then(m => ({ default: m.CentrosCostosPage })));
 const RolesPage = lazy(() => import('./pages/Admin/RolesPage').then(m => ({ default: m.RolesPage })));
 const UsersPage = lazy(() => import('./pages/Admin/UsersPage').then(m => ({ default: m.UsersPage })));
@@ -235,6 +237,7 @@ function App() {
                 <Route path="/support" element={<ProtectedRoute modulo="soporte" accion="ver"><SupportPage /></ProtectedRoute>} />
                 <Route path="/employees" element={<ProtectedRoute modulo="empleados" accion="ver"><EmployeesPage /></ProtectedRoute>} />
                 <Route path="/equipos" element={<ProtectedRoute modulo="equipos" accion="ver"><EquiposPage /></ProtectedRoute>} />
+                <Route path="/equipos/:id" element={<ProtectedRoute modulo="equipos" accion="ver"><EquipoDetailPage /></ProtectedRoute>} />
                 <Route path="/turnos" element={<ProtectedRoute modulo="turnos" accion="ver"><TurnoPage /></ProtectedRoute>} />
                 <Route path="/turnos/supervisor" element={<ProtectedRoute modulo="turnos" accion="ver"><TurnoSupervisorPage /></ProtectedRoute>} />
 
@@ -250,6 +253,7 @@ function App() {
                 <Route path="/facturacion/pendientes" element={<ProtectedRoute modulo="facturacion" accion="ver"><OtsPendientesPage /></ProtectedRoute>} />
                 <Route path="/facturacion/facturas" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturasListPage /></ProtectedRoute>} />
                 <Route path="/facturacion/facturas/:id" element={<ProtectedRoute modulo="facturacion" accion="ver"><FacturaDetailPage /></ProtectedRoute>} />
+                <Route path="/facturacion/facturas/:id/editar" element={<ProtectedRoute modulo="facturacion" accion="editar"><FacturaEditPage /></ProtectedRoute>} />
 
                 {/* Centros de Costos */}
                 <Route path="/centros-costos" element={<ProtectedRoute modulo="centros_costos" accion="ver"><CentrosCostosPage /></ProtectedRoute>} />

@@ -125,8 +125,10 @@ export const informesController = {
         prevFin    = `${d1.getFullYear()}-${mStr}-15`;
       }
 
+      const usuario_id = req.user?.id;
+
       const [principal, anterior] = await Promise.all([
-        informesRepository.getLiquidacionBonificacion(fecha_inicio, fecha_fin),
+        informesRepository.getLiquidacionBonificacion(fecha_inicio, fecha_fin, usuario_id),
         informesRepository.getLiquidacionBonificacionPorOperario(prevInicio, prevFin),
       ]);
 
@@ -140,6 +142,26 @@ export const informesController = {
       });
     } catch (error) {
       logger.error('Error en getLiquidacionBonificacion', { error: error.message });
+      next(error);
+    }
+  },
+
+  async toggleSubrayado(req, res, next) {
+    try {
+      const { remision_id } = req.body;
+      const usuario_id = req.user?.id;
+      
+      if (!remision_id) {
+        return res.status(400).json({ error: 'remision_id es requerido' });
+      }
+      if (!usuario_id) {
+        return res.status(401).json({ error: 'Usuario no autenticado' });
+      }
+
+      const result = await informesRepository.toggleSubrayado(usuario_id, remision_id);
+      res.json(result);
+    } catch (error) {
+      logger.error('Error en toggleSubrayado (Gestión Humana)', { error: error.message });
       next(error);
     }
   },

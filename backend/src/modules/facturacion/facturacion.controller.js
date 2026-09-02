@@ -1,6 +1,7 @@
 import { FacturacionRepository } from './facturacion.repository.js';
 import { generatePrefacturaPdf } from '../../utils/pdfGenerator.js';
 import { NotFoundError } from '../../utils/errors.js';
+import { obtenerPermisosUsuario } from '../../middleware/auth.js';
 
 const repo = new FacturacionRepository();
 
@@ -59,7 +60,15 @@ export const createPrefacturaFromRemisiones = async (req, res, next) => {
 
 export const confirmarFactura = async (req, res, next) => {
   try {
+    console.log("CONFIRMAR FACTURA REQ BODY:", req.body);
     const factura = await repo.confirmarFactura(req.params.id, req.body, req.user.id);
+    res.json({ success: true, data: factura });
+  } catch (err) { next(err); }
+};
+
+export const updateFactura = async (req, res, next) => {
+  try {
+    const factura = await repo.updateFactura(req.params.id, req.body, req.user.id);
     res.json({ success: true, data: factura });
   } catch (err) { next(err); }
 };
@@ -84,5 +93,15 @@ export const downloadPDF = async (req, res, next) => {
       'Content-Length': pdfBuffer.length,
     });
     res.send(pdfBuffer);
+  } catch (err) { next(err); }
+};
+
+export const updateFacturaFields = async (req, res, next) => {
+  try {
+    const { numero_factura, fecha_factura, total, notas } = req.body;
+    const { rol } = await obtenerPermisosUsuario(req.user.id);
+    const isAdmin = rol?.slug === 'admin' || rol?.slug === 'superadmin';
+    const factura = await repo.updateFacturaFields(req.params.id, { numero_factura, fecha_factura, total, notas }, isAdmin);
+    res.json({ success: true, data: factura });
   } catch (err) { next(err); }
 };

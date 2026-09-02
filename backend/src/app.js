@@ -4,6 +4,9 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
+import { execSync } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import passport from 'passport';
 import { createServer } from 'http';
 
@@ -254,6 +257,19 @@ async function bootstrap() {
     process.exit(1);
   }
 
+  // Ejecutar migraciones automáticamente
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const backendRoot = path.resolve(__dirname, '..');
+    const runnerPath = path.join(backendRoot, 'migrations', 'runner.js');
+    logger.info('🔄 Ejecutando migraciones automáticas...');
+    const output = execSync(`node "${runnerPath}"`, { cwd: backendRoot, stdio: 'pipe', encoding: 'utf-8' });
+    logger.info('✅ Migraciones completadas:\n' + output);
+  } catch (err) {
+    logger.warn('⚠️ Error ejecutando migraciones (el servidor continuará):', { error: err.message, output: err.stdout || '' });
+  }
+
   await connectRedis();
 
   // Iniciar job de cierre automático de turnos (23:59 America/Bogota)
@@ -277,12 +293,16 @@ async function bootstrap() {
     logger.warn('[Festivos] No se pudieron inicializar los festivos', { error: err.message })
   );
 
-  // Ejecutar migración automática pendiente para quitar el UNIQUE (solicitado para producción)
+  // Ejecutar migración automática pendiente para quitar UNIQUEs (solicitado para producción)
   try {
     await db.query('ALTER TABLE facturas DROP CONSTRAINT IF EXISTS facturas_numero_factura_key;');
     logger.info('✅ Constraint UNIQUE facturas_numero_factura_key eliminado (si existía)');
+    await db.query('ALTER TABLE factura_remisiones DROP CONSTRAINT IF EXISTS factura_remisiones_remision_id_key;');
+    logger.info('✅ Constraint UNIQUE factura_remisiones_remision_id_key eliminado (si existía)');
+    await db.query('ALTER TABLE factura_ots DROP CONSTRAINT IF EXISTS factura_ots_ot_id_key;');
+    logger.info('✅ Constraint UNIQUE factura_ots_ot_id_key eliminado (si existía)');
   } catch (err) {
-    logger.warn('⚠️ No se pudo eliminar el constraint UNIQUE de facturas', { error: err.message });
+    logger.warn('⚠️ No se pudo eliminar algún constraint UNIQUE de facturación', { error: err.message });
   }
 
   httpServer.listen(env.PORT, () => {

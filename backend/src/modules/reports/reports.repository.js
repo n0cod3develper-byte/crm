@@ -22,6 +22,7 @@ export class ReportsRepository {
              r.total_bruto,
              r.iva_valor,
              r.descuentos,
+             r.cantidad_horas,
              r.estado,
              c.name AS empresa_nombre,
              e.marca AS equipo_marca,

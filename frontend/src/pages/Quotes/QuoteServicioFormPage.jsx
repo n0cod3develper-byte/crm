@@ -15,6 +15,7 @@ const IVA_RATE = 0.19;
 
 const EMPTY = {
   company_id: '', contact_id: '', fecha: new Date().toISOString().slice(0, 10),
+  valido_hasta: '',
   asunto: '', direccion_invitacion: '', ciudad_envio: '',
   descripcion: '', estado: 'BORRADOR',
 };
@@ -58,6 +59,7 @@ export function QuoteServicioFormPage() {
         company_id: existingQuote.company_id || '',
         contact_id: existingQuote.contact_id || '',
         fecha: existingQuote.fecha ? existingQuote.fecha.slice(0, 10) : '',
+        valido_hasta: existingQuote.valido_hasta ? existingQuote.valido_hasta.slice(0, 10) : '',
         asunto: existingQuote.asunto || '',
         direccion_invitacion: existingQuote.direccion_invitacion || '',
         ciudad_envio: existingQuote.ciudad_envio || '',
@@ -101,10 +103,13 @@ export function QuoteServicioFormPage() {
     enabled: !!form.company_id,
   });
 
-  const searchCatalog = React.useCallback(async (searchTerm) => {
-    const { data } = await api.get('/catalogo-servicios', { params: { search: searchTerm || undefined, limit: 10 } });
-    return data.data || data;
-  }, []);
+  const { data: catalogoItems = [] } = useQuery({
+    queryKey: ['catalogoServicios'],
+    queryFn: async () => {
+      const { data } = await api.get('/catalogo-servicios', { params: { limit: 1000 } });
+      return data.data || data;
+    }
+  });
 
   // ─── Cálculos ────────────────────────────────────────────
   const totals = useMemo(() => {
@@ -339,6 +344,7 @@ export function QuoteServicioFormPage() {
               </div>
 
               {field('Fecha', 'fecha', 'date')}
+              {field('Válida hasta', 'valido_hasta', 'date')}
             </div>
 
             {/* ─── Detalles ─────────────────────── */}
@@ -401,24 +407,28 @@ export function QuoteServicioFormPage() {
                         <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>{idx + 1}</td>
                         <td style={{ overflow: 'visible', position: 'relative' }}>
                             <SearchableSelect
-                              fetchFn={searchCatalog}
                               value={item.catalogo_servicio_id || ''}
                               onChange={(val, s) => {
                                 updateItem(idx, 'catalogo_servicio_id', val || '');
                                 if (s) {
                                   updateItem(idx, 'servicio_nombre', s.nombre);
-                                  updateItem(idx, 'valor_unitario', parseFloat(s.precio_base || 0));
+                                  updateItem(idx, 'valor_unitario', parseFloat(s.precio_venta || s.precio_servicio || s.precio_base || 0));
                                 }
                               }}
+                              fetchFn={async (term) => {
+                                const lower = term.toLowerCase();
+                                return catalogoItems.filter(s => s.nombre?.toLowerCase().includes(lower) || s.codigo?.toLowerCase().includes(lower));
+                              }}
                               placeholder="Buscar en catálogo..."
-                              getOptionLabel={s => s.nombre}
-                              renderOption={s => (
+                              getOptionLabel={s => `[${s.codigo}] ${s.nombre}`}
+                              renderOption={(s, { isHighlighted }) => (
                                 <div>
-                                  <div style={{ fontWeight: 600 }}>{s.nombre}</div>
-                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{formatCurrency(s.precio_base)}</div>
+                                  <div style={{ fontWeight: isHighlighted ? 700 : 500 }}>[{s.codigo}] {s.nombre}</div>
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{formatCurrency(s.precio_venta || s.precio_servicio || s.precio_base)}</div>
                                 </div>
                               )}
-                              initialItem={item.catalogo_servicio_id ? { id: item.catalogo_servicio_id, nombre: item.servicio_nombre || 'Servicio Seleccionado' } : null}
+                              initialItem={catalogoItems.find(s => String(s.id) === String(item.catalogo_servicio_id)) || (item.servicio_nombre ? { id: item.catalogo_servicio_id, codigo: item.servicio_codigo || 'N/A', nombre: item.servicio_nombre } : null)}
+                              minSearchLength={0}
                             />
                         </td>
                         <td>

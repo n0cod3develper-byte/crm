@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import {
   Users, FileText, FileSpreadsheet, AlertCircle, AlertTriangle,
-  RefreshCw, Clock, DollarSign, TrendingUp, TrendingDown, ChevronDown, Filter
+  RefreshCw, Clock, DollarSign, TrendingUp, TrendingDown, ChevronDown, Filter, Bookmark
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
@@ -137,6 +138,26 @@ export function InformesGestionHumanaPage() {
   const [notePopoverId, setNotePopoverId] = useState(null);
 
   const rango = useMemo(() => quincenaAplicada ? calcularRangoQuincena(quincenaAplicada) : null, [quincenaAplicada]);
+
+  const queryClient = useQueryClient();
+
+  const toggleSubrayadoMutation = useMutation({
+    mutationFn: async (remision_id) => {
+      const res = await api.post('/informes/gestion-humana/subrayar', { remision_id });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['liquidacionBonificacion', rango?.inicio, rango?.fin]);
+    },
+    onError: (err) => {
+      toast.error('Error al actualizar el subrayado');
+      console.error(err);
+    }
+  });
+
+  const handleToggleSubrayado = (remision_id) => {
+    toggleSubrayadoMutation.mutate(remision_id);
+  };
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['liquidacionBonificacion', rango?.inicio, rango?.fin],
@@ -429,6 +450,33 @@ export function InformesGestionHumanaPage() {
         `Suma ${totalGeneral.comision.toLocaleString('es-CO', { minimumFractionDigits: 2 })}`,
         '',
       ]);
+      
+      aoa1.push([]);
+      aoa1.push([]);
+      aoa1.push(['DETALLE DE SERVICIOS POR OPERARIO']);
+      aoa1.push([]);
+
+      for (const g of gruposOperario) {
+        // Encabezado del operario
+        aoa1.push([ `OPERARIO: ${g.operario_nombre} ${g.cedula && g.cedula !== '—' ? `(CC ${g.cedula})` : ''}` ]);
+        aoa1.push(['N° Orden', 'Máquina', 'Fecha', 'Estado', 'Bonif. x Hora', 'Horas Liq.', 'Comisión $']);
+        
+        for (const f of g.filas) {
+          aoa1.push([
+            f.numero_remision + (f.is_servicio_fijo ? ' (FIJO)' : ''),
+            f.maquina_nombre || 'Sin equipo',
+            formatDate(f.fecha_servicio),
+            f.estado,
+            parseFloat(f.bonificacion_hora || 0),
+            parseFloat(f.horas_efectivas || 0),
+            parseFloat(f.comision || 0)
+          ]);
+        }
+        // Subtotales del operario
+        aoa1.push(['', '', '', 'Subtotal:', '', parseFloat(g.subtotal_horas.toFixed(2)), parseFloat(g.subtotal_comision.toFixed(2))]);
+        aoa1.push([]); // Espacio entre operarios
+      }
+
       aoa1.push([]); // espacio
       // Pie de página
       aoa1.push([`Generado por ${fechaGen} en Mercadeo Cargar`]);
@@ -443,19 +491,18 @@ export function InformesGestionHumanaPage() {
 
       const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
       ws1['!cols'] = [
-        { wch: 18 }, // Cédula
-        { wch: 35 }, // Operario
-        { wch: 18 }, // Productividad
-        { wch: 22 }, // Horas actuales
-        { wch: 22 }, // Horas anteriores
-        { wch: 18 }, // Variación hrs
-        { wch: 14 }, // Variación %
+        { wch: 18 }, // Cédula / N° Orden
+        { wch: 35 }, // Operario / Máquina
+        { wch: 22 }, // Horas actuales / Fecha
+        { wch: 22 }, // Horas anteriores / Estado
+        { wch: 18 }, // Variación hrs / Bonif
+        { wch: 14 }, // Variación % / Horas Liq
         { wch: 30 }, // Comisión
         { wch: 60 }, // Observación
       ];
-      // Merge título (fila 1, columnas A-I)
+      // Merge título (fila 1, columnas A-H) y título de detalles
       ws1['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }
       ];
       XLSX.utils.book_append_sheet(wb, ws1, 'Informe Bonificación');
 
@@ -593,31 +640,47 @@ export function InformesGestionHumanaPage() {
                   tipo="warning"
                   icono={<AlertTriangle size={16} />}
                   titulo={`${alertas.sin_operario.length} servicio(s) LIQUIDADO(s) sin operario asignado — No aplican bonificación`}
-                  items={alertas.sin_operario.map(a => `OS ${a.numero_remision} · ${formatDate(a.fecha_servicio)} · Máq: ${a.numero_maquina}`)}
+                  items={alertas.sin_operario.map(a => (
+                    <Link key={a.remision_id} to={`/servicios/${a.remision_id}`} className="hover:underline" style={{ color: 'inherit' }}>
+                      OS {a.numero_remision} · {formatDate(a.fecha_servicio)} · Máq: {a.numero_maquina}
+                    </Link>
+                  ))}
                 />
               )}
               {alertas.sin_horas?.length > 0 && (
                 <AlertaBanner
                   tipo="danger"
                   icono={<AlertCircle size={16} />}
-                  titulo={`${alertas.sin_horas.length} servicio(s) con operario pero sin Hora Salida/Llegada CARGAR registradas`}
-                  items={alertas.sin_horas.map(a => `OS ${a.numero_remision} · ${formatDate(a.fecha_servicio)}`)}
+                  titulo={`${alertas.sin_horas.length} servicio(s) con operario pero SIN HORAS de operación registradas`}
+                  items={alertas.sin_horas.map(a => (
+                    <Link key={a.remision_id} to={`/servicios/${a.remision_id}`} className="hover:underline" style={{ color: 'inherit' }}>
+                      OS {a.numero_remision} · {formatDate(a.fecha_servicio)} · {a.estado}
+                    </Link>
+                  ))}
                 />
               )}
               {alertas.bonificacion_cero?.length > 0 && (
                 <AlertaBanner
                   tipo="danger"
-                  icono={<AlertCircle size={16} />}
-                  titulo={`${alertas.bonificacion_cero.length} servicio(s) con Bonificación x Hora = $0 — Revisar configuración del equipo`}
-                  items={alertas.bonificacion_cero.map(a => `OS ${a.numero_remision} · ${formatDate(a.fecha_servicio)} · Máq: ${a.numero_maquina}`)}
+                  icono={<DollarSign size={16} />}
+                  titulo={`${alertas.bonificacion_cero.length} servicio(s) sin valor de bonificación definido (0 en Remisión Y en Equipo)`}
+                  items={alertas.bonificacion_cero.map(a => (
+                    <Link key={a.remision_id} to={`/servicios/${a.remision_id}`} className="hover:underline" style={{ color: 'inherit' }}>
+                      OS {a.numero_remision} · {formatDate(a.fecha_servicio)} · Máq: {a.numero_maquina}
+                    </Link>
+                  ))}
                 />
               )}
               {alertas.horas_invalidas?.length > 0 && (
                 <AlertaBanner
-                  tipo="warning"
-                  icono={<AlertTriangle size={16} />}
-                  titulo={`${alertas.horas_invalidas.length} servicio(s) con horas calculadas = 0 o negativas (posible error en registro)`}
-                  items={alertas.horas_invalidas.map(a => `OS ${a.numero_remision} · ${formatDate(a.fecha_servicio)}`)}
+                  tipo="danger"
+                  icono={<AlertCircle size={16} />}
+                  titulo={`${alertas.horas_invalidas.length} servicio(s) con horas calculadas en 0 (validar horas ingreso/salida)`}
+                  items={alertas.horas_invalidas.map(a => (
+                    <Link key={a.remision_id} to={`/servicios/${a.remision_id}`} className="hover:underline" style={{ color: 'inherit' }}>
+                      OS {a.numero_remision} · {formatDate(a.fecha_servicio)}
+                    </Link>
+                  ))}
                 />
               )}
             </div>
@@ -658,8 +721,8 @@ export function InformesGestionHumanaPage() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Operario</th>
-                      <th style={{ width: 110 }}>N° Orden S.</th>
+                      <th style={{ width: '40px' }}></th>
+                      <th>N° Orden</th>
                       <th>Máquina</th>
                       <th style={{ width: 100 }}>Fecha</th>
                       <th style={{ width: 90, textAlign: 'center' }}>Estado</th>
@@ -673,7 +736,7 @@ export function InformesGestionHumanaPage() {
                       <React.Fragment key={g.operario_id}>
                         {/* Cabecera del grupo */}
                         <tr style={{ background: 'rgba(99,102,241,0.04)' }}>
-                          <td colSpan={8} style={{ padding: '0.6rem 1rem', fontWeight: 700, fontSize: '0.85rem', color: '#6366f1', letterSpacing: '0.02em' }}>
+                          <td colSpan={9} style={{ padding: '0.6rem 1rem', fontWeight: 700, fontSize: '0.85rem', color: '#6366f1', letterSpacing: '0.02em' }}>
                             <Users size={13} style={{ marginRight: 6, verticalAlign: 'middle' }} />
                             {g.operario_nombre}
                             {g.filas[0]?.cedula && g.filas[0].cedula !== '—' && (
@@ -685,8 +748,16 @@ export function InformesGestionHumanaPage() {
                         </tr>
                         {/* Filas del grupo */}
                         {g.filas.map((f, idx) => (
-                          <tr key={`${g.operario_id}-${f.id}-${idx}`}>
-                            <td style={{ paddingLeft: '2rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</td>
+                          <tr key={`${g.operario_id}-${f.id}-${idx}`} style={f.is_subrayada ? { backgroundColor: 'var(--clr-warning-100)' } : {}}>
+                            <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                              <button 
+                                onClick={() => handleToggleSubrayado(f.remision_id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: f.is_subrayada ? 'var(--clr-warning-500)' : 'var(--text-muted)' }}
+                                title={f.is_subrayada ? "Quitar subrayado" : "Subrayar"}
+                              >
+                                <Bookmark size={18} fill={f.is_subrayada ? "currentColor" : "none"} />
+                              </button>
+                            </td>
                             <td>
                               <code style={{ fontWeight: 700, fontSize: '13px', color: 'var(--clr-primary-400)' }}>
                                 {f.numero_remision}
@@ -699,9 +770,6 @@ export function InformesGestionHumanaPage() {
                             </td>
                             <td>
                               <span style={{ fontWeight: 500, fontSize: '13px' }}>{f.maquina_nombre}</span>
-                              {f.equipo_serial && (
-                                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>S/N: {f.equipo_serial}</div>
-                              )}
                             </td>
                             <td style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{formatDate(f.fecha_servicio)}</td>
                             <td style={{ textAlign: 'center' }}>
@@ -859,7 +927,7 @@ export function InformesGestionHumanaPage() {
                               </div>
                             </div>
                           </td>
-                          <td style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{r.observacion}</td>
+                          <td style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{r.observación}</td>
                         </tr>
                       );
                     })}

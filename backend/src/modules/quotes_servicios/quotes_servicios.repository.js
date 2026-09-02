@@ -98,18 +98,18 @@ export class QuotesServiciosRepository {
       const { 
         company_id, contact_id, fecha, asunto, direccion_invitacion, 
         ciudad_envio, catalogo_servicio_id, descripcion, estado, 
-        subtotal, iva_valor, total, items 
+        subtotal, iva_valor, total, items, valido_hasta
       } = data;
 
       const resInsert = await client.query(`
         INSERT INTO quotes_servicios (
           consecutivo, company_id, contact_id, fecha, asunto, direccion_invitacion,
-          ciudad_envio, catalogo_servicio_id, descripcion, estado, subtotal, iva_valor, total, created_by
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *
+          ciudad_envio, catalogo_servicio_id, descripcion, estado, subtotal, iva_valor, total, created_by, valido_hasta
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *
       `, [
         consecutivo, company_id, contact_id || null, fecha || new Date(), asunto,
         direccion_invitacion, ciudad_envio, catalogo_servicio_id || null,
-        descripcion, estado || 'BORRADOR', subtotal || 0, iva_valor || 0, total || 0, userId
+        descripcion, estado || 'BORRADOR', subtotal || 0, iva_valor || 0, total || 0, userId, valido_hasta || null
       ]);
 
       const quote = resInsert.rows[0];
@@ -137,19 +137,21 @@ export class QuotesServiciosRepository {
       const { 
         company_id, contact_id, fecha, asunto, direccion_invitacion, 
         ciudad_envio, catalogo_servicio_id, descripcion, estado, 
-        subtotal, iva_valor, total, items 
+        subtotal, iva_valor, total, items, valido_hasta
       } = data;
 
       const resUpdate = await client.query(`
         UPDATE quotes_servicios SET
           company_id = $1, contact_id = $2, fecha = $3, asunto = $4,
           direccion_invitacion = $5, ciudad_envio = $6, catalogo_servicio_id = $7,
-          descripcion = $8, estado = $9, subtotal = $10, iva_valor = $11, total = $12
-        WHERE id = $13 RETURNING *
+          descripcion = $8, estado = $9, subtotal = $10, iva_valor = $11, total = $12,
+          valido_hasta = $13
+        WHERE id = $14 RETURNING *
       `, [
         company_id, contact_id || null, fecha, asunto,
         direccion_invitacion, ciudad_envio, catalogo_servicio_id || null,
-        descripcion, estado, subtotal || 0, iva_valor || 0, total || 0, id
+        descripcion, estado, subtotal || 0, iva_valor || 0, total || 0,
+        valido_hasta || null, id
       ]);
 
       const quote = resUpdate.rows[0];

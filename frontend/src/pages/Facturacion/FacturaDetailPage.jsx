@@ -13,11 +13,12 @@ import {
   FileText,
   AlertTriangle,
   Send,
-  Trash2
+  Trash2,
+  Edit
 } from 'lucide-react';
 import { facturacionApi } from '../../services/facturacionApi';
 import { Layout } from '../../components/Layout';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, formatDateLocal } from '../../utils/formatters';
 import { toast } from 'react-hot-toast';
 
 export const FacturaDetailPage = () => {
@@ -28,7 +29,8 @@ export const FacturaDetailPage = () => {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [numFactura, setNumFactura] = useState('');
   const [fechaFactura, setFechaFactura] = useState(new Date().toISOString().split('T')[0]);
-  const [sistemaContable, setSistemaContable] = useState('SIIGO');
+  const [descripcionFactura, setDescripcionFactura] = useState('');
+  const [sistemaContable] = useState('SIIGO');
 
   const { data: factura, isLoading } = useQuery({
     queryKey: ['factura', id],
@@ -94,9 +96,38 @@ export const FacturaDetailPage = () => {
   const isPrefactura = fact.estado === 'PREFACTURA';
   const isFacturada = fact.estado === 'FACTURADA';
   
-  const titleNumbers = fact.ots?.length > 0 
+  const titleNumbers = fact.numero_factura || (fact.ots?.length > 0 
     ? fact.ots.map(ot => ot.ot_consecutivo).join(', ') 
-    : fact.consecutivo_interno;
+    : fact.consecutivo_interno);
+
+  // Compute proportional display values for each remision so they add up exactly to total_rem.
+  // Formula: total_neto = total_bruto + recargos - descuentos + iva
+  // We round recargos/descuentos/iva and derive bruto as the balancing figure.
+  const remisionesDisplay = (fact.remisiones || []).map(rem => {
+    const totalRem = parseFloat(rem.total_rem || 0);
+    const origTotal = parseFloat(rem.orig_total || 0);
+    if (origTotal === 0) return { ...rem, d_bruto: totalRem, d_recargos: 0, d_descuentos: 0, d_iva: 0 };
+    
+    const p = totalRem / origTotal; // proportion for this invoice
+    const d_recargos = Math.round(parseFloat(rem.orig_recargos || 0) * p * 100) / 100;
+    const d_descuentos = Math.round(parseFloat(rem.orig_descuentos || 0) * p * 100) / 100;
+    const d_iva = Math.round(parseFloat(rem.orig_iva || 0) * p * 100) / 100;
+    // bruto = total_rem - recargos + descuentos - iva (balancing figure, guaranteed to add up)
+    const d_bruto = Math.round((totalRem - d_recargos + d_descuentos - d_iva) * 100) / 100;
+    return { ...rem, d_bruto, d_recargos, d_descuentos, d_iva };
+  });
+
+  // Compute column totals from display values
+  const computed = (() => {
+    const ots = fact.ots || [];
+    const bruto = remisionesDisplay.reduce((s, r) => s + r.d_bruto, 0)
+                + ots.reduce((s, o) => s + parseFloat(o.subtotal_ot || 0), 0);
+    const recargos = remisionesDisplay.reduce((s, r) => s + r.d_recargos, 0);
+    const descuentos = remisionesDisplay.reduce((s, r) => s + r.d_descuentos, 0);
+    const iva = remisionesDisplay.reduce((s, r) => s + r.d_iva, 0)
+              + ots.reduce((s, o) => s + parseFloat(o.iva_ot || 0), 0);
+    return { bruto, recargos, descuentos, iva };
+  })();
 
   return (
     <Layout>
@@ -123,6 +154,15 @@ export const FacturaDetailPage = () => {
             >
               <Download size={18} /> Descargar PDF
             </button>
+            {isPrefactura && (
+              <button 
+                onClick={() => navigate(`/facturacion/facturas/${id}/editar`)}
+                className="btn-secondary flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5"
+                title="Editar Remisiones"
+              >
+                <Edit size={18} /> Editar Remisiones
+              </button>
+            )}
             {isPrefactura && (
               <button 
                 onClick={handleAnular}
@@ -153,7 +193,7 @@ export const FacturaDetailPage = () => {
                 <div>
                   <h2 className="text-3xl font-black break-words">{titleNumbers}</h2>
                   <p className="text-muted flex items-center gap-2 mt-1">
-                    <Calendar size={14} /> Emitida el {new Date(fact.fecha_prefactura).toLocaleDateString()}
+                    <Calendar size={14} /> Emitida el {formatDateLocal(fact.fecha_prefactura)}
                   </p>
                 </div>
               </div>
@@ -185,7 +225,7 @@ export const FacturaDetailPage = () => {
                     </div>
                     <div className="p-3 rounded-xl bg-subtle/50 border border-color">
                       <p className="text-[10px] text-muted uppercase font-bold">Vencimiento</p>
-                      <p className="font-bold">{new Date(fact.fecha_vencimiento).toLocaleDateString()}</p>
+                      <p className="font-bold">{formatDateLocal(fact.fecha_vencimiento)}</p>
                     </div>
                   </div>
                 </div>
@@ -196,48 +236,52 @@ export const FacturaDetailPage = () => {
             <div className="card-premium overflow-hidden">
               <div className="border-b border-color bg-subtle/30 flex items-center gap-2" style={{ padding: '1.5rem 2.5rem' }}>
                 <FileText size={20} className="text-accent" />
-                <h3 className="font-bold">Órdenes de Trabajo Incluidas</h3>
+                <h3 className="font-bold">Órdenes de Trabajo / Remisiones Incluidas</h3>
               </div>
               <table className="w-full">
                 <thead className="bg-subtle/50 text-xs uppercase text-muted">
                   <tr>
-                    <th className="px-6 py-4 text-left">OT</th>
+                    <th className="px-6 py-4 text-left">Documento</th>
                     <th className="px-6 py-4 text-left">Tipo</th>
-                    <th className="px-6 py-4 text-right">Subtotal</th>
+                    <th className="px-6 py-4 text-right">Total Bruto</th>
+                    <th className="px-6 py-4 text-right">Recargos</th>
+                    <th className="px-6 py-4 text-right text-red-500/80">Dctos</th>
                     <th className="px-6 py-4 text-right">IVA</th>
-                    <th className="px-6 py-4 text-right">Total OT</th>
+                    <th className="px-6 py-4 text-right">Total Neto</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-color">
-                  {fact.ots.map(ot => (
+                  {remisionesDisplay.map(rem => (
+                    <tr key={rem.id} className="hover:bg-subtle/20 transition-colors">
+                      <td className="px-6 py-4 font-bold">{rem.numero_remision || rem.remision_numero}</td>
+                      <td className="px-6 py-4 text-xs font-semibold uppercase text-accent">Remisión</td>
+                      <td className="px-6 py-4 text-right">{formatCurrency(rem.d_bruto)}</td>
+                      <td className="px-6 py-4 text-right">{formatCurrency(rem.d_recargos)}</td>
+                      <td className="px-6 py-4 text-right text-red-500">{formatCurrency(rem.d_descuentos)}</td>
+                      <td className="px-6 py-4 text-right">{formatCurrency(rem.d_iva)}</td>
+                      <td className="px-6 py-4 text-right font-bold text-accent">{formatCurrency(rem.total_rem)}</td>
+                    </tr>
+                  ))}
+                  {fact.ots?.map(ot => (
                     <tr key={ot.id} className="hover:bg-subtle/20 transition-colors">
                       <td className="px-6 py-4 font-bold">{ot.ot_consecutivo}</td>
                       <td className="px-6 py-4 text-xs font-semibold uppercase">{ot.tipo_mantenimiento}</td>
                       <td className="px-6 py-4 text-right">{formatCurrency(ot.subtotal_ot)}</td>
+                      <td className="px-6 py-4 text-right">{formatCurrency(0)}</td>
+                      <td className="px-6 py-4 text-right text-red-500">{formatCurrency(0)}</td>
                       <td className="px-6 py-4 text-right">{formatCurrency(ot.iva_ot)}</td>
                       <td className="px-6 py-4 text-right font-bold text-accent">{formatCurrency(ot.total_ot)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="bg-subtle/30">
-                  <tr>
-                    <td colSpan="3" className="px-6 py-4 text-right text-muted font-bold">Resumen:</td>
-                    <td colSpan="2" className="px-6 py-4">
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted">Subtotal:</span>
-                          <span className="font-semibold">{formatCurrency(fact.subtotal)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted">IVA ({fact.iva_pct}%):</span>
-                          <span className="font-semibold">{formatCurrency(fact.iva_valor)}</span>
-                        </div>
-                        <div className="flex justify-between text-xl font-black text-accent pt-2 border-t border-color mt-2">
-                          <span>TOTAL:</span>
-                          <span>{formatCurrency(fact.total)}</span>
-                        </div>
-                      </div>
-                    </td>
+                  <tr className="border-t-2 border-color">
+                    <td colSpan="2" className="px-6 py-4 text-right font-bold uppercase text-xs text-muted tracking-wider">Totales:</td>
+                    <td className="px-6 py-4 text-right font-bold">{formatCurrency(computed.bruto)}</td>
+                    <td className="px-6 py-4 text-right font-bold">{formatCurrency(computed.recargos)}</td>
+                    <td className="px-6 py-4 text-right font-bold text-red-500">{formatCurrency(computed.descuentos)}</td>
+                    <td className="px-6 py-4 text-right font-bold">{formatCurrency(computed.iva)}</td>
+                    <td className="px-6 py-4 text-right font-black text-xl text-accent">{formatCurrency(fact.total)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -282,7 +326,7 @@ export const FacturaDetailPage = () => {
                     <div className="font-bold">Facturado / Confirmado</div>
                     {isFacturada ? (
                       <>
-                        <div className="text-xs text-muted">{new Date(fact.fecha_factura).toLocaleDateString()}</div>
+                        <div className="text-xs text-muted">{formatDateLocal(fact.fecha_factura)}</div>
                         <div className="text-[10px] text-muted uppercase mt-1">Nro: {fact.numero_factura}</div>
                       </>
                     ) : (
@@ -324,75 +368,150 @@ export const FacturaDetailPage = () => {
 
       {/* Modal - Confirmar Factura */}
       {isConfirmModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="card-premium w-full max-w-md p-8 animate-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold">Confirmar Facturación</h3>
-              <button onClick={() => setIsConfirmModalOpen(false)} className="btn-ghost p-1"><XCircle size={20} /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setIsConfirmModalOpen(false)}>
+          <div 
+            className="card-premium w-full animate-in zoom-in-95 duration-200"
+            style={{ 
+              maxWidth: '700px',
+              padding: 0,
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.5)',
+              animation: 'modalIn 0.2s ease-out',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-color" style={{ padding: '2rem 3rem', background: 'var(--color-subtle, rgba(255,255,255,0.03))' }}>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center">
+                  <FileText size={24} className="text-accent" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-foreground tracking-tight">Confirmar Facturación</h3>
+                  <p className="text-sm text-muted font-medium">Asignar número definitivo a la prefactura</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsConfirmModalOpen(false)} 
+                className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-subtle transition-colors text-muted hover:text-foreground"
+              >
+                <XCircle size={20} />
+              </button>
             </div>
             
-            <div className="space-y-6">
-              <div className="bg-accent/10 p-4 rounded-2xl border border-accent/20">
-                <p className="text-sm text-center text-accent font-semibold">
-                  Al confirmar, las OTs asociadas cambiarán a estado <strong>FACTURADA</strong> y no podrán ser editadas.
-                </p>
+            {/* Body */}
+            <div className="space-y-8" style={{ padding: '2.5rem 3rem' }}>
+              
+              {/* Tabla Resumen */}
+              <div className="bg-subtle/40 rounded-2xl border border-color overflow-hidden max-h-48 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-subtle/50 text-xs uppercase text-muted sticky top-0 backdrop-blur-md">
+                    <tr>
+                      <th className="px-5 py-3 text-left tracking-wider">Documento</th>
+                      <th className="px-5 py-3 text-right tracking-wider">Monto a Confirmar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-color">
+                    {fact.remisiones?.map(r => (
+                      <tr key={r.id} className="hover:bg-subtle/20 transition-colors">
+                        <td className="px-5 py-3 font-bold">{r.numero_remision}</td>
+                        <td className="px-5 py-3 text-right font-medium text-accent">{formatCurrency(r.total_rem)}</td>
+                      </tr>
+                    ))}
+                    {fact.ots?.map(o => (
+                      <tr key={o.id} className="hover:bg-subtle/20 transition-colors">
+                        <td className="px-5 py-3 font-bold">{o.ot_consecutivo}</td>
+                        <td className="px-5 py-3 text-right font-medium text-accent">{formatCurrency(o.total_ot)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-subtle/50 sticky bottom-0 border-t border-color">
+                    <tr>
+                      <td className="px-5 py-3 text-right font-bold uppercase text-muted tracking-widest text-[11px]">Total General:</td>
+                      <td className="px-5 py-3 text-right font-black text-lg text-accent">{formatCurrency(fact.total)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
 
-              <div className="space-y-4">
-                <div className="form-group">
-                  <label className="text-xs font-bold uppercase text-muted mb-1 block">Número de Factura Real *</label>
+              {/* Campos del formulario */}
+              <div className="space-y-6">
+                <div>
+                  <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
+                    Número de Factura Real <span className="text-red-500">*</span>
+                  </label>
                   <input 
                     type="text" 
+                    className="input-premium w-full font-bold text-accent text-xl py-4 px-5"
                     placeholder="Ej: FV-2026-00123"
-                    className="input-premium w-full font-bold text-lg"
                     value={numFactura}
                     onChange={(e) => setNumFactura(e.target.value)}
+                    autoFocus
                   />
-                  <p className="text-[10px] text-muted mt-1">Ingrese el número generado en su sistema contable externo.</p>
+                  <p className="text-xs text-muted mt-2 font-medium">Ingresa el número generado en su sistema contable externo.</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="form-group">
-                    <label className="text-xs font-bold uppercase text-muted mb-1 block">Fecha Factura *</label>
+                  <div>
+                    <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
+                      Fecha Factura <span className="text-red-500">*</span>
+                    </label>
                     <input 
                       type="date" 
-                      className="input-premium w-full"
+                      className="input-premium w-full font-bold text-base py-4 px-5"
                       value={fechaFactura}
                       onChange={(e) => setFechaFactura(e.target.value)}
                     />
                   </div>
-                  <div className="form-group">
-                    <label className="text-xs font-bold uppercase text-muted mb-1 block">Sistema Contable</label>
-                    <select 
-                      className="input-premium w-full"
-                      value={sistemaContable}
-                      onChange={(e) => setSistemaContable(e.target.value)}
-                    >
-                      <option value="SIIGO">Siigo</option>
-                      <option value="WORLD_OFFICE">World Office</option>
-                      <option value="MANUAL">Manual / Otro</option>
-                    </select>
+
+                  <div>
+                    <label className="text-sm font-bold uppercase text-muted mb-3 block tracking-widest">
+                      Descripción / Notas
+                    </label>
+                    <textarea 
+                      className="input-premium w-full py-4 px-5 text-sm"
+                      rows="3"
+                      placeholder="Notas opcionales sobre la factura..."
+                      value={descripcionFactura}
+                      onChange={(e) => setDescripcionFactura(e.target.value)}
+                    />
                   </div>
                 </div>
               </div>
+            </div>
 
-              <div className="flex gap-4 pt-4">
-                <button className="btn-secondary flex-1 py-3" onClick={() => setIsConfirmModalOpen(false)}>Cancelar</button>
-                <button 
-                  className="btn-primary flex-1 py-3 shadow-lg shadow-accent/20" 
-                  onClick={() => confirmMutation.mutate({
-                    numero_factura: numFactura,
-                    fecha_factura: fechaFactura,
-                    sistema_contable: sistemaContable
-                  })}
-                  disabled={!numFactura || confirmMutation.isLoading}
-                >
-                  {confirmMutation.isLoading ? 'Procesando...' : 'Confirmar y Finalizar'}
-                </button>
-              </div>
+            {/* Footer */}
+            <div className="flex gap-4 border-t border-color" style={{ padding: '2rem 3rem', background: 'var(--color-subtle, rgba(255,255,255,0.02))' }}>
+              <button 
+                className="btn-secondary flex-1 py-4 rounded-2xl font-bold text-base hover:bg-subtle transition-colors" 
+                onClick={() => setIsConfirmModalOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn-primary flex-[2] py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 shadow-xl shadow-accent/20 transition-all hover:scale-[1.02] active:scale-[0.98]" 
+                onClick={() => confirmMutation.mutate({
+                  numero_factura: numFactura,
+                  fecha_factura: fechaFactura,
+                  sistema_contable: sistemaContable,
+                  notas: descripcionFactura
+                })}
+                disabled={!numFactura.trim() || confirmMutation.isLoading}
+              >
+                {confirmMutation.isLoading ? (
+                  <>
+                    <div className="spinner h-5 w-5 border-2" />
+                    Procesando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={20} strokeWidth={2.5} />
+                    Confirmar y Finalizar
+                  </>
+                )}
+              </button>
             </div>
           </div>
-        </div>
+
       )}
     </Layout>
   );

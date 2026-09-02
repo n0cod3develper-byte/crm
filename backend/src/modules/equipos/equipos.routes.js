@@ -36,5 +36,10 @@ router.post('/:id/foto',           upload.single('foto'), equiposController.subi
 router.delete('/:id/foto',         equiposController.eliminarFoto);
 router.get('/:id/historial-estado', equiposController.historialEstado);
 
+// Rutas de detalle del equipo
+router.get('/:id/ordenes-trabajo',  equiposController.getDetailOTs);
+router.get('/:id/remisiones',       equiposController.getDetailRemisiones);
+router.get('/:id/tiempos',          equiposController.getDetailTiempos);
+
 export default router;
 

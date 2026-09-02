@@ -36,6 +36,7 @@ const EMPTY = {
   estado: 'BORRADOR',
   bonificacion_hora: 0,
   items: [],
+  desgloseManual: false,
 };
 
 const DRAFT_KEY = 'remision_draft';
@@ -642,6 +643,8 @@ export function RemisionFormPage() {
     let sumDescuentos = 0;
     let sumCantHoras = 0;
     let sumValorHoras = 0;
+    
+    let sumNonHourItemsBruto = 0; // Para calculo manual
 
     let d1 = { ordinarias: 0, recargo: 0 };
     if (form.hora_salida_cargar && form.hora_llegada_cargar && form.fecha_servicio) {
@@ -663,6 +666,7 @@ export function RemisionFormPage() {
 
     let d1Values = { v: 0 };
     let d2Values = { v: 0 };
+    let numOperarios = form.operario_2_id ? 2 : 1;
 
     (form.items || []).forEach(it => {
       const brutoItem = Math.round((parseFloat(it.cantidad) || 0) * (parseFloat(it.valor_unitario) || 0));
@@ -680,46 +684,91 @@ export function RemisionFormPage() {
         sumCantHoras += parseFloat(it.cantidad) || 0;
         sumValorHoras += brutoItem;
         const v = parseFloat(it.valor_unitario) || 0;
-        if (indexHora === 0) {
-          totalOrdValue += d1.ordinarias * v;
-          totalRecValueBase += d1.recargo * v;
-          totalExtraRecargo += d1.recargo * (v * 0.25);
-          d1Values.v = v;
-        } else if (indexHora === 1) {
-          totalOrdValue += d2.ordinarias * v;
-          totalRecValueBase += d2.recargo * v;
-          totalExtraRecargo += d2.recargo * (v * 0.25);
-          d2Values.v = v;
+        
+        if (indexHora < numOperarios) {
+          if (indexHora === 0) {
+            totalOrdValue += d1.ordinarias * v;
+            totalRecValueBase += d1.recargo * v;
+            totalExtraRecargo += d1.recargo * (v * 0.25);
+            d1Values.v = v;
+          } else if (indexHora === 1) {
+            totalOrdValue += d2.ordinarias * v;
+            totalRecValueBase += d2.recargo * v;
+            totalExtraRecargo += d2.recargo * (v * 0.25);
+            d2Values.v = v;
+          }
+        } else {
+          // Si es un ítem 'hora' adicional que no corresponde a ningún operario
+          sumNonHourItemsBruto += brutoItem;
         }
         indexHora++;
+      } else {
+        sumNonHourItemsBruto += brutoItem;
       }
     });
 
     const avgOrdRate = totalOrdHours > 0 ? totalOrdValue / totalOrdHours : 0;
     const avgRecRate = totalRecHours > 0 ? (totalRecValueBase * 1.25) / totalRecHours : 0;
     const recargoExtra = Math.round(totalExtraRecargo);
-    const netoFinal = sumSubtotales - sumDescuentos + sumIva + recargoExtra;
 
-    setForm(prev => ({
-      ...prev,
-      cantidad_horas: sumCantHoras,
-      valor_hora: sumValorHoras,
-      horas_ordinarias: totalOrdHours,
-      horas_recargo: totalRecHours,
-      valor_hora_ordinaria: Math.round(avgOrdRate),
-      valor_hora_recargo: Math.round(avgRecRate),
-      descuentos: sumDescuentos,
-      total_bruto: Math.round(sumSubtotales),
-      iva_valor: Math.round(sumIva),
-      total_neto: Math.round(netoFinal),
-      _totalExtraRecargo: recargoExtra,
-      _desgloseDetalle: {
-        d1: { ord: d1.ordinarias, rec: d1.recargo, v: d1Values.v },
-        d2: { ord: d2.ordinarias, rec: d2.recargo, v: d2Values.v }
+    setForm(prev => {
+      if (prev.desgloseManual) {
+        // En modo manual, los valores de horas y recargos no se sobreescriben.
+        // Solo recalculamos el total neto usando los valores manuales.
+        const ord = parseFloat(prev.horas_ordinarias || 0);
+        const vOrd = parseFloat(prev.valor_hora_ordinaria || 0);
+        const rec = parseFloat(prev.horas_recargo || 0);
+        const vRec = parseFloat(prev.valor_hora_recargo || 0);
+        
+        // El total bruto de horas manuales:
+        const totalHorasBruto = (ord * vOrd) + (rec * vRec);
+        // En modo manual, sumamos los items que NO son horas, más el valor manual de las horas
+        const manualBruto = sumNonHourItemsBruto + totalHorasBruto;
+        
+        // El IVA sigue aplicando sobre el total de los items que tienen IVA, 
+        // pero la parte de horas ya está calculada manualmente, así que asumiremos 
+        // que el IVA de los items es correcto, o lo ajustamos si es necesario.
+        // Simplificamos: el neto = manualBruto - sumDescuentos + sumIva
+        const manualNeto = manualBruto - sumDescuentos + sumIva;
+        
+        // En modo manual, el recargo extra ya está implícito o el usuario puede ajustarlo,
+        // o si prefieren ver la alerta, podemos usar el 20% del recargo total manual:
+        const manualRecargoExtra = Math.round(rec * (vRec * (0.25 / 1.25)));
+
+        return {
+          ...prev,
+          total_bruto: Math.round(manualBruto),
+          iva_valor: Math.round(sumIva),
+          descuentos: sumDescuentos,
+          total_neto: Math.round(manualNeto),
+          _totalExtraRecargo: manualRecargoExtra,
+        };
       }
-    }));
+
+      // Modo automático (comportamiento original)
+      const netoFinal = sumSubtotales - sumDescuentos + sumIva + recargoExtra;
+      return {
+        ...prev,
+        cantidad_horas: sumCantHoras,
+        valor_hora: sumValorHoras,
+        horas_ordinarias: totalOrdHours,
+        horas_recargo: totalRecHours,
+        valor_hora_ordinaria: Math.round(avgOrdRate),
+        valor_hora_recargo: Math.round(avgRecRate),
+        descuentos: sumDescuentos,
+        total_bruto: Math.round(sumSubtotales),
+        iva_valor: Math.round(sumIva),
+        total_neto: Math.round(netoFinal),
+        _totalExtraRecargo: recargoExtra,
+        _desgloseDetalle: {
+          d1: { ord: d1.ordinarias, rec: d1.recargo, v: d1Values.v },
+          d2: { ord: d2.ordinarias, rec: d2.recargo, v: d2Values.v }
+        }
+      };
+    });
   }, [
-    form.items,
+    form.items, form.desgloseManual,
+    form.horas_ordinarias, form.valor_hora_ordinaria, form.horas_recargo, form.valor_hora_recargo,
     form.hora_salida_cargar, form.hora_llegada_cargar, form.fecha_servicio,
     form.operario_2_id, form.segundo_hora_salida_cargar, form.segundo_hora_llegada_cargar, form.segundo_fecha_acordada
   ]);
@@ -1474,7 +1523,19 @@ export function RemisionFormPage() {
           })()}
 
           {/* — Desglose de Horas y Totales — */}
-          <p style={section}>Desglose de Horas y Totales</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--border-color)', margin: '1.25rem 0 0.75rem', paddingBottom: '0.4rem' }}>
+            <p style={{ ...section, margin: 0, borderBottom: 'none', paddingBottom: 0 }}>Desglose de Horas y Totales</p>
+            {!isReadOnly && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <input 
+                  type="checkbox" 
+                  checked={form.desgloseManual || false} 
+                  onChange={e => setForm(p => ({ ...p, desgloseManual: e.target.checked }))} 
+                />
+                Editar manualmente
+              </label>
+            )}
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
             {/* Tabla de desglose de horas */}
             <div>
@@ -1508,8 +1569,20 @@ export function RemisionFormPage() {
                         {(!form._desgloseDetalle?.d1?.ord && !form._desgloseDetalle?.d2?.ord) && <span style={{ color: 'var(--text-muted)' }}>—</span>}
                       </div>
                     </td>
-                    <td style={{ textAlign: 'center' }}>{form.horas_ordinarias || 0}</td>
-                    <td style={{ textAlign: 'center' }}>{formatCOP(form.valor_hora_ordinaria)}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      {form.desgloseManual && !isReadOnly ? (
+                        <input type="number" step="0.01" className="input" style={{ width: '60px', padding: '2px 4px', textAlign: 'center', fontSize: '12px' }} value={form.horas_ordinarias || ''} onChange={e => setForm(p => ({ ...p, horas_ordinarias: parseFloat(e.target.value) || 0 }))} />
+                      ) : (
+                        form.horas_ordinarias || 0
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {form.desgloseManual && !isReadOnly ? (
+                        <input type="number" step="1" className="input" style={{ width: '90px', padding: '2px 4px', textAlign: 'center', fontSize: '12px' }} value={form.valor_hora_ordinaria || ''} onChange={e => setForm(p => ({ ...p, valor_hora_ordinaria: parseFloat(e.target.value) || 0 }))} />
+                      ) : (
+                        formatCOP(form.valor_hora_ordinaria)
+                      )}
+                    </td>
                     <td style={{ textAlign: 'center' }}>{formatCOP(Math.round((form.horas_ordinarias || 0) * (form.valor_hora_ordinaria || 0)))}</td>
                   </tr>
                   <tr style={{ background: (form.horas_recargo > 0) ? 'rgba(245,158,11,0.08)' : 'transparent' }}>
@@ -1531,8 +1604,20 @@ export function RemisionFormPage() {
                         {(!form._desgloseDetalle?.d1?.rec && !form._desgloseDetalle?.d2?.rec) && <span style={{ color: 'var(--text-muted)' }}>—</span>}
                       </div>
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: form.horas_recargo > 0 ? 700 : 400, color: form.horas_recargo > 0 ? '#f59e0b' : 'inherit' }}>{form.horas_recargo || 0}</td>
-                    <td style={{ textAlign: 'center' }}>{formatCOP(form.valor_hora_recargo)}</td>
+                    <td style={{ textAlign: 'center', fontWeight: form.horas_recargo > 0 ? 700 : 400, color: form.horas_recargo > 0 ? '#f59e0b' : 'inherit' }}>
+                      {form.desgloseManual && !isReadOnly ? (
+                        <input type="number" step="0.01" className="input" style={{ width: '60px', padding: '2px 4px', textAlign: 'center', fontSize: '12px' }} value={form.horas_recargo || ''} onChange={e => setForm(p => ({ ...p, horas_recargo: parseFloat(e.target.value) || 0 }))} />
+                      ) : (
+                        form.horas_recargo || 0
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {form.desgloseManual && !isReadOnly ? (
+                        <input type="number" step="1" className="input" style={{ width: '90px', padding: '2px 4px', textAlign: 'center', fontSize: '12px' }} value={form.valor_hora_recargo || ''} onChange={e => setForm(p => ({ ...p, valor_hora_recargo: parseFloat(e.target.value) || 0 }))} />
+                      ) : (
+                        formatCOP(form.valor_hora_recargo)
+                      )}
+                    </td>
                     <td style={{ textAlign: 'center', fontWeight: form.horas_recargo > 0 ? 700 : 400, color: form.horas_recargo > 0 ? '#f59e0b' : 'inherit' }}>{formatCOP(Math.round((form.horas_recargo || 0) * (form.valor_hora_recargo || 0)))}</td>
                   </tr>
                   <tr style={{ background: 'var(--bg-secondary)', fontWeight: 700 }}>

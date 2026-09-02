@@ -85,8 +85,17 @@ export const generateQuoteServicioPDF = async (quote) => {
   `;
 
   // Calculating a simple valid date if none exists.
-  const fechaDoc = quote.fecha ? new Date(quote.fecha) : new Date();
-  const fechaValida = new Date(fechaDoc.getTime() + 15 * 24 * 60 * 60 * 1000);
+  let fechaValidaStr;
+  if (quote.valido_hasta) {
+    const d = new Date(quote.valido_hasta);
+    // Add timezone offset to avoid previous day display issues
+    const userOffset = d.getTimezoneOffset() * 60000;
+    fechaValidaStr = new Date(d.getTime() + userOffset).toLocaleDateString('es-CO');
+  } else {
+    const fechaDoc = quote.fecha ? new Date(quote.fecha) : new Date();
+    const fechaValida = new Date(fechaDoc.getTime() + 15 * 24 * 60 * 60 * 1000);
+    fechaValidaStr = fechaValida.toLocaleDateString('es-CO');
+  }
 
   const html = `
     <!DOCTYPE html>
@@ -156,7 +165,7 @@ export const generateQuoteServicioPDF = async (quote) => {
           ${quote.direccion_invitacion || 'N/A'} ${quote.ciudad_envio ? ', ' + quote.ciudad_envio : ''}
         </div>
         <div class="info-box">
-          Valida hasta: ${fechaValida.toLocaleDateString('es-CO')}<br/>
+          Valida hasta: ${fechaValidaStr}<br/>
           Solicitado por: ${quote.contact_name || 'N/A'}<br/>
           Estado Cotización: ${quote.estado || 'En Espera'}
         </div>
