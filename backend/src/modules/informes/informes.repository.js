@@ -686,7 +686,7 @@ export class InformesRepository {
    * Resumen de horas totales por operario en un período (quincena anterior).
    * Incluye LIQUIDADA y REALIZADA.
    */
-  async getLiquidacionBonificacionPorOperario(fecha_inicio, fecha_fin) {
+   async getLiquidacionBonificacionPorOperario(fecha_inicio, fecha_fin) {
     const sql = `
       SELECT
         operario_id,
@@ -696,7 +696,7 @@ export class InformesRepository {
         SUM(horas_efectivas) AS horas_total
       FROM (
         SELECT em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
-               e.numero_equipo,
+               e.serie AS numero_equipo,
                GREATEST(1, CASE
                  WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
                    CASE
@@ -717,7 +717,7 @@ export class InformesRepository {
         UNION ALL
 
         SELECT em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
-               e.numero_equipo,
+               e.serie AS numero_equipo,
                GREATEST(1, rdf.horas_netas) AS horas_efectivas
         FROM remision_dias_fijo rdf
         JOIN remisiones r ON r.id = rdf.remision_id
