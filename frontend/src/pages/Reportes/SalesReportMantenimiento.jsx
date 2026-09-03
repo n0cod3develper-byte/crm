@@ -128,9 +128,7 @@ export function SalesReportMantenimiento() {
       doc.text('CARGAR SAS', 220, 26);
       doc.text('NIT: 900.xxx.xxx-x', 220, 31);
 
-      doc.line(14, 38, 282, 38);
-
-      const tableBody = items.map(item => [
+      doc.line(14, 38, 282, 38);        const tableBody = items.map(item => [
         item.consecutivo,
         formatDate(item.fecha_liquidacion),
         item.empresa_nombre,
@@ -141,7 +139,8 @@ export function SalesReportMantenimiento() {
         formatCOP(item.subtotal),
         formatCOP(item.impuesto_valor),
         formatCOP(item.total_final),
-        item.estado
+        item.estado,
+        item.numero_factura || '—'
       ]);
 
       // Añadir fila de totales
@@ -161,7 +160,7 @@ export function SalesReportMantenimiento() {
 
       autoTable(doc, {
         startY: 44,
-        head: [['Consec. OT', 'F. Liq', 'Cliente', 'Equipo', 'Tipo', 'Mano Obra', 'Repuestos', 'Subtotal', 'IVA', 'Total Venta', 'Estado']],
+        head: [['Consec. OT', 'F. Liq', 'Cliente', 'Equipo', 'Tipo', 'Mano Obra', 'Repuestos', 'Subtotal', 'IVA', 'Total Venta', 'Estado', 'N° Factura']],
         body: tableBody,
         theme: 'grid',
         headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
@@ -177,7 +176,8 @@ export function SalesReportMantenimiento() {
           7: { halign: 'right', cellWidth: 23 },
           8: { halign: 'right', cellWidth: 21 },
           9: { halign: 'right', fontStyle: 'bold', cellWidth: 25 },
-          10: { halign: 'center', cellWidth: 17 }
+          10: { halign: 'center', cellWidth: 17 },
+          11: { halign: 'center', cellWidth: 20 }
         },
         didParseCell: function (data) {
           // Destacar fila de totales
@@ -214,7 +214,8 @@ export function SalesReportMantenimiento() {
         'Subtotal': parseFloat(item.subtotal || 0),
         'IVA': parseFloat(item.impuesto_valor || 0),
         'Total Venta': parseFloat(item.total_final || 0),
-        'Estado': item.estado
+        'Estado': item.estado,
+        'N° Factura': item.numero_factura || '—'
       }));
 
       // Añadir fila de totales
@@ -229,7 +230,8 @@ export function SalesReportMantenimiento() {
         'Subtotal': totals.subtotal,
         'IVA': totals.iva,
         'Total Venta': totals.totalVenta,
-        'Estado': ''
+        'Estado': '',
+        'N° Factura': ''
       });
 
       const ws = XLSX.utils.json_to_sheet(excelRows);
@@ -331,6 +333,7 @@ export function SalesReportMantenimiento() {
                 <th style={{ width: 100, textAlign: 'right' }}>IVA</th>
                 <th style={{ width: 120, textAlign: 'right', fontWeight: 'bold' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Venta</span></th>
                 <th style={{ width: 100, textAlign: 'center' }}>Estado</th>
+                <th style={{ width: 120, textAlign: 'center' }}>N° Factura</th>
               </tr>
             </thead>
             <tbody>
@@ -379,6 +382,11 @@ export function SalesReportMantenimiento() {
                       item.estado === 'CERRADA' ? 'gray' : 'primary'
                     }`} style={{ fontSize: '10px' }}>
                       {item.estado}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: item.numero_factura ? 'var(--clr-success-500)' : 'var(--text-muted)' }}>
+                      {item.numero_factura || '—'}
                     </span>
                   </td>
                 </tr>
