@@ -537,5 +537,16 @@ export const informesController = {
       logger.error('Error en getEmailEvolucionMensual', { error: error.message });
       next(error);
     }
+  },
+
+  async getRemisionesLiquidadas(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin, empresa_id } = req.query;
+      const data = await informesRepository.getRemisionesLiquidadas(fecha_inicio, fecha_fin, empresa_id);
+      res.json({ success: true, data });
+    } catch (error) {
+      logger.error('Error en getRemisionesLiquidadas', { error: error.message });
+      next(error);
+    }
   }
 };

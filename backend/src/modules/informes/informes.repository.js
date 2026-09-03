@@ -2129,6 +2129,54 @@ export class InformesRepository {
     const result = await query(sql, params);
     return result.rows;
   }
+
+  async getRemisionesLiquidadas(fecha_inicio, fecha_fin, empresa_id) {
+    const conditions = [
+      "r.deleted_at IS NULL", 
+      "r.estado = 'LIQUIDADA'", 
+      "r.factura_id IS NULL"
+    ];
+    const params = [];
+    let i = 1;
+
+    if (fecha_inicio) {
+      conditions.push(`r.updated_at >= $${i++}`);
+      params.push(`${fecha_inicio} 00:00:00`);
+    }
+    if (fecha_fin) {
+      conditions.push(`r.updated_at <= $${i++}`);
+      params.push(`${fecha_fin} 23:59:59`);
+    }
+    if (empresa_id) {
+      conditions.push(`r.company_id = $${i++}`);
+      params.push(empresa_id);
+    }
+
+    const sql = `
+      SELECT 
+        r.id,
+        r.numero_remision,
+        r.fecha_servicio,
+        r.updated_at AS fecha_liquidacion,
+        EXTRACT(DAY FROM NOW() - r.updated_at)::int AS dias_desde_liquidacion,
+        c.name AS empresa_nombre,
+        c.nit AS empresa_nit,
+        e.serie AS equipo_numero,
+        e.marca AS equipo_marca,
+        r.total_bruto,
+        r.iva_valor,
+        r.total_neto,
+        r.estado
+      FROM remisiones r
+      JOIN companies c ON c.id = r.company_id
+      LEFT JOIN equipos e ON e.id = r.equipo_id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY r.updated_at ASC
+    `;
+
+    const result = await query(sql, params);
+    return result.rows;
+  }
 }
 
 // Utility: format decimal hours to "Xh Ym"
@@ -2199,3 +2247,4 @@ function calcularHorasExtras(horaSalida, horaLlegada, diaSemana, esFestivo) {
   
   return minutosExtras > 0 ? minutosExtras / 60 : 0;
 }
+

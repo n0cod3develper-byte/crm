@@ -64,6 +64,7 @@ const navItems = [
   { label: 'Informes Dinámicos', icon: PieChart, to: '/informes/dinamicos', indent: true },
   { label: 'Ventas Servicios', icon: ClipboardList, to: '/reportes/servicios', indent: true },
   { label: 'Ventas Mantenimiento', icon: Wrench, to: '/reportes/mantenimiento', indent: true },
+  { label: 'Rem. Pend. Facturar', icon: Clock, to: '/informes/remisiones-liquidadas', indent: true },
   { label: 'Horas Extras', icon: Clock, to: '/informes/horas-extras', indent: true },
   { label: 'Mant. por Equipos', icon: Wrench, to: '/informes/mantenimiento/detalle-equipos', indent: true },
   { label: 'Serv. Negados', icon: AlertTriangle, to: '/informes/servicios-negados', indent: true },

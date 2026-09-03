@@ -10,6 +10,7 @@ router.get('/servicios/ventas-linea-negocio', informesController.getVentasPorLin
 router.get('/servicios/ventas-mensuales', informesController.getVentasMensuales);
 router.get('/servicios/ventas-equipos', informesController.getVentasPorEquipo);
 router.get('/servicios/sales-vs-budget', informesController.getSalesVsBudget);
+router.get('/remisiones-liquidadas', informesController.getRemisionesLiquidadas);
 
 // Rutas usadas por InformesServiciosPage (nuevos gráficos)
 router.get('/servicios/ventas-por-equipo', informesController.getVentasPorEquipoV2);
