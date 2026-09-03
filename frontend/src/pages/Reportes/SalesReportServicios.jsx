@@ -146,7 +146,7 @@ export function SalesReportServicios() {
           item.empresa_nombre,
           item.servicio_nombre,
           item.tipo_servicio || '—',
-          item.equipo_numero_interno || '—',
+          item.equipo_serie || '—',
           horas > 0 ? horas.toFixed(2) : '—',
           formatCOP(bruto),
           formatCOP(iva),
@@ -230,7 +230,7 @@ export function SalesReportServicios() {
           'Cliente': item.empresa_nombre,
           'Servicio': item.servicio_nombre,
           'Tipo': item.tipo_servicio || '—',
-          'Código Equipo': item.equipo_numero_interno || '—',
+          'Código Equipo': item.equipo_serie || '—',
           'Cant. Horas': horas,
           'Valor Bruto': bruto,
           'Valor IVA': iva,
@@ -247,7 +247,7 @@ export function SalesReportServicios() {
         'Cliente': '',
         'Servicio': '',
         'Tipo': '',
-        'Equipo': `${totals.count} Remisiones`,
+        'Código Equipo': `${totals.count} Remisiones`,
         'Cant. Horas': '',
         'Valor Bruto': totals.bruto,
         'Valor IVA': totals.iva,
@@ -388,7 +388,7 @@ export function SalesReportServicios() {
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <span style={{ fontSize: '13px', fontWeight: 600 }}>
-                        {item.equipo_numero_interno || '—'}
+                        {item.equipo_serie || '—'}
                       </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>

@@ -177,9 +177,9 @@ export function ServiciosPage() {
 
                       {/* Código */}
                       <td>
-                        {item.equipo_codigo ? (
+                        {item.equipo_serie ? (
                           <code style={{ fontWeight: 600, fontSize: 11, background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4, color: 'var(--text-primary)' }}>
-                            {item.equipo_codigo}
+                            {item.equipo_serie}
                           </code>
                         ) : (
                           <span style={{ color: 'var(--text-muted)' }}>—</span>
