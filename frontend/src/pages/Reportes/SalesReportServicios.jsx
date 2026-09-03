@@ -96,7 +96,7 @@ export function SalesReportServicios() {
       const bruto = parseFloat(item.total_bruto || 0);
       const iva = parseFloat(item.iva_valor || 0);
       const descuentos = parseFloat(item.descuentos || 0);
-      const neto = bruto + iva - descuentos; // Calculado en frontend
+      const neto = parseFloat(item.total_neto || 0);
 
       sum.bruto += bruto;
       sum.iva += iva;
@@ -137,7 +137,7 @@ export function SalesReportServicios() {
         const bruto = parseFloat(item.total_bruto || 0);
         const iva = parseFloat(item.iva_valor || 0);
         const descuentos = parseFloat(item.descuentos || 0);
-        const neto = bruto + iva - descuentos;
+        const neto = parseFloat(item.total_neto || 0);
         const horas = parseFloat(item.cantidad_horas || 0);          return [
           item.numero_remision,
           formatDate(item.fecha_servicio),
@@ -150,7 +150,6 @@ export function SalesReportServicios() {
           formatCOP(iva),
           formatCOP(descuentos),
           formatCOP(neto),
-          item.estado,
           item.numero_factura || '—'
         ];
       });
@@ -173,7 +172,7 @@ export function SalesReportServicios() {
 
       autoTable(doc, {
         startY: 44,
-        head: [['No. Rem', 'Fecha', 'Cliente', 'Servicio', 'Tipo', 'Equipo', 'Horas', 'Bruto', 'IVA', 'Descuento', 'Neto', 'Estado', 'N° Factura']],
+        head: [['No. Rem', 'Fecha', 'Cliente', 'Servicio', 'Tipo', 'Equipo', 'Horas', 'Bruto', 'IVA', 'Descuento', 'Neto', 'N° Factura']],
         body: tableBody,
         theme: 'grid',
         headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
@@ -190,8 +189,7 @@ export function SalesReportServicios() {
           8: { halign: 'right', cellWidth: 18 },
           9: { halign: 'right', cellWidth: 18 },
           10: { halign: 'right', fontStyle: 'bold', cellWidth: 20 },
-          11: { halign: 'center', cellWidth: 16 },
-        12: { halign: 'center', cellWidth: 20 }
+          11: { halign: 'center', cellWidth: 20 }
         },
         didParseCell: function (data) {
           // Destacar fila de totales
@@ -221,7 +219,7 @@ export function SalesReportServicios() {
         const bruto = parseFloat(item.total_bruto || 0);
         const iva = parseFloat(item.iva_valor || 0);
         const descuentos = parseFloat(item.descuentos || 0);
-        const neto = bruto + iva - descuentos;
+        const neto = parseFloat(item.total_neto || 0);
         const horas = parseFloat(item.cantidad_horas || 0);
 
         return {
@@ -236,7 +234,6 @@ export function SalesReportServicios() {
           'Valor IVA': iva,
           'Descuentos': descuentos,
           'Valor Neto': neto,
-          'Estado': item.estado,
           'N° Factura': item.numero_factura || '—'
         };
       });
@@ -254,7 +251,6 @@ export function SalesReportServicios() {
         'Valor IVA': totals.iva,
         'Descuentos': totals.descuentos,
         'Valor Neto': totals.neto,
-        'Estado': '',
         'N° Factura': ''
       });
 
@@ -357,7 +353,6 @@ export function SalesReportServicios() {
                 <th style={{ width: 100, textAlign: 'right' }}>IVA</th>
                 <th style={{ width: 100, textAlign: 'right' }}>Descuentos</th>
                 <th style={{ width: 120, textAlign: 'right', fontWeight: 'bold' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Neto</span></th>
-                <th style={{ width: 100, textAlign: 'center' }}>Estado</th>
                 <th style={{ width: 120, textAlign: 'center' }}>N° Factura</th>
               </tr>
             </thead>
@@ -366,7 +361,7 @@ export function SalesReportServicios() {
                 const bruto = parseFloat(item.total_bruto || 0);
                 const iva = parseFloat(item.iva_valor || 0);
                 const descuentos = parseFloat(item.descuentos || 0);
-                const neto = bruto + iva - descuentos; // Calculado en frontend
+                const neto = parseFloat(item.total_neto || 0);
                 
                 return (
                   <tr key={item.id}>
@@ -410,15 +405,6 @@ export function SalesReportServicios() {
                     </td>
                     <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
                       <span style={{ fontSize: '14px', color: 'var(--clr-success-500)' }}>{formatCOP(neto)}</span>
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span className={`badge badge--${
-                        item.estado === 'LIQUIDADA' ? 'green' : 
-                        item.estado === 'REALIZADA' ? 'primary' : 
-                        item.estado === 'PENDIENTE' ? 'warning' : 'gray'
-                      }`} style={{ fontSize: '10px' }}>
-                        {item.estado}
-                      </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <span style={{ fontSize: '12px', fontWeight: 600, color: item.numero_factura ? 'var(--clr-success-500)' : 'var(--text-muted)' }}>
