@@ -33,166 +33,132 @@ const getLocalDateString = (date) => {
 };
 
 export function SalesReportServicios() {
-  // Rango de fechas inicial: Primer día del mes actual al día de hoy
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
 
   const [fechaInicio, setFechaInicio] = useState(getLocalDateString(firstDay));
   const [fechaFin, setFechaFin] = useState(getLocalDateString(today));
-
-  // Estado local para los filtros aplicados en la consulta
   const [appliedFilters, setAppliedFilters] = useState({
     desde: getLocalDateString(firstDay),
     hasta: getLocalDateString(today)
   });
 
-  // Query con React Query para obtener datos filtrados
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['salesReportServicios', appliedFilters.desde, appliedFilters.hasta],
     queryFn: async () => {
       const params = {};
       if (appliedFilters.desde) params.fecha_desde = appliedFilters.desde;
       if (appliedFilters.hasta) params.fecha_hasta = appliedFilters.hasta;
-
       const res = await api.get('/reports/servicios', { params });
       return res.data?.data || [];
     },
     enabled: true
   });
 
-  // Validar fechas y aplicar filtro
   const handleApplyFilter = () => {
     if (fechaInicio && fechaFin && new Date(fechaInicio) > new Date(fechaFin)) {
       toast.error('La fecha de inicio no puede ser posterior a la fecha de fin');
       return;
     }
-    setAppliedFilters({
-      desde: fechaInicio,
-      hasta: fechaFin
-    });
+    setAppliedFilters({ desde: fechaInicio, hasta: fechaFin });
   };
 
-  // Recalcular cuando cambian los filtros aplicados
-  useEffect(() => {
-    refetch();
-  }, [appliedFilters, refetch]);
+  useEffect(() => { refetch(); }, [appliedFilters, refetch]);
 
-  // Lista ordenada por fecha
   const items = useMemo(() => {
     if (!data) return [];
     return [...data].sort((a, b) => new Date(b.fecha_servicio) - new Date(a.fecha_servicio));
   }, [data]);
 
-  // Cálculo de totales al pie de la tabla
-  const totals = useMemo(() => {
-    const sum = {
-      bruto: 0,
-      iva: 0,
-      descuentos: 0,
-      neto: 0,
-      count: items.length
-    };
-    items.forEach(item => {
-      const bruto = parseFloat(item.total_bruto || 0);
-      const iva = parseFloat(item.iva_valor || 0);
-      const descuentos = parseFloat(item.descuentos || 0);
-      const neto = parseFloat(item.total_neto || 0);
+  // Helper para calcular valores de cada item
+  const calcItem = (item) => {
+    const bruto = parseFloat(item.item_subtotal || 0);
+    const ivaPct = parseFloat(item.iva_pct || 0);
+    const iva = item.item_aplica_iva ? bruto * ivaPct / 100 : 0;
+    const descuento = parseFloat(item.descuentos || 0);
+    const neto = bruto + iva - descuento;
+    const cant = parseFloat(item.item_cantidad || 0);
+    const valorUnit = parseFloat(item.item_valor_unitario || 0);
+    return { bruto, iva, descuento, neto, cant, valorUnit };
+  };
 
-      sum.bruto += bruto;
-      sum.iva += iva;
-      sum.descuentos += descuentos;
-      sum.neto += neto;
+  const totals = useMemo(() => {
+    const sum = { bruto: 0, iva: 0, descuento: 0, neto: 0, count: items.length };
+    items.forEach(item => {
+      const v = calcItem(item);
+      sum.bruto += v.bruto;
+      sum.iva += v.iva;
+      sum.descuento += v.descuento;
+      sum.neto += v.neto;
     });
     return sum;
   }, [items]);
 
-  // Exportar a PDF con jsPDF y jsPDF-AutoTable
+  // ── PDF Export ──
   const handleExportPDF = () => {
-    if (items.length === 0) {
-      toast.error('No hay datos para exportar');
-      return;
-    }
+    if (items.length === 0) { toast.error('No hay datos para exportar'); return; }
     try {
-      const doc = new jsPDF('l', 'mm', 'a4'); // Horizontal (Landscape)
-      
-      // Header Corporativo
-      doc.setFontSize(20);
+      const doc = new jsPDF('l', 'mm', 'a4');
+      doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
-      doc.text('REPORTE DE VENTAS - SERVICIOS', 14, 20);
-      
+      doc.text('REPORTE DE VENTAS - SERVICIOS (Por Ítems)', 14, 20);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Rango de fechas: ${formatDate(appliedFilters.desde)} al ${formatDate(appliedFilters.hasta)}`, 14, 27);
-      doc.text(`Generado el: ${new Date().toLocaleString('es-CO')}`, 14, 32);
-      
+      doc.text(`Rango: ${formatDate(appliedFilters.desde)} al ${formatDate(appliedFilters.hasta)}`, 14, 27);
+      doc.text(`Generado: ${new Date().toLocaleString('es-CO')}`, 14, 32);
       doc.setFont('helvetica', 'bold');
       doc.text('Empresa:', 220, 20);
       doc.setFont('helvetica', 'normal');
       doc.text('CARGAR SAS', 220, 26);
-      doc.text('NIT: 900.xxx.xxx-x', 220, 31);
-
-      doc.line(14, 38, 282, 38);
+      doc.line(14, 36, 282, 36);
 
       const tableBody = items.map(item => {
-        const bruto = parseFloat(item.total_bruto || 0);
-        const iva = parseFloat(item.iva_valor || 0);
-        const descuentos = parseFloat(item.descuentos || 0);
-        const neto = parseFloat(item.total_neto || 0);
-        const horas = parseFloat(item.cantidad_horas || 0);          return [
+        const v = calcItem(item);
+        return [
+          item.item_nombre || '—',
           item.numero_remision,
           formatDate(item.fecha_servicio),
           item.empresa_nombre,
-          item.servicio_nombre,
-          item.tipo_servicio || '—',
+          item.item_tipo_servicio || '—',
           item.equipo_serie || '—',
-          horas > 0 ? horas.toFixed(2) : '—',
-          formatCOP(bruto),
-          formatCOP(iva),
-          formatCOP(descuentos),
-          formatCOP(neto),
+          v.cant > 0 ? v.cant.toFixed(2) : '—',
+          formatCOP(v.valorUnit),
+          formatCOP(v.bruto),
+          formatCOP(v.iva),
+          formatCOP(v.descuento),
+          formatCOP(v.neto),
           item.numero_factura || '—'
         ];
       });
 
-      // Añadir fila de totales
       tableBody.push([
-        'TOTALES',
-        '',
-        '',
-        '',
-        '',
-        `${totals.count} Remisiones`,
-        '',
-        formatCOP(totals.bruto),
-        formatCOP(totals.iva),
-        formatCOP(totals.descuentos),
-        formatCOP(totals.neto),
-        ''
+        'TOTALES', '', '', '', '', `${totals.count} Ítems`, '', '', 
+        formatCOP(totals.bruto), formatCOP(totals.iva), formatCOP(totals.descuento), formatCOP(totals.neto), ''
       ]);
 
       autoTable(doc, {
-        startY: 44,
-        head: [['No. Rem', 'Fecha', 'Cliente', 'Servicio', 'Tipo', 'Equipo', 'Horas', 'Bruto', 'IVA', 'Descuento', 'Neto', 'N° Factura']],
+        startY: 40,
+        head: [['Ítem', 'Rem', 'Fecha', 'Cliente', 'Tipo', 'Cód.', 'Cant.', 'V. Unit.', 'Bruto', 'IVA', 'Desc.', 'Neto', 'Factura']],
         body: tableBody,
         theme: 'grid',
-        headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
-        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center', fontSize: 6 },
+        styles: { fontSize: 6, cellPadding: 1.5 },
         columnStyles: {
-          0: { fontStyle: 'bold', cellWidth: 20 },
-          1: { halign: 'center', cellWidth: 18 },
-          2: { cellWidth: 38 },
-          3: { cellWidth: 38 },
-          4: { halign: 'center', cellWidth: 16 },
-          5: { cellWidth: 34 },
+          0: { cellWidth: 40 },
+          1: { fontStyle: 'bold', cellWidth: 14 },
+          2: { halign: 'center', cellWidth: 16 },
+          3: { cellWidth: 30 },
+          4: { halign: 'center', cellWidth: 14 },
+          5: { halign: 'center', cellWidth: 12 },
           6: { halign: 'center', cellWidth: 12 },
-          7: { halign: 'right', cellWidth: 20 },
+          7: { halign: 'right', cellWidth: 18 },
           8: { halign: 'right', cellWidth: 18 },
-          9: { halign: 'right', cellWidth: 18 },
-          10: { halign: 'right', fontStyle: 'bold', cellWidth: 20 },
-          11: { halign: 'center', cellWidth: 20 }
+          9: { halign: 'right', cellWidth: 16 },
+          10: { halign: 'right', cellWidth: 16 },
+          11: { halign: 'right', fontStyle: 'bold', cellWidth: 18 },
+          12: { halign: 'center', cellWidth: 16 }
         },
         didParseCell: function (data) {
-          // Destacar fila de totales
           if (data.row.index === tableBody.length - 1) {
             data.cell.styles.fillColor = [243, 244, 246];
             data.cell.styles.fontStyle = 'bold';
@@ -208,56 +174,41 @@ export function SalesReportServicios() {
     }
   };
 
-  // Exportar a Excel con xlsx (SheetJS)
+  // ── Excel Export ──
   const handleExportExcel = () => {
-    if (items.length === 0) {
-      toast.error('No hay datos para exportar');
-      return;
-    }
+    if (items.length === 0) { toast.error('No hay datos para exportar'); return; }
     try {
       const excelRows = items.map(item => {
-        const bruto = parseFloat(item.total_bruto || 0);
-        const iva = parseFloat(item.iva_valor || 0);
-        const descuentos = parseFloat(item.descuentos || 0);
-        const neto = parseFloat(item.total_neto || 0);
-        const horas = parseFloat(item.cantidad_horas || 0);
-
+        const v = calcItem(item);
         return {
+          'Ítem / Servicio': item.item_nombre || '—',
           'No. Remisión': item.numero_remision,
           'Fecha Servicio': formatDate(item.fecha_servicio),
           'Cliente': item.empresa_nombre,
-          'Servicio': item.servicio_nombre,
-          'Tipo': item.tipo_servicio || '—',
+          'Tipo': item.item_tipo_servicio || '—',
           'Código Equipo': item.equipo_serie || '—',
-          'Cant. Horas': horas,
-          'Valor Bruto': bruto,
-          'Valor IVA': iva,
-          'Descuentos': descuentos,
-          'Valor Neto': neto,
+          'Cantidad': v.cant,
+          'Valor Unitario': v.valorUnit,
+          'Valor Bruto': v.bruto,
+          'Valor IVA': v.iva,
+          'Descuento': v.descuento,
+          'Valor Neto': v.neto,
           'N° Factura': item.numero_factura || '—'
         };
       });
 
-      // Añadir fila de totales
       excelRows.push({
-        'No. Remisión': 'TOTALES',
-        'Fecha Servicio': '',
-        'Cliente': '',
-        'Servicio': '',
-        'Tipo': '',
-        'Código Equipo': `${totals.count} Remisiones`,
-        'Cant. Horas': '',
-        'Valor Bruto': totals.bruto,
-        'Valor IVA': totals.iva,
-        'Descuentos': totals.descuentos,
-        'Valor Neto': totals.neto,
-        'N° Factura': ''
+        'Ítem / Servicio': 'TOTALES',
+        'No. Remisión': '', 'Fecha Servicio': '', 'Cliente': '', 'Tipo': '',
+        'Código Equipo': `${totals.count} Ítems`,
+        'Cantidad': '', 'Valor Unitario': '',
+        'Valor Bruto': totals.bruto, 'Valor IVA': totals.iva,
+        'Descuento': totals.descuento, 'Valor Neto': totals.neto, 'N° Factura': ''
       });
 
       const ws = XLSX.utils.json_to_sheet(excelRows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Reporte Ventas Servicios");
-      
       XLSX.writeFile(wb, `Reporte_Ventas_Servicios_${appliedFilters.desde}_a_${appliedFilters.hasta}.xlsx`);
       toast.success('Excel descargado con éxito');
     } catch (err) {
@@ -269,7 +220,7 @@ export function SalesReportServicios() {
   return (
     <Layout
       title="Reporte de Ventas - Servicios"
-      subtitle={`Consulta analítica de facturación para el período seleccionado (${items.length} registros)`}
+      subtitle={`Consulta analítica por ítems para el período seleccionado (${items.length} ítems)`}
       rightContent={
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn btn--secondary" onClick={handleExportPDF} disabled={isLoading || items.length === 0}>
@@ -288,26 +239,14 @@ export function SalesReportServicios() {
             <label className="label" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.35rem' }}>
               <Calendar size={14} className="text-muted" /> Fecha Inicio
             </label>
-            <input
-              type="date"
-              className="input"
-              value={fechaInicio}
-              onChange={(e) => setFechaInicio(e.target.value)}
-            />
+            <input type="date" className="input" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
           </div>
-          
           <div style={{ flex: '1 1 200px' }}>
             <label className="label" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.35rem' }}>
               <Calendar size={14} className="text-muted" /> Fecha Fin
             </label>
-            <input
-              type="date"
-              className="input"
-              value={fechaFin}
-              onChange={(e) => setFechaFin(e.target.value)}
-            />
+            <input type="date" className="input" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
           </div>
-
           <button className="btn btn--primary" onClick={handleApplyFilter} style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '120px' }}>
             <Filter size={15} /> Aplicar Filtro
           </button>
@@ -325,7 +264,7 @@ export function SalesReportServicios() {
           <AlertCircle size={40} style={{ color: 'var(--clr-danger-500)', marginBottom: '1rem' }} />
           <h3 className="text-lg font-bold" style={{ color: 'var(--clr-danger-400)', marginBottom: '0.5rem' }}>Error en Consulta</h3>
           <p className="text-muted" style={{ maxWidth: '400px', margin: '0 auto' }}>
-            {error.response?.data?.message || error.message || 'No se pudieron recuperar las remisiones de ventas.'}
+            {error.response?.data?.message || error.message || 'No se pudieron recuperar los ítems de ventas.'}
           </p>
           <button className="btn btn--secondary" onClick={() => refetch()} style={{ marginTop: '1rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <RefreshCw size={14} /> Reintentar
@@ -335,79 +274,82 @@ export function SalesReportServicios() {
         <div className="empty-state" style={{ minHeight: '300px' }}>
           <ClipboardList size={48} className="empty-state__icon" />
           <h2 className="empty-state__title">Sin resultados</h2>
-          <p className="empty-state__desc">No se encontraron ventas de servicios para el rango de fechas seleccionado.</p>
+          <p className="empty-state__desc">No se encontraron ítems de ventas para el rango de fechas seleccionado.</p>
         </div>
       ) : (
         <div className="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th style={{ width: 100 }}>Nro. Remisión</th>
-                <th style={{ width: 100 }}><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={12} />Fecha</span></th>
+                <th>Ítem / Servicio</th>
+                <th style={{ width: 85 }}>Nro. Rem.</th>
+                <th style={{ width: 95 }}><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={12} />Fecha</span></th>
                 <th><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Building2 size={12} />Cliente</span></th>
-                <th>Servicio</th>
                 <th style={{ width: 80, textAlign: 'center' }}>Tipo</th>
-                <th style={{ width: 100, textAlign: 'center' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}><Truck size={12} />Código</span></th>
-                <th style={{ width: 70, textAlign: 'center' }}>Horas</th>
-                <th style={{ width: 120, textAlign: 'right' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Bruto</span></th>
-                <th style={{ width: 100, textAlign: 'right' }}>IVA</th>
-                <th style={{ width: 100, textAlign: 'right' }}>Descuentos</th>
-                <th style={{ width: 120, textAlign: 'right', fontWeight: 'bold' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Neto</span></th>
-                <th style={{ width: 120, textAlign: 'center' }}>N° Factura</th>
+                <th style={{ width: 70, textAlign: 'center' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}><Truck size={12} />Código</span></th>
+                <th style={{ width: 60, textAlign: 'center' }}>Cant.</th>
+                <th style={{ width: 100, textAlign: 'right' }}>Valor Unit.</th>
+                <th style={{ width: 110, textAlign: 'right' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Bruto</span></th>
+                <th style={{ width: 90, textAlign: 'right' }}>IVA</th>
+                <th style={{ width: 90, textAlign: 'right' }}>Descuento</th>
+                <th style={{ width: 110, textAlign: 'right', fontWeight: 'bold' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Neto</span></th>
+                <th style={{ width: 90, textAlign: 'center' }}>N° Factura</th>
               </tr>
             </thead>
             <tbody>
               {items.map(item => {
-                const bruto = parseFloat(item.total_bruto || 0);
-                const iva = parseFloat(item.iva_valor || 0);
-                const descuentos = parseFloat(item.descuentos || 0);
-                const neto = parseFloat(item.total_neto || 0);
-                
+                const v = calcItem(item);
                 return (
-                  <tr key={item.id}>
+                  <tr key={item.item_id}>
                     <td>
-                      <code style={{ fontWeight: 800, fontSize: '13px', color: 'var(--clr-primary-400)' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 500, display: 'block' }}>{item.item_nombre || '—'}</span>
+                      {item.item_codigo && (
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{item.item_codigo}</span>
+                      )}
+                    </td>
+                    <td>
+                      <code style={{ fontWeight: 800, fontSize: '12px', color: 'var(--clr-primary-400)' }}>
                         {item.numero_remision}
                       </code>
                     </td>
                     <td>
-                      <span style={{ fontWeight: 600, fontSize: '13px' }}>{formatDate(item.fecha_servicio)}</span>
+                      <span style={{ fontWeight: 600, fontSize: '12px' }}>{formatDate(item.fecha_servicio)}</span>
                     </td>
                     <td>
-                      <span style={{ fontWeight: 600, fontSize: '13px', display: 'block' }}>{item.empresa_nombre}</span>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>{item.servicio_nombre}</span>
+                      <span style={{ fontWeight: 600, fontSize: '12px' }}>{item.empresa_nombre}</span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <span className={`badge badge--${item.tipo_servicio === 'Fijo' ? 'primary' : 'warning'}`} style={{ fontSize: '10px' }}>
-                        {item.tipo_servicio || '—'}
+                      <span className={`badge badge--${item.item_tipo_servicio === 'Fijo' ? 'primary' : 'warning'}`} style={{ fontSize: '10px' }}>
+                        {item.item_tipo_servicio || '—'}
                       </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 600 }}>
+                      <span style={{ fontSize: '12px', fontWeight: 600 }}>
                         {item.equipo_serie || '—'}
                       </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                        {parseFloat(item.cantidad_horas || 0) > 0 ? parseFloat(item.cantidad_horas).toFixed(2) : '—'}
+                      <span style={{ fontSize: '12px', fontWeight: 500 }}>
+                        {v.cant > 0 ? v.cant.toFixed(2) : '—'}
                       </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '13px' }}>{formatCOP(bruto)}</span>
+                      <span style={{ fontSize: '12px' }}>{formatCOP(v.valorUnit)}</span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{formatCOP(iva)}</span>
+                      <span style={{ fontSize: '12px' }}>{formatCOP(v.bruto)}</span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '13px', color: 'var(--clr-danger-400)' }}>{formatCOP(descuentos)}</span>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{formatCOP(v.iva)}</span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--clr-danger-400)' }}>{formatCOP(v.descuento)}</span>
                     </td>
                     <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                      <span style={{ fontSize: '14px', color: 'var(--clr-success-500)' }}>{formatCOP(neto)}</span>
+                      <span style={{ fontSize: '13px', color: 'var(--clr-success-500)' }}>{formatCOP(v.neto)}</span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 600, color: item.numero_factura ? 'var(--clr-success-500)' : 'var(--text-muted)' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: item.numero_factura ? 'var(--clr-success-500)' : 'var(--text-muted)' }}>
                         {item.numero_factura || '—'}
                       </span>
                     </td>
@@ -415,18 +357,16 @@ export function SalesReportServicios() {
                 );
               })}
             </tbody>
-            {/* ── Fila de Totales/Resumen ── */}
             <tfoot style={{ borderTop: '2px solid var(--border-color)', background: 'var(--bg-subtle)' }}>
               <tr style={{ fontWeight: 'bold', borderBottom: 'none' }}>
                 <td colSpan={5}>TOTALES</td>
-                <td>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{totals.count} registros</span>
-                </td>
+                <td><span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{totals.count} ítems</span></td>
                 <td></td>
-                <td style={{ textAlign: 'right', fontSize: '13px' }}>{formatCOP(totals.bruto)}</td>
-                <td style={{ textAlign: 'right', fontSize: '13px', color: 'var(--text-muted)' }}>{formatCOP(totals.iva)}</td>
-                <td style={{ textAlign: 'right', fontSize: '13px', color: 'var(--clr-danger-400)' }}>{formatCOP(totals.descuentos)}</td>
-                <td style={{ textAlign: 'right', fontSize: '14px', color: 'var(--clr-success-500)' }}>{formatCOP(totals.neto)}</td>
+                <td></td>
+                <td style={{ textAlign: 'right', fontSize: '12px' }}>{formatCOP(totals.bruto)}</td>
+                <td style={{ textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)' }}>{formatCOP(totals.iva)}</td>
+                <td style={{ textAlign: 'right', fontSize: '12px', color: 'var(--clr-danger-400)' }}>{formatCOP(totals.descuento)}</td>
+                <td style={{ textAlign: 'right', fontSize: '13px', color: 'var(--clr-success-500)' }}>{formatCOP(totals.neto)}</td>
                 <td></td>
               </tr>
             </tfoot>
