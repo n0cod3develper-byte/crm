@@ -31,12 +31,17 @@ export class ReportsRepository {
              e.serie AS equipo_serie,
              cs.nombre AS servicio_nombre,
              cs.tipo_servicio,
-             f.numero_factura
+             (
+               SELECT string_agg(DISTINCT f2.numero_factura, ', ')
+               FROM factura_remisiones fr2
+               JOIN facturas f2 ON f2.id = fr2.factura_id
+               WHERE fr2.remision_id = r.id
+               AND f2.numero_factura IS NOT NULL
+             ) AS numero_factura
       FROM remisiones r
       JOIN companies c ON c.id = r.company_id
-      JOIN equipos e ON e.id = r.equipo_id
-      JOIN catalogo_servicios cs ON cs.id = r.catalogo_servicio_id
-      LEFT JOIN facturas f ON f.id = r.factura_id
+      LEFT JOIN equipos e ON e.id = r.equipo_id
+      LEFT JOIN catalogo_servicios cs ON cs.id = r.catalogo_servicio_id
       WHERE ${conditions.join(' AND ')}
       ORDER BY r.fecha_servicio DESC, r.created_at DESC
     `;
