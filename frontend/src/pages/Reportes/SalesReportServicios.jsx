@@ -138,13 +138,20 @@ export function SalesReportServicios() {
         const iva = parseFloat(item.iva_valor || 0);
         const descuentos = parseFloat(item.descuentos || 0);
         const neto = parseFloat(item.total_neto || 0);
-        const horas = parseFloat(item.cantidad_horas || 0);          return [
+        const horas = parseFloat(item.cantidad_horas || 0);
+        const hmSalida = item.horometro_salida != null ? parseFloat(item.horometro_salida).toFixed(1) : '—';
+        const hmLlegada = item.horometro_regreso != null ? parseFloat(item.horometro_regreso).toFixed(1) : '—';
+
+        return [
           item.numero_remision,
           formatDate(item.fecha_servicio),
           item.empresa_nombre,
+          item.operario_nombre || '—',
           item.servicio_nombre,
           item.tipo_servicio || '—',
           item.equipo_serie || '—',
+          hmSalida,
+          hmLlegada,
           horas > 0 ? horas.toFixed(2) : '—',
           formatCOP(bruto),
           formatCOP(iva),
@@ -161,7 +168,10 @@ export function SalesReportServicios() {
         '',
         '',
         '',
+        '',
         `${totals.count} Remisiones`,
+        '',
+        '',
         '',
         formatCOP(totals.bruto),
         formatCOP(totals.iva),
@@ -172,24 +182,27 @@ export function SalesReportServicios() {
 
       autoTable(doc, {
         startY: 44,
-        head: [['No. Rem', 'Fecha', 'Cliente', 'Servicio', 'Tipo', 'Equipo', 'Horas', 'Bruto', 'IVA', 'Descuento', 'Neto', 'N° Factura']],
+        head: [['No. Rem', 'Fecha', 'Cliente', 'Operario', 'Servicio', 'Tipo', 'Equipo', 'Hm. Salida', 'Hm. Llegada', 'Horas', 'Bruto', 'IVA', 'Descuento', 'Neto', 'N° Factura']],
         body: tableBody,
         theme: 'grid',
         headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
-        styles: { fontSize: 8, cellPadding: 3 },
+        styles: { fontSize: 7, cellPadding: 2 },
         columnStyles: {
-          0: { fontStyle: 'bold', cellWidth: 20 },
-          1: { halign: 'center', cellWidth: 18 },
-          2: { cellWidth: 38 },
-          3: { cellWidth: 38 },
-          4: { halign: 'center', cellWidth: 16 },
-          5: { cellWidth: 34 },
-          6: { halign: 'center', cellWidth: 12 },
-          7: { halign: 'right', cellWidth: 20 },
-          8: { halign: 'right', cellWidth: 18 },
-          9: { halign: 'right', cellWidth: 18 },
-          10: { halign: 'right', fontStyle: 'bold', cellWidth: 20 },
-          11: { halign: 'center', cellWidth: 20 }
+          0: { fontStyle: 'bold', cellWidth: 16 },
+          1: { halign: 'center', cellWidth: 16 },
+          2: { cellWidth: 28 },
+          3: { cellWidth: 26 },
+          4: { cellWidth: 28 },
+          5: { halign: 'center', cellWidth: 12 },
+          6: { cellWidth: 20 },
+          7: { halign: 'center', cellWidth: 14 },
+          8: { halign: 'center', cellWidth: 14 },
+          9: { halign: 'center', cellWidth: 11 },
+          10: { halign: 'right', cellWidth: 18 },
+          11: { halign: 'right', cellWidth: 16 },
+          12: { halign: 'right', cellWidth: 16 },
+          13: { halign: 'right', fontStyle: 'bold', cellWidth: 18 },
+          14: { halign: 'center', cellWidth: 17 }
         },
         didParseCell: function (data) {
           // Destacar fila de totales
@@ -221,14 +234,19 @@ export function SalesReportServicios() {
         const descuentos = parseFloat(item.descuentos || 0);
         const neto = parseFloat(item.total_neto || 0);
         const horas = parseFloat(item.cantidad_horas || 0);
+        const hmSalida = item.horometro_salida != null ? parseFloat(item.horometro_salida) : '—';
+        const hmLlegada = item.horometro_regreso != null ? parseFloat(item.horometro_regreso) : '—';
 
         return {
           'No. Remisión': item.numero_remision,
           'Fecha Servicio': formatDate(item.fecha_servicio),
           'Cliente': item.empresa_nombre,
+          'Operario': item.operario_nombre || '—',
           'Servicio': item.servicio_nombre,
           'Tipo': item.tipo_servicio || '—',
           'Código Equipo': item.equipo_serie || '—',
+          'Horómetro Salida': hmSalida,
+          'Horómetro Llegada': hmLlegada,
           'Cant. Horas': horas,
           'Valor Bruto': bruto,
           'Valor IVA': iva,
@@ -243,9 +261,12 @@ export function SalesReportServicios() {
         'No. Remisión': 'TOTALES',
         'Fecha Servicio': '',
         'Cliente': '',
+        'Operario': '',
         'Servicio': '',
         'Tipo': '',
         'Código Equipo': `${totals.count} Remisiones`,
+        'Horómetro Salida': '',
+        'Horómetro Llegada': '',
         'Cant. Horas': '',
         'Valor Bruto': totals.bruto,
         'Valor IVA': totals.iva,
@@ -342,18 +363,21 @@ export function SalesReportServicios() {
           <table>
             <thead>
               <tr>
-                <th style={{ width: 100 }}>Nro. Remisión</th>
-                <th style={{ width: 100 }}><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={12} />Fecha</span></th>
+                <th style={{ width: 95 }}>Nro. Remisión</th>
+                <th style={{ width: 95 }}><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={12} />Fecha</span></th>
                 <th><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Building2 size={12} />Cliente</span></th>
+                <th>Operario</th>
                 <th>Servicio</th>
-                <th style={{ width: 80, textAlign: 'center' }}>Tipo</th>
-                <th style={{ width: 100, textAlign: 'center' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}><Truck size={12} />Código</span></th>
-                <th style={{ width: 70, textAlign: 'center' }}>Horas</th>
-                <th style={{ width: 120, textAlign: 'right' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Bruto</span></th>
-                <th style={{ width: 100, textAlign: 'right' }}>IVA</th>
-                <th style={{ width: 100, textAlign: 'right' }}>Descuentos</th>
-                <th style={{ width: 120, textAlign: 'right', fontWeight: 'bold' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Neto</span></th>
-                <th style={{ width: 120, textAlign: 'center' }}>N° Factura</th>
+                <th style={{ width: 75, textAlign: 'center' }}>Tipo</th>
+                <th style={{ width: 90, textAlign: 'center' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}><Truck size={12} />Código</span></th>
+                <th style={{ width: 85, textAlign: 'center' }}>Hm. Salida</th>
+                <th style={{ width: 85, textAlign: 'center' }}>Hm. Llegada</th>
+                <th style={{ width: 65, textAlign: 'center' }}>Horas</th>
+                <th style={{ width: 110, textAlign: 'right' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Bruto</span></th>
+                <th style={{ width: 90, textAlign: 'right' }}>IVA</th>
+                <th style={{ width: 90, textAlign: 'right' }}>Descuentos</th>
+                <th style={{ width: 110, textAlign: 'right', fontWeight: 'bold' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Neto</span></th>
+                <th style={{ width: 100, textAlign: 'center' }}>N° Factura</th>
               </tr>
             </thead>
             <tbody>
@@ -362,6 +386,8 @@ export function SalesReportServicios() {
                 const iva = parseFloat(item.iva_valor || 0);
                 const descuentos = parseFloat(item.descuentos || 0);
                 const neto = parseFloat(item.total_neto || 0);
+                const hmSalida = item.horometro_salida != null ? parseFloat(item.horometro_salida).toFixed(1) : '—';
+                const hmLlegada = item.horometro_regreso != null ? parseFloat(item.horometro_regreso).toFixed(1) : '—';
                 
                 return (
                   <tr key={item.id}>
@@ -377,6 +403,9 @@ export function SalesReportServicios() {
                       <span style={{ fontWeight: 600, fontSize: '13px', display: 'block' }}>{item.empresa_nombre}</span>
                     </td>
                     <td>
+                      <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>{item.operario_nombre || '—'}</span>
+                    </td>
+                    <td>
                       <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>{item.servicio_nombre}</span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
@@ -388,6 +417,12 @@ export function SalesReportServicios() {
                       <span style={{ fontSize: '13px', fontWeight: 600 }}>
                         {item.equipo_serie || '—'}
                       </span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{hmSalida}</span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{hmLlegada}</span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
@@ -418,11 +453,11 @@ export function SalesReportServicios() {
             {/* ── Fila de Totales/Resumen ── */}
             <tfoot style={{ borderTop: '2px solid var(--border-color)', background: 'var(--bg-subtle)' }}>
               <tr style={{ fontWeight: 'bold', borderBottom: 'none' }}>
-                <td colSpan={5}>TOTALES</td>
+                <td colSpan={6}>TOTALES</td>
                 <td>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{totals.count} registros</span>
                 </td>
-                <td></td>
+                <td colSpan={3}></td>
                 <td style={{ textAlign: 'right', fontSize: '13px' }}>{formatCOP(totals.bruto)}</td>
                 <td style={{ textAlign: 'right', fontSize: '13px', color: 'var(--text-muted)' }}>{formatCOP(totals.iva)}</td>
                 <td style={{ textAlign: 'right', fontSize: '13px', color: 'var(--clr-danger-400)' }}>{formatCOP(totals.descuentos)}</td>

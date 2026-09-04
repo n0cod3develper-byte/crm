@@ -24,6 +24,8 @@ export class ReportsRepository {
              r.descuentos,
              r.total_neto,
              r.cantidad_horas,
+             r.horometro_salida,
+             r.horometro_regreso,
              c.name AS empresa_nombre,
              e.marca AS equipo_marca,
              e.modelo AS equipo_modelo,
@@ -31,6 +33,12 @@ export class ReportsRepository {
              e.serie AS equipo_serie,
              cs.nombre AS servicio_nombre,
              cs.tipo_servicio,
+             (
+               SELECT string_agg(DISTINCT em.full_name, ', ')
+               FROM remision_operarios ro
+               JOIN employees em ON em.id = ro.empleado_id
+               WHERE ro.remision_id = r.id
+             ) AS operario_nombre,
              (
                SELECT string_agg(DISTINCT f2.numero_factura, ', ')
                FROM factura_remisiones fr2
