@@ -16,24 +16,21 @@ export class ReportsRepository {
     }
 
     const sql = `
-      SELECT rs.id AS item_id,
-             rs.cantidad AS item_cantidad,
-             rs.valor_unitario AS item_valor_unitario,
-             rs.subtotal AS item_subtotal,
-             rs.aplica_iva AS item_aplica_iva,
-             rs.descripcion AS item_descripcion,
-             COALESCE(inv.nombre_comercial, cs_item.nombre) AS item_nombre,
-             COALESCE(inv.codigo_interno, cs_item.codigo) AS item_codigo,
-             r.id AS remision_id,
+      SELECT r.id,
              r.numero_remision,
              r.fecha_servicio,
-             r.iva_pct,
+             r.total_bruto,
+             r.iva_valor,
              r.descuentos,
+             r.total_neto,
              r.cantidad_horas,
-             r.estado,
              c.name AS empresa_nombre,
+             e.marca AS equipo_marca,
+             e.modelo AS equipo_modelo,
+             e.serial AS equipo_serial,
              e.serie AS equipo_serie,
-             COALESCE(inv.tipo, cs_item.tipo_servicio) AS item_tipo_servicio,
+             cs.nombre AS servicio_nombre,
+             cs.tipo_servicio,
              (
                SELECT string_agg(DISTINCT f2.numero_factura, ', ')
                FROM factura_remisiones fr2
@@ -41,15 +38,12 @@ export class ReportsRepository {
                WHERE fr2.remision_id = r.id
                AND f2.numero_factura IS NOT NULL
              ) AS numero_factura
-      FROM remision_servicios rs
-      JOIN remisiones r ON r.id = rs.remision_id
+      FROM remisiones r
       JOIN companies c ON c.id = r.company_id
       LEFT JOIN equipos e ON e.id = r.equipo_id
       LEFT JOIN catalogo_servicios cs ON cs.id = r.catalogo_servicio_id
-      LEFT JOIN inventario inv ON inv.id = rs.catalogo_servicio_id
-      LEFT JOIN catalogo_servicios cs_item ON cs_item.id = rs.catalogo_servicio_id
       WHERE ${conditions.join(' AND ')}
-      ORDER BY r.fecha_servicio DESC, r.created_at DESC, rs.orden ASC
+      ORDER BY r.fecha_servicio DESC, r.created_at DESC
     `;
 
     const result = await query(sql, params);
