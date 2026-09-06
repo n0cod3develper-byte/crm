@@ -59,10 +59,18 @@ export class ServiciosRepository {
       LIMIT $${i}
     `;
 
+    // Count total filtered rows (same conditions, no cursor/limit)
+    const countSql = `SELECT COUNT(*) AS total FROM remisiones r
+      JOIN companies c ON c.id = r.company_id
+      LEFT JOIN equipos e ON e.id = r.equipo_id
+      WHERE ${conditions.join(' AND ')}`;
+    const countResult = await query(countSql, params.slice(0, -1)); // exclude the LIMIT param
+    const total = parseInt(countResult.rows[0]?.total || '0', 10);
+
     const result = await query(sql, params);
     const hasMore = result.rows.length > limit;
     const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
-    return { data: rows, pagination: { hasMore, nextCursor: hasMore ? rows[rows.length - 1].id : null } };
+    return { data: rows, pagination: { hasMore, total, nextCursor: hasMore ? rows[rows.length - 1].id : null } };
   }
 
   async findById(id) {

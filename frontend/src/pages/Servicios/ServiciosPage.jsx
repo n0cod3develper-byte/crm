@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, ClipboardList, FileText, Trash2, Eye, Edit, Calendar, Building2, Truck, DollarSign } from 'lucide-react';
+import { Plus, Search, ClipboardList, FileText, Trash2, Eye, Edit, Calendar, Building2, Truck, DollarSign, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Topbar } from '../../components/layout/Topbar';
@@ -25,26 +25,56 @@ export function ServiciosPage() {
   const qc = useQueryClient();
   const [search, setSearch] = React.useState('');
   const [filterEstado, setFilterEstado] = React.useState('all');
+  const [cursor, setCursor] = React.useState(null);
+  const [prevCursors, setPrevCursors] = React.useState([]);
+  const PAGE_SIZE = 50;
   const { esAdmin } = usePermissions();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['servicios', search, filterEstado],
+    queryKey: ['servicios', search, filterEstado, cursor],
     queryFn: async () => {
-      const params = { limit: 100 };
+      const params = { limit: PAGE_SIZE };
       if (search) params.search = search;
       if (filterEstado !== 'all') params.estado = filterEstado;
+      if (cursor) params.cursor = cursor;
       const { data } = await api.get('/servicios', { params });
       return data;
     },
   });
 
+  // Reset pagination when filters change
+  const handleSearchChange = (val) => { setSearch(val); setCursor(null); setPrevCursors([]); };
+  const handleEstadoChange = (val) => { setFilterEstado(val); setCursor(null); setPrevCursors([]); };
+
+  const handleNextPage = () => {
+    if (data && data.pagination && data.pagination.nextCursor) {
+      setPrevCursors(prev => [...prev, cursor]);
+      setCursor(data.pagination.nextCursor);
+    }
+  };
+  const handlePrevPage = () => {
+    if (prevCursors.length > 0) {
+      const newPrev = [...prevCursors];
+      const prevCursor = newPrev.pop();
+      setPrevCursors(newPrev);
+      setCursor(prevCursor);
+    }
+  };
+
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/servicios/${id}`),
     onSuccess: () => { toast.success('Remisión anulada'); qc.invalidateQueries({ queryKey: ['servicios'] }); },
-    onError: (err) => toast.error(err.response?.data?.message || 'Error al anular'),
+    onError: (err) => toast.error((err.response && err.response.data && err.response.data.message) || 'Error al anular'),
   });
 
-  const items = [...(data?.data || [])].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  const items = [...((data && data.data) || [])].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  // Pagination info
+  const paginationTotal = data && data.pagination ? data.pagination.total : null;
+  const paginationHasMore = data && data.pagination ? data.pagination.hasMore : false;
+  const paginationText = paginationTotal != null
+    ? `Mostrando ${items.length} de ${paginationTotal} remisiones`
+    : `${items.length} remisiones`;
 
   // Totales por estado
   const totales = React.useMemo(() => {
@@ -76,7 +106,7 @@ export function ServiciosPage() {
               style={{ paddingLeft: '2.5rem' }}
               placeholder="Buscar por No. remisión o empresa..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => handleSearchChange(e.target.value)}
             />
           </div>
           {/* Filtros de estado como botones */}
@@ -84,7 +114,7 @@ export function ServiciosPage() {
             {ESTADOS.map(s => (
               <button
                 key={s}
-                onClick={() => setFilterEstado(s)}
+                onClick={() => handleEstadoChange(s)}
                 style={{
                   padding: '0.35rem 0.875rem',
                   borderRadius: 20,
@@ -113,6 +143,7 @@ export function ServiciosPage() {
             <button className="btn btn--primary" onClick={() => navigate('/servicios/nueva')}><Plus size={16} /> Nueva Remisión</button>
           </div>
         ) : (
+          <>
           <div className="table-wrapper">
             <table>
               <thead>
@@ -261,6 +292,32 @@ export function ServiciosPage() {
               </tbody>
             </table>
           </div>
+
+          {/* ── Paginación ── */}
+          <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)' }}>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+              {paginationText}
+            </span>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                className="btn btn--ghost btn--sm"
+                onClick={handlePrevPage}
+                disabled={prevCursors.length === 0}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+              >
+                <ChevronLeft size={14} /> Anterior
+              </button>
+              <button
+                className="btn btn--ghost btn--sm"
+                onClick={handleNextPage}
+                disabled={!paginationHasMore}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+              >
+                Siguiente <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+          </>
         )}
       </main>
     </div>
