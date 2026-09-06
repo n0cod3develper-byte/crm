@@ -11,7 +11,7 @@ const __dirname = dirname(__filename);
  * Intenta cargar el logo de la empresa como base64 para embeber en el HTML.
  * Si no existe, retorna null y el PDF se genera sin logo.
  */
-function getLogoBase64() {
+export function getLogoBase64() {
   try {
     const logoPath = join(__dirname, '..', 'assets', 'logo.png');
     const buffer = readFileSync(logoPath);

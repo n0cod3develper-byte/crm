@@ -31,6 +31,7 @@ export class ReportsRepository {
              e.modelo AS equipo_modelo,
              e.serial AS equipo_serial,
              e.serie AS equipo_serie,
+             e.capacidad_nominal,
              cs.nombre AS servicio_nombre,
              cs.tipo_servicio,
              (

@@ -8,6 +8,74 @@ import { Topbar } from '../../components/layout/Topbar';
 
 const fmt = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v || 0);
 
+function EmpresaSearch({ value, onChange, empresas }) {
+  const [search, setSearch] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Local filter from already-loaded empresas list + backend search for wider queries
+  const filteredEmpresas = (() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return [];
+    // First try local filter (fast, covers exact NIT and name)
+    const local = empresas.filter(e =>
+      (e.name || '').toLowerCase().includes(term) ||
+      (e.nit || '').includes(term)
+    );
+    if (local.length > 0) return local;
+    return [];
+  })();
+
+  const selectedEmpresa = empresas.find(e => e.id === value);
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <Search size={14} style={{ color: 'var(--text-muted)', position: 'absolute', left: '0.5rem', zIndex: 1 }} />
+        <input
+          type="text"
+          placeholder="Buscar por nombre o NIT..."
+          value={selectedEmpresa && !showDropdown ? `${selectedEmpresa.name} (${selectedEmpresa.nit || 'S/N'})` : search}
+          onChange={e => { setSearch(e.target.value); setShowDropdown(true); }}
+          onFocus={() => { setSearch(''); setShowDropdown(true); }}
+          style={{ width: '100%', padding: '0.5rem 0.5rem 0.5rem 1.75rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '13px' }}
+        />
+        {value && (
+          <button onClick={() => { onChange(''); setSearch(''); }} style={{ position: 'absolute', right: '0.5rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }} title="Limpiar">&times;</button>
+        )}
+      </div>
+      {showDropdown && filteredEmpresas.length > 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 50, maxHeight: '200px', overflow: 'auto' }}>
+          {filteredEmpresas.slice(0, 15).map(emp => (
+            <div key={emp.id} onClick={() => { onChange(emp.id); setSearch(''); setShowDropdown(false); }}
+              style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', fontSize: '13px', borderBottom: '1px solid var(--border-color)' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-app)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <div style={{ fontWeight: 600 }}>{emp.name}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>NIT: {emp.nit || 'N/A'}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {showDropdown && search.length >= 2 && filteredEmpresas.length === 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '0.75rem', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', zIndex: 50 }}>
+          No se encontraron empresas
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EquipoSearch({ value, onChange }) {
   const [search, setSearch] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -89,11 +157,7 @@ function Filtros({ filters, setFilters, empresas, onSearch }) {
         </div>
         <div>
           <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>Empresa</label>
-          <select value={filters.empresa_id} onChange={e => setFilters(f => ({ ...f, empresa_id: e.target.value }))}
-            style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '13px' }}>
-            <option value="">Todas</option>
-            {empresas.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
+          <EmpresaSearch value={filters.empresa_id} onChange={id => setFilters(f => ({ ...f, empresa_id: id }))} empresas={empresas} />
         </div>
         <div>
           <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' }}>Equipo</label>

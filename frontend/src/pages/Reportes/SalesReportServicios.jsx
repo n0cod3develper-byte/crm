@@ -148,6 +148,7 @@ export function SalesReportServicios() {
           item.empresa_nombre,
           item.operario_nombre || '—',
           item.servicio_nombre,
+          item.capacidad_nominal ? `${item.capacidad_nominal} Ton` : '—',
           item.tipo_servicio || '—',
           item.equipo_serie || '—',
           hmSalida,
@@ -169,6 +170,7 @@ export function SalesReportServicios() {
         '',
         '',
         '',
+        '',
         `${totals.count} Remisiones`,
         '',
         '',
@@ -182,7 +184,7 @@ export function SalesReportServicios() {
 
       autoTable(doc, {
         startY: 44,
-        head: [['No. Rem', 'Fecha', 'Cliente', 'Operario', 'Servicio', 'Tipo', 'Equipo', 'Hm. Salida', 'Hm. Llegada', 'Horas', 'Bruto', 'IVA', 'Descuento', 'Neto', 'N° Factura']],
+        head: [['No. Rem', 'Fecha', 'Cliente', 'Operario', 'Servicio', 'Asunto', 'Tipo', 'Equipo', 'Hm. Salida', 'Hm. Llegada', 'Horas', 'Bruto', 'IVA', 'Descuento', 'Neto', 'N° Factura']],
         body: tableBody,
         theme: 'grid',
         headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
@@ -193,16 +195,17 @@ export function SalesReportServicios() {
           2: { cellWidth: 28 },
           3: { cellWidth: 26 },
           4: { cellWidth: 28 },
-          5: { halign: 'center', cellWidth: 12 },
-          6: { cellWidth: 20 },
-          7: { halign: 'center', cellWidth: 14 },
+          5: { halign: 'center', cellWidth: 14 },
+          6: { halign: 'center', cellWidth: 12 },
+          7: { cellWidth: 20 },
           8: { halign: 'center', cellWidth: 14 },
-          9: { halign: 'center', cellWidth: 11 },
-          10: { halign: 'right', cellWidth: 18 },
-          11: { halign: 'right', cellWidth: 16 },
+          9: { halign: 'center', cellWidth: 14 },
+          10: { halign: 'center', cellWidth: 11 },
+          11: { halign: 'right', cellWidth: 18 },
           12: { halign: 'right', cellWidth: 16 },
-          13: { halign: 'right', fontStyle: 'bold', cellWidth: 18 },
-          14: { halign: 'center', cellWidth: 17 }
+          13: { halign: 'right', cellWidth: 16 },
+          14: { halign: 'right', fontStyle: 'bold', cellWidth: 18 },
+          15: { halign: 'center', cellWidth: 17 }
         },
         didParseCell: function (data) {
           // Destacar fila de totales
@@ -243,6 +246,7 @@ export function SalesReportServicios() {
           'Cliente': item.empresa_nombre,
           'Operario': item.operario_nombre || '—',
           'Servicio': item.servicio_nombre,
+          'Asunto': item.capacidad_nominal ? `${item.capacidad_nominal} Ton` : '—',
           'Tipo': item.tipo_servicio || '—',
           'Código Equipo': item.equipo_serie || '—',
           'Horómetro Salida': hmSalida,
@@ -263,6 +267,7 @@ export function SalesReportServicios() {
         'Cliente': '',
         'Operario': '',
         'Servicio': '',
+        'Asunto': '',
         'Tipo': '',
         'Código Equipo': `${totals.count} Remisiones`,
         'Horómetro Salida': '',
@@ -368,6 +373,7 @@ export function SalesReportServicios() {
                 <th><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Building2 size={12} />Cliente</span></th>
                 <th>Operario</th>
                 <th>Servicio</th>
+                <th style={{ width: 130, textAlign: 'center' }}>Asunto</th>
                 <th style={{ width: 75, textAlign: 'center' }}>Tipo</th>
                 <th style={{ width: 90, textAlign: 'center' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}><Truck size={12} />Código</span></th>
                 <th style={{ width: 85, textAlign: 'center' }}>Hm. Salida</th>
@@ -407,6 +413,9 @@ export function SalesReportServicios() {
                     </td>
                     <td>
                       <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>{item.servicio_nombre}</span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>{item.capacidad_nominal ? `${item.capacidad_nominal} Ton` : '—'}</span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <span className={`badge badge--${item.tipo_servicio === 'Fijo' ? 'primary' : 'warning'}`} style={{ fontSize: '10px' }}>
@@ -453,11 +462,11 @@ export function SalesReportServicios() {
             {/* ── Fila de Totales/Resumen ── */}
             <tfoot style={{ borderTop: '2px solid var(--border-color)', background: 'var(--bg-subtle)' }}>
               <tr style={{ fontWeight: 'bold', borderBottom: 'none' }}>
-                <td colSpan={6}>TOTALES</td>
+                <td colSpan={7}>TOTALES</td>
                 <td>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{totals.count} registros</span>
                 </td>
-                <td colSpan={3}></td>
+                <td colSpan={2}></td>
                 <td style={{ textAlign: 'right', fontSize: '13px' }}>{formatCOP(totals.bruto)}</td>
                 <td style={{ textAlign: 'right', fontSize: '13px', color: 'var(--text-muted)' }}>{formatCOP(totals.iva)}</td>
                 <td style={{ textAlign: 'right', fontSize: '13px', color: 'var(--clr-danger-400)' }}>{formatCOP(totals.descuentos)}</td>
