@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import {
   ArrowLeft, FileText, Download, Calendar, Filter, Truck, Clock,
   Wrench, RefreshCw, Building2, Shield, MapPin, AlertTriangle,
@@ -65,9 +65,27 @@ export function HojaDeVidaPage() {
   // ir directo al historial.
   const [equipoId, setEquipoId] = useState(id || null);
   const [search, setSearch] = useState('');
+  // inputFecha: lo que el usuario escribe/selecciona en el input (puede ser parcial)
+  // filtroFecha: solo se actualiza cuando la fecha está completa → dispara la query
+  const [inputFecha, setInputFecha] = useState({ desde: '', hasta: '' });
   const [filtroFecha, setFiltroFecha] = useState({ desde: '', hasta: '' });
   const [page, setPage] = useState(1);
   const [limit] = useState(50);
+
+  // Solo aplica el filtro cuando el valor es una fecha completa (YYYY-MM-DD) o vacío
+  const handleFechaChange = (campo, valor) => {
+    setInputFecha(f => ({ ...f, [campo]: valor }));
+    if (valor === '' || valor.length === 10) {
+      setFiltroFecha(f => ({ ...f, [campo]: valor }));
+      setPage(1);
+    }
+  };
+
+  const limpiarFechas = () => {
+    setInputFecha({ desde: '', hasta: '' });
+    setFiltroFecha({ desde: '', hasta: '' });
+    setPage(1);
+  };
 
   // Cargar lista de equipos cuando no hay ID en la URL
   const { data: equiposLista, isLoading: isEquiposLoading } = useQuery({
@@ -80,7 +98,7 @@ export function HojaDeVidaPage() {
   });
 
   // ─── Queries ────────────────────────────────────────────
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['hoja-vida', equipoId, filtroFecha.desde, filtroFecha.hasta, page],
     queryFn: async () => {
       if (!equipoId) return null;
@@ -92,6 +110,8 @@ export function HojaDeVidaPage() {
       return data.data;
     },
     enabled: !!equipoId,
+    // Mantiene los datos anteriores mientras carga los nuevos → evita desmontar la UI
+    placeholderData: keepPreviousData,
   });
 
   // ─── Helpers ────────────────────────────────────────────
@@ -374,8 +394,8 @@ export function HojaDeVidaPage() {
                   className="input"
                   type="date"
                   style={{ paddingLeft: '2.25rem', width: '150px' }}
-                  value={filtroFecha.desde}
-                  onChange={(e) => { setFiltroFecha(f => ({ ...f, desde: e.target.value })); setPage(1); }}
+                  value={inputFecha.desde}
+                  onChange={(e) => handleFechaChange('desde', e.target.value)}
                 />
               </div>
               <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>—</span>
@@ -385,12 +405,12 @@ export function HojaDeVidaPage() {
                   className="input"
                   type="date"
                   style={{ paddingLeft: '2.25rem', width: '150px' }}
-                  value={filtroFecha.hasta}
-                  onChange={(e) => { setFiltroFecha(f => ({ ...f, hasta: e.target.value })); setPage(1); }}
+                  value={inputFecha.hasta}
+                  onChange={(e) => handleFechaChange('hasta', e.target.value)}
                 />
               </div>
-              {(filtroFecha.desde || filtroFecha.hasta) && (
-                <button className="btn btn--ghost btn--sm" onClick={() => { setFiltroFecha({ desde: '', hasta: '' }); setPage(1); }}>
+              {(inputFecha.desde || inputFecha.hasta) && (
+                <button className="btn btn--ghost btn--sm" onClick={limpiarFechas}>
                   Limpiar
                 </button>
               )}
@@ -399,10 +419,11 @@ export function HojaDeVidaPage() {
         </div>
 
         {/* ─── Historial ──────────────────────────────────── */}
-        <div style={CARD}>
+        <div style={{ ...CARD, opacity: isFetching && data ? 0.7 : 1, transition: 'opacity 0.2s' }}>
           <div style={SECTION_TITLE}>
             <History size={14} /> Historial Cronológico
-            <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 400, textTransform: 'none', color: 'var(--text-muted)' }}>
+            <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 400, textTransform: 'none', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {isFetching && <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />}
               {historial.length} evento(s)
             </span>
           </div>

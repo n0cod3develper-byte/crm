@@ -128,12 +128,19 @@ export class HojaVidaRepository {
    * Cursor-based pagination: se pasa el created_at + id de la última fila vista.
    */
   async getHistorial(equipoId, { fecha_desde, fecha_hasta, limit = 50, cursor } = {}) {
-    // Build date-filter fragments shared by all queries
-    const dateFrom = fecha_desde ? ` AND created_at >= $2` : '';
-    const dateTo   = fecha_hasta ? ` AND created_at <= ($${fecha_desde ? 3 : 2}::date + INTERVAL '1 day')` : '';
+    // Build date param list (shared across all 4 queries)
     const dateParams = [];
     if (fecha_desde) dateParams.push(fecha_desde);
     if (fecha_hasta) dateParams.push(fecha_hasta);
+
+    // Helper: build date fragment with correct table alias and column per entity
+    // Each query has equipo_id as $1; date params start at $2
+    const buildDateFilter = (tableAlias, dateCol) => {
+      let fragment = '';
+      if (fecha_desde) fragment += ` AND ${tableAlias}.${dateCol} >= $2`;
+      if (fecha_hasta) fragment += ` AND ${tableAlias}.${dateCol} <= ($${fecha_desde ? 3 : 2}::date + INTERVAL '1 day')`;
+      return fragment;
+    };
 
     // 4 independent queries (no UNION — each CTE has different column shapes)
     const [remisionesRes, tramosRes, otsRes, estadoRes] = await Promise.all([
@@ -161,7 +168,7 @@ export class HojaVidaRepository {
          FROM remisiones r
          JOIN companies c ON c.id = r.company_id
          WHERE r.equipo_id = $1 AND r.deleted_at IS NULL AND r.estado <> 'ANULADO'
-           ${dateFrom}${dateTo}
+           ${buildDateFilter('r', 'fecha_servicio')}
          ORDER BY r.created_at DESC, r.id DESC
          LIMIT $${2 + dateParams.length}`,
         [equipoId, ...dateParams, limit + 1]
@@ -177,7 +184,7 @@ export class HojaVidaRepository {
          JOIN remisiones r ON r.id = t.remision_id
          JOIN companies c ON c.id = r.company_id
          WHERE t.equipo_id = $1
-           ${dateFrom}${dateTo}
+           ${buildDateFilter('t', 'fecha_inicio')}
          ORDER BY t.created_at DESC, t.id DESC
          LIMIT $${2 + dateParams.length}`,
         [equipoId, ...dateParams, limit + 1]
@@ -197,7 +204,7 @@ export class HojaVidaRepository {
          FROM ordenes_trabajo ot
          JOIN companies c ON c.id = ot.empresa_id
          WHERE ot.equipo_id = $1 AND ot.deleted_at IS NULL
-           ${dateFrom}${dateTo}
+           ${buildDateFilter('ot', 'created_at')}
          ORDER BY ot.created_at DESC, ot.id DESC
          LIMIT $${2 + dateParams.length}`,
         [equipoId, ...dateParams, limit + 1]
@@ -210,7 +217,7 @@ export class HojaVidaRepository {
            eh.estado_anterior, eh.estado_nuevo, eh.motivo, eh.cambiado_por
          FROM equipos_historial_estado eh
          WHERE eh.equipo_id = $1
-           ${dateFrom}${dateTo}
+           ${buildDateFilter('eh', 'created_at')}
          ORDER BY eh.created_at DESC, eh.id DESC
          LIMIT $${2 + dateParams.length}`,
         [equipoId, ...dateParams, limit + 1]
