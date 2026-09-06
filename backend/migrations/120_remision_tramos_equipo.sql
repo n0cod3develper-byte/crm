@@ -1,5 +1,5 @@
 -- ============================================================
--- Migración 110: Sustitución de Máquina en Remisiones
+-- Migración 120: Sustitución de Máquina en Remisiones
 -- Fecha: 2026-08-12
 -- ============================================================
 -- Crea la tabla de tramos de equipo por remisión y añade
