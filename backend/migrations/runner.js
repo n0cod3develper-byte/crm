@@ -150,6 +150,9 @@ const MIGRATION_FILES = [
   '117_facturacion_parcial_ots.sql',
   '118_gestion_humana_subrayados.sql',
   '119_capacidad_nominal_elevador_electrico.sql',
+  '120_remision_tramos_equipo.sql',
+  '121_cierre_contable_v2.sql',
+  '122_modulo_contabilidad.sql',
 ];
 
 
