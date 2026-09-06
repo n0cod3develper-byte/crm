@@ -67,6 +67,7 @@ const navItems = [
   { label: 'Rem. Pend. Facturar', icon: Clock, to: '/informes/remisiones-liquidadas', indent: true },
   { label: 'Horas Extras', icon: Clock, to: '/informes/horas-extras', indent: true },
   { label: 'Mant. por Equipos', icon: Wrench, to: '/informes/mantenimiento/detalle-equipos', indent: true },
+  { label: 'Hoja de Vida', icon: FileText, to: '/informes/hoja-de-vida', indent: true },
   { label: 'Serv. Negados', icon: AlertTriangle, to: '/informes/servicios-negados', indent: true },
   { label: 'Venta Perdida', icon: TrendingDown, to: '/informes/venta-dejada-percibir', indent: true },
   { label: 'Usuarios', icon: Users, to: '/admin/usuarios', adminOnly: true },

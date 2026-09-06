@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Plus, Search, Truck, Trash2, Edit, Building2, AlertTriangle, X, Eye } from 'lucide-react';
+import { Plus, Search, Truck, Trash2, Edit, Building2, AlertTriangle, X, Eye, FileText } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
@@ -274,6 +274,7 @@ export function EquiposPage() {
                   <tr>
                     <th style={{ width: 80 }}>Foto</th>
                     <th>Empresa</th>
+                    <th>Tipo</th>
                     <th>Marca / Modelo</th>
                     <th>Serial</th>
                     <th>Código</th>
@@ -328,10 +329,15 @@ export function EquiposPage() {
                           </div>
                         </td>
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                             <span style={{ fontSize: '1.2rem' }} title={eq.tipo_equipo_label}>
                               {icon}
                             </span>
+                            <span style={{ fontSize: '12px', fontWeight: 600 }}>{eq.tipo_equipo_label || eq.tipo_equipo || '—'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <div>
                               <div style={{ fontWeight: 600 }}>{eq.marca}</div>
                               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{eq.modelo}</div>
@@ -502,6 +508,9 @@ export function EquiposPage() {
                           <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'flex-end' }}>
                             <button className="btn btn--ghost btn--sm" onClick={() => navigate(`/equipos/${eq.id}`)} title="Ver detalle">
                               <Eye size={14} />
+                            </button>
+                            <button className="btn btn--ghost btn--sm" onClick={() => navigate(`/equipos/${eq.id}/hoja-de-vida`)} title="Hoja de Vida" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <FileText size={14} /> Hoja de Vida
                             </button>
                             <button className="btn btn--ghost btn--sm" onClick={() => handleEdit(eq)} title="Editar">
                               <Edit size={14} />

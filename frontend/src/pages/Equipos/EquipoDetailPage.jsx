@@ -1,9 +1,9 @@
 import React from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import {
-  ArrowLeft, Edit, Truck, Building2, MapPin, Clock, Wrench, FileText,
-  Timer, Search, Calendar, ChevronRight, AlertTriangle, Shield
+import { useQuery } from '@tanstack/react-query';import {
+  ArrowLeft, Edit, Truck, Building2, MapPin, Clock,
+  Wrench, FileText,
+  Timer, Search, Calendar, ChevronRight, AlertTriangle, Shield, Download, History
 } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
@@ -196,6 +196,15 @@ export function EquipoDetailPage() {
             <Link to="/equipos" className="btn btn--ghost btn--sm">
               <ArrowLeft size={16} />
             </Link>
+            <button className="btn btn--ghost btn--sm" onClick={() => navigate(`/equipos/${id}/hoja-de-vida`)} title="Hoja de Vida" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <History size={14} /> Hoja de Vida
+            </button>
+            <button className="btn btn--ghost btn--sm" onClick={() => window.open(`/api/v1/equipos/${id}/hoja-de-vida/export/pdf`, '_blank')} title="Exportar PDF" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <Download size={14} /> PDF
+            </button>
+            <button className="btn btn--ghost btn--sm" onClick={() => window.open(`/api/v1/equipos/${id}/hoja-de-vida/export/excel`, '_blank')} title="Exportar Excel" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <Download size={14} /> Excel
+            </button>
             <button className="btn btn--secondary" onClick={() => setIsEditModalOpen(true)}>
               <Edit size={16} /> Editar
             </button>

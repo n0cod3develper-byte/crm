@@ -35,6 +35,7 @@ const SupportPage = lazy(() => import('./pages/Support/SupportPage').then(m => (
 const EmployeesPage = lazy(() => import('./pages/Employees/EmployeesPage').then(m => ({ default: m.EmployeesPage })));
 const EquiposPage = lazy(() => import('./pages/Equipos/EquiposPage').then(m => ({ default: m.EquiposPage })));
 const EquipoDetailPage = lazy(() => import('./pages/Equipos/EquipoDetailPage').then(m => ({ default: m.EquipoDetailPage })));
+const HojaDeVidaPage = lazy(() => import('./pages/Equipos/HojaDeVidaPage').then(m => ({ default: m.HojaDeVidaPage })));
 const MantenimientoPage = lazy(() => import('./pages/Mantenimiento/MantenimientoPage').then(m => ({ default: m.MantenimientoPage })));
 const OTFormPage = lazy(() => import('./pages/Mantenimiento/OTFormPage').then(m => ({ default: m.OTFormPage })));
 const OTDetailPage = lazy(() => import('./pages/Mantenimiento/OTDetailPage').then(m => ({ default: m.OTDetailPage })));
@@ -239,6 +240,7 @@ function App() {
                 <Route path="/employees" element={<ProtectedRoute modulo="empleados" accion="ver"><EmployeesPage /></ProtectedRoute>} />
                 <Route path="/equipos" element={<ProtectedRoute modulo="equipos" accion="ver"><EquiposPage /></ProtectedRoute>} />
                 <Route path="/equipos/:id" element={<ProtectedRoute modulo="equipos" accion="ver"><EquipoDetailPage /></ProtectedRoute>} />
+                <Route path="/equipos/:id/hoja-de-vida" element={<ProtectedRoute modulo="equipos" accion="ver"><HojaDeVidaPage /></ProtectedRoute>} />
                 <Route path="/turnos" element={<ProtectedRoute modulo="turnos" accion="ver"><TurnoPage /></ProtectedRoute>} />
                 <Route path="/turnos/supervisor" element={<ProtectedRoute modulo="turnos" accion="ver"><TurnoSupervisorPage /></ProtectedRoute>} />
 
@@ -319,6 +321,7 @@ function App() {
                 <Route path="/servicios-negados" element={<ProtectedRoute><ServiciosNegadosPage /></ProtectedRoute>} />
                 <Route path="/informes/servicios-negados" element={<ProtectedRoute><InformeServiciosNegadosPage /></ProtectedRoute>} />
                 <Route path="/informes/venta-dejada-percibir" element={<ProtectedRoute><InformeVentaDejadaPage /></ProtectedRoute>} />
+                <Route path="/informes/hoja-de-vida" element={<ProtectedRoute><HojaDeVidaPage /></ProtectedRoute>} />
 
                 {/* Redirect raíz */}
                 <Route path="/403" element={<Error403Page />} />

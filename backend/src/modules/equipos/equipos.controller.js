@@ -34,10 +34,9 @@ const validateFields = (body) => {
   }
 
   if (capacidad_nominal) {
-    const cap = parseFloat(capacidad_nominal);
     const validCaps = CAPACIDADES_NOMINALES.map(c => c.valor);
-    if (!validCaps.includes(cap)) {
-      throw new BadRequestError('Capacidad nominal no válida. Valores aceptados: 1.5 a 7.0 en intervalos de 0.5');
+    if (!validCaps.includes(capacidad_nominal)) {
+      throw new BadRequestError('Capacidad nominal no válida. Valores aceptados: 1.5 a 7.0 Ton o ELEVADOR ELÉCTRICO');
     }
   }
 

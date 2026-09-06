@@ -212,7 +212,7 @@ export class EquiposRepository {
 
       const values = [
         marca, modelo, serial, motor, combustible, parseFloat(capacidad_carga) || null, color, empresa_id,
-        serie, tipo_equipo, parseFloat(capacidad_nominal) || null, tipo_mastil || null, parseFloat(altura_maxima) || null, tipo_propulsion || null,
+        serie, tipo_equipo, capacidad_nominal || null, tipo_mastil || null, parseFloat(altura_maxima) || null, tipo_propulsion || null,
         horometro, odo, fecha_horometro, fecha_odometro, ubicacion_fisica, ciudad_ubicacion,
         estado || 'OPERATIVO', motivo_estado || null, estado ? new Date().toISOString().split('T')[0] : null,
         actualizado_por || null, data.soat_vigente ?? false, data.soat_vencimiento || null,
@@ -284,7 +284,7 @@ export class EquiposRepository {
             val = null;
           }
 
-          const numericFields = ['capacidad_carga', 'capacidad_nominal', 'altura_maxima', 'bonificacion_hora'];
+          const numericFields = ['capacidad_carga', 'altura_maxima', 'bonificacion_hora'];
           if (numericFields.includes(key)) {
             val = val === '' || val === null || val === undefined ? null : parseFloat(val);
             if (val !== null && isNaN(val)) val = null;
@@ -520,7 +520,7 @@ export class EquiposRepository {
       SELECT ot.id, ot.consecutivo, ot.tipo_mantenimiento, ot.estado,
              ot.detalle_servicio, ot.horometro_inicial, ot.horometro_final,
              ot.fecha_hora_ingreso_taller, ot.fecha_hora_salida_taller,
-             ot.created_at, ot.fallas_encontradas, ot.nivel_criticidad,
+             ot.created_at,
              c.name AS empresa_nombre,
              COALESCE(
                (SELECT string_agg(em.full_name, ', ')

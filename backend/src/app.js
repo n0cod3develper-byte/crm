@@ -37,6 +37,7 @@ import campaignsRoutes from './modules/campaigns/campaigns.routes.js';
 import supportRoutes  from './modules/support/support.routes.js';
 import employeesRoutes from './modules/employees/employees.routes.js';
 import equiposRoutes from './modules/equipos/equipos.routes.js';
+import hojaVidaRoutes from './modules/hojaVida/hojaVida.routes.js';
 import mantenimientoRoutes from './modules/mantenimiento/mantenimiento.routes.js';
 import proveedoresRoutes from './modules/proveedores/proveedores.routes.js';
 import comprasRoutes from './modules/compras/compras.routes.js';
@@ -201,6 +202,7 @@ import saludOcupacionalRoutes from './modules/salud-ocupacional/salud.routes.js'
 app.use(`${API}/empleados-llamados`, empleadosLlamadosRoutes);
 app.use(`${API}/salud-ocupacional`, saludOcupacionalRoutes);
 app.use(`${API}/equipos`,     equiposRoutes);
+app.use(`${API}/equipos`,     hojaVidaRoutes);
 app.use(`${API}/mantenimiento`, mantenimientoRoutes);
 app.use(`${API}/proveedores`, proveedoresRoutes);
 app.use(`${API}/compras`, comprasRoutes);
