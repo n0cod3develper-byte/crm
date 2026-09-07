@@ -527,11 +527,13 @@ export class InformesRepository {
         r.hora_llegada_cargar,
         r.estado,
         -- Bonificación: toma la de la remisión; fallback al equipo si es 0 o NULL
-        COALESCE(
-          NULLIF(r.bonificacion_hora, 0),
-          e.bonificacion_hora,
-          0
-        ) AS bonificacion_hora,
+        CASE WHEN r.estado IN ('ANULADO', 'ANULADA') THEN 0 ELSE
+          COALESCE(
+            NULLIF(r.bonificacion_hora, 0),
+            e.bonificacion_hora,
+            0
+          )
+        END AS bonificacion_hora,
         -- Flag para alerta: ambas fuentes en 0
         CASE
           WHEN (r.bonificacion_hora IS NULL OR r.bonificacion_hora = 0)
@@ -547,15 +549,17 @@ export class InformesRepository {
         e.serial      AS equipo_serial,
         e.capacidad_carga,
         false         AS is_servicio_fijo,
-        GREATEST(1, CASE
-          WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
-            CASE
-              WHEN r.hora_llegada_cargar::time >= r.hora_salida_cargar::time
-              THEN EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time)) / 3600.0
-              ELSE EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time + INTERVAL '24 hours')) / 3600.0
-            END
-          ELSE 0
-        END) AS horas_efectivas,
+        CASE WHEN r.estado IN ('ANULADO', 'ANULADA') THEN 0 ELSE
+          GREATEST(1, CASE
+            WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
+              CASE
+                WHEN r.hora_llegada_cargar::time >= r.hora_salida_cargar::time
+                THEN EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time)) / 3600.0
+                ELSE EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time + INTERVAL '24 hours')) / 3600.0
+              END
+            ELSE 0
+          END)
+        END AS horas_efectivas,
         CASE WHEN ghs.id IS NOT NULL THEN true ELSE false END AS is_subrayada
       FROM remisiones r
       LEFT JOIN remision_operarios ro ON ro.remision_id = r.id
@@ -577,11 +581,13 @@ export class InformesRepository {
         rdf.hora_entrada AS hora_salida_cargar,
         rdf.hora_salida  AS hora_llegada_cargar,
         r.estado,
-        COALESCE(
-          NULLIF(rdf.bonificacion_hora, 0),
-          e.bonificacion_hora,
-          0
-        ) AS bonificacion_hora,
+        CASE WHEN r.estado IN ('ANULADO', 'ANULADA') THEN 0 ELSE
+          COALESCE(
+            NULLIF(rdf.bonificacion_hora, 0),
+            e.bonificacion_hora,
+            0
+          )
+        END AS bonificacion_hora,
         false AS bonificacion_es_cero,
         r.numero_maquina,
         em.id        AS operario_id,
@@ -592,7 +598,9 @@ export class InformesRepository {
         e.serial      AS equipo_serial,
         e.capacidad_carga,
         true          AS is_servicio_fijo,
-        GREATEST(1, rdf.horas_netas) AS horas_efectivas,
+        CASE WHEN r.estado IN ('ANULADO', 'ANULADA') THEN 0 ELSE
+          GREATEST(1, rdf.horas_netas)
+        END AS horas_efectivas,
         CASE WHEN ghs.id IS NOT NULL THEN true ELSE false END AS is_subrayada
       FROM remision_dias_fijo rdf
       JOIN remisiones r ON r.id = rdf.remision_id
@@ -654,8 +662,14 @@ export class InformesRepository {
     ]);
 
     const detalleRows = detalleRes.rows.map(r => {
-      const horas = parseFloat(parseFloat(r.horas_efectivas || 0).toFixed(2));
-      const bonif = parseFloat(r.bonificacion_hora || 0);
+      // Órdenes ANULADAS: horas y bonificación en 0 (la comisión resulta automáticamente 0)
+      const esAnulada = r.estado === 'ANULADO';
+      const horas = esAnulada
+        ? 0
+        : parseFloat(parseFloat(r.horas_efectivas || 0).toFixed(2));
+      const bonif = esAnulada
+        ? 0
+        : parseFloat(r.bonificacion_hora || 0);
       return {
         ...r,
         horas_efectivas: horas,
@@ -664,9 +678,10 @@ export class InformesRepository {
       };
     });
 
-    // Alerta 4: horas = 0 aunque tienen timestamps (posible error)
+    // Alerta 4: horas = 0 aunque tienen timestamps (posible error). Excluir ANULADAS porque horas=0 es comportamiento esperado, no error.
     const horasInvalidas = detalleRows
-      .filter(r => r.hora_salida_cargar && r.hora_llegada_cargar && r.horas_efectivas <= 0) // It won't be <=0 now because of GREATEST(1), but keep logic
+      .filter(r => r.estado !== 'ANULADO'
+          && r.hora_salida_cargar && r.hora_llegada_cargar && r.horas_efectivas <= 0)
       .map(r => ({ remision_id: r.remision_id, numero_remision: r.numero_remision, fecha_servicio: r.fecha_servicio }));
 
     return {
@@ -697,15 +712,17 @@ export class InformesRepository {
       FROM (
         SELECT em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
                e.serie AS numero_equipo,
-               GREATEST(1, CASE
-                 WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
-                   CASE
-                     WHEN r.hora_llegada_cargar::time >= r.hora_salida_cargar::time
-                     THEN EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time)) / 3600.0
-                     ELSE EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time + INTERVAL '24 hours')) / 3600.0
-                   END
-                 ELSE 0
-               END) AS horas_efectivas
+               CASE WHEN r.estado IN ('ANULADO', 'ANULADA') THEN 0 ELSE
+                 GREATEST(1, CASE
+                   WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
+                     CASE
+                       WHEN r.hora_llegada_cargar::time >= r.hora_salida_cargar::time
+                       THEN EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time)) / 3600.0
+                       ELSE EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time + INTERVAL '24 hours')) / 3600.0
+                     END
+                   ELSE 0
+                 END)
+               END AS horas_efectivas
         FROM remisiones r
         LEFT JOIN remision_operarios ro ON ro.remision_id = r.id
         LEFT JOIN employees em ON em.id = ro.empleado_id
@@ -718,7 +735,9 @@ export class InformesRepository {
 
         SELECT em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
                e.serie AS numero_equipo,
-               GREATEST(1, rdf.horas_netas) AS horas_efectivas
+               CASE WHEN r.estado IN ('ANULADO', 'ANULADA') THEN 0 ELSE
+                 GREATEST(1, rdf.horas_netas)
+               END AS horas_efectivas
         FROM remision_dias_fijo rdf
         JOIN remisiones r ON r.id = rdf.remision_id
         LEFT JOIN employees em ON em.id = rdf.empleado_id
@@ -828,6 +847,47 @@ export class InformesRepository {
       total_ventas:      parseFloat(r.total_ventas || 0),
       total_remisiones:  parseInt(r.total_remisiones || 0),
     }));
+  }
+
+  // =============================================
+  // VENTAS CON COMBUSTIBLE
+  // =============================================
+  async getVentasCombustible(fecha_inicio, fecha_fin) {
+    const conditions = [
+      'r.deleted_at IS NULL',
+      "cs.nombre ILIKE '%con combustible%'"
+    ];
+    const params = [];
+    let i = 1;
+
+    if (fecha_inicio) {
+      conditions.push(`r.fecha_servicio >= $${i++}`);
+      params.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      conditions.push(`r.fecha_servicio <= $${i++}`);
+      params.push(fecha_fin);
+    }
+
+    const sql = `
+      SELECT
+        r.id,
+        r.numero_remision,
+        r.fecha_servicio,
+        r.estado,
+        COALESCE(c.name, 'Sin Cliente') AS cliente,
+        eq.serie AS equipo,
+        cs.nombre AS tipo_servicio,
+        r.total_bruto
+      FROM remisiones r
+      LEFT JOIN catalogo_servicios cs ON cs.id = r.catalogo_servicio_id
+      LEFT JOIN companies c ON c.id = r.company_id
+      LEFT JOIN equipos eq ON eq.id = r.equipo_id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY r.fecha_servicio DESC
+    `;
+    const result = await query(sql, params);
+    return result.rows;
   }
 
   // =============================================

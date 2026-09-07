@@ -201,6 +201,17 @@ export const informesController = {
     }
   },
 
+  async getVentasCombustible(req, res, next) {
+    try {
+      const { fecha_inicio, fecha_fin } = req.query;
+      const data = await informesRepository.getVentasCombustible(fecha_inicio, fecha_fin);
+      res.json({ data });
+    } catch (error) {
+      logger.error('Error en getVentasCombustible', { error: error.message });
+      next(error);
+    }
+  },
+
   // ── Nuevos endpoints para InformesServiciosPage ──
 
   async getVentasPorEquipoV2(req, res, next) {

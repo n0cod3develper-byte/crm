@@ -779,8 +779,8 @@ export function InformesGestionHumanaPage() {
                                 borderRadius: '20px',
                                 fontSize: '11px',
                                 fontWeight: 700,
-                                background: f.estado === 'LIQUIDADA' ? 'rgba(99,102,241,0.12)' : 'rgba(16,185,129,0.12)',
-                                color: f.estado === 'LIQUIDADA' ? '#6366f1' : '#10b981',
+                                background: f.estado === 'LIQUIDADA' ? 'rgba(99,102,241,0.12)' : (f.estado === 'ANULADA' || f.estado === 'ANULADO') ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)',
+                                color: f.estado === 'LIQUIDADA' ? '#6366f1' : (f.estado === 'ANULADA' || f.estado === 'ANULADO') ? '#ef4444' : '#10b981',
                               }}>{f.estado}</span>
                             </td>
                             <td style={{ textAlign: 'right', fontSize: '13px' }}>{formatCOP(f.bonificacion_hora)}</td>

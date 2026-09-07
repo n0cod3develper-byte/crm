@@ -91,6 +91,7 @@ const InformesIndexPage = lazy(() => import('./pages/Informes/InformesIndexPage'
 const InformesServiciosPage = lazy(() => import('./pages/Informes/InformesServiciosPage').then(m => ({ default: m.InformesServiciosPage })));
 const InformesMantenimientoPage = lazy(() => import('./pages/Informes/InformesMantenimientoPage').then(m => ({ default: m.InformesMantenimientoPage })));
 const InformesGestionHumanaPage = lazy(() => import('./pages/Informes/InformesGestionHumanaPage').then(m => ({ default: m.InformesGestionHumanaPage })));
+const InformesVentasCombustiblePage = lazy(() => import('./pages/Informes/InformesVentasCombustiblePage').then(m => ({ default: m.InformesVentasCombustiblePage })));
 const InformeRemisionesLiquidadasPage = lazy(() => import('./pages/Informes/InformeRemisionesLiquidadasPage').then(m => ({ default: m.InformeRemisionesLiquidadasPage })));
 const HorasExtrasIndexPage = lazy(() => import('./pages/Informes/HorasExtrasIndexPage').then(m => ({ default: m.HorasExtrasIndexPage })));
 const HorasExtrasServiciosPage = lazy(() => import('./pages/Informes/HorasExtrasServiciosPage').then(m => ({ default: m.HorasExtrasServiciosPage })));
@@ -280,6 +281,7 @@ function App() {
                 <Route path="/informes/servicios" element={<ProtectedRoute><InformesServiciosPage /></ProtectedRoute>} />
                 <Route path="/informes/mantenimiento" element={<ProtectedRoute><InformesMantenimientoPage /></ProtectedRoute>} />
                 <Route path="/informes/gestion-humana" element={<ProtectedRoute><InformesGestionHumanaPage /></ProtectedRoute>} />
+                <Route path="/informes/ventas-combustible" element={<ProtectedRoute><InformesVentasCombustiblePage /></ProtectedRoute>} />
                 <Route path="/informes/remisiones-liquidadas" element={<ProtectedRoute><InformeRemisionesLiquidadasPage /></ProtectedRoute>} />
                 <Route path="/informes/horas-extras" element={<ProtectedRoute><HorasExtrasIndexPage /></ProtectedRoute>} />
                 <Route path="/informes/horas-extras/servicios" element={<ProtectedRoute><HorasExtrasServiciosPage /></ProtectedRoute>} />

@@ -50,3 +50,4 @@ SyncDB.txt
 
 # Backups de base de datos locales
 cargar-crm-backups/
+backend/scratch/

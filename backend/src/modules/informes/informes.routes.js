@@ -18,6 +18,9 @@ router.get('/servicios/ventas-por-linea', informesController.getVentasPorLineaV2
 router.get('/servicios/ventas-vs-presupuesto', informesController.getVentasVsPresupuestoV2);
 router.get('/servicios/top-clientes', informesController.getTop10Clientes);
 
+// Ventas con Combustible
+router.get('/servicios/ventas-combustible', informesController.getVentasCombustible);
+
 // KPI: Horas trabajadas
 router.get('/kpi/hours-by-equipment', informesController.getHoursByEquipment);
 router.get('/kpi/hours-by-equipment/:equipment_id', informesController.getHoursByEquipmentDetail);
