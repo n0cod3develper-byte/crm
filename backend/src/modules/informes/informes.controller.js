@@ -106,6 +106,13 @@ export const informesController = {
         return res.status(400).json({ error: 'fecha_inicio y fecha_fin son requeridos' });
       }
 
+      // ── Intervalo semiabierto: fecha_fin se suma 1 día para incluir el último día completo ──
+      // El SQL usa < en lugar de <=, así que necesitamos fecha_fin + 1 día.
+      // Ejemplo: usuario selecciona 1 al 15 → se busca >= '2026-01-01' AND < '2026-01-16'
+      const d2_tmp = new Date(fecha_fin + 'T00:00:00');
+      d2_tmp.setDate(d2_tmp.getDate() + 1);
+      const fecha_fin_excl = `${d2_tmp.getFullYear()}-${String(d2_tmp.getMonth() + 1).padStart(2, '0')}-${String(d2_tmp.getDate()).padStart(2, '0')}`;
+
       // Calcular período de quincena anterior automáticamente
       const d1 = new Date(fecha_inicio + 'T00:00:00');
       const d2 = new Date(fecha_fin + 'T00:00:00');
@@ -127,9 +134,14 @@ export const informesController = {
 
       const usuario_id = req.user?.id;
 
+      // Sumar 1 día a prevFin para el intervalo semiabierto del SQL
+      const prevFinTmp = new Date(prevFin + 'T00:00:00');
+      prevFinTmp.setDate(prevFinTmp.getDate() + 1);
+      const prevFinExcl = `${prevFinTmp.getFullYear()}-${String(prevFinTmp.getMonth() + 1).padStart(2, '0')}-${String(prevFinTmp.getDate()).padStart(2, '0')}`;
+
       const [principal, anterior] = await Promise.all([
-        informesRepository.getLiquidacionBonificacion(fecha_inicio, fecha_fin, usuario_id),
-        informesRepository.getLiquidacionBonificacionPorOperario(prevInicio, prevFin),
+        informesRepository.getLiquidacionBonificacion(fecha_inicio, fecha_fin_excl, usuario_id),
+        informesRepository.getLiquidacionBonificacionPorOperario(prevInicio, prevFinExcl),
       ]);
 
       res.json({

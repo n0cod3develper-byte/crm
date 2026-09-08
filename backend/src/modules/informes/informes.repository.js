@@ -569,7 +569,7 @@ export class InformesRepository {
       WHERE r.deleted_at IS NULL
         AND r.is_servicio_fijo = false
         AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
-        AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
+        AND COALESCE(r.hora_acordada, r.fecha_servicio) < $2
 
       UNION ALL
 
@@ -609,7 +609,7 @@ export class InformesRepository {
       LEFT JOIN gestion_humana_subrayados ghs ON ghs.remision_id = r.id ${usuarioParamIdx ? `AND ghs.usuario_id = $${usuarioParamIdx}` : 'AND false'}
       WHERE r.deleted_at IS NULL
         AND rdf.fecha >= $1
-        AND rdf.fecha <= $2
+        AND rdf.fecha < $2
       ORDER BY operario_nombre ASC, fecha_servicio ASC, numero_remision ASC
     `;
 
@@ -620,7 +620,7 @@ export class InformesRepository {
       FROM remisiones r
       WHERE r.deleted_at IS NULL
         AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
-        AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
+        AND COALESCE(r.hora_acordada, r.fecha_servicio) < $2
         AND NOT EXISTS (SELECT 1 FROM remision_operarios ro WHERE ro.remision_id = r.id)
       ORDER BY fecha_servicio ASC
     `;
@@ -632,7 +632,7 @@ export class InformesRepository {
       LEFT JOIN remision_operarios ro ON ro.remision_id = r.id
       WHERE r.deleted_at IS NULL
         AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
-        AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
+        AND COALESCE(r.hora_acordada, r.fecha_servicio) < $2
         AND (r.hora_salida_cargar IS NULL OR r.hora_llegada_cargar IS NULL)
       ORDER BY fecha_servicio ASC
     `;
@@ -646,7 +646,7 @@ export class InformesRepository {
       LEFT JOIN equipos e ON e.id = r.equipo_id
       WHERE r.deleted_at IS NULL
         AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
-        AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
+        AND COALESCE(r.hora_acordada, r.fecha_servicio) < $2
         AND (r.bonificacion_hora IS NULL OR r.bonificacion_hora = 0)
         AND (e.bonificacion_hora IS NULL OR e.bonificacion_hora = 0)
       ORDER BY fecha_servicio ASC
@@ -729,7 +729,7 @@ export class InformesRepository {
         LEFT JOIN equipos e ON e.id = r.equipo_id
         WHERE r.deleted_at IS NULL
           AND r.is_servicio_fijo = false
-          AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1 AND COALESCE(r.hora_acordada, r.fecha_servicio) <= $2
+          AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1 AND COALESCE(r.hora_acordada, r.fecha_servicio) < $2
 
         UNION ALL
 
@@ -743,7 +743,7 @@ export class InformesRepository {
         LEFT JOIN employees em ON em.id = rdf.empleado_id
         LEFT JOIN equipos e ON e.id = r.equipo_id
         WHERE r.deleted_at IS NULL
-          AND rdf.fecha >= $1 AND rdf.fecha <= $2
+          AND rdf.fecha >= $1 AND rdf.fecha < $2
       ) base
       WHERE operario_id IS NOT NULL
       GROUP BY operario_id, operario_nombre, cedula, numero_equipo
