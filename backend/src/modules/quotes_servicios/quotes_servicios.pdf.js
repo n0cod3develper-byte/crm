@@ -16,6 +16,40 @@ function getLogoBase64() {
   }
 }
 
+// Contenido estandar de Terminos y Condiciones (fallback)
+const DEFAULT_TERMS_HTML = `
+    <div class="terms-section">
+      <h3>Términos y condiciones</h3>
+      
+      <p class="terms-title">CARGAR SAS SE COMPROMETE A:</p>
+      <ol>
+        <li>Realizar el mantenimiento preventivo y correctivo del equipo de manera oportuna y eficiente, asegurando la máxima operatividad.</li>
+        <li>Garantizar la continuidad del servicio. En caso de una falla irreparable, reemplazaremos el equipo conforme a lo establecido en el contrato, para que tu operación no se detenga.</li>
+        <li>Responsabilizarnos completamente por nuestro personal, cumpliendo con todas las obligaciones laborales y legales, asegurando que cada miembro esté preparado para brindar el mejor servicio.</li>
+        <li>Cumplir con todas las normativas vigentes, garantizando que nuestras operaciones se ajusten a la ley y a los más altos estándares de calidad.</li>
+        <li>Proteger tu operación con una póliza de responsabilidad civil extracontractual, siempre que nuestros técnicos especializados operen el equipo, asegurando la tranquilidad de tu empresa.</li>
+      </ol>
+
+      <p class="terms-title">EL CLIENTE SE COMPROMETE A:</p>
+      <ul>
+        <li>Para alquileres sin operario de Cargar a asumir la responsabilidad por la operación del equipo, incluyendo su supervisión y control.</li>
+        <li>Garantizar que el equipo sea operado por personal calificado, asegurando la seguridad y efectividad en su uso. Enviar certificación de montacarguista.</li>
+        <li>El equipo debe ser utilizado de acuerdo con las recomendaciones del fabricante y las indicaciones de Cargar SAS, estas indicaciones siempre deberán ser por escrito. El mal uso, la negligencia o el uso en condiciones distintas a las recomendadas serán responsabilidad exclusiva del cliente.</li>
+        <li>Usar el equipo exclusivamente en las ubicaciones acordadas, respetando siempre las capacidades y especificaciones técnicas para un óptimo rendimiento. Enviar para efectos de pólizas direcciones exactas de operación.</li>
+        <li>Asegurar que el equipo opere en terreno plano y seguro, libre de grietas, imperfecciones o inclinaciones que puedan comprometer su funcionamiento. Compartir registro fotográfico.</li>
+        <li>En caso de daños, atribuibles al cliente, este deberá cubrir el costo de reparación o sustitución de piezas afectadas, conforme a las tarifas vigentes de Cargar SAS o proveedores autorizados.</li>
+        <li>El cliente se compromete a notificar de inmediato a Cargar SAS sobre cualquier daño o fallo del equipo para su evaluación y reparación. El incumplimiento de esta notificación exime a Cargar SAS de cualquier responsabilidad por defectos o fallos resultantes. El cliente, ni ningún colaborador suyo o tercero está autorizado para abrir las tapas de protección del equipo y sus componentes, ni a retirar ni manipular piezas o componentes, salvo autorización expresa y por escrito de Cargar SAS.</li>
+        <li>El cliente es responsable y debe asumir cualquier daño o pérdida del equipo alquilado que ocurra durante el período de alquiler, salvo daños causados por el desgaste natural por el uso normal, por defectos de fabricación o mantenimiento realizado exclusivamente por Cargar SAS.</li>
+        <li>Cargar SAS ofrece servicios de inspección y mantenimiento preventivo para minimizar riesgos. Sin embargo, el cliente deberá permitir el acceso al equipo para llevar a cabo estas actividades, de acuerdo con el cronograma establecido al momento de la firma del contrato.</li>
+        <li>Respetar las condiciones del alquiler, incluso en casos donde el equipo no sea utilizado por razones ajenas a nuestra responsabilidad, el tiempo pactado será facturado según lo acordado.</li>
+        <li>Cumplir con los términos de pago acordados, siendo:<br/>
+          *Servicios esporádicos: Pago de contado al finalizar el servicio. (El tiempo de servicio esporádico cuenta desde que la maquina sale de CARGAR SAS y hasta que regresa a CARGAR SAS.)<br/>
+          *Alquiler permanente: Pago mensual anticipado dentro de los primeros 5 días hábiles fecha factura.
+        </li>
+      </ul>
+    </div>
+  `;
+
 export const generateQuoteServicioPDF = async (quote) => {
   const logoSrc = getLogoBase64();
   const logoHtml = logoSrc 
@@ -51,38 +85,10 @@ export const generateQuoteServicioPDF = async (quote) => {
     `;
   }
 
-  const termsHtml = `
-    <div class="terms-section">
-      <h3>Términos y condiciones</h3>
-      
-      <p class="terms-title">CARGAR SAS SE COMPROMETE A:</p>
-      <ol>
-        <li>Realizar el mantenimiento preventivo y correctivo del equipo de manera oportuna y eficiente, asegurando la máxima operatividad.</li>
-        <li>Garantizar la continuidad del servicio. En caso de una falla irreparable, reemplazaremos el equipo conforme a lo establecido en el contrato, para que tu operación no se detenga.</li>
-        <li>Responsabilizarnos completamente por nuestro personal, cumpliendo con todas las obligaciones laborales y legales, asegurando que cada miembro esté preparado para brindar el mejor servicio.</li>
-        <li>Cumplir con todas las normativas vigentes, garantizando que nuestras operaciones se ajusten a la ley y a los más altos estándares de calidad.</li>
-        <li>Proteger tu operación con una póliza de responsabilidad civil extracontractual, siempre que nuestros técnicos especializados operen el equipo, asegurando la tranquilidad de tu empresa.</li>
-      </ol>
-
-      <p class="terms-title">EL CLIENTE SE COMPROMETE A:</p>
-      <ul>
-        <li>Para alquileres sin operario de Cargar a asumir la responsabilidad por la operación del equipo, incluyendo su supervisión y control.</li>
-        <li>Garantizar que el equipo sea operado por personal calificado, asegurando la seguridad y efectividad en su uso. Enviar certificación de montacarguista.</li>
-        <li>El equipo debe ser utilizado de acuerdo con las recomendaciones del fabricante y las indicaciones de Cargar SAS, estas indicaciones siempre deberán ser por escrito. El mal uso, la negligencia o el uso en condiciones distintas a las recomendadas serán responsabilidad exclusiva del cliente.</li>
-        <li>Usar el equipo exclusivamente en las ubicaciones acordadas, respetando siempre las capacidades y especificaciones técnicas para un óptimo rendimiento. Enviar para efectos de pólizas direcciones exactas de operación.</li>
-        <li>Asegurar que el equipo opere en terreno plano y seguro, libre de grietas, imperfecciones o inclinaciones que puedan comprometer su funcionamiento. Compartir registro fotográfico.</li>
-        <li>En caso de daños, atribuibles al cliente, este deberá cubrir el costo de reparación o sustitución de piezas afectadas, conforme a las tarifas vigentes de Cargar SAS o proveedores autorizados.</li>
-        <li>El cliente se compromete a notificar de inmediato a Cargar SAS sobre cualquier daño o fallo del equipo para su evaluación y reparación. El incumplimiento de esta notificación exime a Cargar SAS de cualquier responsabilidad por defectos o fallos resultantes. El cliente, ni ningún colaborador suyo o tercero está autorizado para abrir las tapas de protección del equipo y sus componentes, ni a retirar ni manipular piezas o componentes, salvo autorización expresa y por escrito de Cargar SAS.</li>
-        <li>El cliente es responsable y debe asumir cualquier daño o pérdida del equipo alquilado que ocurra durante el período de alquiler, salvo daños causados por el desgaste natural por el uso normal, por defectos de fabricación o mantenimiento realizado exclusivamente por Cargar SAS.</li>
-        <li>Cargar SAS ofrece servicios de inspección y mantenimiento preventivo para minimizar riesgos. Sin embargo, el cliente deberá permitir el acceso al equipo para llevar a cabo estas actividades, de acuerdo con el cronograma establecido al momento de la firma del contrato.</li>
-        <li>Respetar las condiciones del alquiler, incluso en casos donde el equipo no sea utilizado por razones ajenas a nuestra responsabilidad, el tiempo pactado será facturado según lo acordado.</li>
-        <li>Cumplir con los términos de pago acordados, siendo:<br/>
-          *Servicios esporádicos: Pago de contado al finalizar el servicio. (El tiempo de servicio esporádico cuenta desde que la maquina sale de CARGAR SAS y hasta que regresa a CARGAR SAS.)<br/>
-          *Alquiler permanente: Pago mensual anticipado dentro de los primeros 5 días hábiles fecha factura.
-        </li>
-      </ul>
-    </div>
-  `;
+  // Usar terminos personalizados de la cotizacion o el estandar por defecto
+  const termsHtml = quote.terms_and_conditions
+    ? `<div class="terms-section"><h3>Términos y condiciones</h3>${quote.terms_and_conditions.replace(/\n/g, '<br/>')}</div>`
+    : DEFAULT_TERMS_HTML;
 
   // Calculating a simple valid date if none exists.
   let fechaValidaStr;

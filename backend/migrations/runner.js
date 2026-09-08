@@ -154,6 +154,7 @@ const MIGRATION_FILES = [
   '121_cierre_contable_v2.sql',
   '122_modulo_contabilidad.sql',
   '123_liquidacion_ajustes.sql',
+  '124_quotes_servicios_terms.sql',
 ];
 
 

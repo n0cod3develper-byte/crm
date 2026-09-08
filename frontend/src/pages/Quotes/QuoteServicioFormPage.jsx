@@ -13,6 +13,27 @@ import api from '../../lib/api';
 
 const IVA_RATE = 0.19;
 
+// Contenido estandar de Terminos y Condiciones
+const DEFAULT_TERMS = `CARGAR SAS SE COMPROMETE A:
+1. Realizar el mantenimiento preventivo y correctivo del equipo de manera oportuna y eficiente, asegurando la máxima operatividad.
+2. Garantizar la continuidad del servicio. En caso de una falla irreparable, reemplazaremos el equipo conforme a lo establecido en el contrato, para que tu operación no se detenga.
+3. Responsabilizarnos completamente por nuestro personal, cumpliendo con todas las obligaciones laborales y legales, asegurando que cada miembro esté preparado para brindar el mejor servicio.
+4. Cumplir con todas las normativas vigentes, garantizando que nuestras operaciones se ajusten a la ley y a los más altos estándares de calidad.
+5. Proteger tu operación con una póliza de responsabilidad civil extracontractual, siempre que nuestros técnicos especializados operen el equipo, asegurando la tranquilidad de tu empresa.
+
+EL CLIENTE SE COMPROMETE A:
+1. Para alquileres sin operario de Cargar a asumir la responsabilidad por la operación del equipo, incluyendo su supervisión y control.
+2. Garantizar que el equipo sea operado por personal calificado, asegurando la seguridad y efectividad en su uso. Enviar certificación de montacarguista.
+3. El equipo debe ser utilizado de acuerdo con las recomendaciones del fabricante y las indicaciones de Cargar SAS, estas indicaciones siempre deberán ser por escrito. El mal uso, la negligencia o el uso en condiciones distintas a las recomendadas serán responsabilidad exclusiva del cliente.
+4. Usar el equipo exclusivamente en las ubicaciones acordadas, respetando siempre las capacidades y especificaciones técnicas para un óptimo rendimiento. Enviar para efectos de pólizas direcciones exactas de operación.
+5. Asegurar que el equipo opere en terreno plano y seguro, libre de grietas, imperfecciones o inclinaciones que puedan comprometer su funcionamiento. Compartir registro fotográfico.
+6. En caso de daños, atribuibles al cliente, este deberá cubrir el costo de reparación o sustitución de piezas afectadas, conforme a las tarifas vigentes de Cargar SAS o proveedores autorizados.
+7. El cliente se compromete a notificar de inmediato a Cargar SAS sobre cualquier daño o fallo del equipo para su evaluación y reparación. El incumplimiento de esta notificación exime a Cargar SAS de cualquier responsabilidad por defectos o fallos resultantes. El cliente, ni ningún colaborador suyo o tercero está autorizado para abrir las tapas de protección del equipo y sus componentes, ni a retirar ni manipular piezas o componentes, salvo autorización expresa y por escrito de Cargar SAS.
+8. El cliente es responsable y debe asumir cualquier daño o pérdida del equipo alquilado que ocurra durante el período de alquiler, salvo daños causados por el desgaste natural por el uso normal, por defectos de fabricación o mantenimiento realizado exclusivamente por Cargar SAS.
+9. Cargar SAS ofrece servicios de inspección y mantenimiento preventivo para minimizar riesgos. Sin embargo, el cliente deberá permitir el acceso al equipo para llevar a cabo estas actividades, de acuerdo con el cronograma establecido al momento de la firma del contrato.
+10. Respetar las condiciones del alquiler, incluso en casos donde el equipo no sea utilizado por razones ajenas a nuestra responsabilidad, el tiempo pactado será facturado según lo acordado.
+11. Cumplir con los términos de pago acordados, siendo: *Servicios esporádicos: Pago de contado al finalizar el servicio. (El tiempo de servicio esporádico cuenta desde que la maquina sale de CARGAR SAS y hasta que regresa a CARGAR SAS.) *Alquiler permanente: Pago mensual anticipado dentro de los primeros 5 días hábiles fecha factura.`;
+
 const EMPTY = {
   company_id: '', contact_id: '', fecha: new Date().toISOString().slice(0, 10),
   valido_hasta: '',
@@ -32,7 +53,7 @@ export function QuoteServicioFormPage() {
   const queryClient = useQueryClient();
   const isEditing = !!id;
 
-  const [form, setForm] = useState({ ...EMPTY });
+  const [form, setForm] = useState({ ...EMPTY, terms_and_conditions: DEFAULT_TERMS });
   const [items, setItems] = useState([{ ...EMPTY_ITEM }]);
   const [companySearch, setCompanySearch] = useState('');
   const [servicioSearch, setServicioSearch] = useState('');
@@ -65,6 +86,7 @@ export function QuoteServicioFormPage() {
         ciudad_envio: existingQuote.ciudad_envio || '',
         descripcion: existingQuote.descripcion || '',
         estado: existingQuote.estado || 'BORRADOR',
+        terms_and_conditions: existingQuote.terms_and_conditions || DEFAULT_TERMS,
       });
       if (existingQuote.items && existingQuote.items.length > 0) {
         setItems(existingQuote.items.map(it => ({
@@ -201,6 +223,7 @@ export function QuoteServicioFormPage() {
 
     saveMutation.mutate({
       ...form,
+      terms_and_conditions: form.terms_and_conditions || null,
       subtotal: totals.subtotal,
       iva_valor: totals.iva,
       total: totals.total,
@@ -379,6 +402,34 @@ export function QuoteServicioFormPage() {
             {/* Descripción */}
             <div style={{ marginTop: 16 }}>
               {field('Descripción', 'descripcion', 'textarea', { placeholder: 'Descripción detallada del servicio...' })}
+            </div>
+
+            {/* Términos y Condiciones */}
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Términos y Condiciones
+                </label>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>
+                  Contenido estándar precargado. Puede editarlo para personalizar esta cotización.
+                </p>
+                <textarea
+                  className="input"
+                  rows={12}
+                  value={form.terms_and_conditions}
+                  onChange={e => setForm(p => ({ ...p, terms_and_conditions: e.target.value }))}
+                  placeholder="Términos y condiciones..."
+                  style={{ fontFamily: 'monospace', fontSize: '0.8rem', lineHeight: 1.5 }}
+                />
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={() => setForm(p => ({ ...p, terms_and_conditions: DEFAULT_TERMS }))}
+                  style={{ alignSelf: 'flex-start', fontSize: '0.75rem' }}
+                >
+                  Restaurar contenido estándar
+                </button>
+              </div>
             </div>
 
             {/* ─── Tabla de Ítems ──────────────── */}
