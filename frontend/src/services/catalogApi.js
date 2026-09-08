@@ -6,6 +6,7 @@ export const catalogApi = {
   buscar: (q, tipo, limit = 10) => api.get('/catalogo/buscar', { params: { q, tipo, limit } }).then(res => res.data),
   getAlertas: () => api.get('/catalogo/alertas').then(res => res.data),
   getCategorias: () => api.get('/catalogo/categorias').then(res => res.data),
+  getSiguienteConsecutivo: (categoriaId) => api.get(`/catalogo/categorias/${categoriaId}/siguiente-consecutivo`).then(res => res.data),
   createCategoria: (data) => api.post('/catalogo/categorias', data).then(res => res.data),
   updateCategoria: (id, data) => api.put(`/catalogo/categorias/${id}`, data).then(res => res.data),
   deleteCategoria: (id) => api.delete(`/catalogo/categorias/${id}`).then(res => res.data),
@@ -16,6 +17,9 @@ export const catalogApi = {
   delete: (id) => api.delete(`/catalogo/${id}`).then(res => res.data),
   uploadImagen: (id, formData) => api.post(`/catalogo/${id}/imagen`, formData, {
     headers: { 'Content-Type': undefined }
+  }).then(res => res.data),
+  importExcel: (formData) => api.post('/catalogo/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
   }).then(res => res.data),
   // Ubicaciones
   getUbicaciones: (params) => api.get('/ubicaciones', { params }).then(r => r.data),

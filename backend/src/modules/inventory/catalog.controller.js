@@ -3,6 +3,7 @@ import { NotFoundError } from '../../utils/errors.js';
 import { uploadSingle, buildUploadPath } from '../../config/storage.js';
 import { guardarArchivo } from '../../services/fileStorageService.js';
 import { logger } from '../../utils/logger.js';
+import * as XLSX from 'xlsx';
 
 const repo = new CatalogRepository();
 
@@ -25,7 +26,19 @@ function mapFrontendFields(body) {
 
 export const getItems = async (req, res, next) => {
   try {
-    const filters = req.query;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = req.query.offset !== undefined ? Math.max(0, parseInt(req.query.offset) || 0) : (page - 1) * limit;
+
+    const filters = {
+      ...req.query,
+      page,
+      limit,
+      offset,
+      sort_by: req.query.sort_by || 'nombre_comercial',
+      sort_dir: req.query.sort_dir || 'ASC'
+    };
+
     const result = await repo.findAll(filters);
     res.json({ success: true, ...result });
   } catch (err) { next(err); }
@@ -58,6 +71,14 @@ export const getCategorias = async (req, res, next) => {
   try {
     const categorias = await repo.getCategorias();
     res.json({ success: true, data: categorias });
+  } catch (err) { next(err); }
+};
+
+export const getSiguienteConsecutivo = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await repo.getSiguienteConsecutivoUbicacion(id);
+    res.json({ success: true, data: result });
   } catch (err) { next(err); }
 };
 
@@ -165,4 +186,44 @@ export const deleteCategoria = async (req, res, next) => {
     await repo.deleteCategoria(req.params.id);
     res.json({ success: true, message: 'Familia eliminada correctamente' });
   } catch (err) { next(err); }
+};
+
+export const importExcel = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No se recibió ningún archivo Excel' });
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      return res.status(400).json({ success: false, message: 'El archivo Excel no contiene hojas válidas' });
+    }
+
+    // Usar la primera hoja (o buscar hoja "Items" / "Catalogo")
+    let targetSheetName = workbook.SheetNames[0];
+    const preferredSheets = ['items', 'catalogo', 'catálogo', 'productos'];
+    for (const name of workbook.SheetNames) {
+      if (preferredSheets.includes(name.trim().toLowerCase())) {
+        targetSheetName = name;
+        break;
+      }
+    }
+
+    const sheet = workbook.Sheets[targetSheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+    if (!rows || rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'La hoja de cálculo está vacía o no contiene filas con datos' });
+    }
+
+    const result = await repo.importItems(rows, req.user.id);
+    res.json({
+      success: true,
+      message: `Proceso completado: ${result.creados} creados, ${result.actualizados} actualizados, ${result.errores.length} errores.`,
+      data: result
+    });
+  } catch (err) {
+    logger.error('Error en importExcel catálogo', { error: err.message });
+    next(err);
+  }
 };

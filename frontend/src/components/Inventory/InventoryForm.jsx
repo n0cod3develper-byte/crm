@@ -42,18 +42,21 @@ export function InventoryForm({ item, onSuccess, onCancel, defaultArea }) {
     queryFn: () => catalogApi.getCategorias()
   });
 
-  const { data: ubicaciones } = useQuery({
-    queryKey: ['ubicaciones'],
-    queryFn: () => catalogApi.getUbicaciones()
-  });
-
   const [selectedArea, setSelectedArea] = React.useState(item?.area || defaultArea || 'MANTENIMIENTO');
 
   // Siempre declarar hooks ANTES de cualquier early return condicional
   // (React requiere el mismo orden de hooks en cada render)
-  const { register, handleSubmit, formState: { errors, isSubmitting }, setValue } = useForm({
+  const { register, handleSubmit, formState: { errors, isSubmitting }, setValue, watch } = useForm({
     resolver: zodResolver(inventorySchema),
     defaultValues: item || { area: defaultArea || 'MANTENIMIENTO', unit: 'unidad', is_active: true, unit_cost: 0, unit_price: 0, stock_current: 0, stock_minimum: 0, marca: '' },
+  });
+
+  const watchedCategoriaId = watch('categoria_id');
+
+  const { data: consecutivoData, isLoading: loadingConsecutivo } = useQuery({
+    queryKey: ['siguiente-consecutivo', watchedCategoriaId],
+    queryFn: () => catalogApi.getSiguienteConsecutivo(watchedCategoriaId),
+    enabled: !!watchedCategoriaId && !isEditing
   });
 
   // Sincronizar selectedArea con el campo area del formulario
@@ -61,9 +64,15 @@ export function InventoryForm({ item, onSuccess, onCancel, defaultArea }) {
     setValue('area', selectedArea);
   }, [selectedArea, setValue]);
 
+  // NO pre-llenar ubicacion_id: el backend lo genera automáticamente con consecutivo incremental por familia
+
   const mutation = useMutation({
     mutationFn: async (values) => {
       const payload = { ...values };
+      // Al crear, forzar ubicacion_id = null para que el backend genere el consecutivo autoincremental
+      if (!isEditing) {
+        payload.ubicacion_id = null;
+      }
       if (isEditing) {
         const { data } = await api.patch(`/inventory/${item.id}`, payload);
         return data;
@@ -176,13 +185,27 @@ export function InventoryForm({ item, onSuccess, onCancel, defaultArea }) {
 
       <div className="flex gap-4">
         <div className="input-group w-full">
-          <label className="input-label">Ubicación Física</label>
-          <select {...register('ubicacion_id')} className="input">
-            <option value="">Selecciona ubicación</option>
-            {ubicaciones?.data?.map(u => (
-              <option key={u.id} value={u.id}>{u.codigo_ubicacion} - {u.bodega} ({u.zona})</option>
-            ))}
-          </select>
+          <label className="input-label">Ubicación Física (Consecutivo Automático)</label>
+          {watchedCategoriaId ? (
+            <div>
+              <input
+                className="input"
+                value={isEditing ? (item?.codigo_ubicacion || '—') : (consecutivoData?.data?.codigo || (loadingConsecutivo ? 'Calculando...' : '001'))}
+                readOnly
+                style={{ background: 'var(--bg-elevated)', fontWeight: 700, fontFamily: 'monospace', color: 'var(--clr-primary-600)', fontSize: '1rem' }}
+              />
+              <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                Consecutivo autoincremental asignado automáticamente según la familia.
+              </p>
+            </div>
+          ) : (
+            <input
+              className="input"
+              value="Seleccione una familia primero"
+              readOnly
+              style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', fontStyle: 'italic' }}
+            />
+          )}
         </div>
         <div className="input-group w-full" style={{ visibility: 'hidden' }}>
           {/* Spacer */}

@@ -155,6 +155,8 @@ const MIGRATION_FILES = [
   '122_modulo_contabilidad.sql',
   '123_liquidacion_ajustes.sql',
   '124_quotes_servicios_terms.sql',
+  '125_categoria_ubicacion_default.sql',
+  '126_familias_consecutivo_automatico.sql',
 ];
 
 

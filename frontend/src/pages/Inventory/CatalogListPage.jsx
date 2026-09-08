@@ -1,25 +1,35 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { catalogApi } from '../../services/catalogApi';
-import { Search, Filter, Plus, Package, Wrench, MoreHorizontal, ChevronRight, Image as ImageIcon } from 'lucide-react';
+import { 
+  Search, Filter, Plus, Package, Wrench, MoreHorizontal, ChevronRight, 
+  ChevronLeft, Image as ImageIcon, FileSpreadsheet, Upload,
+  ArrowUpDown, ArrowUp, ArrowDown 
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '../../utils/formatters';
 import { usePermissions } from '../../contexts/PermissionsContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { StockAdjustModal } from '../../components/Inventory/StockAdjustModal';
+import { CatalogImportModal } from '../../components/Inventory/CatalogImportModal';
 import { Topbar } from '../../components/layout/Topbar';
 
 export function CatalogListPage() {
   const [tipo, setTipo] = useState('todos');
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
+  const [sortBy, setSortBy] = useState('nombre_comercial');
+  const [sortDir, setSortDir] = useState('ASC');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const { puede } = usePermissions();
   const queryClient = useQueryClient();
   const [stockModalItem, setStockModalItem] = useState(null);
 
   const handleStockAdjustSuccess = () => {
-    queryClient.invalidateQueries(['catalog-items', tipo, categoria, search]);
+    queryClient.invalidateQueries(['catalog-items']);
   };
 
   const openStockModal = (item) => {
@@ -31,8 +41,8 @@ export function CatalogListPage() {
   };
 
   const { data: itemsData, isLoading } = useQuery({
-    queryKey: ['catalog-items', tipo, categoria, search],
-    queryFn: () => catalogApi.getItems({ tipo, categoria, search }),
+    queryKey: ['catalog-items', tipo, categoria, search, page, limit, sortBy, sortDir],
+    queryFn: () => catalogApi.getItems({ tipo, categoria, search, page, limit, sort_by: sortBy, sort_dir: sortDir }),
     keepPreviousData: true,
     staleTime: 0,
   });
@@ -42,15 +52,57 @@ export function CatalogListPage() {
     queryFn: () => catalogApi.getCategorias()
   });
 
+  const { data: uniData } = useQuery({
+    queryKey: ['catalog-units'],
+    queryFn: () => catalogApi.getUnidades()
+  });
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      if (sortDir === 'ASC') {
+        setSortDir('DESC');
+      } else {
+        // Volver al orden por defecto
+        setSortBy('nombre_comercial');
+        setSortDir('ASC');
+      }
+    } else {
+      setSortBy(field);
+      setSortDir('ASC');
+    }
+    setPage(1);
+  };
+
+  const renderSortIcon = (field) => {
+    if (sortBy !== field) {
+      return <ArrowUpDown size={13} style={{ opacity: 0.35, marginLeft: '5px', verticalAlign: 'middle' }} />;
+    }
+    return sortDir === 'ASC' ? (
+      <ArrowUp size={13} style={{ color: 'var(--clr-primary-500)', marginLeft: '5px', verticalAlign: 'middle' }} />
+    ) : (
+      <ArrowDown size={13} style={{ color: 'var(--clr-primary-500)', marginLeft: '5px', verticalAlign: 'middle' }} />
+    );
+  };
+
   return (
     <div className="app-layout">
       <Topbar 
         title="Explorar Catálogo" 
         subtitle="Listado unificado de familias de productos y servicios profesionales"
         rightContent={
-          <Link to="/catalogo/nuevo" className="btn btn--primary flex items-center gap-2">
-            <Plus size={18} /> Nuevo Item
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button 
+              type="button" 
+              onClick={() => setIsImportModalOpen(true)}
+              className="btn btn--secondary flex items-center gap-2"
+              title="Importar o actualizar productos masivamente vía Excel"
+            >
+              <FileSpreadsheet size={18} color="var(--clr-success)" /> Importar Excel
+            </button>
+            <Link to="/catalogo/nuevo" className="btn btn--primary flex items-center gap-2">
+              <Plus size={18} /> Nuevo Item
+            </Link>
+          </div>
         }
       />
       <main className="main-content">
@@ -61,19 +113,19 @@ export function CatalogListPage() {
               {/* Tabs de Tipo */}
               <div style={{ display: 'flex', background: 'var(--bg-app)', padding: '0.25rem', borderRadius: 'var(--radius-md)' }}>
                 <button 
-                  onClick={() => setTipo('todos')}
+                  onClick={() => { setTipo('todos'); setPage(1); }}
                   style={{ flex: 1, border: 'none', background: tipo === 'todos' ? 'var(--bg-surface)' : 'transparent', color: tipo === 'todos' ? 'var(--clr-primary-500)' : 'var(--text-muted)', fontWeight: 600, fontSize: 'var(--text-xs)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', boxShadow: tipo === 'todos' ? 'var(--shadow-sm)' : 'none', transition: 'all 0.2s' }}
                 >
                   Todos
                 </button>
                 <button 
-                  onClick={() => setTipo('PRODUCTO')}
+                  onClick={() => { setTipo('PRODUCTO'); setPage(1); }}
                   style={{ flex: 1, border: 'none', background: tipo === 'PRODUCTO' ? 'var(--bg-surface)' : 'transparent', color: tipo === 'PRODUCTO' ? 'var(--clr-primary-500)' : 'var(--text-muted)', fontWeight: 600, fontSize: 'var(--text-xs)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', boxShadow: tipo === 'PRODUCTO' ? 'var(--shadow-sm)' : 'none', transition: 'all 0.2s' }}
                 >
                   Productos
                 </button>
                 <button 
-                  onClick={() => setTipo('SERVICIO')}
+                  onClick={() => { setTipo('SERVICIO'); setPage(1); }}
                   style={{ flex: 1, border: 'none', background: tipo === 'SERVICIO' ? 'var(--bg-surface)' : 'transparent', color: tipo === 'SERVICIO' ? 'var(--clr-primary-500)' : 'var(--text-muted)', fontWeight: 600, fontSize: 'var(--text-xs)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', boxShadow: tipo === 'SERVICIO' ? 'var(--shadow-sm)' : 'none', transition: 'all 0.2s' }}
                 >
                   Servicios
@@ -89,7 +141,7 @@ export function CatalogListPage() {
                   className="input"
                   style={{ paddingLeft: '2.5rem' }}
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 />
               </div>
 
@@ -100,7 +152,7 @@ export function CatalogListPage() {
                   className="input"
                   style={{ paddingLeft: '2.5rem', appearance: 'none' }}
                   value={categoria}
-                  onChange={(e) => setCategoria(e.target.value)}
+                  onChange={(e) => { setCategoria(e.target.value); setPage(1); }}
                 >
                   <option value="">Todas las Familias</option>
                   {catData?.data?.map(c => (
@@ -115,11 +167,51 @@ export function CatalogListPage() {
             <table>
               <thead>
                 <tr>
-                  <th>Item / Marca</th>
-                  <th>Familia</th>
-                  <th>Ubicación</th>
-                  <th>Stock / Cobro</th>
-                  <th>Precio Venta</th>
+                  <th 
+                    onClick={() => handleSort('nombre_comercial')}
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    title="Ordenar por Item / Nombre Comercial"
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Item / Marca {renderSortIcon('nombre_comercial')}
+                    </span>
+                  </th>
+                  <th 
+                    onClick={() => handleSort('categoria_nombre')}
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    title="Ordenar por Familia"
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Familia {renderSortIcon('categoria_nombre')}
+                    </span>
+                  </th>
+                  <th 
+                    onClick={() => handleSort('codigo_ubicacion')}
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    title="Ordenar por Consecutivo de Ubicación"
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Ubicación {renderSortIcon('codigo_ubicacion')}
+                    </span>
+                  </th>
+                  <th 
+                    onClick={() => handleSort('stock_actual')}
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    title="Ordenar por Stock"
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Stock / Cobro {renderSortIcon('stock_actual')}
+                    </span>
+                  </th>
+                  <th 
+                    onClick={() => handleSort('precio_venta')}
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    title="Ordenar por Precio de Venta"
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      Precio Venta {renderSortIcon('precio_venta')}
+                    </span>
+                  </th>
                   <th style={{ textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
@@ -240,8 +332,64 @@ export function CatalogListPage() {
                 )}
               </tbody>
             </table>
-                      </div>
-            <StockAdjustModal item={stockModalItem} isOpen={!!stockModalItem} onClose={closeStockModal} onSuccess={handleStockAdjustSuccess} />
+
+            {/* Paginación */}
+            {itemsData && itemsData.total > 0 && (
+              <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  Mostrando {((page - 1) * limit) + 1} - {Math.min(page * limit, itemsData.total)} de {itemsData.total} registros
+                </span>
+                {itemsData.totalPages > 1 && (
+                  <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                    <button 
+                      className="btn btn--ghost btn--sm" 
+                      onClick={() => setPage(p => Math.max(1, p - 1))} 
+                      disabled={page === 1} 
+                      style={{ padding: '0.35rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                      title="Página anterior"
+                    >
+                      <ChevronLeft size={16} /> Anterior
+                    </button>
+                    
+                    {Array.from({ length: Math.min(5, itemsData.totalPages) }, (_, i) => {
+                      const pageNum = Math.max(1, Math.min(page - 2, itemsData.totalPages - 4)) + i;
+                      if (pageNum > itemsData.totalPages) return null;
+                      return (
+                        <button 
+                          key={pageNum} 
+                          className={`btn btn--sm ${pageNum === page ? 'btn--primary' : 'btn--ghost'}`}
+                          onClick={() => setPage(pageNum)} 
+                          style={{ minWidth: '32px', padding: '0.35rem 0.5rem', fontWeight: pageNum === page ? 700 : 500 }}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    
+                    <button 
+                      className="btn btn--ghost btn--sm" 
+                      onClick={() => setPage(p => Math.min(itemsData.totalPages, p + 1))} 
+                      disabled={page === itemsData.totalPages} 
+                      style={{ padding: '0.35rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                      title="Página siguiente"
+                    >
+                      Siguiente <ChevronRight size={16} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <StockAdjustModal item={stockModalItem} isOpen={!!stockModalItem} onClose={closeStockModal} onSuccess={handleStockAdjustSuccess} />
+          <CatalogImportModal 
+            isOpen={isImportModalOpen} 
+            onClose={() => setIsImportModalOpen(false)} 
+            onSuccess={() => {
+              queryClient.invalidateQueries(['catalog-items']);
+            }}
+            familias={catData?.data || []}
+            unidades={uniData?.data || []}
+          />
         </div>
       </main>
     </div>

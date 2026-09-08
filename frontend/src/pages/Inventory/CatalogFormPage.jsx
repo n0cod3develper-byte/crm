@@ -6,7 +6,6 @@ import api from '../../lib/api';
 import { Package, Wrench, Save, ArrowLeft, Info, DollarSign, Database, Tag, MapPin, Image as ImageIcon, Upload, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
-import { GeneradorCodigoUbicacion } from '../../components/Inventory/GeneradorCodigoUbicacion';
 import { JSONListEditor } from '../../components/Inventory/JSONListEditor';
 
 export function CatalogFormPage() {
@@ -73,6 +72,16 @@ export function CatalogFormPage() {
     enabled: isEdit
   });
 
+  const { data: consecutivoData, isLoading: loadingConsecutivo } = useQuery({
+    queryKey: ['siguiente-consecutivo', formData.categoria_id],
+    queryFn: () => catalogApi.getSiguienteConsecutivo(formData.categoria_id),
+    enabled: !!formData.categoria_id && !isEdit
+  });
+
+  // Familia actualmente seleccionada
+  const familiaActual = catData?.data?.find(c => c.id === formData.categoria_id);
+  const ubicacionDerivada = !!(familiaActual?.ubicacion_default_id && formData.ubicacion_id === familiaActual.ubicacion_default_id);
+
   useEffect(() => {
     if (isEdit && itemData?.data) {
       const item = itemData.data;
@@ -129,7 +138,11 @@ export function CatalogFormPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    mutation.mutate(formData);
+    let payload = { ...formData };
+    if (!isEdit && formData.tipo === 'PRODUCTO') {
+      payload.ubicacion_id = null;
+    }
+    mutation.mutate(payload);
   };
 
   const handleChange = (e) => {
@@ -139,6 +152,15 @@ export function CatalogFormPage() {
     // Sanitize ID fields to avoid UUID validation errors in backend
     if ((name.endsWith('_id') || name === 'responsable_id') && finalValue === '') {
       finalValue = null;
+    }
+
+    if (name === 'categoria_id') {
+      setFormData(prev => ({
+        ...prev,
+        categoria_id: finalValue,
+        ubicacion_id: isEdit ? prev.ubicacion_id : null
+      }));
+      return;
     }
 
     setFormData(prev => ({
@@ -380,10 +402,38 @@ export function CatalogFormPage() {
                       <input type="number" name="stock_minimum" value={formData.stock_minimum} onChange={handleChange} className="input" />
                     </div>
                     
-                    <GeneradorCodigoUbicacion 
-                      value={formData.ubicacion_id} 
-                      onChange={handleChange} 
-                    />
+                    <div className="input-group">
+                      <label className="input-label flex items-center gap-1.5">
+                        <MapPin size={14} color="var(--clr-primary-500)" /> Consecutivo de Ubicación
+                      </label>
+                      {formData.categoria_id && familiaActual ? (
+                        <div>
+                          <input
+                            className="input"
+                            value={isEdit ? (itemData?.data?.codigo_ubicacion || '—') : (consecutivoData?.data?.codigo || (loadingConsecutivo ? 'Calculando...' : '001'))}
+                            readOnly
+                            style={{ background: 'var(--bg-elevated)', fontWeight: 700, fontFamily: 'monospace', color: 'var(--clr-primary-600)', fontSize: '1rem' }}
+                          />
+                          <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                            {isEdit 
+                              ? `Ubicación asignada en la familia ${familiaActual.nombre}.`
+                              : `Consecutivo autoincremental asignado automáticamente para la familia ${familiaActual.nombre}.`}
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <input
+                            className="input"
+                            value="Seleccione una familia para asignar consecutivo"
+                            readOnly
+                            style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', fontStyle: 'italic' }}
+                          />
+                          <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                            El consecutivo de ubicación se generará automáticamente a partir de la Familia seleccionada.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

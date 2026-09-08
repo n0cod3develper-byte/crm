@@ -2,13 +2,20 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { catalogApi } from '../../services/catalogApi';
 import { Topbar } from '../../components/layout/Topbar';
-import { Layers, Plus, Edit2, Trash2, Save, X, Palette, Type, Hash } from 'lucide-react';
+import { Layers, Plus, Edit2, Trash2, Save, X, Palette, Type, Hash, MapPin } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export function FamiliesPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingFamily, setEditingFamily] = useState(null);
+
+  // Ubicaciones de bodega disponibles para asignar el consecutivo de estantería
+  const { data: ubicacionesData } = useQuery({
+    queryKey: ['ubicaciones'],
+    queryFn: () => catalogApi.getUbicaciones({ activo: 'true' })
+  });
+  const ubicaciones = ubicacionesData?.data || [];
 
   const { data: families, isLoading } = useQuery({
     queryKey: ['catalog-categories'],
@@ -78,10 +85,10 @@ export function FamiliesPage() {
           
           <div className="table-wrapper">
             <table>
-              <thead>
-                <tr>
+              <thead>                  <tr>
                   <th style={{ width: '40px' }}>Icono</th>
                   <th>Nombre / Slug</th>
+                  <th>Estantería</th>
                   <th>Aplicable a</th>
                   <th>Items</th>
                   <th>Orden</th>
@@ -90,7 +97,7 @@ export function FamiliesPage() {
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan="6" style={{ textAlign: 'center', padding: '3rem' }}>Cargando familias...</td></tr>
+                  <tr><td colSpan="7" style={{ textAlign: 'center', padding: '3rem' }}>Cargando familias...</td></tr>
                 ) : families?.data?.length > 0 ? families.data.map(f => (
                   <tr key={f.id}>
                     <td>
@@ -103,6 +110,15 @@ export function FamiliesPage() {
                     <td>
                       <div style={{ fontWeight: 700 }}>{f.nombre}</div>
                       <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{f.slug}</div>
+                    </td>
+                    <td>
+                      {f.ubicacion_default_codigo ? (
+                        <span className="badge" style={{ fontSize: '10px', fontFamily: 'monospace' }}>
+                          {f.ubicacion_default_codigo}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>—</span>
+                      )}
                     </td>
                     <td>
                       <span className="badge" style={{ fontSize: '10px' }}>
@@ -131,7 +147,7 @@ export function FamiliesPage() {
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No hay familias configuradas.</td></tr>
+                  <tr><td colSpan="7" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No hay familias configuradas.</td></tr>
                 )}
               </tbody>
             </table>
@@ -157,6 +173,23 @@ export function FamiliesPage() {
               <div className="input-group">
                 <label className="input-label flex items-center gap-2"><Hash size={14} /> Slug (Identificador único)</label>
                 <input name="slug" defaultValue={editingFamily?.slug} className="input" placeholder="ej_neumaticos (opcional)" />
+              </div>
+
+              <div className="input-group">
+                <label className="input-label flex items-center gap-2"><MapPin size={14} /> Consecutivo de Estantería (Ubicación)</label>
+                <select
+                  name="ubicacion_default_id"
+                  defaultValue={editingFamily?.ubicacion_default_id || ''}
+                  className="input"
+                >
+                  <option value="">Automático (asignar siguiente consecutivo)</option>
+                  {ubicaciones.map(u => (
+                    <option key={u.id} value={u.id}>{u.codigo_ubicacion} — {u.descripcion || (u.prefijo_codigo + ' ' + u.nivel_codigo)}</option>
+                  ))}
+                </select>
+                <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                  Consecutivo automático. Todos los productos de esta familia heredarán este consecutivo de estantería.
+                </p>
               </div>
 
               <div className="input-group">
