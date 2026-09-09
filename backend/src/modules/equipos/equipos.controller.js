@@ -85,7 +85,10 @@ export const equiposController = {
         search,
         limit,
         cursor,
-        orden
+        orden,
+        page,
+        sortBy,
+        sortOrder
       } = req.query;
 
       const result = await repo.findAll({
@@ -102,7 +105,10 @@ export const equiposController = {
         search,
         limit: parseInt(limit) || 50,
         cursor,
-        orden
+        orden,
+        page: page ? parseInt(page) : undefined,
+        sortBy,
+        sortOrder
       });
 
       res.json({ success: true, ...result });

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Plus, Search, Building2, ExternalLink, Upload, FileDown, X, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Plus, Search, Building2, ExternalLink, Upload, FileDown, X, CheckCircle, AlertTriangle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
 import api from '../../lib/api';
 import { toast } from 'react-hot-toast';
@@ -110,6 +110,10 @@ function descargarPlantilla() {
 
 export function CompaniesPage() {
   const [search, setSearch] = React.useState('');
+  const [page, setPage] = React.useState(1);
+  const [sortBy, setSortBy] = React.useState('');
+  const [sortOrder, setSortOrder] = React.useState('');
+  
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingCompany, setEditingCompany] = React.useState(null);
   const [deletingId, setDeletingId] = React.useState(null);
@@ -123,13 +127,36 @@ export function CompaniesPage() {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['companies', search],
+    queryKey: ['companies', search, page, sortBy, sortOrder],
     queryFn: async () => {
-      const { data } = await api.get('/companies', { params: { search, limit: 20 } });
+      const params = { search, limit: 15, page };
+      if (sortBy) params.sortBy = sortBy;
+      if (sortOrder) params.sortOrder = sortOrder;
+      const { data } = await api.get('/companies', { params });
       return data;
     },
     enabled: true,
   });
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      if (sortOrder === 'ASC') setSortOrder('DESC');
+      else if (sortOrder === 'DESC') {
+        setSortBy('');
+        setSortOrder('');
+      }
+    } else {
+      setSortBy(field);
+      setSortOrder('ASC');
+    }
+    setPage(1);
+  };
+
+  const getSortIcon = (field) => {
+    if (sortBy !== field) return <span style={{ opacity: 0.3, fontSize: '0.8rem' }}>↕</span>;
+    if (sortOrder === 'ASC') return <span style={{ color: 'var(--clr-primary-500)', fontSize: '0.8rem' }}>↑</span>;
+    return <span style={{ color: 'var(--clr-primary-500)', fontSize: '0.8rem' }}>↓</span>;
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => api.delete(`/companies/${id}`),
@@ -161,7 +188,7 @@ export function CompaniesPage() {
 
       <Topbar 
         title="Empresas" 
-        subtitle={data?.pagination ? `${companies.length} empresas` : 'Cargando...'} 
+        subtitle={data?.pagination?.total !== undefined ? `${data.pagination.total} empresas` : (data ? `${companies.length} empresas` : 'Cargando...')} 
         rightContent={
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             <button className="btn btn--ghost" onClick={descargarPlantilla}>
@@ -187,7 +214,7 @@ export function CompaniesPage() {
             style={{ paddingLeft: '2.5rem' }}
             placeholder="Buscar empresa o NIT…"
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
           />
         </div>
 
@@ -214,12 +241,24 @@ export function CompaniesPage() {
               <thead>
                 <tr>
                   <th style={{ width: 40 }}><input type="checkbox" className="custom-checkbox" /></th>
-                  <th>Empresa</th>
-                  <th>NIT</th>
-                  <th>Ciudad</th>
-                  <th>Contactos</th>
-                  <th>Oportunidades</th>
-                  <th>Responsable</th>
+                  <th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>Empresa {getSortIcon('name')}</div>
+                  </th>
+                  <th onClick={() => handleSort('nit')} style={{ cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>NIT {getSortIcon('nit')}</div>
+                  </th>
+                  <th onClick={() => handleSort('city')} style={{ cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>Ciudad {getSortIcon('city')}</div>
+                  </th>
+                  <th onClick={() => handleSort('contacts_count')} style={{ cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>Contactos {getSortIcon('contacts_count')}</div>
+                  </th>
+                  <th onClick={() => handleSort('open_opportunities_count')} style={{ cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>Oportunidades {getSortIcon('open_opportunities_count')}</div>
+                  </th>
+                  <th onClick={() => handleSort('assigned_to_name')} style={{ cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>Responsable {getSortIcon('assigned_to_name')}</div>
+                  </th>
                   <th></th>
                 </tr>
               </thead>
@@ -276,6 +315,30 @@ export function CompaniesPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {data?.pagination?.totalPages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginTop: '1.5rem' }}>
+            <button
+              className="btn btn--secondary btn--sm"
+              disabled={page === 1}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+            >
+              <ChevronLeft size={16} />
+              Anterior
+            </button>
+            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+              Página {page} de {data.pagination.totalPages}
+            </span>
+            <button
+              className="btn btn--secondary btn--sm"
+              disabled={page === data.pagination.totalPages}
+              onClick={() => setPage(p => Math.min(data.pagination.totalPages, p + 1))}
+            >
+              Siguiente
+              <ChevronRight size={16} />
+            </button>
           </div>
         )}
       </main>

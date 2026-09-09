@@ -7,13 +7,16 @@ const repo = new CompaniesRepository();
 export const companiesController = {
   async list(req, res, next) {
     try {
-      const { search, assignedTo, tags, limit, cursor } = req.query;
+      const { search, assignedTo, tags, limit, cursor, page, sortBy, sortOrder } = req.query;
       const result = await repo.findAll({
         search,
         assignedTo,
         tags: tags ? tags.split(',') : undefined,
         limit: parseInt(limit) || 20,
         cursor,
+        page: page ? parseInt(page) : undefined,
+        sortBy,
+        sortOrder
       });
       res.json({ success: true, ...result });
     } catch (err) { next(err); }

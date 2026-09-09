@@ -12,10 +12,13 @@ const actividadesRepo = new OtActividadesRepository();
 // ─── Órdenes de Trabajo ────────────────────────────────
 export const getAllOTs = async (req, res, next) => {
   try {
-    const { empresa_id, equipo_id, estado, tipo_mantenimiento, search, limit, cursor } = req.query;
+    const { empresa_id, equipo_id, estado, tipo_mantenimiento, search, limit, cursor, page, sortBy, sortOrder } = req.query;
     const result = await repo.findAllOT({
       empresa_id, equipo_id, estado, tipo_mantenimiento, search,
-      limit: parseInt(limit, 10) || 50, cursor
+      limit: parseInt(limit, 10) || 50, cursor,
+      page: page ? parseInt(page) : undefined,
+      sortBy,
+      sortOrder
     });
     res.json({ success: true, ...result });
   } catch (err) { next(err); }

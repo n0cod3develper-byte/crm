@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Plus, Search, Truck, Trash2, Edit, Building2, AlertTriangle, X, Eye, FileText } from 'lucide-react';
+import { Plus, Search, Truck, Trash2, Edit, Building2, AlertTriangle, X, Eye, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
@@ -19,6 +19,10 @@ export function EquiposPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = React.useState('');
+  const [page, setPage] = React.useState(1);
+  const [sortBy, setSortBy] = React.useState('');
+  const [sortOrder, setSortOrder] = React.useState('');
+
   const [filterMotor, setFilterMotor] = React.useState('all');
   const [filterFuel, setFilterFuel] = React.useState('all');
   const [filterTipo, setFilterTipo] = React.useState('all');
@@ -48,10 +52,13 @@ export function EquiposPage() {
       filterEstado,
       filterPropulsion,
       filterCiudad,
-      filterSoat
+      filterSoat,
+      page,
+      sortBy,
+      sortOrder
     ],
     queryFn: async () => {
-      const params = { limit: 100 };
+      const params = { limit: 20, page };
       if (search) params.search = search;
       if (filterMotor !== 'all') params.motor = filterMotor;
       if (filterFuel !== 'all') params.combustible = filterFuel;
@@ -60,11 +67,33 @@ export function EquiposPage() {
       if (filterPropulsion !== 'all') params.tipo_propulsion = filterPropulsion;
       if (filterCiudad.trim()) params.ciudad = filterCiudad.trim();
       if (filterSoat === 'alerta') params.soat = 'alerta';
+      if (sortBy) params.sortBy = sortBy;
+      if (sortOrder) params.sortOrder = sortOrder;
       
       const { data } = await api.get('/equipos', { params });
       return data;
     }
   });
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      if (sortOrder === 'ASC') setSortOrder('DESC');
+      else if (sortOrder === 'DESC') {
+        setSortBy('');
+        setSortOrder('');
+      }
+    } else {
+      setSortBy(field);
+      setSortOrder('ASC');
+    }
+    setPage(1);
+  };
+
+  const getSortIcon = (field) => {
+    if (sortBy !== field) return <span style={{ opacity: 0.3, fontSize: '0.8rem' }}>↕</span>;
+    if (sortOrder === 'ASC') return <span style={{ color: 'var(--clr-primary-500)', fontSize: '0.8rem' }}>↑</span>;
+    return <span style={{ color: 'var(--clr-primary-500)', fontSize: '0.8rem' }}>↓</span>;
+  };
 
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/equipos/${id}`),
@@ -117,7 +146,7 @@ export function EquiposPage() {
     <div className="app-layout">
       <Topbar 
         title="Equipos & Maquinaria" 
-        subtitle={`Gestiona la flota de tus clientes (${equipos.length} registrados)`} 
+        subtitle={data?.pagination?.total !== undefined ? `Gestiona la flota de tus clientes (${data.pagination.total} registrados)` : `Gestiona la flota de tus clientes (${equipos.length} registrados)`} 
         rightContent={
           <button className="btn btn--primary" onClick={handleCreate}>
             <Plus size={16} /> Nuevo Equipo
@@ -179,7 +208,7 @@ export function EquiposPage() {
                 style={{ paddingLeft: '2.5rem' }}
                 placeholder="Buscar por marca, modelo, serial o serie..."
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={e => { setSearch(e.target.value); setPage(1); }}
               />
             </div>
             
@@ -188,7 +217,7 @@ export function EquiposPage() {
                 className="input"
                 placeholder="Buscar por ciudad..."
                 value={filterCiudad}
-                onChange={e => setFilterCiudad(e.target.value)}
+                onChange={e => { setFilterCiudad(e.target.value); setPage(1); }}
               />
             </div>
           </div>
@@ -198,7 +227,7 @@ export function EquiposPage() {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', flex: 1 }}>
               {/* Tipo de Equipo */}
               <div style={{ minWidth: '150px' }}>
-                <select className="input" value={filterTipo} onChange={e => setFilterTipo(e.target.value)}>
+                <select className="input" value={filterTipo} onChange={e => { setFilterTipo(e.target.value); setPage(1); }}>
                   <option value="all">Todos los Equipos</option>
                   {TIPOS_EQUIPO.map(t => <option key={t.valor} value={t.valor}>{t.icono} {t.label}</option>)}
                 </select>
@@ -206,7 +235,7 @@ export function EquiposPage() {
 
               {/* Estado */}
               <div style={{ minWidth: '150px' }}>
-                <select className="input" value={filterEstado} onChange={e => setFilterEstado(e.target.value)}>
+                <select className="input" value={filterEstado} onChange={e => { setFilterEstado(e.target.value); setPage(1); }}>
                   <option value="all">Todos los Estados</option>
                   {ESTADOS_EQUIPO.map(e => <option key={e.valor} value={e.valor}>{e.label}</option>)}
                 </select>
@@ -214,7 +243,7 @@ export function EquiposPage() {
 
               {/* Tipo de Propulsión */}
               <div style={{ minWidth: '180px' }}>
-                <select className="input" value={filterPropulsion} onChange={e => setFilterPropulsion(e.target.value)}>
+                <select className="input" value={filterPropulsion} onChange={e => { setFilterPropulsion(e.target.value); setPage(1); }}>
                   <option value="all">Todas las Propulsiones</option>
                   {TIPOS_PROPULSION.map(tp => <option key={tp.valor} value={tp.valor}>{tp.label}</option>)}
                 </select>
@@ -222,7 +251,7 @@ export function EquiposPage() {
 
               {/* Legacy: Motor */}
               <div style={{ minWidth: '130px' }}>
-                <select className="input" value={filterMotor} onChange={e => setFilterMotor(e.target.value)}>
+                <select className="input" value={filterMotor} onChange={e => { setFilterMotor(e.target.value); setPage(1); }}>
                   <option value="all">Cualquier Motor</option>
                   {MOTORES.slice(1).map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
@@ -230,7 +259,7 @@ export function EquiposPage() {
 
               {/* Legacy: Combustible */}
               <div style={{ minWidth: '150px' }}>
-                <select className="input" value={filterFuel} onChange={e => setFilterFuel(e.target.value)}>
+                <select className="input" value={filterFuel} onChange={e => { setFilterFuel(e.target.value); setPage(1); }}>
                   <option value="all">Cualquier Combustible</option>
                   {COMBUSTIBLES.slice(1).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -273,16 +302,26 @@ export function EquiposPage() {
                 <thead>
                   <tr>
                     <th style={{ width: 80 }}>Foto</th>
-                    <th>Empresa</th>
+                    <th onClick={() => handleSort('empresa_nombre')} style={{ cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>Empresa {getSortIcon('empresa_nombre')}</div>
+                    </th>
                     <th>Tipo</th>
-                    <th>Marca / Modelo</th>
-                    <th>Serial</th>
+                    <th onClick={() => handleSort('marca')} style={{ cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>Marca / Modelo {getSortIcon('marca')}</div>
+                    </th>
+                    <th onClick={() => handleSort('serial')} style={{ cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>Serial {getSortIcon('serial')}</div>
+                    </th>
                     <th>Código</th>
-                    <th>Horómetro</th>
+                    <th onClick={() => handleSort('horometro_actual')} style={{ cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>Horómetro {getSortIcon('horometro_actual')}</div>
+                    </th>
                     <th>Combustible / Propulsión</th>
                     <th>Ubicación</th>
                     <th>SOAT</th>
-                    <th>Estado</th>
+                    <th onClick={() => handleSort('estado')} style={{ cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>Estado {getSortIcon('estado')}</div>
+                    </th>
                     <th style={{ textAlign: 'right' }}>Acciones</th>
                   </tr>
                 </thead>
@@ -533,6 +572,30 @@ export function EquiposPage() {
                 </tbody>
               </table>
             </div>
+            
+            {data?.pagination?.totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '1.5rem' }}>
+                <button
+                  className="btn btn--secondary btn--sm"
+                  disabled={page === 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft size={16} />
+                  Anterior
+                </button>
+                <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+                  Página {page} de {data.pagination.totalPages}
+                </span>
+                <button
+                  className="btn btn--secondary btn--sm"
+                  disabled={page === data.pagination.totalPages}
+                  onClick={() => setPage(p => Math.min(data.pagination.totalPages, p + 1))}
+                >
+                  Siguiente
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>

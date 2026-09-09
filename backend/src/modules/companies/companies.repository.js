@@ -2,7 +2,7 @@ import { query, withTransaction } from '../../config/database.js';
 import { NotFoundError, BadRequestError } from '../../utils/errors.js';
 
 export class CompaniesRepository {
-  async findAll({ search, assignedTo, tags, limit = 20, cursor }) {
+  async findAll({ search, assignedTo, tags, limit = 20, cursor, page, sortBy, sortOrder }) {
     const conditions = ['c.deleted_at IS NULL'];
     const params = [];
     let i = 1;
@@ -20,12 +20,45 @@ export class CompaniesRepository {
       conditions.push(`c.tags && $${i++}`);
       params.push(tags);
     }
-    if (cursor) {
+    
+    if (cursor && !page) {
       conditions.push(`c.id < $${i++}`);
       params.push(cursor);
     }
 
-    params.push(limit + 1);  // +1 para detectar si hay más páginas
+    const whereClause = conditions.join(' AND ');
+
+    let total = 0;
+    if (page) {
+      const countSql = `SELECT COUNT(*)::INT as total FROM companies c WHERE ${whereClause}`;
+      const countResult = await query(countSql, params);
+      total = countResult.rows[0].total;
+    }
+
+    const validSortFields = {
+      name: 'c.name',
+      nit: 'c.nit',
+      city: 'c.city',
+      contacts_count: 'contacts_count',
+      open_opportunities_count: 'open_opportunities_count',
+      assigned_to_name: 'assigned_to_name'
+    };
+
+    let orderClause = 'ORDER BY c.id DESC';
+    if (sortBy && validSortFields[sortBy]) {
+      const order = (sortOrder || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+      orderClause = `ORDER BY ${validSortFields[sortBy]} ${order} NULLS LAST`;
+    }
+
+    let limitClause = '';
+    if (page) {
+      const offset = (page - 1) * limit;
+      limitClause = `LIMIT $${i++} OFFSET $${i++}`;
+      params.push(limit, offset);
+    } else {
+      limitClause = `LIMIT $${i++}`;
+      params.push(limit + 1);  // +1 para detectar si hay más páginas
+    }
 
     const sql = `
       SELECT c.*,
@@ -41,23 +74,35 @@ export class CompaniesRepository {
       LEFT JOIN employees e ON e.id = c.responsable_captacion_id
       LEFT JOIN contacts ct ON ct.company_id = c.id AND ct.deleted_at IS NULL
       LEFT JOIN opportunities o ON o.company_id = c.id
-      WHERE ${conditions.join(' AND ')}
+      WHERE ${whereClause}
       GROUP BY c.id, (u.nombre || ' ' || u.apellido), e.full_name
-      ORDER BY c.id DESC
-      LIMIT $${i}
+      ${orderClause}
+      ${limitClause}
     `;
 
     const result = await query(sql, params);
-    const hasMore = result.rows.length > limit;
-    const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
-
-    return {
-      data: rows,
-      pagination: {
-        hasMore,
-        nextCursor: hasMore ? rows[rows.length - 1].id : null,
-      },
-    };
+    
+    if (page) {
+      return {
+        data: result.rows,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
+      };
+    } else {
+      const hasMore = result.rows.length > limit;
+      const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
+      return {
+        data: rows,
+        pagination: {
+          hasMore,
+          nextCursor: hasMore ? rows[rows.length - 1].id : null,
+        },
+      };
+    }
   }
 
   async findById(id) {

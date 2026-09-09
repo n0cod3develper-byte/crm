@@ -72,7 +72,7 @@ export class MantenimientoRepository {
   // ORDENES DE TRABAJO (OT)
   // ==========================================
 
-  async findAllOT({ empresa_id, equipo_id, estado, tipo_mantenimiento, search, limit = 50, cursor }) {
+  async findAllOT({ empresa_id, equipo_id, estado, tipo_mantenimiento, search, limit = 50, cursor, page, sortBy, sortOrder }) {
     const conditions = ['ot.deleted_at IS NULL'];
     const params = [];
     let i = 1;
@@ -86,11 +86,51 @@ export class MantenimientoRepository {
       params.push(`%${search.trim()}%`);
       i++;
     }
-    if (cursor) {
+    if (cursor && !page) {
       conditions.push(`ot.created_at < (SELECT created_at FROM ordenes_trabajo WHERE id = $${i++})`);
       params.push(cursor);
     }
-    params.push(limit + 1);
+
+    const whereClause = conditions.join(' AND ');
+
+    let total = 0;
+    if (page) {
+      const countSql = `
+        SELECT COUNT(*)::INT as total
+        FROM ordenes_trabajo ot
+        WHERE ${whereClause}
+      `;
+      const countResult = await query(countSql, params);
+      total = countResult.rows[0].total;
+    }
+
+    const validSortFields = {
+      consecutivo: 'ot.consecutivo',
+      empresa_nombre: 'c.name',
+      tipo_mantenimiento: 'ot.tipo_mantenimiento',
+      estado: 'ot.estado',
+      fecha_programada: 'ot.fecha_programada',
+      created_at: 'ot.created_at',
+      equipo_marca: 'e.marca'
+    };
+
+    let sortColumn = 'ot.created_at';
+    let dbSortOrder = 'DESC';
+
+    if (sortBy && validSortFields[sortBy]) {
+      sortColumn = validSortFields[sortBy];
+      dbSortOrder = (sortOrder || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+    }
+
+    let limitClause = '';
+    if (page) {
+      const offset = (page - 1) * limit;
+      limitClause = `LIMIT $${i++} OFFSET $${i++}`;
+      params.push(limit, offset);
+    } else {
+      limitClause = `LIMIT $${i++}`;
+      params.push(limit + 1);
+    }
 
     const sql = `
       SELECT ot.*, 
@@ -101,9 +141,9 @@ export class MantenimientoRepository {
       JOIN companies c ON c.id = ot.empresa_id
       JOIN equipos e ON e.id = ot.equipo_id
       LEFT JOIN pm_frecuencias f ON f.id = ot.pm_frecuencia_id
-      WHERE ${conditions.join(' AND ')}
-      ORDER BY ot.created_at DESC
-      LIMIT $${i}
+      WHERE ${whereClause}
+      ORDER BY ${sortColumn} ${dbSortOrder} NULLS LAST
+      ${limitClause}
     `;
 
     const result = await query(sql, params);
@@ -111,8 +151,9 @@ export class MantenimientoRepository {
     const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
 
     // Obtener los técnicos asignados de manera agregada
-    if (rows.length > 0) {
-      const otIds = rows.map(r => r.id);
+    if (result.rows.length > 0) {
+      const rowsToMap = page ? result.rows : rows;
+      const otIds = rowsToMap.map(r => r.id);
       const tecnicosStr = otIds.map((_, index) => `$${index + 1}`).join(', ');
       
       const tecnicosRes = await query(`
@@ -122,14 +163,26 @@ export class MantenimientoRepository {
         WHERE t.orden_trabajo_id IN (${tecnicosStr})
       `, otIds);
 
-      rows.forEach(r => {
+      rowsToMap.forEach(r => {
         r.tecnicos = tecnicosRes.rows
           .filter(t => t.orden_trabajo_id === r.id)
           .map(t => t.full_name);
       });
     }
 
-    return { data: rows, pagination: { hasMore, nextCursor: hasMore ? rows[rows.length - 1].id : null } };
+    if (page) {
+      return {
+        data: result.rows,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
+      };
+    } else {
+      return { data: rows, pagination: { hasMore, nextCursor: hasMore ? rows[rows.length - 1].id : null } };
+    }
   }
 
   async findOTById(id) {

@@ -15,7 +15,10 @@ export class EquiposRepository {
     search,
     limit = 50,
     cursor,
-    orden
+    orden,
+    page,
+    sortBy,
+    sortOrder
   }) {
     const conditions = ['deleted_at IS NULL'];
     const params = [];
@@ -76,41 +79,84 @@ export class EquiposRepository {
       i++;
     }
 
-    if (cursor) {
+    if (cursor && !page) {
       conditions.push(`created_at < (SELECT created_at FROM equipos WHERE id = $${i++})`);
       params.push(cursor);
     }
 
-    params.push(limit + 1);
+    const whereClause = conditions.join(' AND ');
+
+    let total = 0;
+    if (page) {
+      const countSql = `SELECT COUNT(*)::INT as total FROM equipos_completo WHERE ${whereClause}`;
+      const countResult = await query(countSql, params);
+      total = countResult.rows[0].total;
+    }
 
     // Mapeo seguro de columnas de ordenamiento para evitar inyección de SQL
     let sortColumn = 'created_at';
-    let sortOrder = 'DESC';
+    let dbSortOrder = 'DESC';
 
-    if (orden) {
+    const validSortFields = {
+      marca: 'marca',
+      modelo: 'modelo',
+      estado: 'estado',
+      horometro_actual: 'horometro_actual',
+      created_at: 'created_at',
+      serial: 'serial',
+      empresa_nombre: 'empresa_nombre'
+    };
+
+    if (sortBy && validSortFields[sortBy]) {
+      sortColumn = validSortFields[sortBy];
+      dbSortOrder = (sortOrder || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+    } else if (orden) {
+      // Legacy param
       const allowedSort = ['marca', 'modelo', 'estado', 'horometro_actual', 'created_at'];
       if (allowedSort.includes(orden)) {
         sortColumn = orden;
-        sortOrder = orden === 'created_at' ? 'DESC' : 'ASC';
+        dbSortOrder = orden === 'created_at' ? 'DESC' : 'ASC';
       }
+    }
+
+    let limitClause = '';
+    if (page) {
+      const offset = (page - 1) * limit;
+      limitClause = `LIMIT $${i++} OFFSET $${i++}`;
+      params.push(limit, offset);
+    } else {
+      limitClause = `LIMIT $${i++}`;
+      params.push(limit + 1);
     }
 
     const sql = `
       SELECT *
       FROM equipos_completo
-      WHERE ${conditions.join(' AND ')}
-      ORDER BY ${sortColumn} ${sortOrder}
-      LIMIT $${i}
+      WHERE ${whereClause}
+      ORDER BY ${sortColumn} ${dbSortOrder} NULLS LAST
+      ${limitClause}
     `;
 
     const result = await query(sql, params);
-    const hasMore = result.rows.length > limit;
-    const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
 
-    return {
-      data: rows,
-      pagination: { hasMore, nextCursor: hasMore ? rows[rows.length - 1].id : null },
-    };
+    if (page) {
+      return {
+        data: result.rows,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
+      };
+    } else {
+      const hasMore = result.rows.length > limit;
+      const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
+      return {
+        data: rows,
+        pagination: { hasMore, nextCursor: hasMore ? rows[rows.length - 1].id : null },
+      };
+    }
   }
 
   async findById(id) {
