@@ -157,6 +157,7 @@ const MIGRATION_FILES = [
   '124_quotes_servicios_terms.sql',
   '125_categoria_ubicacion_default.sql',
   '126_familias_consecutivo_automatico.sql',
+  '127_fix_indice_ubicacion_bodega.sql',
 ];
 
 
