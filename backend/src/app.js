@@ -65,6 +65,7 @@ import certificadosPublicoRoutes from './modules/certificados/certificadosPublic
 import serviciosNegadosRoutes from './modules/servicios_negados/serviciosNegados.routes.js';
 import emailMarketingRoutes from './modules/email-marketing/email-marketing.routes.js';
 import contabilidadRoutes from './modules/contabilidad/contabilidad.routes.js';
+import busquedaGlobalRoutes from './modules/busqueda-global/busquedaGlobal.routes.js';
 import { iniciarJobCierreAutomatico } from './jobs/turnosCierreAutomatico.job.js';
 import { iniciarJobSoatEmail } from './jobs/soatEmailNotifier.js';
 import { iniciarJobCierreContableOT } from './jobs/cierreContableOT.job.js';
@@ -243,6 +244,7 @@ import centrosCostosRoutes from './modules/centros_costos/centros_costos.routes.
 app.use('/api/prompt-specs', promptSpecsRoutes);
 app.use(`${API}/centros-costos`, centrosCostosRoutes);
 app.use(`${API}/contabilidad`, contabilidadRoutes);
+app.use(`${API}/busqueda-global`, busquedaGlobalRoutes);
 // ─── Email Marketing (tracking público + rutas protegidas) ───
 app.use('/api/email-marketing', emailMarketingRoutes);
 app.use(`${API}/email-marketing`, emailMarketingRoutes);
