@@ -60,6 +60,22 @@ export const buscarItems = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+export const getInforme = async (req, res, next) => {
+  try {
+    const { fecha_desde, fecha_hasta, tipo, search, categoria_id, limit, offset } = req.query;
+    const result = await repo.getInforme({
+      fecha_desde,
+      fecha_hasta,
+      tipo,
+      search,
+      categoria_id,
+      limit: limit ? parseInt(limit) : 5000,
+      offset: offset ? parseInt(offset) : 0
+    });
+    res.json({ success: true, ...result });
+  } catch (err) { next(err); }
+};
+
 export const getAlertas = async (req, res, next) => {
   try {
     const alertas = await repo.getAlertas();

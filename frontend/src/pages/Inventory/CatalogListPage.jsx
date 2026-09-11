@@ -3,9 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { catalogApi } from '../../services/catalogApi';
 import { 
   Search, Filter, Plus, Package, Wrench, MoreHorizontal, ChevronRight, 
-  ChevronLeft, Image as ImageIcon, FileSpreadsheet, Upload,
+  ChevronLeft, Image as ImageIcon, FileSpreadsheet, Upload, Download,
   ArrowUpDown, ArrowUp, ArrowDown 
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '../../utils/formatters';
 import { usePermissions } from '../../contexts/PermissionsContext';
@@ -73,6 +75,66 @@ export function CatalogListPage() {
     setPage(1);
   };
 
+  const handleExportExcel = async () => {
+    try {
+      toast.loading('Generando archivo Excel...', { id: 'export-cat' });
+      
+      const res = await catalogApi.getInforme({
+        tipo: tipo !== 'todos' ? tipo : undefined,
+        search: search || undefined,
+        categoria_id: categoria || undefined,
+        limit: 10000
+      });
+
+      const items = res?.items || [];
+      if (!items.length) {
+        toast.error('No hay registros para exportar con los filtros seleccionados', { id: 'export-cat' });
+        return;
+      }
+
+      const rows = items.map((item) => ({
+        'Tipo': item.tipo === 'PRODUCTO' ? 'Producto' : 'Servicio',
+        'Código Interno': item.codigo_interno || '—',
+        'Nombre Comercial': item.nombre_comercial || '—',
+        'Nombre Interno / Ref': item.nombre_interno || '—',
+        'Referencia Fabricante': item.referencia_fabricante || '—',
+        'Referencia Sistema (SKU)': item.referencia_sistema || '—',
+        'Marca': item.marca || '—',
+        'Familia / Categoría': item.categoria_nombre || '—',
+        'Área': item.area || '—',
+        'Ubicación Física': item.codigo_ubicacion || '—',
+        'Unidad de Medida': item.unidad_medida || '—',
+        'Stock Actual': item.tipo === 'PRODUCTO' ? Number(item.stock_actual || 0) : 'N/A',
+        'Stock Mínimo': item.tipo === 'PRODUCTO' ? Number(item.stock_minimo || 0) : 'N/A',
+        'Precio Venta': Number(item.precio_venta || 0),
+        'Costo Reposición / Mínimo': Number(item.costo_o_minimo || 0),
+        'Aplica IVA': item.aplica_iva ? 'SÍ' : 'NO',
+        '% IVA': item.iva_pct ? Number(item.iva_pct) : 0,
+        'Estado': item.is_active ? 'Activo' : 'Inactivo',
+        'Fecha de Creación': item.created_at ? new Date(item.created_at).toLocaleDateString('es-CO') : '—'
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const colWidths = Object.keys(rows[0] || {}).map(key => ({
+        wch: Math.max(key.length + 4, 14)
+      }));
+      ws['!cols'] = colWidths;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Catálogo');
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      const tipoStr = tipo.toLowerCase();
+      const filename = `Catalogo_Productos_Servicios_${tipoStr}_${todayStr}.xlsx`;
+
+      XLSX.writeFile(wb, filename);
+      toast.success('Catálogo descargado correctamente en Excel', { id: 'export-cat' });
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al generar el archivo Excel', { id: 'export-cat' });
+    }
+  };
+
   const renderSortIcon = (field) => {
     if (sortBy !== field) {
       return <ArrowUpDown size={13} style={{ opacity: 0.35, marginLeft: '5px', verticalAlign: 'middle' }} />;
@@ -91,6 +153,14 @@ export function CatalogListPage() {
         subtitle="Listado unificado de familias de productos y servicios profesionales"
         rightContent={
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button 
+              type="button" 
+              onClick={handleExportExcel}
+              className="btn btn--secondary flex items-center gap-2"
+              title="Descargar catálogo de producto en Excel (.xlsx)"
+            >
+              <FileSpreadsheet size={18} color="#16a34a" /> Exportar Excel
+            </button>
             <button 
               type="button" 
               onClick={() => setIsImportModalOpen(true)}
@@ -137,7 +207,7 @@ export function CatalogListPage() {
                 <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input 
                   type="text" 
-                  placeholder="Buscar por nombre, código o referencia..."
+                  placeholder="Buscar por nombre, código interno o referencia…"
                   className="input"
                   style={{ paddingLeft: '2.5rem' }}
                   value={search}
@@ -249,9 +319,9 @@ export function CatalogListPage() {
                             <span style={{ fontSize: '0.625rem', fontWeight: 700, padding: '0.125rem 0.375rem', borderRadius: '4px', background: 'var(--bg-app)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                               {item.codigo_interno}
                             </span>
-                            {item.nombre_interno && item.nombre_interno !== item.codigo_interno && (
+                            {(item.referencia_fabricante || (item.nombre_interno && item.nombre_interno !== item.codigo_interno && item.nombre_interno !== item.nombre_comercial)) && (
                               <span style={{ fontSize: '0.625rem', fontWeight: 700, padding: '0.125rem 0.375rem', borderRadius: '4px', background: 'rgba(59,130,246,0.1)', color: 'var(--clr-info)', textTransform: 'uppercase' }}>
-                                Ref: {item.nombre_interno}
+                                Ref: {item.referencia_fabricante || item.nombre_interno}
                               </span>
                             )}
                             {item.marca && (

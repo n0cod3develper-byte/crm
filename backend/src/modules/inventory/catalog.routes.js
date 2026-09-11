@@ -34,6 +34,7 @@ const excelUpload = multer({
 router.get('/',               ctrl.getItems);
 router.get('/buscar',         ctrl.buscarItems);
 router.get('/alertas',        ctrl.getAlertas);
+router.get('/informe',        ctrl.getInforme);
 router.get('/categorias',     ctrl.getCategorias);
 router.get('/categorias/:id/siguiente-consecutivo', ctrl.getSiguienteConsecutivo);
 router.get('/unidades',       ctrl.getUnidades);

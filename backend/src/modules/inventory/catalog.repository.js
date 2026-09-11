@@ -29,10 +29,19 @@ export class CatalogRepository {
       params.push(categoria);
       i++;
     }
-    if (search) {
-      conditions.push(`search_vector @@ plainto_tsquery('spanish', $${i})`);
-      params.push(search);
-      i++;
+    if (search && search.trim() !== '') {
+      const term = `%${search.trim()}%`;
+      conditions.push(`(
+        nombre_comercial ILIKE $${i} OR
+        nombre_interno ILIKE $${i} OR
+        codigo_interno ILIKE $${i} OR
+        referencia_fabricante ILIKE $${i} OR
+        referencia_sistema ILIKE $${i} OR
+        marca ILIKE $${i} OR
+        (search_vector IS NOT NULL AND search_vector @@ plainto_tsquery('spanish', $${i + 1}))
+      )`);
+      params.push(term, search.trim());
+      i += 2;
     }
     if (con_stock === 'true') {
       conditions.push(`stock_actual > 0`);
@@ -106,10 +115,19 @@ export class CatalogRepository {
       conditions.push(`tipo = $${i++}`);
       params.push(tipo);
     }
-    if (q) {
-      conditions.push(`search_vector @@ plainto_tsquery('spanish', $${i})`);
-      params.push(q);
-      i++;
+    if (q && q.trim() !== '') {
+      const term = `%${q.trim()}%`;
+      conditions.push(`(
+        nombre_comercial ILIKE $${i} OR
+        nombre_interno ILIKE $${i} OR
+        codigo_interno ILIKE $${i} OR
+        referencia_fabricante ILIKE $${i} OR
+        referencia_sistema ILIKE $${i} OR
+        marca ILIKE $${i} OR
+        (search_vector IS NOT NULL AND search_vector @@ plainto_tsquery('spanish', $${i + 1}))
+      )`);
+      params.push(term, q.trim());
+      i += 2;
     }
 
     // Use only columns that exist in the catalogo_completo view
@@ -653,6 +671,118 @@ export class CatalogRepository {
       creados,
       actualizados,
       errores
+    };
+  }
+
+  /**
+   * Informe de catálogo con filtros de rango de fechas y tipo (Productos / Servicios / Todos)
+   */
+  async getInforme({ fecha_desde, fecha_hasta, tipo, search, categoria_id, limit = 5000, offset = 0 }) {
+    const conditions = ['activo_catalogo = TRUE'];
+    const params = [];
+    let i = 1;
+
+    if (tipo && tipo !== 'todos') {
+      conditions.push(`tipo = $${i++}`);
+      params.push(tipo);
+    }
+
+    if (fecha_desde) {
+      conditions.push(`created_at >= $${i++}`);
+      params.push(`${fecha_desde} 00:00:00`);
+    }
+
+    if (fecha_hasta) {
+      conditions.push(`created_at <= $${i++}`);
+      params.push(`${fecha_hasta} 23:59:59`);
+    }
+
+    if (categoria_id) {
+      conditions.push(`(categoria_id::text = $${i} OR categoria_nombre = $${i})`);
+      params.push(categoria_id);
+      i++;
+    }
+
+    if (search && search.trim() !== '') {
+      const term = `%${search.trim()}%`;
+      conditions.push(`(
+        nombre_comercial ILIKE $${i} OR
+        nombre_interno ILIKE $${i} OR
+        codigo_interno ILIKE $${i} OR
+        referencia_fabricante ILIKE $${i} OR
+        referencia_sistema ILIKE $${i} OR
+        marca ILIKE $${i}
+      )`);
+      params.push(term);
+      i++;
+    }
+
+    const whereClause = conditions.join(' AND ');
+
+    // 1. Resumen / Métricas de totales
+    const summarySql = `
+      SELECT 
+        COUNT(*)::INT AS total_registros,
+        COUNT(CASE WHEN tipo = 'PRODUCTO' THEN 1 END)::INT AS total_productos,
+        COUNT(CASE WHEN tipo = 'SERVICIO' THEN 1 END)::INT AS total_servicios,
+        COALESCE(SUM(CASE WHEN tipo = 'PRODUCTO' THEN stock_actual ELSE 0 END), 0)::NUMERIC AS total_stock,
+        COALESCE(SUM(CASE WHEN tipo = 'PRODUCTO' THEN stock_actual * COALESCE(costo_o_minimo, 0) ELSE 0 END), 0)::NUMERIC AS valor_inventario_costo,
+        COALESCE(SUM(CASE WHEN tipo = 'PRODUCTO' THEN stock_actual * COALESCE(precio_venta, 0) ELSE 0 END), 0)::NUMERIC AS valor_inventario_venta
+      FROM catalogo_completo
+      WHERE ${whereClause}
+    `;
+
+    // 2. Registros detallados
+    const parsedLimit = Math.min(10000, Math.max(1, Number(limit) || 5000));
+    const parsedOffset = Math.max(0, Number(offset) || 0);
+
+    const dataSql = `
+      SELECT 
+        id,
+        tipo,
+        codigo_interno,
+        nombre_comercial,
+        nombre_interno,
+        referencia_fabricante,
+        referencia_sistema,
+        marca,
+        area,
+        categoria_nombre,
+        categoria_color,
+        unidad_medida,
+        codigo_ubicacion,
+        stock_actual,
+        stock_minimo,
+        precio_venta,
+        costo_o_minimo,
+        aplica_iva,
+        iva_pct,
+        is_active,
+        created_at,
+        updated_at
+      FROM catalogo_completo
+      WHERE ${whereClause}
+      ORDER BY created_at DESC, codigo_interno ASC
+      LIMIT $${i++} OFFSET $${i++}
+    `;
+    const dataParams = [...params, parsedLimit, parsedOffset];
+
+    const [summaryRes, dataRes] = await Promise.all([
+      query(summarySql, params),
+      query(dataSql, dataParams)
+    ]);
+
+    return {
+      summary: summaryRes.rows[0] || {
+        total_registros: 0,
+        total_productos: 0,
+        total_servicios: 0,
+        total_stock: 0,
+        valor_inventario_costo: 0,
+        valor_inventario_venta: 0
+      },
+      items: dataRes.rows,
+      total: summaryRes.rows[0]?.total_registros || 0
     };
   }
 }

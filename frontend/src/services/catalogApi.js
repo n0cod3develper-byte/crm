@@ -3,6 +3,7 @@ import api from '../lib/api';
 export const catalogApi = {
   getItems: (params) => api.get('/catalogo', { params }).then(res => res.data),
   getItem: (id) => api.get(`/catalogo/${id}`).then(res => res.data),
+  getInforme: (params) => api.get('/catalogo/informe', { params }).then(res => res.data),
   buscar: (q, tipo, limit = 10) => api.get('/catalogo/buscar', { params: { q, tipo, limit } }).then(res => res.data),
   getAlertas: () => api.get('/catalogo/alertas').then(res => res.data),
   getCategorias: () => api.get('/catalogo/categorias').then(res => res.data),
