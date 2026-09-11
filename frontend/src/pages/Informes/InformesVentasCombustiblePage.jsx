@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Fuel, ArrowLeft, RefreshCw, Download, Calendar } from 'lucide-react';
+import { Fuel, ArrowLeft, RefreshCw, FileSpreadsheet, Calendar } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import toast from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
 import api from '../../lib/api';
 
@@ -54,28 +56,55 @@ export function InformesVentasCombustiblePage() {
 
   const rows = data?.data || [];
   const totalBruto = rows.reduce((sum, r) => sum + parseFloat(r.total_bruto || 0), 0);
+  const totalHoras = rows.reduce((sum, r) => sum + parseFloat(r.cantidad_horas || 0), 0);
 
   // ── Export helpers ──
-  const exportToCSV = () => {
-    if (!rows.length) return;
-    const headers = ['N° Remisión', 'Fecha Servicio', 'Cliente', 'Equipo', 'Tipo Servicio', 'Estado', 'Valor'];
-    const csvRows = rows.map(r => [
-      r.numero_remision || '',
-      r.fecha_servicio ? new Date(r.fecha_servicio).toISOString().slice(0, 10) : '',
-      `"${(r.cliente || '').replace(/"/g, '""')}"`,
-      `"${(r.equipo || '').replace(/"/g, '""')}"`,
-      `"${(r.tipo_servicio || '').replace(/"/g, '""')}"`,
-      r.estado || '',
-      r.total_bruto || 0
-    ]);
-    const csv = [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `ventas_combustible_${appliedFilters.desde}_${appliedFilters.hasta}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExportExcel = () => {
+    if (!rows.length) {
+      toast.error('No hay datos para exportar');
+      return;
+    }
+    try {
+      const wsData = [
+        ['INFORME DE VENTAS CON COMBUSTIBLE'],
+        [`Rango de fechas: ${formatDate(appliedFilters.desde)} al ${formatDate(appliedFilters.hasta)}`],
+        [`Generado el: ${new Date().toLocaleString('es-CO')}`],
+        [],
+        ['No. Remisión', 'Fecha Servicio', 'Cliente', 'Equipo', 'Tipo Servicio', 'Estado', 'Horas', 'Valor Bruto (COP)'],
+        ...rows.map(r => [
+          r.numero_remision || '',
+          formatDate(r.fecha_servicio),
+          r.cliente || 'Sin Cliente',
+          r.equipo || '—',
+          r.tipo_servicio || '—',
+          r.estado || '',
+          parseFloat(r.cantidad_horas || 0),
+          parseFloat(r.total_bruto || 0)
+        ]),
+        [],
+        ['TOTALES', '', '', '', '', `${rows.length} Remisión(es)`, totalHoras, totalBruto]
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      ws['!cols'] = [
+        { wch: 16 }, // No. Remisión
+        { wch: 16 }, // Fecha
+        { wch: 32 }, // Cliente
+        { wch: 18 }, // Equipo
+        { wch: 38 }, // Tipo Servicio
+        { wch: 16 }, // Estado
+        { wch: 14 }, // Horas
+        { wch: 22 }  // Valor
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Ventas Combustible');
+      XLSX.writeFile(wb, `ventas_combustible_${appliedFilters.desde}_${appliedFilters.hasta}.xlsx`);
+      toast.success('Excel exportado con éxito');
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al exportar a Excel');
+    }
   };
 
   const estadoColor = (estado) => {
@@ -163,7 +192,7 @@ export function InformesVentasCombustiblePage() {
           </button>
           {rows.length > 0 && (
             <button
-              onClick={exportToCSV}
+              onClick={handleExportExcel}
               style={{
                 padding: '0.5rem 1rem', borderRadius: '8px',
                 background: 'var(--bg-elevated)', border: '1px solid var(--border-color)',
@@ -171,8 +200,9 @@ export function InformesVentasCombustiblePage() {
                 display: 'flex', alignItems: 'center', gap: '0.4rem',
                 fontSize: '0.85rem'
               }}
+              title="Descargar en formato Excel (.xlsx)"
             >
-              <Download size={16} /> CSV
+              <FileSpreadsheet size={16} color="#16a34a" /> Exportar Excel
             </button>
           )}
         </div>
@@ -208,6 +238,7 @@ export function InformesVentasCombustiblePage() {
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Equipo</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Tipo Servicio</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)' }}>Estado</th>
+                  <th style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)' }}>Horas</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)' }}>Valor</th>
                 </tr>
               </thead>
@@ -250,6 +281,9 @@ export function InformesVentasCombustiblePage() {
                         {r.estado || '—'}
                       </span>
                     </td>
+                    <td style={{ padding: '0.6rem 1rem', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)' }}>
+                      {parseFloat(r.cantidad_horas || 0).toFixed(2)} h
+                    </td>
                     <td style={{ padding: '0.6rem 1rem', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                       {formatCOP(r.total_bruto)}
                     </td>
@@ -260,6 +294,9 @@ export function InformesVentasCombustiblePage() {
                 <tr style={{ background: 'var(--bg-elevated)', borderTop: '2px solid var(--border-color)' }}>
                   <td colSpan={6} style={{ padding: '0.75rem 1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                     Total ({rows.length} remisión(es))
+                  </td>
+                  <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, fontSize: '0.95rem', color: '#ea580c', fontVariantNumeric: 'tabular-nums' }}>
+                    {totalHoras.toFixed(2)} h
                   </td>
                   <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, fontSize: '0.95rem', color: '#ea580c', fontVariantNumeric: 'tabular-nums' }}>
                     {formatCOP(totalBruto)}

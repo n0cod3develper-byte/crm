@@ -96,6 +96,7 @@ const InformeRemisionesLiquidadasPage = lazy(() => import('./pages/Informes/Info
 const HorasExtrasIndexPage = lazy(() => import('./pages/Informes/HorasExtrasIndexPage').then(m => ({ default: m.HorasExtrasIndexPage })));
 const HorasExtrasServiciosPage = lazy(() => import('./pages/Informes/HorasExtrasServiciosPage').then(m => ({ default: m.HorasExtrasServiciosPage })));
 const HorasExtrasMantenimientoPage = lazy(() => import('./pages/Informes/HorasExtrasMantenimientoPage').then(m => ({ default: m.HorasExtrasMantenimientoPage })));
+const InformeCatalogoPage = lazy(() => import('./pages/Informes/InformeCatalogoPage').then(m => ({ default: m.InformeCatalogoPage })));
 
 // Email Marketing Lazy Pages
 const EmailMarketingPage = lazy(() => import('./pages/EmailMarketing/EmailMarketingPage').then(m => ({ default: m.EmailMarketingPage })));
@@ -212,6 +213,7 @@ function App() {
                 
                 {/* Comercial */}
                 <Route path="/contacts" element={<ProtectedRoute modulo="contactos" accion="ver"><ContactsPage /></ProtectedRoute>} />
+                <Route path="/contacts/:id" element={<ProtectedRoute modulo="contactos" accion="ver"><ContactsPage /></ProtectedRoute>} />
                 <Route path="/pipeline" element={<ProtectedRoute modulo="pipeline" accion="ver"><PipelinePage /></ProtectedRoute>} />
                 <Route path="/tasks" element={<ProtectedRoute modulo="tareas" accion="ver"><TasksPage /></ProtectedRoute>} />
                 {/* Cotizaciones Clientes */}
@@ -287,6 +289,7 @@ function App() {
                 <Route path="/informes/horas-extras/servicios" element={<ProtectedRoute><HorasExtrasServiciosPage /></ProtectedRoute>} />
                 <Route path="/informes/horas-extras/mantenimiento" element={<ProtectedRoute><HorasExtrasMantenimientoPage /></ProtectedRoute>} />
                 <Route path="/informes/email-marketing" element={<ProtectedRoute><InformesEmailMarketingPage /></ProtectedRoute>} />
+                <Route path="/informes/catalogo" element={<ProtectedRoute><InformeCatalogoPage /></ProtectedRoute>} />
 
                 {/* Email Marketing CRUD routes */}
                 <Route path="/email-marketing" element={<ProtectedRoute modulo="email_marketing" accion="ver"><EmailMarketingPage /></ProtectedRoute>} />

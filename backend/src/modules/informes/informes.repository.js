@@ -878,6 +878,7 @@ export class InformesRepository {
         COALESCE(c.name, 'Sin Cliente') AS cliente,
         eq.serie AS equipo,
         cs.nombre AS tipo_servicio,
+        COALESCE(r.cantidad_horas, 0)::numeric AS cantidad_horas,
         r.total_bruto
       FROM remisiones r
       LEFT JOIN catalogo_servicios cs ON cs.id = r.catalogo_servicio_id
