@@ -1,4 +1,5 @@
 import React from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Users, Mail, Phone, Building2, Truck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -18,11 +19,20 @@ const TIPOS = [
 ];
 
 export function ContactsPage() {
-  const [search, setSearch] = React.useState('');
+  const [searchParams] = useSearchParams();
+  const initialSearch = searchParams.get('search') || '';
+  const [search, setSearch] = React.useState(initialSearch);
   const [tipo, setTipo] = React.useState('todos');
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingContact, setEditingContact] = React.useState(null);
   const [deletingId, setDeletingId] = React.useState(null);
+
+  React.useEffect(() => {
+    const urlQuery = searchParams.get('search');
+    if (urlQuery !== null) {
+      setSearch(urlQuery);
+    }
+  }, [searchParams]);
 
   const queryClient = useQueryClient();
 

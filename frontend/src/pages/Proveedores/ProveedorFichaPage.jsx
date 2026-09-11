@@ -69,7 +69,7 @@ export function ProveedorFichaPage() {
             </button>
             <div className="flex items-center gap-4">
                <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--clr-primary-500)', display: 'grid', placeItems: 'center', color: 'white', fontWeight: 800, fontSize: '1.25rem' }}>
-                  {proveedor.razon_social.charAt(0)}
+                  {proveedor.razon_social?.charAt(0) || 'P'}
                </div>
                
                   <div className="flex items-center gap-3 text-sm text-muted">
@@ -176,14 +176,14 @@ export function ProveedorFichaPage() {
                            <CreditCard size={18} className="text-muted" />
                            <div>
                               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Términos de Pago</div>
-                              <div style={{ fontWeight: 500 }}>{proveedor.condicion_pago.replace('_', ' ')}</div>
+                              <div style={{ fontWeight: 500 }}>{proveedor.condicion_pago ? proveedor.condicion_pago.replace('_', ' ') : '—'}</div>
                            </div>
                         </div>
                         <div className="flex gap-3">
                            <ShieldCheck size={18} className="text-muted" />
                            <div>
                               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Régimen Tributario</div>
-                              <div style={{ fontWeight: 500 }}>{proveedor.regimen_tributario.replace('_', ' ')}</div>
+                              <div style={{ fontWeight: 500 }}>{proveedor.regimen_tributario ? proveedor.regimen_tributario.replace('_', ' ') : '—'}</div>
                            </div>
                         </div>
                         <div className="flex gap-3">

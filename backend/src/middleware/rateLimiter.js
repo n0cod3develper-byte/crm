@@ -66,6 +66,20 @@ export const certificadoLimiter = rateLimit({
 });
 
 /**
+ * Rate limiter para búsqueda global — 30 req/min por usuario
+ */
+export const searchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.userId || req.ip,
+  handler: (_req, _res, next) => {
+    next(new AppError('Demasiadas búsquedas. Espera 1 minuto.', 429));
+  },
+});
+
+/**
  * Rate limiter para recuperación de contraseña — 5 req/15min por IP
  * Más estricto que authLimiter para prevenir spam de correos
  */
