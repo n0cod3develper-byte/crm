@@ -1,7 +1,7 @@
 import { query } from '../../config/database.js';
 
 export class InventoryRepository {
-  async findAll({ area, category, search, isActive, limit = 50, cursor }) {
+  async findAll({ area, category, search, isActive, limit = 20, cursor, page, sortBy, sortOrder }) {
     const conditions = ['1=1'];
     const params = [];
     let i = 1;
@@ -12,7 +12,7 @@ export class InventoryRepository {
     }
 
     if (category && category !== 'undefined') {
-      conditions.push(`categoria_id = $${i++}`); // Se cambió a categoria_id
+      conditions.push(`categoria_id = $${i++}`);
       params.push(category);
     }
     if (isActive !== undefined && isActive !== 'undefined' && isActive !== '') {
@@ -20,16 +20,60 @@ export class InventoryRepository {
       params.push(isActive === 'true');
     }
     if (search && search.trim() !== '') {
-      conditions.push(`(name ILIKE $${i} OR sku ILIKE $${i} OR codigo_interno ILIKE $${i})`);
+      conditions.push(`(name ILIKE $${i} OR sku ILIKE $${i} OR codigo_interno ILIKE $${i} OR referencia_fabricante ILIKE $${i})`);
       params.push(`%${search.trim()}%`);
       i++;
     }
-    if (cursor) {
+    if (cursor && !page) {
       conditions.push(`created_at < (SELECT created_at FROM inventario WHERE id = $${i++})`);
       params.push(cursor);
     }
 
-    params.push(limit + 1);
+    const whereClause = conditions.join(' AND ');
+
+    // COUNT total solo cuando se usa paginación por página
+    let total = 0;
+    if (page) {
+      const countSql = `
+        SELECT COUNT(*)::INT as total
+        FROM inventario i
+        LEFT JOIN catalogo_categorias c ON i.categoria_id = c.id
+        WHERE ${whereClause}
+      `;
+      const countResult = await query(countSql, params);
+      total = countResult.rows[0].total;
+    }
+
+    // Whitelist de columnas ordenables — evita inyección SQL
+    const VALID_SORT_FIELDS = {
+      codigo_interno:        'i.codigo_interno',
+      name:                  'i.name',
+      referencia_fabricante: 'i.referencia_fabricante',
+      marca:                 'i.marca',
+      area:                  'i.area',
+      familia_nombre:        'c.nombre',
+      stock_actual:          'i.stock_actual',
+      unit_price:            'i.unit_price',
+      is_active:             'i.is_active',
+    };
+
+    let sortCol = 'i.name';
+    let dbSortDir = 'ASC';
+
+    if (sortBy && VALID_SORT_FIELDS[sortBy]) {
+      sortCol = VALID_SORT_FIELDS[sortBy];
+      dbSortDir = (sortOrder || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+    }
+
+    let limitClause;
+    if (page) {
+      const offset = (page - 1) * limit;
+      limitClause = `LIMIT $${i++} OFFSET $${i++}`;
+      params.push(limit, offset);
+    } else {
+      limitClause = `LIMIT $${i++}`;
+      params.push(limit + 1);
+    }
 
     const sql = `
       SELECT i.*, 
@@ -42,19 +86,26 @@ export class InventoryRepository {
       LEFT JOIN ubicaciones_bodega u ON i.ubicacion_id = u.id
       LEFT JOIN employees emp ON i.responsable_id = emp.id
       LEFT JOIN employees emp_sst ON i.sst_responsable_id = emp_sst.id
-      WHERE ${conditions.join(' AND ')}
-      ORDER BY i.name ASC
-      LIMIT $${i}
+      WHERE ${whereClause}
+      ORDER BY ${sortCol} ${dbSortDir} NULLS LAST
+      ${limitClause}
     `;
 
     const result = await query(sql, params);
-    const hasMore = result.rows.length > limit;
-    const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
 
-    return {
-      data: rows,
-      pagination: { hasMore, nextCursor: hasMore ? rows[rows.length - 1].id : null },
-    };
+    if (page) {
+      return {
+        data: result.rows,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      };
+    } else {
+      const hasMore = result.rows.length > limit;
+      const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
+      return {
+        data: rows,
+        pagination: { hasMore, nextCursor: hasMore ? rows[rows.length - 1].id : null },
+      };
+    }
   }
 
   async findById(id) {

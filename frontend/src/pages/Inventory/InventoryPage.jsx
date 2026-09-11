@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Box, Trash2, Edit2, Download, Wrench, Building2, Monitor, HardHat, X } from 'lucide-react';
+import { Plus, Search, Box, Trash2, Edit2, Download, Wrench, Building2, Monitor, HardHat, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
@@ -36,10 +36,13 @@ export function InventoryPage() {
   const [showAreaPicker, setShowAreaPicker] = React.useState(false);
   const [pendingNewArea, setPendingNewArea] = React.useState(null);
   const [showExportModal, setShowExportModal] = React.useState(false);
+  const [page, setPage] = React.useState(1);
+  const [sortBy, setSortBy] = React.useState('');
+  const [sortOrder, setSortOrder] = React.useState('');
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['inventory', search, filterArea, filterActive],
+    queryKey: ['inventory', search, filterArea, filterActive, page, sortBy, sortOrder],
     queryFn: async () => {
       if (filterArea === 'LOCATIVO') {
         const params = { limit: 50, page: 1 };
@@ -59,14 +62,33 @@ export function InventoryPage() {
         }));
         return { data: normalized, _isLocativo: true };
       }
-      const params = { limit: 50 };
+      const params = { limit: 20, page };
       if (search) params.search = search;
       if (filterArea !== 'all') params.area = filterArea;
       if (filterActive !== 'all') params.isActive = filterActive === 'true';
+      if (sortBy) params.sortBy = sortBy;
+      if (sortOrder) params.sortOrder = sortOrder;
       const { data } = await api.get('/inventory', { params });
       return data;
     },
   });
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      if (sortOrder === 'ASC') setSortOrder('DESC');
+      else if (sortOrder === 'DESC') { setSortBy(''); setSortOrder(''); }
+    } else {
+      setSortBy(field);
+      setSortOrder('ASC');
+    }
+    setPage(1);
+  };
+
+  const getSortIcon = (field) => {
+    if (sortBy !== field) return <span style={{ opacity: 0.3, fontSize: '0.8rem' }}>↕</span>;
+    if (sortOrder === 'ASC') return <span style={{ color: 'var(--clr-primary-500)', fontSize: '0.8rem' }}>↑</span>;
+    return <span style={{ color: 'var(--clr-primary-500)', fontSize: '0.8rem' }}>↓</span>;
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (id) => api.delete(`/inventory/${id}`),
@@ -130,7 +152,7 @@ export function InventoryPage() {
               <button
                 key={a.value}
                 className={`btn btn--sm ${filterArea === a.value ? 'btn--primary' : 'btn--ghost'}`}
-                onClick={() => setFilterArea(a.value)}
+                onClick={() => { setFilterArea(a.value); setPage(1); setSortBy(''); setSortOrder(''); }}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -148,7 +170,7 @@ export function InventoryPage() {
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: 420 }}>
             <Search size={16} style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input className="input" style={{ paddingLeft: '2.5rem' }} placeholder="Buscar por nombre o SKU…" value={search} onChange={e => setSearch(e.target.value)} />
+            <input className="input" style={{ paddingLeft: '2.5rem' }} placeholder="Buscar por nombre, código interno o referencia…" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
           </div>
           <div style={{ display: 'flex', gap: '0.375rem' }}>
             {['all', 'true', 'false'].map(s => {
@@ -159,7 +181,7 @@ export function InventoryPage() {
                  <button
                    key={s}
                    className={`btn btn--sm ${filterActive === s ? 'btn--primary' : 'btn--ghost'}`}
-                   onClick={() => setFilterActive(s)}
+                   onClick={() => { setFilterActive(s); setPage(1); }}
                  >
                    {label}
                  </button>
@@ -178,13 +200,25 @@ export function InventoryPage() {
             <button className="btn btn--primary" onClick={handleCreate}><Plus size={16} /> Crear Ítem</button>
           </div>
         ) : (
-          <div className="table-container">
-            <table className="table" style={{ minWidth: 800 }}>
+          <>
+            <div className="table-container">
+              <table className="table" style={{ minWidth: 800 }}>
               <thead>
                 <tr>
-                  <th>SKU</th>
-                  <th>Artículo / Servicio</th>
-                  <th>Marca</th>
+                  <th onClick={() => handleSort('codigo_interno')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>SKU {getSortIcon('codigo_interno')}</div>
+                  </th>
+                  <th onClick={() => handleSort('name')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>Artículo / Servicio {getSortIcon('name')}</div>
+                  </th>
+                  {filterArea !== 'LOCATIVO' && (
+                    <th onClick={() => handleSort('referencia_fabricante')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>Referencia {getSortIcon('referencia_fabricante')}</div>
+                    </th>
+                  )}
+                  <th onClick={() => handleSort('marca')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>Marca {getSortIcon('marca')}</div>
+                  </th>
                   {filterArea === 'SISTEMAS' && <th>Código / Placa</th>}
                   {filterArea === 'SISTEMAS' && <th>Tipo Activo</th>}
                   {filterArea === 'SST' && <th>Tipo Elemento</th>}
@@ -195,23 +229,46 @@ export function InventoryPage() {
                   {filterArea === 'LOCATIVO' && <th>Clasif. Contable</th>}
                   {filterArea === 'LOCATIVO' && <th>Estado Físico</th>}
                   {filterArea === 'LOCATIVO' && <th>Sede</th>}
-                  <th>Área</th>
-                  {filterArea !== 'LOCATIVO' && <th>Familia</th>}
-                  {filterArea !== 'LOCATIVO' && <th>Stock</th>}
+                  <th onClick={() => handleSort('area')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>Área {getSortIcon('area')}</div>
+                  </th>
+                  {filterArea !== 'LOCATIVO' && (
+                    <th onClick={() => handleSort('familia_nombre')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>Familia {getSortIcon('familia_nombre')}</div>
+                    </th>
+                  )}
+                  {filterArea !== 'LOCATIVO' && (
+                    <th onClick={() => handleSort('stock_actual')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>Stock {getSortIcon('stock_actual')}</div>
+                    </th>
+                  )}
                   {filterArea !== 'LOCATIVO' && <th>Ubicación Física</th>}
                   {filterArea === 'SISTEMAS' && <th>Responsable</th>}
                   {filterArea === 'LOCATIVO' && <th>Responsable</th>}
-                  {filterArea !== 'LOCATIVO' && <th>Precio Venta</th>}
+                  {filterArea !== 'LOCATIVO' && (
+                    <th onClick={() => handleSort('unit_price')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>Precio Venta {getSortIcon('unit_price')}</div>
+                    </th>
+                  )}
                   {filterArea === 'LOCATIVO' && <th>Costo Hist.</th>}
-                  <th>Estado</th>
+                  <th onClick={() => handleSort('is_active')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>Estado {getSortIcon('is_active')}</div>
+                  </th>
                   <th style={{ textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item) => (
                   <tr key={item.id} style={{ opacity: item.is_active ? 1 : 0.5 }}>
-                    <td style={{ color: 'var(--text-secondary)' }}>{item.sku || '—'}</td>
-                    <td style={{ fontWeight: 600 }}>{item.name}</td>
+                    <td style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                      {item.codigo_interno || item.sku || '—'}
+                    </td>
+                    <td style={{ fontWeight: 600 }}>{item.nombre_comercial || item.name}</td>
+                    {filterArea !== 'LOCATIVO' && (
+                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                        {item.referencia_fabricante || '—'}
+                      </td>
+                    )}
                     <td>{item.marca || '—'}</td>
                     {filterArea === 'SISTEMAS' && (
                       <td>
@@ -359,8 +416,37 @@ export function InventoryPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+
+            {/* Controles de paginación */}
+            {data?.pagination?.totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', padding: '1.5rem' }}>
+                <button
+                  className="btn btn--secondary btn--sm"
+                  disabled={page === 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft size={16} /> Anterior
+                </button>
+                <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+                  Página {page} de {data.pagination.totalPages}
+                  {data.pagination.total !== undefined && (
+                    <span style={{ marginLeft: '0.5rem', color: 'var(--text-muted)' }}>
+                      ({data.pagination.total} resultados)
+                    </span>
+                  )}
+                </span>
+                <button
+                  className="btn btn--secondary btn--sm"
+                  disabled={page === data.pagination.totalPages}
+                  onClick={() => setPage(p => Math.min(data.pagination.totalPages, p + 1))}
+                >
+                  Siguiente <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 

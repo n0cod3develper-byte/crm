@@ -23,8 +23,15 @@ function mapFrontendFields(body) {
 export const inventoryController = {
   async list(req, res, next) {
     try {
-      const { area, category, search, isActive, limit, cursor } = req.query;
-      const result = await repo.findAll({ area, category, search, isActive, limit: parseInt(limit) || 50, cursor });
+      const { area, category, search, isActive, limit, cursor, page, sortBy, sortOrder } = req.query;
+      const result = await repo.findAll({
+        area, category, search, isActive,
+        limit: parseInt(limit) || 20,
+        cursor,
+        page: page ? parseInt(page) : undefined,
+        sortBy,
+        sortOrder
+      });
       res.json({ success: true, ...result });
     } catch (err) { next(err); }
   },
