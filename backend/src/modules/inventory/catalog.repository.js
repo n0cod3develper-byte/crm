@@ -1,5 +1,6 @@
 import { query } from '../../config/database.js';
 import * as movimientoService from '../../services/inventoryMovements.service.js';
+import { BadRequestError } from '../../utils/errors.js';
 
 /** Returns value if it's a valid UUID, otherwise null */
 const toUuid = (v) => {
@@ -192,37 +193,30 @@ export class CatalogRepository {
   }
 
   async createCategoria(data) {
-    const { nombre, slug, descripcion, tipo_aplicable, color_hex, icono, orden, ubicacion_default_id } = data;
-    
-    let finalUbicacionId = toUuid(ubicacion_default_id);
-    if (!finalUbicacionId) {
-      // Generar consecutivo automatico para la familia (001, 002, ...)
-      const seqRes = await query(`
-        UPDATE consecutivos 
-        SET ultimo_valor = ultimo_valor + 1 
-        WHERE id = 'familia_estanteria' 
-        RETURNING ultimo_valor
-      `);
-      let nextNum = seqRes.rows[0]?.ultimo_valor;
-      if (!nextNum) {
-        const countRes = await query('SELECT count(*) FROM catalogo_categorias');
-        nextNum = parseInt(countRes.rows[0].count) + 1;
-      }
-      const codeStr = String(nextNum).padStart(3, '0');
-      const ubiRes = await query(`
-        INSERT INTO ubicaciones_bodega (codigo_ubicacion, descripcion, activo)
-        VALUES ($1, $2, true)
-        RETURNING id
-      `, [codeStr, `Estantería ${nombre}`]);
-      finalUbicacionId = ubiRes.rows[0]?.id;
+    const { nombre, slug, descripcion, tipo_aplicable, color_hex, icono, orden, ubicacion_default_id, codigo_interno_base } = data;
+
+    const baseCode = parseInt(codigo_interno_base, 10);
+    if (!baseCode || isNaN(baseCode) || baseCode <= 0) {
+      throw new BadRequestError('Debe especificar un consecutivo inicial válido (número mayor a 0) para la familia');
     }
+
+    // Validar que el consecutivo base no esté en uso por otra familia activa
+    const existing = await query(
+      'SELECT id, nombre, codigo_interno_base FROM catalogo_categorias WHERE codigo_interno_base = $1 AND activo = TRUE',
+      [baseCode]
+    );
+    if (existing.rows.length > 0) {
+      throw new BadRequestError(`El consecutivo base ${baseCode} ya está en uso por la familia "${existing.rows[0].nombre}". Ingrese un consecutivo diferente.`);
+    }
+
+    const finalUbicacionId = toUuid(ubicacion_default_id) || null;
 
     const res = await query(`
       INSERT INTO catalogo_categorias 
-        (nombre, slug, descripcion, tipo_aplicable, color_hex, icono, orden, ubicacion_default_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        (nombre, slug, descripcion, tipo_aplicable, color_hex, icono, orden, ubicacion_default_id, codigo_interno_base, ultimo_codigo_int)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0)
       RETURNING *
-    `, [nombre, slug, descripcion, tipo_aplicable || 'AMBOS', color_hex, icono, orden || 0, finalUbicacionId]);
+    `, [nombre, slug, descripcion, tipo_aplicable || 'AMBOS', color_hex, icono, orden || 0, finalUbicacionId, baseCode]);
     return res.rows[0];
   }
 
@@ -231,13 +225,30 @@ export class CatalogRepository {
     const params = [id];
     let i = 2;
 
-    const allowed = ['nombre', 'slug', 'descripcion', 'tipo_aplicable', 'color_hex', 'icono', 'orden', 'activo', 'ubicacion_default_id'];
+    if ('codigo_interno_base' in data && data.codigo_interno_base !== undefined && data.codigo_interno_base !== null && data.codigo_interno_base !== '') {
+      const baseCode = parseInt(data.codigo_interno_base, 10);
+      if (isNaN(baseCode) || baseCode <= 0) {
+        throw new BadRequestError('El consecutivo inicial debe ser un número mayor a 0');
+      }
+      // Validar si otra categoría activa ya tiene este codigo_interno_base
+      const existing = await query(
+        'SELECT id, nombre FROM catalogo_categorias WHERE codigo_interno_base = $1 AND id != $2 AND activo = TRUE',
+        [baseCode, id]
+      );
+      if (existing.rows.length > 0) {
+        throw new BadRequestError(`El consecutivo base ${baseCode} ya está en uso por la familia "${existing.rows[0].nombre}". Ingrese un consecutivo diferente.`);
+      }
+    }
+
+    const allowed = ['nombre', 'slug', 'descripcion', 'tipo_aplicable', 'color_hex', 'icono', 'orden', 'activo', 'ubicacion_default_id', 'codigo_interno_base'];
     for (const key of allowed) {
       if (key in data) {
         fields.push(`${key} = $${i++}`);
         let value = data[key];
         if (key === 'ubicacion_default_id') {
-          value = toUuid(value);
+          value = toUuid(value) || null;
+        } else if (key === 'codigo_interno_base') {
+          value = parseInt(value, 10) || null;
         }
         params.push(value);
       }
@@ -262,22 +273,45 @@ export class CatalogRepository {
   }
 
   /**
-   * Generate the next internal code for a given type.
-   * Falls back to inline generation if the DB function doesn't exist.
+   * Generate the next internal code for a given item.
+   *
+   * When a categoria_id is provided the DB function
+   * `generar_codigo_por_familia` is called; it atomically increments the
+   * family counter and returns the next numeric code (e.g. "1000", "2001").
+   *
+   * Falls back to legacy PRD-/SRV- format only when no category is given or
+   * the DB function is not yet available.
+   *
+   * @param {string} tipo       - 'PRODUCTO' | 'SERVICIO'
+   * @param {string|null} categoriaId - UUID of the family / category
    */
-  async _generarCodigo(tipo) {
+  async _generarCodigo(tipo, categoriaId = null) {
+    // --- Primary path: per-family numeric code ---
+    if (categoriaId) {
+      try {
+        const res = await query(
+          'SELECT generar_codigo_por_familia($1) AS code',
+          [categoriaId]
+        );
+        if (res.rows[0]?.code) return res.rows[0].code;
+      } catch (err) {
+        console.warn('[CatalogRepository] generar_codigo_por_familia failed, falling back:', err.message);
+      }
+    }
+
+    // --- Legacy fallback: PRD-00001 / SRV-00001 ---
     try {
       const res = await query('SELECT generar_codigo_catalogo($1) AS code', [tipo]);
-      return res.rows[0].code;
-    } catch {
-      // Fallback: generate code in-app
-      const prefix = tipo === 'SERVICIO' ? 'SRV' : 'PRD';
-      const seqRes = await query(`
-        SELECT COUNT(*) AS total FROM inventario WHERE tipo = $1
-      `, [tipo]);
-      const next = parseInt(seqRes.rows[0].total) + 1;
-      return `${prefix}-${String(next).padStart(5, '0')}`;
-    }
+      if (res.rows[0]?.code) return res.rows[0].code;
+    } catch { /* ignore */ }
+
+    const prefix = tipo === 'SERVICIO' ? 'SRV' : 'PRD';
+    const seqRes = await query(
+      'SELECT COUNT(*) AS total FROM inventario WHERE tipo = $1',
+      [tipo]
+    );
+    const next = parseInt(seqRes.rows[0].total) + 1;
+    return `${prefix}-${String(next).padStart(5, '0')}`;
   }
 
   async getSiguienteConsecutivoUbicacion(categoriaId) {
@@ -300,6 +334,39 @@ export class CatalogRepository {
     return { siguiente_numero: nextNum, codigo: codeStr };
   }
 
+  /**
+   * Preview the next internal code for a family WITHOUT consuming it.
+   * Reads codigo_interno_base + ultimo_codigo_int from catalogo_categorias.
+   * This is a non-destructive read used by the frontend to show the user
+   * what code will be assigned before they save.
+   */
+  async previsualizarCodigoPorFamilia(categoriaId) {
+    if (!categoriaId) return { siguiente_codigo: null, familia: null };
+
+    const res = await query(
+      `SELECT nombre, codigo_interno_base, ultimo_codigo_int
+         FROM catalogo_categorias
+        WHERE id = $1`,
+      [categoriaId]
+    );
+
+    if (!res.rows[0]) return { siguiente_codigo: null, familia: null };
+
+    const { nombre, codigo_interno_base, ultimo_codigo_int } = res.rows[0];
+
+    // Next code = base + current_counter (the next INSERT will do base + counter+1)
+    const base = parseInt(codigo_interno_base) || 0;
+    const offset = parseInt(ultimo_codigo_int) || 0;
+    const siguienteCodigo = (base + offset).toString();
+
+    return {
+      siguiente_codigo: siguienteCodigo,
+      familia: nombre,
+      base,
+      offset
+    };
+  }
+
   async create(data, userId) {
     const {
       tipo, codigo_interno, name, nombre_comercial, categoria_id, unidad_medida_id,
@@ -310,24 +377,16 @@ export class CatalogRepository {
       area
     } = data;
 
-    const codigo = codigo_interno || await this._generarCodigo(tipo);
+    const codigo = codigo_interno || await this._generarCodigo(tipo, toUuid(categoria_id));
 
-    // Ubicacion por Familia: consecutivo autoincremental por producto dentro de la familia
+
+    // Ubicacion: si no se envía explícitamente pero la familia tiene una asignada por defecto, se asigna esa
     let ubicacionFinal = toUuid(ubicacion_id);
-    if (!ubicacionFinal && toUuid(categoria_id) && tipo === 'PRODUCTO') {
-      const seqData = await this.getSiguienteConsecutivoUbicacion(toUuid(categoria_id));
-      const codeStr = seqData.codigo;
-
-      const famRes = await query('SELECT nombre FROM catalogo_categorias WHERE id = $1', [toUuid(categoria_id)]);
-      const famNombre = famRes.rows[0]?.nombre || 'Familia';
-
-      const ubiRes = await query(`
-        INSERT INTO ubicaciones_bodega (codigo_ubicacion, descripcion, activo)
-        VALUES ($1, $2, true)
-        RETURNING id
-      `, [codeStr, `Posición ${codeStr} - ${famNombre}`]);
-      ubicacionFinal = ubiRes.rows[0]?.id || null;
+    if (!ubicacionFinal && toUuid(categoria_id)) {
+      const famRes = await query('SELECT ubicacion_default_id FROM catalogo_categorias WHERE id = $1', [toUuid(categoria_id)]);
+      ubicacionFinal = famRes.rows[0]?.ubicacion_default_id || null;
     }
+
 
     const sql = `
       INSERT INTO inventario (

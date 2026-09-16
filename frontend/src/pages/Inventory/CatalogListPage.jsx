@@ -4,7 +4,7 @@ import { catalogApi } from '../../services/catalogApi';
 import { 
   Search, Filter, Plus, Package, Wrench, MoreHorizontal, ChevronRight, 
   ChevronLeft, Image as ImageIcon, FileSpreadsheet, Upload, Download,
-  ArrowUpDown, ArrowUp, ArrowDown 
+  ArrowUpDown, ArrowUp, ArrowDown, Layers
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import toast from 'react-hot-toast';
@@ -153,6 +153,13 @@ export function CatalogListPage() {
         subtitle="Listado unificado de familias de productos y servicios profesionales"
         rightContent={
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <Link 
+              to="/catalogo/familias" 
+              className="btn btn--secondary flex items-center gap-2"
+              title="Gestionar familias de productos y sus consecutivos"
+            >
+              <Layers size={18} /> Familias
+            </Link>
             <button 
               type="button" 
               onClick={handleExportExcel}
@@ -173,6 +180,7 @@ export function CatalogListPage() {
               <Plus size={18} /> Nuevo Item
             </Link>
           </div>
+
         }
       />
       <main className="main-content">

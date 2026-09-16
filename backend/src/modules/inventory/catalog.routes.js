@@ -37,6 +37,8 @@ router.get('/alertas',        ctrl.getAlertas);
 router.get('/informe',        ctrl.getInforme);
 router.get('/categorias',     ctrl.getCategorias);
 router.get('/categorias/:id/siguiente-consecutivo', ctrl.getSiguienteConsecutivo);
+router.get('/categorias/:id/siguiente-codigo', ctrl.getSiguienteCodigo);
+
 router.get('/unidades',       ctrl.getUnidades);
 router.get('/:id',            ctrl.getItem);
 

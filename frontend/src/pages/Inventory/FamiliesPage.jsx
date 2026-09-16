@@ -62,8 +62,16 @@ export function FamiliesPage() {
       data.slug = data.nombre.toLowerCase().replace(/ /g, '_').replace(/[^\w-]+/g, '');
     }
 
+    const baseCode = parseInt(data.codigo_interno_base, 10);
+    if (!baseCode || isNaN(baseCode) || baseCode <= 0) {
+      toast.error('Debe ingresar un consecutivo base válido (número mayor a 0)');
+      return;
+    }
+
     mutation.mutate({
       ...data,
+      codigo_interno_base: baseCode,
+      ubicacion_default_id: data.ubicacion_default_id || null,
       orden: parseInt(data.orden || 0),
       activo: true
     });
@@ -73,7 +81,7 @@ export function FamiliesPage() {
     <div className="app-layout">
       <Topbar 
         title="Gestión de Familias" 
-        subtitle="Organiza tus productos y servicios por categorías comerciales"
+        subtitle="Organiza tus productos y servicios por categorías comerciales y administra sus consecutivos"
         rightContent={
           <button onClick={() => openModal()} className="btn btn--primary flex items-center gap-2">
             <Plus size={18} /> Nueva Familia
@@ -85,10 +93,12 @@ export function FamiliesPage() {
           
           <div className="table-wrapper">
             <table>
-              <thead>                  <tr>
+              <thead>
+                <tr>
                   <th style={{ width: '40px' }}>Icono</th>
                   <th>Nombre / Slug</th>
-                  <th>Estantería</th>
+                  <th>Consecutivo Catálogo</th>
+                  <th>Ubicación Bodega</th>
                   <th>Aplicable a</th>
                   <th>Items</th>
                   <th>Orden</th>
@@ -97,7 +107,7 @@ export function FamiliesPage() {
               </thead>
               <tbody>
                 {isLoading ? (
-                  <tr><td colSpan="7" style={{ textAlign: 'center', padding: '3rem' }}>Cargando familias...</td></tr>
+                  <tr><td colSpan="8" style={{ textAlign: 'center', padding: '3rem' }}>Cargando familias...</td></tr>
                 ) : families?.data?.length > 0 ? families.data.map(f => (
                   <tr key={f.id}>
                     <td>
@@ -112,12 +122,22 @@ export function FamiliesPage() {
                       <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{f.slug}</div>
                     </td>
                     <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span className="badge" style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--clr-primary-600)', background: 'var(--clr-primary-50, rgba(37,99,235,0.08))', width: 'fit-content' }}>
+                          Base: {f.codigo_interno_base ?? '—'}
+                        </span>
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                          {f.codigo_interno_base ? `Próximo: ${Number(f.codigo_interno_base) + Number(f.ultimo_codigo_int || 0)}` : 'Sin consecutivo'}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
                       {f.ubicacion_default_codigo ? (
                         <span className="badge" style={{ fontSize: '10px', fontFamily: 'monospace' }}>
                           {f.ubicacion_default_codigo}
                         </span>
                       ) : (
-                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>—</span>
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>— (Sin asignar)</span>
                       )}
                     </td>
                     <td>
@@ -147,7 +167,7 @@ export function FamiliesPage() {
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan="7" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No hay familias configuradas.</td></tr>
+                  <tr><td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No hay familias configuradas.</td></tr>
                 )}
               </tbody>
             </table>
@@ -158,7 +178,7 @@ export function FamiliesPage() {
       {/* Modal */}
       {isModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content card" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+          <div className="modal-content card" style={{ maxWidth: '520px' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h2 style={{ fontWeight: 700 }}>{editingFamily ? 'Editar Familia' : 'Nueva Familia'}</h2>
               <button onClick={closeModal} className="btn btn--ghost"><X size={20} /></button>
@@ -176,19 +196,50 @@ export function FamiliesPage() {
               </div>
 
               <div className="input-group">
-                <label className="input-label flex items-center gap-2"><MapPin size={14} /> Consecutivo de Estantería (Ubicación)</label>
+                <label className="input-label flex items-center gap-2">
+                  <Hash size={14} /> Consecutivo Catálogo (Código Base Inicial) <span style={{ color: 'var(--clr-danger)' }}>*</span>
+                </label>
+                <input
+                  type="number"
+                  name="codigo_interno_base"
+                  defaultValue={editingFamily?.codigo_interno_base ?? ''}
+                  required
+                  min="1"
+                  step="1"
+                  className="input"
+                  placeholder="Ej: 1000, 2000, 3000..."
+                  style={{ fontFamily: 'monospace', fontWeight: 600 }}
+                />
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                  {editingFamily ? (
+                    <>
+                      Número base de la familia. 
+                      {editingFamily.codigo_interno_base && (
+                        <span style={{ marginLeft: '4px', color: 'var(--clr-primary-600)', fontWeight: 600 }}>
+                          (Próximo código a asignar: {Number(editingFamily.codigo_interno_base) + Number(editingFamily.ultimo_codigo_int || 0)})
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    'Número inicial para los productos de esta familia (ej: 1000 para Sistema Eléctrico, 2000 para Motor). Cada nuevo producto se generará de 1 en 1.'
+                  )}
+                </p>
+              </div>
+
+              <div className="input-group">
+                <label className="input-label flex items-center gap-2"><MapPin size={14} /> Ubicación en Bodega por Defecto (Opcional)</label>
                 <select
                   name="ubicacion_default_id"
                   defaultValue={editingFamily?.ubicacion_default_id || ''}
                   className="input"
                 >
-                  <option value="">Automático (asignar siguiente consecutivo)</option>
+                  <option value="">Sin ubicación predeterminada</option>
                   {ubicaciones.map(u => (
                     <option key={u.id} value={u.id}>{u.codigo_ubicacion} — {u.descripcion || (u.prefijo_codigo + ' ' + u.nivel_codigo)}</option>
                   ))}
                 </select>
                 <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
-                  Consecutivo automático. Todos los productos de esta familia heredarán este consecutivo de estantería.
+                  Ubicación física predeterminada en bodega si desea asociarla a esta familia. No afecta los códigos de catálogo.
                 </p>
               </div>
 

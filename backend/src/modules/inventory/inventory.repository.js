@@ -133,33 +133,11 @@ export class InventoryRepository {
     const { sku, name, description, categoria_id, ubicacion_id, marca, unit, costo_reposicion, unit_price, stock_actual, stock_minimum, is_active, tipo, area } = data;
 
     let ubicacionFinal = ubicacion_id || null;
-    if (!ubicacionFinal && categoria_id && (tipo === 'PRODUCTO' || !tipo)) {
-      const seqRes = await query(`
-        SELECT COALESCE(
-          MAX(
-            CASE 
-              WHEN ub.codigo_ubicacion ~ '^\\d+$' THEN ub.codigo_ubicacion::INTEGER 
-              ELSE 0 
-            END
-          ), 0) + 1 AS siguiente_numero
-        FROM inventario i
-        JOIN ubicaciones_bodega ub ON ub.id = i.ubicacion_id
-        WHERE i.categoria_id = $1 AND (i.tipo = 'PRODUCTO' OR i.tipo IS NULL)
-      `, [categoria_id]);
-
-      const nextNum = parseInt(seqRes.rows[0]?.siguiente_numero || 1);
-      const codeStr = String(nextNum).padStart(3, '0');
-
-      const famRes = await query('SELECT nombre FROM catalogo_categorias WHERE id = $1', [categoria_id]);
-      const famNombre = famRes.rows[0]?.nombre || 'Familia';
-
-      const ubiRes = await query(`
-        INSERT INTO ubicaciones_bodega (codigo_ubicacion, descripcion, activo)
-        VALUES ($1, $2, true)
-        RETURNING id
-      `, [codeStr, `Posición ${codeStr} - ${famNombre}`]);
-      ubicacionFinal = ubiRes.rows[0]?.id || null;
+    if (!ubicacionFinal && categoria_id) {
+      const famRes = await query('SELECT ubicacion_default_id FROM catalogo_categorias WHERE id = $1', [categoria_id]);
+      ubicacionFinal = famRes.rows[0]?.ubicacion_default_id || null;
     }
+
 
     const result = await query(
       `INSERT INTO inventario

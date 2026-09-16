@@ -72,15 +72,15 @@ export function CatalogFormPage() {
     enabled: isEdit
   });
 
-  const { data: consecutivoData, isLoading: loadingConsecutivo } = useQuery({
-    queryKey: ['siguiente-consecutivo', formData.categoria_id],
-    queryFn: () => catalogApi.getSiguienteConsecutivo(formData.categoria_id),
-    enabled: !!formData.categoria_id && !isEdit
+  const { data: siguienteCodigoData, isLoading: loadingSiguienteCodigo } = useQuery({
+    queryKey: ['siguiente-codigo-interno', formData.categoria_id],
+    queryFn: () => catalogApi.getSiguienteCodigo(formData.categoria_id),
+    enabled: !!formData.categoria_id && !isEdit,
+    staleTime: 0  // Refrescar siempre que cambie la familia
   });
 
   // Familia actualmente seleccionada
   const familiaActual = catData?.data?.find(c => c.id === formData.categoria_id);
-  const ubicacionDerivada = !!(familiaActual?.ubicacion_default_id && formData.ubicacion_id === familiaActual.ubicacion_default_id);
 
   useEffect(() => {
     if (isEdit && itemData?.data) {
@@ -230,13 +230,68 @@ export function CatalogFormPage() {
               </div>
               
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
-                <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-                  <label className="input-label">Código Interno</label>
-                  <input 
-                    name="codigo_interno" value={formData.codigo_interno || ''} onChange={handleChange}
-                    className="input" placeholder="Ej: PRD-00001 (Automático si se deja en blanco)"
-                  />
+              <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+                  <label className="input-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    Código Interno
+                    {!isEdit && (
+                      <span style={{
+                        fontSize: '10px',
+                        background: 'var(--clr-primary-100, rgba(37,99,235,0.1))',
+                        color: 'var(--clr-primary-600)',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontWeight: 600
+                      }}>
+                        AUTOMÁTICO POR FAMILIA
+                      </span>
+                    )}
+                  </label>
+                  {isEdit ? (
+                    /* En edición: solo lectura, no se puede cambiar el código */
+                    <input
+                      className="input"
+                      value={formData.codigo_interno || ''}
+                      readOnly
+                      style={{
+                        background: 'var(--bg-elevated)',
+                        fontWeight: 700,
+                        fontFamily: 'monospace',
+                        color: 'var(--clr-primary-600)',
+                        fontSize: '1rem',
+                        cursor: 'not-allowed'
+                      }}
+                    />
+                  ) : (
+                    /* En creación: previsualización del próximo código */
+                    <div>
+                      <input
+                        className="input"
+                        value={
+                          !formData.categoria_id
+                            ? 'Seleccione una familia primero'
+                            : loadingSiguienteCodigo
+                              ? 'Calculando...'
+                              : (siguienteCodigoData?.data?.siguiente_codigo || '—')
+                        }
+                        readOnly
+                        style={{
+                          background: 'var(--bg-elevated)',
+                          fontWeight: 700,
+                          fontFamily: 'monospace',
+                          color: formData.categoria_id ? 'var(--clr-primary-600)' : 'var(--text-muted)',
+                          fontSize: '1rem',
+                          fontStyle: formData.categoria_id ? 'normal' : 'italic'
+                        }}
+                      />
+                      <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                        {formData.categoria_id
+                          ? `Código asignado automáticamente a la familia "${siguienteCodigoData?.data?.familia || ''}". Se confirma al guardar.`
+                          : 'El código se asignará automáticamente al seleccionar la familia.'}
+                      </p>
+                    </div>
+                  )}
                 </div>
+
                 <div className="input-group" style={{ gridColumn: '1 / -1' }}>
                   <label className="input-label">Referencia</label>
                   <input 
@@ -404,36 +459,32 @@ export function CatalogFormPage() {
                     
                     <div className="input-group">
                       <label className="input-label flex items-center gap-1.5">
-                        <MapPin size={14} color="var(--clr-primary-500)" /> Consecutivo de Ubicación
+                        <MapPin size={14} color="var(--clr-primary-500)" /> Ubicación en Bodega
                       </label>
-                      {formData.categoria_id && familiaActual ? (
-                        <div>
-                          <input
-                            className="input"
-                            value={isEdit ? (itemData?.data?.codigo_ubicacion || '—') : (consecutivoData?.data?.codigo || (loadingConsecutivo ? 'Calculando...' : '001'))}
-                            readOnly
-                            style={{ background: 'var(--bg-elevated)', fontWeight: 700, fontFamily: 'monospace', color: 'var(--clr-primary-600)', fontSize: '1rem' }}
-                          />
-                          <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
-                            {isEdit 
-                              ? `Ubicación asignada en la familia ${familiaActual.nombre}.`
-                              : `Consecutivo autoincremental asignado automáticamente para la familia ${familiaActual.nombre}.`}
-                          </p>
-                        </div>
-                      ) : (
-                        <div>
-                          <input
-                            className="input"
-                            value="Seleccione una familia para asignar consecutivo"
-                            readOnly
-                            style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', fontStyle: 'italic' }}
-                          />
-                          <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
-                            El consecutivo de ubicación se generará automáticamente a partir de la Familia seleccionada.
-                          </p>
-                        </div>
-                      )}
+                      <select
+                        name="ubicacion_id"
+                        value={formData.ubicacion_id || ''}
+                        onChange={handleChange}
+                        className="input"
+                      >
+                        <option value="">
+                          {familiaActual?.ubicacion_default_codigo 
+                            ? `Por defecto de la familia (${familiaActual.ubicacion_default_codigo})` 
+                            : 'Sin ubicación asignada'}
+                        </option>
+                        {ubicacionesData?.data?.map(u => (
+                          <option key={u.id} value={u.id}>
+                            {u.codigo_ubicacion} — {u.descripcion || (u.prefijo_codigo + ' ' + u.nivel_codigo)}
+                          </option>
+                        ))}
+                      </select>
+                      <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                        {familiaActual?.ubicacion_default_codigo 
+                          ? `Ubicación predeterminada configurada para la familia: ${familiaActual.ubicacion_default_codigo}` 
+                          : 'Ubicación física en bodega para este producto (opcional).'}
+                      </p>
                     </div>
+
                   </div>
                 </div>
               )}

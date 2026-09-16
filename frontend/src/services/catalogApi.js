@@ -8,6 +8,8 @@ export const catalogApi = {
   getAlertas: () => api.get('/catalogo/alertas').then(res => res.data),
   getCategorias: () => api.get('/catalogo/categorias').then(res => res.data),
   getSiguienteConsecutivo: (categoriaId) => api.get(`/catalogo/categorias/${categoriaId}/siguiente-consecutivo`).then(res => res.data),
+  getSiguienteCodigo: (categoriaId) => api.get(`/catalogo/categorias/${categoriaId}/siguiente-codigo`).then(res => res.data),
+
   createCategoria: (data) => api.post('/catalogo/categorias', data).then(res => res.data),
   updateCategoria: (id, data) => api.put(`/catalogo/categorias/${id}`, data).then(res => res.data),
   deleteCategoria: (id) => api.delete(`/catalogo/categorias/${id}`).then(res => res.data),

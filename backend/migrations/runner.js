@@ -161,6 +161,7 @@ const MIGRATION_FILES = [
   '128_catalogo_completo_timestamps.sql',
   '129_busqueda_global_indexes.sql',
   '130_remision_dias_fijo_horometros.sql',
+  '131_movimientos_view_ot_cliente.sql',
 ];
 
 

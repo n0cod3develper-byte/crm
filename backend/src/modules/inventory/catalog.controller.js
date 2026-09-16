@@ -98,6 +98,20 @@ export const getSiguienteConsecutivo = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+/**
+ * Preview the next internal code for a family WITHOUT consuming it.
+ * Used by the frontend to show the user what code will be assigned.
+ */
+export const getSiguienteCodigo = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await repo.previsualizarCodigoPorFamilia(id);
+    res.json({ success: true, data: result });
+  } catch (err) { next(err); }
+};
+
+
+
 export const getUnidades = async (req, res, next) => {
   try {
     const unidades = await repo.getUnidadesMedida();
