@@ -7,10 +7,12 @@ import { Topbar } from '../../components/layout/Topbar';
 import { 
   ArrowLeft, Edit2, Package, Wrench, MapPin, 
   Tag, Info, DollarSign, Database, FileText,
-  CheckCircle2, AlertCircle, History, ZoomIn, X, PlusCircle, MinusCircle
+  CheckCircle2, AlertCircle, History, ZoomIn, X, PlusCircle, MinusCircle,
+  Download, Search, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatters';
 import { StockMovementModal } from '../../components/catalog/StockMovementModal';
+import * as XLSX from 'xlsx';
 
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -21,6 +23,11 @@ export function CatalogItemDetailPage() {
   const [isMovementModalOpen, setIsMovementModalOpen] = React.useState(false);
   const navigate = useNavigate();
 
+  // --- State para paginación, búsqueda ---
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const ITEMS_PER_PAGE = 10;
+
   const { data: itemData, isLoading, error, refetch } = useQuery({
     queryKey: ['catalog-item', id],
     queryFn: () => catalogApi.getItem(id)
@@ -29,12 +36,57 @@ export function CatalogItemDetailPage() {
   const { data: movementsData, isLoading: movementsLoading, refetch: refetchMovements } = useQuery({
     queryKey: ['item-movements', id],
     queryFn: async () => {
-      const { data } = await api.get('/movements', { params: { inventario_id: id, limit: 100 } });
+      const { data } = await api.get('/movements', { params: { itemId: id, inventario_id: id, limit: 500 } });
       return data;
     }
   });
 
   const movements = movementsData?.data || [];
+
+  // --- Filtro de búsqueda ---
+  const filteredMovements = React.useMemo(() => {
+    if (!searchTerm.trim()) return movements;
+    const term = searchTerm.toLowerCase();
+    return movements.filter(m =>
+      (m.tipo_movimiento || '').toLowerCase().includes(term) ||
+      (m.numero_documento || '').toLowerCase().includes(term) ||
+      (m.notas || '').toLowerCase().includes(term) ||
+      (m.cliente || '').toLowerCase().includes(term) ||
+      (m.proveedor || '').toLowerCase().includes(term) ||
+      (m.numero_ot || '').toLowerCase().includes(term)
+    );
+  }, [movements, searchTerm]);
+
+  // --- Paginación ---
+  const totalPages = Math.ceil(filteredMovements.length / ITEMS_PER_PAGE);
+  const paginatedMovements = filteredMovements.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  // Reset a página 1 cuando cambia el filtro
+  React.useEffect(() => { setCurrentPage(1); }, [searchTerm]);
+
+  // --- Exportar a Excel ---
+  const handleExportExcel = () => {
+    const dataToExport = filteredMovements.map(m => ({
+      'Fecha': m.created_at ? format(new Date(m.created_at), 'dd/MM/yyyy HH:mm', { locale: es }) : '',
+      'Tipo': m.tipo_movimiento || '',
+      'Documento': m.numero_documento || '',
+      'N° OT': m.numero_ot || '',
+      'Cliente': m.cliente || '',
+      'Proveedor': m.proveedor || '',
+      'Cantidad': m.cantidad || 0,
+      'Stock Final': m.stock_despues || 0,
+      'Costo Final': m.costo_promedio_despues || 0,
+      'Notas': m.notas || ''
+    }));
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Movimientos');
+    const itemName = itemData?.data?.name || 'producto';
+    XLSX.writeFile(wb, `Movimientos_${itemName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
+  };
 
   if (isLoading) return <div className="p-12 text-center">Cargando detalles del item...</div>;
   if (error || !itemData?.data) return (
@@ -212,19 +264,44 @@ export function CatalogItemDetailPage() {
               </div>
               {/* Historial de Movimientos */}
               <div className="card" id="movimientos">
-                <div style={{ borderBottom: '1px solid var(--border-color)', marginBottom: '1.5rem', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ borderBottom: '1px solid var(--border-color)', marginBottom: '1rem', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h2 style={{ fontSize: '1.125rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <History size={18} color="var(--clr-primary-500)" /> Historial de Movimientos
                   </h2>
+                  <button
+                    onClick={handleExportExcel}
+                    disabled={filteredMovements.length === 0}
+                    className="btn btn--ghost flex items-center gap-1"
+                    style={{ fontSize: 'var(--text-xs)', padding: '0.375rem 0.75rem' }}
+                    title="Exportar a Excel"
+                  >
+                    <Download size={14} /> Exportar Excel
+                  </button>
                 </div>
 
-                <div className="table-container">
+                {/* Barra de búsqueda */}
+                <div style={{ marginBottom: '1rem', position: 'relative' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input
+                    type="text"
+                    placeholder="Buscar por tipo, documento, cliente, proveedor, OT, notas..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="form-input"
+                    style={{ paddingLeft: '2.25rem', fontSize: 'var(--text-sm)' }}
+                  />
+                </div>
+
+                <div className="table-container" style={{ overflowX: 'auto' }}>
                   <table className="table table--sm">
                     <thead>
                       <tr>
                         <th>Fecha</th>
                         <th>Tipo</th>
                         <th>Documento</th>
+                        <th>N° OT</th>
+                        <th>Cliente</th>
+                        <th>Proveedor</th>
                         <th style={{ textAlign: 'right' }}>Cant.</th>
                         <th style={{ textAlign: 'right' }}>Stock Final</th>
                         <th style={{ textAlign: 'right' }}>Costo Final</th>
@@ -233,14 +310,16 @@ export function CatalogItemDetailPage() {
                     </thead>
                     <tbody>
                       {movementsLoading ? (
-                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}><div className="spinner" /></td></tr>
-                      ) : movements?.length === 0 ? (
-                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No hay movimientos registrados para este item.</td></tr>
-                      ) : movements?.map(m => {
+                        <tr><td colSpan="10" style={{ textAlign: 'center', padding: '2rem' }}><div className="spinner" /></td></tr>
+                      ) : paginatedMovements?.length === 0 ? (
+                        <tr><td colSpan="10" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                          {searchTerm ? 'No se encontraron movimientos con ese criterio.' : 'No hay movimientos registrados para este item.'}
+                        </td></tr>
+                      ) : paginatedMovements?.map(m => {
                         const isPositive = m.tipo_movimiento?.startsWith('ENTRADA');
                         return (
                           <tr key={m.id}>
-                            <td style={{ fontSize: 'var(--text-xs)' }}>
+                            <td style={{ fontSize: 'var(--text-xs)', whiteSpace: 'nowrap' }}>
                               {format(new Date(m.created_at), 'dd/MM/yyyy HH:mm', { locale: es })}
                             </td>
                             <td>
@@ -250,6 +329,15 @@ export function CatalogItemDetailPage() {
                             </td>
                             <td style={{ fontSize: 'var(--text-xs)', fontWeight: 600 }}>
                               {m.tipo_documento}: {m.numero_documento || 'S/N'}
+                            </td>
+                            <td style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--clr-primary-500)' }}>
+                              {m.numero_ot || '---'}
+                            </td>
+                            <td style={{ fontSize: 'var(--text-xs)', maxWidth: '120px' }} className="truncate" title={m.cliente || ''}>
+                              {m.cliente || '---'}
+                            </td>
+                            <td style={{ fontSize: 'var(--text-xs)', maxWidth: '120px' }} className="truncate" title={m.proveedor || ''}>
+                              {m.proveedor || '---'}
                             </td>
                             <td style={{ textAlign: 'right', fontWeight: 700, color: isPositive ? 'var(--clr-success)' : 'var(--clr-danger)' }}>
                               {isPositive ? '+' : '-'}{m.cantidad}
@@ -269,6 +357,36 @@ export function CatalogItemDetailPage() {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Paginación en español */}
+                {filteredMovements.length > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+                    <span>
+                      Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredMovements.length)} de {filteredMovements.length} registros
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="btn btn--ghost"
+                        style={{ padding: '0.25rem 0.5rem', fontSize: 'var(--text-xs)' }}
+                      >
+                        <ChevronLeft size={16} /> Anterior
+                      </button>
+                      <span style={{ fontWeight: 600 }}>
+                        Página {currentPage} de {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="btn btn--ghost"
+                        style={{ padding: '0.25rem 0.5rem', fontSize: 'var(--text-xs)' }}
+                      >
+                        Siguiente <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
             </div>
@@ -337,7 +455,10 @@ export function CatalogItemDetailPage() {
                 <button onClick={() => setIsMovementModalOpen(true)} className="btn btn--primary flex items-center justify-center gap-2 w-full">
                   <PlusCircle size={18} /> Registrar Movimiento
                 </button>
-                <button className="btn btn--secondary flex items-center justify-center gap-2 w-full">
+                <button 
+                  onClick={() => navigate(`/inventario/movimientos?itemId=${id}`)}
+                  className="btn btn--secondary flex items-center justify-center gap-2 w-full"
+                >
                   <History size={18} /> Ver Historial Completo
                 </button>
               </div>

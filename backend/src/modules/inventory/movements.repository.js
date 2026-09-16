@@ -11,10 +11,11 @@ export class MovementsRepository {
       conditions.push(`producto_id = $${i++}`);
       params.push(itemId);
     }
-    if (type) {
-      conditions.push(`tipo_movimiento = $${i++}`);
-      params.push(type);
+    if (type && type !== 'all') {
+      conditions.push(`tipo_movimiento LIKE $${i++}`);
+      params.push(`${type}%`);
     }
+
 
     const sql = `
       SELECT *

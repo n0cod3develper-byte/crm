@@ -7,13 +7,15 @@ const inventoryRepo = new InventoryRepository();
 
 export const getMovements = async (req, res) => {
   try {
-    const { itemId, type, limit } = req.query;
-    const data = await repo.findAll({ itemId, type, limit: limit ? parseInt(limit) : 50 });
+    const itemId = req.query.itemId || req.query.inventario_id || req.query.producto_id || req.query.item_id;
+    const { type, limit } = req.query;
+    const data = await repo.findAll({ itemId, type, limit: limit ? parseInt(limit) : (itemId ? 500 : 50) });
     res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
 
 export const createMovement = async (req, res) => {
   try {

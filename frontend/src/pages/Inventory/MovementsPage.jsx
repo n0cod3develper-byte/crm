@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   History, ArrowUpRight, ArrowDownLeft, RefreshCcw, 
@@ -16,13 +17,16 @@ import { es } from 'date-fns/locale';
 export function MovementsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filterType, setFilterType] = useState('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const itemIdParam = searchParams.get('itemId') || searchParams.get('inventario_id');
   const queryClient = useQueryClient();
 
   const { data: movementsData, isLoading } = useQuery({
-    queryKey: ['inventory-movements', filterType],
+    queryKey: ['inventory-movements', filterType, itemIdParam],
     queryFn: async () => {
       const params = {};
       if (filterType !== 'all') params.type = filterType;
+      if (itemIdParam) params.itemId = itemIdParam;
       const { data } = await api.get('/movements', { params });
       return data;
     }
@@ -128,6 +132,30 @@ export function MovementsPage() {
             </div>
           </div>
 
+          {itemIdParam && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem', padding: '0.75rem 1rem', background: 'var(--clr-primary-50, rgba(37,99,235,0.08))', border: '1px solid var(--clr-primary-200, rgba(37,99,235,0.2))', borderRadius: 'var(--radius-md)' }}>
+              <Package size={18} color="var(--clr-primary-600)" />
+              <div>
+                <span style={{ fontSize: 'var(--text-sm)', color: 'var(--clr-primary-700)', fontWeight: 700 }}>
+                  Filtrando movimientos del producto:
+                </span>{' '}
+                <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)', fontWeight: 600 }}>
+                  {movements[0]?.nombre_comercial || movements[0]?.producto_nombre || 'Producto seleccionado'} ({movements[0]?.producto_codigo || 'Ítem'})
+                </span>
+              </div>
+              <button 
+                onClick={() => {
+                  searchParams.delete('itemId');
+                  searchParams.delete('inventario_id');
+                  setSearchParams(searchParams);
+                }}
+                className="btn btn--secondary btn--sm"
+                style={{ marginLeft: 'auto', fontSize: '11px', padding: '0.25rem 0.75rem' }}
+              >
+                Ver todos los productos
+              </button>
+            </div>
+          )}
           <div className="table-container">
             <table className="table table--hover">
               <thead>
@@ -197,9 +225,21 @@ export function MovementsPage() {
                       </td>
                       <td>
                         <div style={{ maxWidth: '200px' }}>
-                          <div style={{ fontWeight: 600, fontSize: '0.875rem' }} className="truncate">
-                            {m.proveedor_nombre || m.proveedor_razon_social || 'N/A'}
-                          </div>
+                          {m.cliente && (
+                            <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--clr-primary-600)' }} className="truncate" title={'Cliente: ' + m.cliente}>
+                              👤 {m.cliente}
+                            </div>
+                          )}
+                          {(m.proveedor || m.proveedor_nombre || m.proveedor_razon_social) && (
+                            <div style={{ fontWeight: 600, fontSize: '0.8125rem' }} className="truncate" title={'Proveedor: ' + (m.proveedor || m.proveedor_nombre || m.proveedor_razon_social)}>
+                              🏢 {m.proveedor || m.proveedor_nombre || m.proveedor_razon_social}
+                            </div>
+                          )}
+                          {m.numero_ot && (
+                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                              OT: {m.numero_ot}
+                            </div>
+                          )}
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }} className="truncate">
                             {m.notas || 'Sin observaciones'}
                           </div>
