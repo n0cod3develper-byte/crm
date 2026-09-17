@@ -163,6 +163,7 @@ const MIGRATION_FILES = [
   '129_codigo_interno_por_familia.sql',
   '130_remision_dias_fijo_horometros.sql',
   '131_movimientos_view_ot_cliente.sql',
+  '132_horas_extras_module.sql',
 ];
 
 

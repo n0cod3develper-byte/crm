@@ -487,7 +487,7 @@ export function QuoteServicioFormPage() {
                             value={item.descripcion} onChange={e => updateItem(idx, 'descripcion', e.target.value)} />
                         </td>
                         <td>
-                          <input className="input" type="number" min="1" style={{ textAlign: 'center', width: '100%' }}
+                          <input className="input" type="number" min="0" step="any" style={{ textAlign: 'center', width: '100%' }}
                             value={item.cantidad} onChange={e => updateItem(idx, 'cantidad', parseFloat(e.target.value) || 0)} />
                         </td>
                         <td>

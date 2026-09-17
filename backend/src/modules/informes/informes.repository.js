@@ -1669,7 +1669,7 @@ export class InformesRepository {
    *                    cliente, horas_extras, total_neto de la remisión.
    */
   async getHorasExtrasServicios(fecha_inicio, fecha_fin) {
-    const conditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
+    const conditions = ['r.deleted_at IS NULL', "r.estado IN ('REALIZADA', 'FACTURADA')"];
     const params = [];
     let i = 1;
 

@@ -2,6 +2,7 @@ import { ServiciosRepository } from './servicios.repository.js';
 import { RemisionSustitucionService } from './remisionSustitucion.service.js';
 import { NotFoundError, BadRequestError, ForbiddenError } from '../../utils/errors.js';
 import { generateRemisionPdf } from '../../utils/remisionPdfGenerator.js';
+import { calcularDesdeRemision } from '../horas_extras/horasExtras.service.js';
 
 const repo = new ServiciosRepository();
 const sustitucionService = new RemisionSustitucionService();
@@ -31,6 +32,10 @@ export const serviciosController = {
       throw new BadRequestError('fecha_servicio, company_id y al menos un servicio (catalogo_servicio_id o items) son requeridos');
     }
     const item = await repo.create(req.body, req.user);
+    
+    // Auto-calcular horas extras en background
+    calcularDesdeRemision(item.id).catch(err => console.error('Error auto-calculando horas extras:', err));
+
     res.status(201).json({ success: true, data: item });
   } catch (err) { next(err); }
 },
@@ -65,6 +70,10 @@ export const serviciosController = {
       }
 
       const updated = await repo.update(req.params.id, req.body, req.user);
+      
+      // Auto-calcular horas extras en background
+      calcularDesdeRemision(req.params.id).catch(err => console.error('Error auto-calculando horas extras:', err));
+
       res.json({ success: true, data: updated });
     } catch (err) { next(err); }
   },
@@ -103,6 +112,10 @@ export const serviciosController = {
       const { empleado_id } = req.body;
       if (!empleado_id) throw new BadRequestError('empleado_id es requerido');
       const result = await repo.addOperario(req.params.id, empleado_id);
+      
+      // Auto-calcular horas extras en background
+      calcularDesdeRemision(req.params.id).catch(err => console.error('Error auto-calculando horas extras:', err));
+
       res.status(201).json({ success: true, data: result });
     } catch (err) { next(err); }
   },
@@ -110,6 +123,10 @@ export const serviciosController = {
   async removeOperario(req, res, next) {
     try {
       await repo.removeOperario(req.params.id, req.params.oid);
+      
+      // Auto-calcular horas extras en background
+      calcularDesdeRemision(req.params.id).catch(err => console.error('Error auto-calculando horas extras:', err));
+
       res.json({ success: true, message: 'Operario removido' });
     } catch (err) { next(err); }
   },
@@ -151,6 +168,10 @@ export const serviciosController = {
         throw new BadRequestError('empleado_id, fecha_trabajo, hora_entrada y hora_salida son requeridos');
       }
       const result = await repo.upsertHorasLaborales(req.params.id, req.body);
+      
+      // Auto-calcular horas extras en background
+      calcularDesdeRemision(req.params.id).catch(err => console.error('Error auto-calculando horas extras:', err));
+
       res.status(201).json({ success: true, data: result });
     } catch (err) { next(err); }
   },
@@ -158,6 +179,10 @@ export const serviciosController = {
   async deleteHorasLaborales(req, res, next) {
     try {
       await repo.deleteHorasLaborales(req.params.id, req.params.hid);
+      
+      // Auto-calcular horas extras en background
+      calcularDesdeRemision(req.params.id).catch(err => console.error('Error auto-calculando horas extras:', err));
+
       res.json({ success: true, message: 'Liquidación eliminada' });
     } catch (err) { next(err); }
   },

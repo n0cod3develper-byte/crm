@@ -84,12 +84,10 @@ export function HorasExtrasServiciosPage() {
 
   const totals = useMemo(() => {
     let totalHoras = 0;
-    let totalNeto = 0;
     items.forEach(item => {
       totalHoras += parseFloat(item.horas_extras || 0);
-      totalNeto += parseFloat(item.total_neto || 0);
     });
-    return { totalHoras, totalNeto, count: items.length };
+    return { totalHoras, count: items.length };
   }, [items]);
 
   // ─── Exportar Excel ───
@@ -99,7 +97,7 @@ export function HorasExtrasServiciosPage() {
       ['INFORME DE HORAS EXTRAS — SERVICIOS'],
       [`Período: ${formatDate(appliedFilters.desde)} al ${formatDate(appliedFilters.hasta)}`],
       [],
-      ['No. Remisión', 'Operario', 'Equipo', 'Fecha Servicio', 'Cliente', 'Horas Extras', 'Total Neto'],
+      ['No. Remisión', 'Operario', 'Equipo', 'Fecha Servicio', 'Cliente', 'Horas Extras'],
       ...items.map(r => [
         r.numero_remision,
         r.operario_nombre || '—',
@@ -107,14 +105,13 @@ export function HorasExtrasServiciosPage() {
         formatDate(r.fecha_servicio),
         r.cliente_nombre,
         parseFloat(r.horas_extras || 0),
-        parseFloat(r.total_neto || 0),
       ]),
       [],
-      ['', '', '', '', 'TOTALES', totals.totalHoras, totals.totalNeto],
+      ['', '', '', '', 'TOTALES', totals.totalHoras],
     ];
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     ws['!cols'] = [
-      { wch: 16 }, { wch: 28 }, { wch: 30 }, { wch: 16 }, { wch: 28 }, { wch: 14 }, { wch: 16 }
+      { wch: 16 }, { wch: 28 }, { wch: 30 }, { wch: 16 }, { wch: 28 }, { wch: 14 }
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Horas Extras Servicios');
@@ -134,7 +131,7 @@ export function HorasExtrasServiciosPage() {
 
     autoTable(doc, {
       startY: 32,
-      head: [['No. Remisión', 'Operario', 'Equipo', 'Fecha Servicio', 'Cliente', 'Horas Extras', 'Total Neto']],
+      head: [['No. Remisión', 'Operario', 'Equipo', 'Fecha Servicio', 'Cliente', 'Horas Extras']],
       body: items.map(r => [
         r.numero_remision,
         r.operario_nombre || '—',
@@ -142,9 +139,8 @@ export function HorasExtrasServiciosPage() {
         formatDate(r.fecha_servicio),
         r.cliente_nombre,
         formatHoras(r.horas_extras),
-        formatCOP(r.total_neto),
       ]),
-      foot: [['', '', '', '', 'TOTALES', formatHoras(totals.totalHoras), formatCOP(totals.totalNeto)]],
+      foot: [['', '', '', '', 'TOTALES', formatHoras(totals.totalHoras)]],
       styles: { fontSize: 8, cellPadding: 3 },
       headStyles: { fillColor: [99, 102, 241] },
       footStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59], fontStyle: 'bold' },
@@ -217,18 +213,6 @@ export function HorasExtrasServiciosPage() {
               <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>{formatHoras(totals.totalHoras)}</div>
             </div>
           </div>
-          <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{
-              background: 'linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(16,185,129,0.05) 100%)',
-              borderRadius: '12px', padding: '0.75rem'
-            }}>
-              <DollarSign size={22} style={{ color: '#10b981' }} />
-            </div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total Neto Remisiones</div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>{formatCOP(totals.totalNeto)}</div>
-            </div>
-          </div>
         </div>
       )}
 
@@ -267,7 +251,6 @@ export function HorasExtrasServiciosPage() {
                 <th>Fecha Servicio</th>
                 <th>Cliente</th>
                 <th style={{ textAlign: 'right' }}>Horas Extras</th>
-                <th style={{ textAlign: 'right' }}>Total Neto</th>
               </tr>
             </thead>
             <tbody>
@@ -291,9 +274,6 @@ export function HorasExtrasServiciosPage() {
                   <td style={{ textAlign: 'right', fontWeight: 600, color: '#f59e0b' }}>
                     {formatHoras(row.horas_extras)}
                   </td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
-                    {formatCOP(row.total_neto)}
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -301,7 +281,6 @@ export function HorasExtrasServiciosPage() {
               <tr style={{ fontWeight: 800, background: 'var(--bg-elevated)' }}>
                 <td colSpan={5} style={{ textAlign: 'right', paddingRight: '1rem' }}>TOTALES</td>
                 <td style={{ textAlign: 'right', color: '#f59e0b' }}>{formatHoras(totals.totalHoras)}</td>
-                <td style={{ textAlign: 'right', color: '#10b981' }}>{formatCOP(totals.totalNeto)}</td>
               </tr>
             </tfoot>
           </table>

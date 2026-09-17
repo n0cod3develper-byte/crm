@@ -97,6 +97,9 @@ const HorasExtrasIndexPage = lazy(() => import('./pages/Informes/HorasExtrasInde
 const HorasExtrasServiciosPage = lazy(() => import('./pages/Informes/HorasExtrasServiciosPage').then(m => ({ default: m.HorasExtrasServiciosPage })));
 const HorasExtrasMantenimientoPage = lazy(() => import('./pages/Informes/HorasExtrasMantenimientoPage').then(m => ({ default: m.HorasExtrasMantenimientoPage })));
 const InformeCatalogoPage = lazy(() => import('./pages/Informes/InformeCatalogoPage').then(m => ({ default: m.InformeCatalogoPage })));
+const HorasExtrasServiciosV2Page = lazy(() => import('./pages/HorasExtras/HorasExtrasServiciosV2Page').then(m => ({ default: m.HorasExtrasServiciosV2Page })));
+const HorasExtrasConfigPage = lazy(() => import('./pages/HorasExtras/HorasExtrasConfigPage').then(m => ({ default: m.HorasExtrasConfigPage })));
+const GestionHumanaHorasExtrasPage = lazy(() => import('./pages/HorasExtras/GestionHumanaHorasExtrasPage').then(m => ({ default: m.GestionHumanaHorasExtrasPage })));
 
 // Email Marketing Lazy Pages
 const EmailMarketingPage = lazy(() => import('./pages/EmailMarketing/EmailMarketingPage').then(m => ({ default: m.EmailMarketingPage })));
@@ -288,6 +291,8 @@ function App() {
                 <Route path="/informes/horas-extras" element={<ProtectedRoute><HorasExtrasIndexPage /></ProtectedRoute>} />
                 <Route path="/informes/horas-extras/servicios" element={<ProtectedRoute><HorasExtrasServiciosPage /></ProtectedRoute>} />
                 <Route path="/informes/horas-extras/mantenimiento" element={<ProtectedRoute><HorasExtrasMantenimientoPage /></ProtectedRoute>} />
+                <Route path="/informes/horas-extras/gestion-humana" element={<ProtectedRoute><GestionHumanaHorasExtrasPage /></ProtectedRoute>} />
+                <Route path="/horas-extras/configuracion" element={<ProtectedRoute><HorasExtrasConfigPage /></ProtectedRoute>} />
                 <Route path="/informes/email-marketing" element={<ProtectedRoute><InformesEmailMarketingPage /></ProtectedRoute>} />
                 <Route path="/informes/catalogo" element={<ProtectedRoute><InformeCatalogoPage /></ProtectedRoute>} />
 
