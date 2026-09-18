@@ -184,3 +184,58 @@ export async function calcularDesdeRemision(remisionId) {
 
   return resultados;
 }
+
+/**
+ * Recorre todas las remisiones válidas que tengan hora de salida y llegada registrada
+ * y sincroniza sus jornadas laborales en jornadas_laborales.
+ */
+export async function sincronizarHistoricoRemisiones({ forzarTodos = false } = {}) {
+  const { query } = await import('../../config/database.js');
+
+  const sql = `
+    SELECT r.id, r.numero_remision, r.fecha_servicio
+    FROM remisiones r
+    WHERE r.deleted_at IS NULL
+      AND r.hora_salida_cargar IS NOT NULL
+      AND r.hora_llegada_cargar IS NOT NULL
+      AND (r.estado IS NULL OR r.estado NOT IN ('ANULADO', 'ANULADA'))
+    ORDER BY r.fecha_servicio ASC
+  `;
+
+  const remRes = await query(sql);
+  const total = remRes.rows.length;
+  let procesadas = 0;
+  let omitidas = 0;
+  const errores = [];
+
+  for (const rem of remRes.rows) {
+    try {
+      if (!forzarTodos) {
+        const check = await query(
+          'SELECT 1 FROM jornadas_laborales WHERE remision_id = $1 LIMIT 1',
+          [rem.id]
+        );
+        if (check.rows.length > 0) {
+          omitidas++;
+          continue;
+        }
+      }
+
+      await calcularDesdeRemision(rem.id);
+      procesadas++;
+    } catch (err) {
+      errores.push({ remision: rem.numero_remision, error: err.message });
+      logger.error(`Error sincronizando remisión ${rem.numero_remision}: ${err.message}`);
+    }
+  }
+
+  logger.info(`Sincronización histórica finalizada: ${procesadas} procesadas, ${omitidas} omitidas, ${errores.length} errores de ${total} totales.`);
+
+  return {
+    total,
+    procesadas,
+    omitidas,
+    errores
+  };
+}
+

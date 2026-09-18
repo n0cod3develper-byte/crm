@@ -113,10 +113,18 @@ export class HorasExtrasRepository {
 
   // Upsert para automatización o reprocesamiento
   async upsertJornada(data, segmentos) {
-    const check = await query(
-      `SELECT id FROM jornadas_laborales WHERE empleado_id = $1 AND fecha_trabajo = $2`,
-      [data.empleado_id, data.fecha_trabajo]
-    );
+    let check;
+    if (data.remision_id) {
+      check = await query(
+        `SELECT id FROM jornadas_laborales WHERE empleado_id = $1 AND remision_id = $2`,
+        [data.empleado_id, data.remision_id]
+      );
+    } else {
+      check = await query(
+        `SELECT id FROM jornadas_laborales WHERE empleado_id = $1 AND fecha_trabajo = $2 AND remision_id IS NULL`,
+        [data.empleado_id, data.fecha_trabajo]
+      );
+    }
 
     let jornadaId;
     if (check.rows.length > 0) {

@@ -3,7 +3,7 @@
  */
 
 import { HorasExtrasRepository } from './horasExtras.repository.js';
-import { calcularYGuardarJornada, calcularDesdeRemision } from './horasExtras.service.js';
+import { calcularYGuardarJornada, calcularDesdeRemision, sincronizarHistoricoRemisiones } from './horasExtras.service.js';
 import { logger } from '../../utils/logger.js';
 
 const repo = new HorasExtrasRepository();
@@ -77,6 +77,17 @@ export const horasExtrasController = {
       res.json({ ok: true, resultados });
     } catch (error) {
       logger.error('Error en calcularDesdeRemision', { error: error.message });
+      next(error);
+    }
+  },
+
+  async sincronizarHistorico(req, res, next) {
+    try {
+      const { forzar } = req.body || {};
+      const resultado = await sincronizarHistoricoRemisiones({ forzarTodos: Boolean(forzar) });
+      res.json({ ok: true, data: resultado });
+    } catch (error) {
+      logger.error('Error en sincronizarHistorico', { error: error.message });
       next(error);
     }
   },

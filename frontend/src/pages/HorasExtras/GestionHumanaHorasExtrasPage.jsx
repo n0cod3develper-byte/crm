@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Calendar, Filter, Clock, DollarSign, Users, Moon,
-  FileSpreadsheet, ChevronDown, ChevronRight, Edit2
+  FileSpreadsheet, ChevronDown, ChevronRight, Edit2, RefreshCw
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
@@ -73,6 +73,7 @@ export function GestionHumanaHorasExtrasPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState(null);
   const [mostrarTodo, setMostrarTodo] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const [appliedFilters, setAppliedFilters] = useState({
     desde: getLocalDateStr(firstDay),
@@ -244,6 +245,21 @@ export function GestionHumanaHorasExtrasPage() {
     toast.success('Excel exportado');
   };
 
+  const handleSincronizar = async () => {
+    try {
+      setIsSyncing(true);
+      toast.loading('Sincronizando remisiones históricas...', { id: 'sync-he' });
+      const res = await api.post('/horas-extras/sincronizar-historico', { forzar: true });
+      const { procesadas = 0 } = res.data?.data || {};
+      toast.success(`Sincronización completada: ${procesadas} remisiones procesadas`, { id: 'sync-he' });
+      queryClient.invalidateQueries(['he-gestion-humana']);
+    } catch (err) {
+      toast.error('Error al sincronizar histórico: ' + (err.response?.data?.message || err.message), { id: 'sync-he' });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <Layout
       title="Gestión Humana — Horas Extras"
@@ -301,6 +317,12 @@ export function GestionHumanaHorasExtrasPage() {
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px' }}
           disabled={!filteredRows.length}>
           <FileSpreadsheet size={15} /> Excel
+        </button>
+        <button className="btn btn-secondary" onClick={handleSincronizar} disabled={isSyncing}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px' }}
+          title="Sincronizar todas las remisiones históricas hacia jornadas laborales">
+          <RefreshCw size={15} className={isSyncing ? 'animate-spin' : ''} />
+          {isSyncing ? 'Sincronizando...' : 'Sincronizar Histórico'}
         </button>
         <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', gap: 12 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
