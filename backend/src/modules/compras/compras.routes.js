@@ -1,47 +1,27 @@
 import { Router } from 'express';
 import {
-  getSolicitudes,
-  getSolicitudById,
-  createSolicitud,
-  updateSolicitud,
-  enviarSolicitud,
-  getCotizaciones,
-  createCotizacion,
-  selectCotizacion,
-  getOrdenesCompra,
-  getOrdenCompra,
-  enviarParaAprobacion,
-  aprobarOc,
-  rechazarOc,
-  emitirOc,
-  recibirOc,
-  getPdfOc
+  registrarCompra,
+  buscarProductos,
+  getProductoInfoCompra,
+  getHistorialCompras,
+  getHistorialPreciosProducto,
+  getOrdenesCompraLegacy,
+  getOrdenCompraLegacyById
 } from './compras.controller.js';
 import { authenticate } from '../../middleware/auth.js';
 
 const router = Router();
 router.use(authenticate);
 
-// Solicitudes
-router.get('/solicitudes', getSolicitudes);
-router.get('/solicitudes/:id', getSolicitudById);
-router.post('/solicitudes', createSolicitud);
-router.put('/solicitudes/:id', updateSolicitud);
-router.post('/solicitudes/:id/enviar', enviarSolicitud);
-router.get('/solicitudes/:id/cotizaciones', getCotizaciones);
-router.post('/solicitudes/:id/cotizaciones', createCotizacion);
+// ── Rutas del Nuevo Módulo de Registro Simple de Compras ─────────
+router.post('/registro', registrarCompra);
+router.get('/productos/buscar', buscarProductos);
+router.get('/productos/:id/info-compra', getProductoInfoCompra);
+router.get('/productos/:id/historial-precios', getHistorialPreciosProducto);
+router.get('/historial', getHistorialCompras);
 
-// Cotizaciones
-router.post('/cotizaciones/:id/seleccionar', selectCotizacion);
-
-// Órdenes de Compra
-router.get('/oc', getOrdenesCompra);
-router.get('/oc/:id', getOrdenCompra);
-router.post('/oc/:id/enviar-aprobacion', enviarParaAprobacion);
-router.post('/oc/:id/aprobar', aprobarOc);
-router.post('/oc/:id/rechazar', rechazarOc);
-router.post('/oc/:id/emitir', emitirOc);
-router.post('/oc/:id/recibir', recibirOc);
-router.get('/oc/:id/pdf', getPdfOc);
+// ── Rutas Legacy de Consulta Histórica de Órdenes de Compra ─────
+router.get('/oc', getOrdenesCompraLegacy);
+router.get('/oc/:id', getOrdenCompraLegacyById);
 
 export default router;

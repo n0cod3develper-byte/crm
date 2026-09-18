@@ -65,7 +65,7 @@ export class ProveedoresRepository {
       SELECT p.*,
         (SELECT json_agg(json_build_object('categoria', c.categoria, 'descripcion', c.descripcion))
          FROM proveedor_categorias_productos c WHERE c.proveedor_id = p.id) as categorias,
-        (SELECT COUNT(*) FROM ordenes_compra oc WHERE oc.proveedor_id = p.id AND oc.estado != 'ANULADA') as conteo_oc
+        (SELECT COUNT(*) FROM compras_registro cr WHERE cr.proveedor_id = p.id) as conteo_oc
       FROM proveedores p
       WHERE p.id = $1 AND p.deleted_at IS NULL
     `;

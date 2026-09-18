@@ -1,300 +1,207 @@
 import { db } from '../../config/database.js';
 import { comprasRepository } from './compras.repository.js';
 import { registrarMovimiento } from '../../services/inventoryMovements.service.js';
+import { logger } from '../../utils/logger.js';
 
 export class ComprasService {
-  async crearSolicitud(data, userId) {
+  /**
+   * Registra una compra con uno o varios ítems bajo el mismo número de factura.
+   * Ejecuta todo en una transacción atómica:
+   * 1. Verifica proveedor.
+   * 2. Itera sobre cada ítem:
+   *    - Inserta en compras_registro
+   *    - Registra el movimiento de inventario (actualiza stock_actual y costo_promedio_ponderado)
+   *    - Vincula movimiento_id a la compra
+   * 3. Si algún ítem falla, hace ROLLBACK de todo.
+   */
+  async registrarCompra(data, userId) {
+    // Soportar tanto payload con `items: [...]` como payload de 1 solo ítem
+    const rawItems = Array.isArray(data.items) && data.items.length > 0
+      ? data.items
+      : [{
+          producto_id: data.producto_id,
+          cantidad: data.cantidad,
+          precio_unitario: data.precio_unitario,
+          iva_pct: data.iva_pct,
+          observaciones: data.observaciones
+        }];
+
     const client = await db.connect();
+
     try {
-      await client.query('BEGIN');
-      
-      // Auto-generar consecutivo
-      const seqRes = await client.query("SELECT nextval('seq_solicitudes_compra') as seq");
-      const consecutivo = `SC-${String(seqRes.rows[0].seq).padStart(5, '0')}`;
-
-      const solRes = await client.query(`
-        INSERT INTO solicitudes_compra (consecutivo, solicitante_id, area_solicitante, fecha_requerida, prioridad, justificacion, notas, estado)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 'BORRADOR')
-        RETURNING *
-      `, [consecutivo, userId, data.area_solicitante, data.fecha_requerida, data.prioridad || 'MEDIA', data.justificacion, data.notas]);
-      
-      const solicitudId = solRes.rows[0].id;
-
-      for (const item of data.items) {
-        await client.query(`
-          INSERT INTO solicitud_items (solicitud_id, item_inventario_id, descripcion, unidad, cantidad_solicitada, notas_item)
-          VALUES ($1, $2, $3, $4, $5, $6)
-        `, [solicitudId, item.item_inventario_id || null, item.descripcion, item.unidad, item.cantidad_solicitada, item.notas_item]);
+      // 1. Validaciones de Cabecera
+      const numeroFactura = (data.numero_factura || '').trim();
+      if (!numeroFactura) {
+        throw new Error('El número de factura es obligatorio');
       }
 
-      await client.query('COMMIT');
-      return solRes.rows[0];
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
+      if (!data.fecha_compra) {
+        throw new Error('La fecha de compra es obligatoria');
+      }
 
-  async actualizarSolicitud(id, data, userId) {
-    const client = await db.connect();
-    try {
-      await client.query('BEGIN');
+      if (!data.proveedor_id) {
+        throw new Error('El proveedor es obligatorio');
+      }
 
-      await client.query(`
-        UPDATE solicitudes_compra 
-        SET area_solicitante = $1, fecha_requerida = $2, prioridad = $3, justificacion = $4, notas = $5, updated_at = NOW()
-        WHERE id = $6 AND estado = 'BORRADOR'
-      `, [data.area_solicitante, data.fecha_requerida, data.prioridad || 'MEDIA', data.justificacion, data.notas, id]);
+      if (rawItems.length === 0) {
+        throw new Error('Debe agregar al menos un producto a la factura');
+      }
 
-      // Replace items: delete old, insert new
-      await client.query('DELETE FROM solicitud_items WHERE solicitud_id = $1', [id]);
-
-      if (data.items && data.items.length > 0) {
-        for (const item of data.items) {
-          await client.query(`
-            INSERT INTO solicitud_items (solicitud_id, item_inventario_id, descripcion, unidad, cantidad_solicitada, notas_item)
-            VALUES ($1, $2, $3, $4, $5, $6)
-          `, [id, item.item_inventario_id || null, item.descripcion, item.unidad, item.cantidad_solicitada, item.notas_item]);
+      // Validar cada ítem antes de iniciar
+      const itemsValidados = rawItems.map((item, idx) => {
+        if (!item.producto_id) {
+          throw new Error(`Ítem #${idx + 1}: El producto es obligatorio`);
         }
+        const cantidad = parseFloat(item.cantidad);
+        if (isNaN(cantidad) || cantidad <= 0) {
+          throw new Error(`Ítem #${idx + 1}: La cantidad debe ser un número mayor a cero`);
+        }
+        const precioUnitario = parseFloat(item.precio_unitario);
+        if (isNaN(precioUnitario) || precioUnitario < 0) {
+          throw new Error(`Ítem #${idx + 1}: El precio unitario debe ser mayor o igual a cero`);
+        }
+        const ivaPct = item.iva_pct !== undefined && item.iva_pct !== '' ? parseFloat(item.iva_pct) : 0;
+
+        return {
+          producto_id: item.producto_id,
+          cantidad,
+          precio_unitario: precioUnitario,
+          iva_pct: ivaPct,
+          observaciones: item.observaciones || data.observaciones || null
+        };
+      });
+
+      await client.query('BEGIN');
+
+      // 2. Verificar existencia del proveedor
+      const provRes = await client.query(
+        'SELECT id, razon_social, nombre_comercial FROM proveedores WHERE id = $1',
+        [data.proveedor_id]
+      );
+      if (provRes.rows.length === 0) {
+        throw new Error(`Proveedor no encontrado: ${data.proveedor_id}`);
+      }
+      const proveedor = provRes.rows[0];
+      const proveedorNombre = proveedor.nombre_comercial || proveedor.razon_social;
+
+      const resultados = [];
+
+      // 3. Procesar cada ítem
+      for (let i = 0; i < itemsValidados.length; i++) {
+        const it = itemsValidados[i];
+
+        // Verificar y bloquear fila del producto en inventario
+        const prodRes = await client.query(
+          'SELECT id, name, nombre_comercial, tipo, stock_actual FROM inventario WHERE id = $1 FOR UPDATE',
+          [it.producto_id]
+        );
+        if (prodRes.rows.length === 0) {
+          throw new Error(`Producto no encontrado en inventario (ítem #${i + 1}): ${it.producto_id}`);
+        }
+        const prodInfo = prodRes.rows[0];
+
+        // Guardar registro en compras_registro
+        const compra = await comprasRepository.insertarCompra({
+          numero_factura: numeroFactura,
+          fecha_compra: data.fecha_compra,
+          proveedor_id: data.proveedor_id,
+          producto_id: it.producto_id,
+          cantidad: it.cantidad,
+          precio_unitario: it.precio_unitario,
+          iva_pct: it.iva_pct,
+          observaciones: it.observaciones,
+          registrado_por: userId
+        }, client);
+
+        // Registrar movimiento de inventario (actualiza stock_actual y costo promedio en inventario)
+        const notasMovimiento = it.observaciones 
+          ? `Factura ${numeroFactura}: ${it.observaciones}`
+          : `Compra registrada con Factura ${numeroFactura}`;
+
+        const movResult = await registrarMovimiento({
+          inventario_id: it.producto_id,
+          tipo_movimiento: 'ENTRADA_COMPRA',
+          tipo_documento: 'FACTURA',
+          numero_documento: numeroFactura,
+          fecha_documento: data.fecha_compra,
+          cantidad: it.cantidad,
+          precio_unitario: it.precio_unitario,
+          iva_pct: it.iva_pct,
+          proveedor_id: data.proveedor_id,
+          proveedor_nombre_libre: proveedorNombre,
+          notas: notasMovimiento,
+          registrado_por: userId
+        }, client);
+
+        // Vincular movimiento_id a la compra
+        if (movResult?.movimiento?.id) {
+          await comprasRepository.vincularMovimiento(compra.id, movResult.movimiento.id, client);
+          compra.movimiento_id = movResult.movimiento.id;
+        }
+
+        resultados.push({
+          compra,
+          producto_nombre: prodInfo.name || prodInfo.nombre_comercial,
+          movimiento: movResult?.movimiento,
+          stock_anterior: movResult?.producto?.stock_anterior,
+          stock_nuevo: movResult?.producto?.stock_nuevo,
+          costo_promedio_nuevo: movResult?.producto?.costo_promedio_nuevo
+        });
       }
 
       await client.query('COMMIT');
 
-      return await comprasRepository.getSolicitudById(id);
+      logger.info('Factura de compra registrada exitosamente', {
+        factura: numeroFactura,
+        proveedorId: data.proveedor_id,
+        itemsCount: resultados.length
+      });
+
+      const primerItem = resultados[0];
+      return {
+        numero_factura: numeroFactura,
+        fecha_compra: data.fecha_compra,
+        proveedor: proveedorNombre,
+        total_items: resultados.length,
+        items: resultados,
+        // Compatibilidad hacia atrás si se consulta el primer ítem
+        compra: primerItem?.compra,
+        movimiento: primerItem?.movimiento,
+        stock_anterior: primerItem?.stock_anterior,
+        stock_nuevo: primerItem?.stock_nuevo,
+        costo_promedio_nuevo: primerItem?.costo_promedio_nuevo
+      };
     } catch (error) {
       await client.query('ROLLBACK');
+      logger.error('Error al registrar compra:', { error: error.message, stack: error.stack });
       throw error;
     } finally {
       client.release();
     }
   }
 
-  async registrarCotizacion(solicitudId, data) {
-    const client = await db.connect();
-    try {
-      await client.query('BEGIN');
-      
-      const resSol = await client.query('SELECT estado FROM solicitudes_compra WHERE id = $1', [solicitudId]);
-      if (resSol.rows[0].estado !== 'EN_COTIZACION') {
-        throw new Error('La solicitud no está en estado EN_COTIZACION');
-      }
-
-      const seqRes = await client.query("SELECT nextval('seq_cotizaciones') as seq");
-      const consecutivo = `COT-${String(seqRes.rows[0].seq).padStart(5, '0')}`;
-
-      const subtotal = data.items.reduce((acc, item) => acc + (item.cantidad * item.precio_unitario), 0);
-      const iva = data.items.reduce((acc, item) => {
-        return item.aplica_iva ? acc + ((item.cantidad * item.precio_unitario) * (item.iva_pct / 100)) : acc;
-      }, 0);
-      const total = subtotal + iva;
-
-      const cotRes = await client.query(`
-        INSERT INTO cotizaciones (consecutivo, solicitud_id, proveedor_id, fecha_cotizacion, fecha_vencimiento, condicion_pago, dias_entrega, subtotal, iva_valor, total)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING *
-      `, [consecutivo, solicitudId, data.proveedor_id, data.fecha_cotizacion, data.fecha_vencimiento, data.condicion_pago, data.dias_entrega, subtotal, iva, total]);
-      
-      const cotId = cotRes.rows[0].id;
-
-      for (const item of data.items) {
-        const itemSubtotal = item.cantidad * item.precio_unitario;
-        const itemIva = item.aplica_iva ? (itemSubtotal * (item.iva_pct / 100)) : 0;
-        await client.query(`
-          INSERT INTO cotizacion_items (cotizacion_id, solicitud_item_id, descripcion, cantidad, precio_unitario, aplica_iva, iva_pct, iva_valor, total_item, marca)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        `, [cotId, item.solicitud_item_id, item.descripcion, item.cantidad, item.precio_unitario, item.aplica_iva, item.iva_pct || 19, itemIva, itemSubtotal + itemIva, item.marca]);
-      }
-
-      await client.query('COMMIT');
-      return cotRes.rows[0];
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+  async buscarProductos(q, limit) {
+    return await comprasRepository.buscarProductos(q, limit);
   }
 
-  async generarOcDesdeCotizacion(cotizacionId, userId) {
-    const client = await db.connect();
-    try {
-      await client.query('BEGIN');
-      
-      // select cotizacion and items
-      const cotRes = await client.query('SELECT * FROM cotizaciones WHERE id = $1', [cotizacionId]);
-      const cot = cotRes.rows[0];
-      
-      if (cot.estado === 'SELECCIONADA') {
-         throw new Error('Esta cotización ya generó una OC');
-      }
-
-      const itemsRes = await client.query(`
-        SELECT ci.*, si.unidad, si.item_inventario_id
-        FROM cotizacion_items ci
-        JOIN solicitud_items si ON ci.solicitud_item_id = si.id
-        WHERE ci.cotizacion_id = $1
-      `, [cotizacionId]);
-      
-      const configRes = await comprasRepository.getConfig();
-      const terminos = configRes.terminos_oc?.texto || '';
-
-      const seqRes = await client.query("SELECT nextval('seq_ordenes_compra') as seq");
-      const consecutivo = `OC-${String(seqRes.rows[0].seq).padStart(5, '0')}`;
-
-      // Insertar OC
-      const ocRes = await client.query(`
-        INSERT INTO ordenes_compra (consecutivo, solicitud_id, cotizacion_id, proveedor_id, condicion_pago, subtotal, iva_valor, total, estado, terminos_condiciones, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'BORRADOR', $9, $10)
-        RETURNING *
-      `, [consecutivo, cot.solicitud_id, cotizacionId, cot.proveedor_id, cot.condicion_pago, cot.subtotal, cot.iva_valor, cot.total, terminos, userId]);
-      
-      const ocId = ocRes.rows[0].id;
-
-      for (const item of itemsRes.rows) {
-        await client.query(`
-          INSERT INTO oc_items (orden_compra_id, item_inventario_id, descripcion, unidad, cantidad_ordenada, precio_unitario, aplica_iva, iva_pct, iva_valor, total_item, marca)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        `, [ocId, item.item_inventario_id, item.descripcion, item.unidad, item.cantidad, item.precio_unitario, item.aplica_iva, item.iva_pct, item.iva_valor, item.total_item, item.marca]);
-      }
-
-      // Marcar cotizacion como seleccionada y solicitud como OC_GENERADA
-      await client.query("UPDATE cotizaciones SET estado = 'SELECCIONADA' WHERE id = $1", [cotizacionId]);
-      await client.query("UPDATE solicitudes_compra SET estado = 'OC_GENERADA' WHERE id = $1", [cot.solicitud_id]);
-
-      await client.query('COMMIT');
-      return ocId;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+  async getProductoInfoCompra(productoId) {
+    return await comprasRepository.getProductoInfoCompra(productoId);
   }
 
-  async recibirMercancia(ocId, data, userId) {
-    const client = await db.connect();
-    try {
-      await client.query('BEGIN');
-      
-      // Update items
-      let allFullyReceived = true;
-      let anyReceived = false;
-
-      for (const item of data.items) {
-        // item: { oc_item_id, cantidad_recibida }
-        const currentItemRes = await client.query('SELECT * FROM oc_items WHERE id = $1 FOR UPDATE', [item.oc_item_id]);
-        const currentItem = currentItemRes.rows[0];
-
-        const newReceived = parseFloat(currentItem.cantidad_recibida) + parseFloat(item.cantidad_recibida);
-        const status = newReceived >= parseFloat(currentItem.cantidad_ordenada) ? 'RECIBIDO_TOTAL' : 'RECIBIDO_PARCIAL';
-        
-        if (parseFloat(item.cantidad_recibida) > 0) anyReceived = true;
-        if (status !== 'RECIBIDO_TOTAL') allFullyReceived = false;
-
-        await client.query('UPDATE oc_items SET cantidad_recibida = $1, estado_item = $2 WHERE id = $3', [newReceived, status, item.oc_item_id]);
-
-          // ================= INVENTARIO INTEGRATION =================
-          if (parseFloat(item.cantidad_recibida) > 0) {
-            let itemInvId = currentItem.item_inventario_id;
-
-            // If it was a manual item with no inventory link, create it now
-            if (!itemInvId) {
-              const newInvData = item.new_inventory_data || {};
-              const resNewInv = await client.query(`
-                INSERT INTO inventario (sku, name, description, categoria_id, unit, costo_reposicion, unit_price, stock_actual, stock_minimum, is_active, tipo)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, true, 'PRODUCTO')
-                RETURNING id
-              `, [
-                newInvData.sku || null,
-                newInvData.name || currentItem.descripcion,
-                newInvData.description || currentItem.descripcion,
-                newInvData.categoria_id || null,
-                currentItem.unidad,
-                currentItem.precio_unitario,
-                newInvData.unit_price || currentItem.precio_unitario,
-                newInvData.stock_minimum || 0
-              ]);
-              itemInvId = resNewInv.rows[0].id;
-              
-              await client.query('UPDATE oc_items SET item_inventario_id = $1 WHERE id = $2', [itemInvId, item.oc_item_id]);
-            }
-
-            // Registrar movimiento de entrada (esto actualiza stock y costo promedio)
-            const ocRes = await client.query('SELECT consecutivo, proveedor_id FROM ordenes_compra WHERE id = $1', [ocId]);
-            const oc = ocRes.rows[0];
-
-            await registrarMovimiento({
-              inventario_id: itemInvId,
-              tipo_movimiento: 'ENTRADA_OC',
-              tipo_documento: 'ORDEN_COMPRA',
-              numero_documento: oc.consecutivo,
-              cantidad: parseFloat(item.cantidad_recibida),
-              precio_unitario: parseFloat(currentItem.precio_unitario),
-              proveedor_id: oc.proveedor_id,
-              oc_id: ocId,
-              notas: `Recepción de mercancía OC ${oc.consecutivo}`,
-              registrado_por: userId
-            }, client);
-          }
-      }
-
-      if (anyReceived) {
-         const globalState = allFullyReceived ? 'RECIBIDA_TOTAL' : 'RECIBIDA_PARCIAL';
-         await client.query('UPDATE ordenes_compra SET estado = $1, updated_at = NOW() WHERE id = $2', [globalState, ocId]);
-      }
-
-      await client.query('COMMIT');
-      return true;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+  async getHistorialCompras(filters) {
+    return await comprasRepository.getHistorialCompras(filters);
   }
 
-  async procesarAprobacion(ocId, action, userId, comentario) {
-    // action: APROBAR or RECHAZAR
-    const client = await db.connect();
-    try {
-      await client.query('BEGIN');
+  async getHistorialPreciosPorProducto(productoId) {
+    return await comprasRepository.getHistorialPreciosPorProducto(productoId);
+  }
 
-      const configRes = await comprasRepository.getConfig();
-      const limites = configRes.aprobacion_limites || { nivel_1: 5000000, nivel_2: 20000000 };
-      
-      const ocRes = await client.query('SELECT total FROM ordenes_compra WHERE id = $1 FOR UPDATE', [ocId]);
-      const total = parseFloat(ocRes.rows[0].total);
+  async getOrdenesCompraLegacy() {
+    return await comprasRepository.getOrdenesCompraLegacy();
+  }
 
-      let requiredLevels = 1;
-      if (total > limites.nivel_2) requiredLevels = 3;
-      else if (total > limites.nivel_1) requiredLevels = 2;
-
-      // Calculate current level
-      const aprobRes = await client.query('SELECT * FROM aprobaciones_oc WHERE entidad_id = $1 ORDER BY nivel ASC', [ocId]);
-      
-      if (action === 'RECHAZAR') {
-         await client.query("UPDATE ordenes_compra SET estado = 'BORRADOR' WHERE id = $1", [ocId]);
-         // User requested: return to draft to be quoted again.
-         await client.query("INSERT INTO aprobaciones_oc (entidad_id, nivel, aprobador_id, estado, comentario, fecha_accion) VALUES ($1, $2, $3, 'RECHAZADO', $4, NOW())", [ocId, aprobRes.rowCount + 1, userId, comentario]);
-      } else {
-         const currentLevel = aprobRes.rowCount + 1;
-         await client.query("INSERT INTO aprobaciones_oc (entidad_id, nivel, aprobador_id, estado, comentario, fecha_accion) VALUES ($1, $2, $3, 'APROBADO', $4, NOW())", [ocId, currentLevel, userId, comentario]);
-         
-         if (currentLevel >= requiredLevels) {
-            await client.query("UPDATE ordenes_compra SET estado = 'APROBADA' WHERE id = $1", [ocId]);
-         }
-      }
-
-      await client.query('COMMIT');
-      return true;
-    } catch (error) {
-       await client.query('ROLLBACK');
-       throw error;
-    } finally {
-       client.release();
-    }
+  async getOrdenCompraLegacyById(id) {
+    return await comprasRepository.getOrdenCompraLegacyById(id);
   }
 }
 

@@ -216,10 +216,12 @@ app.use(`${API}/turnos`,   turnosRoutes);
 app.use(`${API}/certificados-publico`, certificadosPublicoRoutes);
 app.use(`${API}/certificados`, certificadosRoutes);
 app.use(`${API}/servicios-negados`, serviciosNegadosRoutes);
-// ─── Archivos estáticos públicos (avatares, email marketing) ───
+// ─── Archivos estáticos públicos (avatares, email marketing, catálogo) ───
 // Deben servirse sin autenticación para que <img> tags funcionen en clientes de correo
+// y en componentes React que usan <img src="/uploads/...">
 app.use('/uploads/avatars', express.static('uploads/avatars'));
 app.use('/uploads/email-marketing', express.static('uploads/email-marketing'));
+app.use('/uploads/general', express.static('uploads/general'));
 
 // ─── Archivos estáticos protegidos ───────────────────────────
 // Los demás uploads requieren autenticación JWT (vía cookie o header)
