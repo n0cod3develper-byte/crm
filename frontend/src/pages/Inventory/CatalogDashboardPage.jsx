@@ -107,7 +107,7 @@ export function CatalogDashboardPage() {
                           </span>
                         </td>
                         <td>
-                          <Link to={`/compras/oc/nueva?item=${item.id}`} className="btn btn--secondary btn--sm">
+                          <Link to={`/compras?productoId=${item.id}`} className="btn btn--secondary btn--sm">
                             Reponer
                           </Link>
                         </td>

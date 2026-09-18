@@ -54,6 +54,7 @@ const ProveedoresListPage = lazy(() => import('./pages/Proveedores/ProveedoresLi
 const ProveedorFormPage = lazy(() => import('./pages/Proveedores/ProveedorFormPage').then(m => ({ default: m.ProveedorFormPage })));
 const ProveedorFichaPage = lazy(() => import('./pages/Proveedores/ProveedorFichaPage').then(m => ({ default: m.ProveedorFichaPage })));
 
+const ComprasPage = lazy(() => import('./pages/Compras/ComprasPage').then(m => ({ default: m.ComprasPage })));
 const DashboardComprasPage = lazy(() => import('./pages/Compras/DashboardComprasPage').then(m => ({ default: m.DashboardComprasPage })));
 const SolicitudesListPage = lazy(() => import('./pages/Compras/SolicitudesListPage').then(m => ({ default: m.SolicitudesListPage })));
 const SolicitudFormPage = lazy(() => import('./pages/Compras/SolicitudFormPage').then(m => ({ default: m.SolicitudFormPage })));
@@ -203,16 +204,12 @@ function App() {
                 <Route path="/admin/usuarios" element={<ProtectedRoute adminOnly><UsersPage /></ProtectedRoute>} />
                 <Route path="/admin/modulos" element={<ProtectedRoute adminOnly><ModulesPage /></ProtectedRoute>} />
 
-                {/* Compras */}
-                <Route path="/compras" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><DashboardComprasPage /></ProtectedRoute>} />
-                <Route path="/compras/aprobaciones" element={<ProtectedRoute modulo="ordenes_compra" accion="aprobar"><AprobacionesPage /></ProtectedRoute>} />
-                <Route path="/compras/solicitudes" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><SolicitudesListPage /></ProtectedRoute>} />
-                <Route path="/compras/solicitudes/nueva" element={<ProtectedRoute modulo="ordenes_compra" accion="crear"><SolicitudFormPage /></ProtectedRoute>} />
-                <Route path="/compras/solicitudes/:id/editar" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><SolicitudFormPage /></ProtectedRoute>} />
-                <Route path="/compras/cotizaciones/comparativa/:solicitudId" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><ComparacionCotizacionesPage /></ProtectedRoute>} />
+                {/* Compras (Registro Simple e Historial) */}
+                <Route path="/compras" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><ComprasPage /></ProtectedRoute>} />
+                <Route path="/compras/registro" element={<ProtectedRoute modulo="ordenes_compra" accion="crear"><ComprasPage /></ProtectedRoute>} />
+                <Route path="/compras/historial" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><ComprasPage /></ProtectedRoute>} />
                 <Route path="/compras/oc" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><OrdenesCompraPage /></ProtectedRoute>} />
                 <Route path="/compras/oc/:id/editar" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><OrdenCompraFormPage /></ProtectedRoute>} />
-                <Route path="/compras/recepcion/:id" element={<ProtectedRoute modulo="ordenes_compra" accion="ver"><RecepcionMercanciaPage /></ProtectedRoute>} />
                 
                 {/* Comercial */}
                 <Route path="/contacts" element={<ProtectedRoute modulo="contactos" accion="ver"><ContactsPage /></ProtectedRoute>} />
