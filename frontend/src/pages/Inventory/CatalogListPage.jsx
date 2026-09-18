@@ -106,7 +106,7 @@ export function CatalogListPage() {
         'Unidad de Medida': item.unidad_medida || '—',
         'Stock Actual': item.tipo === 'PRODUCTO' ? Number(item.stock_actual || 0) : 'N/A',
         'Stock Mínimo': item.tipo === 'PRODUCTO' ? Number(item.stock_minimo || 0) : 'N/A',
-        'Precio Venta': Number(item.precio_venta || 0),
+        'Precio Unitario': Number(item.precio_venta || 0),
         'Costo Reposición / Mínimo': Number(item.costo_o_minimo || 0),
         'Aplica IVA': item.aplica_iva ? 'SÍ' : 'NO',
         '% IVA': item.iva_pct ? Number(item.iva_pct) : 0,
@@ -284,10 +284,10 @@ export function CatalogListPage() {
                   <th 
                     onClick={() => handleSort('precio_venta')}
                     style={{ cursor: 'pointer', userSelect: 'none' }}
-                    title="Ordenar por Precio de Venta"
+                    title="Ordenar por Precio Unitario"
                   >
                     <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                      Precio Venta {renderSortIcon('precio_venta')}
+                      Precio Unitario {renderSortIcon('precio_venta')}
                     </span>
                   </th>
                   <th style={{ textAlign: 'right' }}>Acciones</th>
