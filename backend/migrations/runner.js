@@ -165,6 +165,7 @@ const MIGRATION_FILES = [
   '131_movimientos_view_ot_cliente.sql',
   '132_horas_extras_module.sql',
   '133_jornadas_laborales.sql',
+  '134_compras_registro_simple.sql',
 ];
 
 
