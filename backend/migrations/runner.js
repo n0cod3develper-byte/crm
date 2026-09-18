@@ -164,6 +164,7 @@ const MIGRATION_FILES = [
   '130_remision_dias_fijo_horometros.sql',
   '131_movimientos_view_ot_cliente.sql',
   '132_horas_extras_module.sql',
+  '133_jornadas_laborales.sql',
 ];
 
 
