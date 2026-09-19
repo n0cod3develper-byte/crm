@@ -19,6 +19,9 @@ router.get('/productos/buscar', buscarProductos);
 router.get('/productos/:id/info-compra', getProductoInfoCompra);
 router.get('/productos/:id/historial-precios', getHistorialPreciosProducto);
 router.get('/historial', getHistorialCompras);
+router.get('/informe', (req, res, next) => {
+  import('../informes/informes.controller.js').then(m => m.informesController.getInformeCompras(req, res, next)).catch(next);
+});
 
 // ── Rutas Legacy de Consulta Histórica de Órdenes de Compra ─────
 router.get('/oc', getOrdenesCompraLegacy);

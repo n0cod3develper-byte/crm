@@ -36,6 +36,9 @@ router.put('/gestion-humana/liquidacion-ajustes', informesController.upsertLiqui
 // Horas Extras
 router.get('/horas-extras/servicios', informesController.getHorasExtrasServicios);
 
+// Compras e Insumos
+router.get('/compras', informesController.getInformeCompras);
+
 // Mantenimiento
 router.use('/mantenimiento', mantenimientoRoutes);
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
-import { BarChart3, Wrench, ArrowRight, Users, Fuel, Package } from 'lucide-react';
+import { BarChart3, Wrench, ArrowRight, Users, Fuel, Package, ShoppingCart } from 'lucide-react';
 
 export function InformesIndexPage() {
   return (
@@ -297,8 +297,55 @@ export function InformesIndexPage() {
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.5, marginBottom: '1.5rem', flex: 1 }}>
               Consulte y descargue en formato Excel los productos y servicios registrados por rango de fechas de creación y tipo.
+            </p>              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0ea5e9', fontWeight: 600, fontSize: '0.95rem' }}>
+              Ver informes <ArrowRight size={18} />
+            </div>
+          </div>
+        </Link>
+
+        {/* Tarjeta de Compras */}
+        <Link to="/informes/compras" style={{ textDecoration: 'none', display: 'flex', height: '100%' }}>
+          <div className="card" style={{
+            padding: '2.5rem 2rem',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            background: 'linear-gradient(145deg, var(--bg-elevated) 0%, rgba(168, 85, 247, 0.05) 100%)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '16px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            width: '100%',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-5px)';
+            e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(168, 85, 247, 0.15), 0 10px 10px -5px rgba(168, 85, 247, 0.04)';
+            e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'none';
+            e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+            e.currentTarget.style.borderColor = 'var(--border-color)';
+          }}
+          >
+            <div style={{
+              background: 'linear-gradient(135deg, #a855f7 0%, #9333ea 100%)',
+              borderRadius: '50%',
+              padding: '1.25rem',
+              marginBottom: '1.5rem',
+              boxShadow: '0 8px 16px -4px rgba(168, 85, 247, 0.4)'
+            }}>
+              <ShoppingCart size={32} color="white" />
+            </div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
+              Informe de Compras
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.5, marginBottom: '1.5rem', flex: 1 }}>
+              Compras registradas por rango de fechas con desglose por factura, proveedor y exportación a Excel.
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0ea5e9', fontWeight: 600, fontSize: '0.95rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#a855f7', fontWeight: 600, fontSize: '0.95rem' }}>
               Ver informes <ArrowRight size={18} />
             </div>
           </div>

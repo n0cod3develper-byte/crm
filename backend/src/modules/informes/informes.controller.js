@@ -571,5 +571,40 @@ export const informesController = {
       logger.error('Error en getRemisionesLiquidadas', { error: error.message });
       next(error);
     }
+  },
+
+  async getInformeCompras(req, res, next) {
+    try {
+      const { fecha_desde, fecha_hasta, search, proveedor_id } = req.query;
+
+      if (!fecha_desde || !fecha_hasta) {
+        return res.status(400).json({
+          success: false,
+          error: 'Los parámetros "fecha_desde" y "fecha_hasta" son obligatorios (formato YYYY-MM-DD)'
+        });
+      }
+
+      if (new Date(fecha_desde) > new Date(fecha_hasta)) {
+        return res.status(400).json({
+          success: false,
+          error: 'La "fecha_desde" no puede ser mayor que "fecha_hasta"'
+        });
+      }
+
+      const data = await informesRepository.getInformeCompras({
+        fecha_desde,
+        fecha_hasta,
+        search: search || null,
+        proveedor_id: proveedor_id || null
+      });
+
+      res.json({
+        success: true,
+        ...data
+      });
+    } catch (error) {
+      logger.error('Error en getInformeCompras', { error: error.message });
+      next(error);
+    }
   }
 };

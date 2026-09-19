@@ -2238,6 +2238,102 @@ export class InformesRepository {
     const result = await query(sql, params);
     return result.rows;
   }
+
+  /**
+   * INFORME DE COMPRAS POR RANGO DE FECHAS
+   * Agrupa por factura y concatena ítems con STRING_AGG.
+   */
+  async getInformeCompras({ fecha_desde, fecha_hasta, search, proveedor_id }) {
+    const conditions = ['1=1'];
+    const params = [];
+    let i = 1;
+
+    if (fecha_desde) {
+      conditions.push(`cr.fecha_compra >= $${i++}`);
+      params.push(fecha_desde);
+    }
+
+    if (fecha_hasta) {
+      conditions.push(`cr.fecha_compra <= $${i++}`);
+      params.push(fecha_hasta);
+    }
+
+    if (proveedor_id) {
+      conditions.push(`cr.proveedor_id = $${i++}`);
+      params.push(proveedor_id);
+    }
+
+    if (search && search.trim()) {
+      const term = `%${search.trim()}%`;
+      conditions.push(`(
+        cr.numero_factura ILIKE $${i}
+        OR p.nombre_comercial ILIKE $${i}
+        OR p.razon_social ILIKE $${i}
+        OR i.nombre_comercial ILIKE $${i}
+        OR i.name ILIKE $${i}
+        OR i.codigo_interno ILIKE $${i}
+      )`);
+      params.push(term);
+      i++;
+    }
+
+    const whereClause = conditions.join(' AND ');
+
+    // 1. Resumen global del período
+    const summarySql = `
+      SELECT 
+        COUNT(DISTINCT cr.numero_factura)::INT AS total_facturas,
+        COALESCE(SUM(cr.subtotal), 0)::NUMERIC(15,2) AS total_subtotal,
+        COALESCE(SUM(cr.iva_valor), 0)::NUMERIC(15,2) AS total_iva,
+        COALESCE(SUM(cr.total), 0)::NUMERIC(15,2) AS gran_total,
+        COUNT(cr.id)::INT AS total_items
+      FROM compras_registro cr
+      JOIN proveedores p ON p.id = cr.proveedor_id
+      JOIN inventario i ON i.id = cr.producto_id
+      WHERE ${whereClause};
+    `;
+
+    // 2. Facturas agrupadas con productos concatenados
+    const dataSql = `
+      SELECT
+        cr.fecha_compra,
+        cr.numero_factura,
+        COALESCE(p.nombre_comercial, p.razon_social) AS proveedor_nombre,
+        p.numero_documento AS proveedor_nit,
+        STRING_AGG(
+          COALESCE(i.nombre_comercial, i.name) || ' (' || COALESCE(i.codigo_interno, i.sku, 'S/C') || ') x' || 
+          TRIM(TO_CHAR(cr.cantidad, 'FM999999990.##')) || ' = $' || 
+          TO_CHAR(cr.subtotal, 'FM999G999G999G990'),
+          '; ' ORDER BY cr.created_at ASC
+        ) AS descripcion_productos,
+        SUM(cr.subtotal)::NUMERIC(15,2) AS subtotal,
+        SUM(cr.iva_valor)::NUMERIC(15,2) AS iva,
+        SUM(cr.total)::NUMERIC(15,2) AS total,
+        COUNT(cr.id)::INT AS total_items
+      FROM compras_registro cr
+      JOIN proveedores p ON p.id = cr.proveedor_id
+      JOIN inventario i ON i.id = cr.producto_id
+      WHERE ${whereClause}
+      GROUP BY cr.fecha_compra, cr.numero_factura, p.id, p.nombre_comercial, p.razon_social, p.numero_documento
+      ORDER BY cr.fecha_compra DESC, cr.numero_factura ASC;
+    `;
+
+    const [summaryRes, dataRes] = await Promise.all([
+      query(summarySql, params),
+      query(dataSql, params)
+    ]);
+
+    return {
+      resumen: summaryRes.rows[0] || {
+        total_facturas: 0,
+        total_subtotal: 0,
+        total_iva: 0,
+        gran_total: 0,
+        total_items: 0
+      },
+      compras: dataRes.rows
+    };
+  }
 }
 
 // Utility: format decimal hours to "Xh Ym"
