@@ -98,6 +98,7 @@ const HorasExtrasIndexPage = lazy(() => import('./pages/Informes/HorasExtrasInde
 const HorasExtrasServiciosPage = lazy(() => import('./pages/Informes/HorasExtrasServiciosPage').then(m => ({ default: m.HorasExtrasServiciosPage })));
 const HorasExtrasMantenimientoPage = lazy(() => import('./pages/Informes/HorasExtrasMantenimientoPage').then(m => ({ default: m.HorasExtrasMantenimientoPage })));
 const InformeCatalogoPage = lazy(() => import('./pages/Informes/InformeCatalogoPage').then(m => ({ default: m.InformeCatalogoPage })));
+const InformeComprasPage = lazy(() => import('./pages/Informes/InformeComprasPage').then(m => ({ default: m.InformeComprasPage })));
 const HorasExtrasServiciosV2Page = lazy(() => import('./pages/HorasExtras/HorasExtrasServiciosV2Page').then(m => ({ default: m.HorasExtrasServiciosV2Page })));
 const HorasExtrasConfigPage = lazy(() => import('./pages/HorasExtras/HorasExtrasConfigPage').then(m => ({ default: m.HorasExtrasConfigPage })));
 const GestionHumanaHorasExtrasPage = lazy(() => import('./pages/HorasExtras/GestionHumanaHorasExtrasPage').then(m => ({ default: m.GestionHumanaHorasExtrasPage })));
@@ -292,6 +293,7 @@ function App() {
                 <Route path="/horas-extras/configuracion" element={<ProtectedRoute><HorasExtrasConfigPage /></ProtectedRoute>} />
                 <Route path="/informes/email-marketing" element={<ProtectedRoute><InformesEmailMarketingPage /></ProtectedRoute>} />
                 <Route path="/informes/catalogo" element={<ProtectedRoute><InformeCatalogoPage /></ProtectedRoute>} />
+                <Route path="/informes/compras" element={<ProtectedRoute><InformeComprasPage /></ProtectedRoute>} />
 
                 {/* Email Marketing CRUD routes */}
                 <Route path="/email-marketing" element={<ProtectedRoute modulo="email_marketing" accion="ver"><EmailMarketingPage /></ProtectedRoute>} />

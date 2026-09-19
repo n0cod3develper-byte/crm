@@ -166,6 +166,8 @@ const MIGRATION_FILES = [
   '132_horas_extras_module.sql',
   '133_jornadas_laborales.sql',
   '134_compras_registro_simple.sql',
+  '135_rol_gerencia.sql',
+  '136_dashboard_gerencia_indexes.sql',
 ];
 
 

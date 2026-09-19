@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { TrendingUp, Users, DollarSign, CheckSquare, ArrowUpRight, ArrowDownRight, Wrench, ShieldCheck, Activity, Calendar, RotateCcw, AlertTriangle, HardHat } from 'lucide-react';
@@ -8,6 +8,7 @@ import api from '../../lib/api';
 import { usePermissions } from '../../contexts/PermissionsContext';
 import DashboardComercial from './dashboards/DashboardComercial';
 import DashboardMantenimiento from './dashboards/DashboardMantenimiento';
+import DashboardGerencia from './dashboards/DashboardGerencia';
 import DashboardEnConstruccion from './dashboards/DashboardEnConstruccion';
 
 const DASHBOARD_POR_ROL = {
@@ -16,6 +17,7 @@ const DASHBOARD_POR_ROL = {
   'tecnico':                   DashboardMantenimiento,
   'jefe_mantenimiento':        DashboardMantenimiento,
   'mantenimientos_programados': DashboardMantenimiento,
+  'gerencia':                  DashboardGerencia,
   'sst':                       DashboardEnConstruccion,
 };
 
@@ -423,6 +425,7 @@ function MantenimientoKpiCard({ kpis, isLoading, isError, periodo, onChangePerio
         />
         {(fechaDesde || fechaHasta) && (
           <button
+            type="button"
             onClick={() => { onChangeFechaDesde(''); onChangeFechaHasta(''); }}
             style={{
               display: 'inline-flex',
@@ -559,6 +562,7 @@ function DashboardAdminOriginal() {
   const { data: mantKpis, isLoading: mantLoading, isError: mantError } = useQuery({
     queryKey: ['mantenimiento-kpis', periodo, fechaDesde, fechaHasta],
     queryFn: () => api.get(`/mantenimiento/kpis?${kpiParams.toString()}`).then(r => r.data.data),
+    placeholderData: keepPreviousData,
     refetchInterval: 60_000,
   });
 

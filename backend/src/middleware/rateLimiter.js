@@ -92,3 +92,17 @@ export const resetPasswordLimiter = rateLimit({
     next(new AppError('Demasiadas solicitudes de recuperación. Intenta de nuevo en 15 minutos.', 429));
   },
 });
+/**
+ * Rate limiter para el dashboard gerencial — 20 req/min por usuario autenticado.
+ * Las queries son agregadas y potencialmente costosas, no deben abusarse.
+ */
+export const dashboardGerenciaLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.userId || req.ip,
+  handler: (_req, _res, next) => {
+    next(new AppError('Demasiadas solicitudes al dashboard gerencial. Espera 1 minuto.', 429));
+  },
+});
