@@ -400,24 +400,24 @@ export class DashboardGerenciaAreasRepository {
     const inicioAcum = `${anioKpi}-01-01`;
     const finAcum = fecha_hasta || `${anioKpi}-${String(mesKpi).padStart(2, '0')}-${new Date(anioKpi, mesKpi, 0).getDate()}`;
 
-    // 1. Ventas reales del mes KPI (facturas FACTURADA de Servicios)
+    // 1. Ventas reales del mes KPI (remisiones FACTURADAS — consistente con Informes)
     const realMesSql = `
-      SELECT COALESCE(SUM(f.total), 0)::numeric(14,2) AS total
-      FROM facturas f
-      WHERE f.estado = 'FACTURADA'
-        AND f.fecha_factura IS NOT NULL
-        AND EXTRACT(YEAR FROM f.fecha_factura) = $1
-        AND EXTRACT(MONTH FROM f.fecha_factura) = $2
+      SELECT COALESCE(SUM(r.total_bruto), 0)::numeric(14,2) AS total
+      FROM remisiones r
+      WHERE r.estado = 'FACTURADA'
+        AND r.deleted_at IS NULL
+        AND EXTRACT(YEAR FROM r.fecha_servicio) = $1
+        AND EXTRACT(MONTH FROM r.fecha_servicio) = $2
     `;
 
     // 2. Ventas reales acumuladas (enero hasta finAcum)
     const realAcumSql = `
-      SELECT COALESCE(SUM(f.total), 0)::numeric(14,2) AS total
-      FROM facturas f
-      WHERE f.estado = 'FACTURADA'
-        AND f.fecha_factura IS NOT NULL
-        AND f.fecha_factura >= $1::date
-        AND f.fecha_factura <= $2::date
+      SELECT COALESCE(SUM(r.total_bruto), 0)::numeric(14,2) AS total
+      FROM remisiones r
+      WHERE r.estado = 'FACTURADA'
+        AND r.deleted_at IS NULL
+        AND r.fecha_servicio >= $1::date
+        AND r.fecha_servicio <= $2::date
     `;
 
     // 3. Presupuesto del mes KPI (área Servicios)

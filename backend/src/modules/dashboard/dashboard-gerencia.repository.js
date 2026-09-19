@@ -41,26 +41,28 @@ export class DashboardGerenciaRepository {
 
   /**
    * KPI 1: Ingresos del mes vs mes anterior vs mismo mes año anterior.
-   * Fuente: tabla facturas (estado = 'FACTURADA').
+   * Fuente: tabla remisiones (estado = 'FACTURADA').
+   * Nota: usa total_bruto (sin IVA) y fecha_servicio para ser consistente
+   * con el módulo de Informes de Servicios.
    */
   async getIngresosDelMes({ fecha_desde, fecha_hasta } = {}) {
-    const conditions = ["estado = 'FACTURADA'", 'fecha_factura IS NOT NULL'];
+    const conditions = ["r.estado = 'FACTURADA'", 'r.deleted_at IS NULL'];
     const params = [];
     let i = 1;
-    if (fecha_desde) { conditions.push(`fecha_factura >= $${i++}`); params.push(fecha_desde); }
-    if (fecha_hasta) { conditions.push(`fecha_factura <= $${i++}`); params.push(fecha_hasta); }
+    if (fecha_desde) { conditions.push(`r.fecha_servicio >= $${i++}`); params.push(fecha_desde); }
+    if (fecha_hasta) { conditions.push(`r.fecha_servicio <= $${i++}`); params.push(fecha_hasta); }
     // FIX: Se usan subqueries escalares en lugar de CROSS JOIN para evitar que
     // una CTE vacía (sin datos del mes anterior o año anterior) devuelva 0 filas
     // y silenciara el KPI del mes actual.
     const sql = `
       WITH datos AS (
         SELECT
-          DATE_TRUNC('month', fecha_factura)::date AS mes,
-          SUM(total) AS total_ingresos,
-          COUNT(*) AS cantidad_facturas
-        FROM facturas
+          DATE_TRUNC('month', r.fecha_servicio)::date AS mes,
+          SUM(r.total_bruto) AS total_ingresos,
+          COUNT(*) AS cantidad_remisiones
+        FROM remisiones r
         WHERE ${conditions.join(' AND ')}
-        GROUP BY DATE_TRUNC('month', fecha_factura)
+        GROUP BY DATE_TRUNC('month', r.fecha_servicio)
       ),
       ultimo_mes AS (
         SELECT mes FROM datos ORDER BY mes DESC LIMIT 1
@@ -71,9 +73,9 @@ export class DashboardGerenciaRepository {
           0
         ) AS mes_actual,
         COALESCE(
-          (SELECT d.cantidad_facturas FROM datos d JOIN ultimo_mes um ON d.mes = um.mes),
+          (SELECT d.cantidad_remisiones FROM datos d JOIN ultimo_mes um ON d.mes = um.mes),
           0
-        ) AS cantidad_facturas,
+        ) AS cantidad_remisiones,
         COALESCE(
           (SELECT d.total_ingresos FROM datos d, ultimo_mes um WHERE d.mes = um.mes - INTERVAL '1 month'),
           0
@@ -122,7 +124,7 @@ export class DashboardGerenciaRepository {
     const row = result.rows[0] || {};
     return {
       mes_actual: parseFloat(row.mes_actual || 0),
-      cantidad_facturas: parseInt(row.cantidad_facturas || 0),
+      cantidad_facturas: parseInt(row.cantidad_remisiones || row.cantidad_facturas || 0),
       mes_anterior: parseFloat(row.mes_anterior || 0),
       mismo_mes_anio_anterior: parseFloat(row.mismo_mes_anio_anterior || 0),
       variacion_vs_anterior_pct: row.variacion_vs_anterior_pct != null ? parseFloat(row.variacion_vs_anterior_pct) : null,
