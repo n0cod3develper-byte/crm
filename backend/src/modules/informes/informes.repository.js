@@ -31,7 +31,8 @@ export class InformesRepository {
   }
 
   async getVentasMensuales(fecha_inicio, fecha_fin) {
-    const conditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
+    // TODAS las remisiones — sin filtro de facturación
+    const conditions = ['r.deleted_at IS NULL'];
     const params = [];
     let i = 1;
 
