@@ -984,8 +984,8 @@ export class InformesRepository {
    * Devuelve un punto por mes del rango: [{ mes, real, presupuesto, cumplimiento_pct }].
    */
   async getVentasVsPresupuestoSimple(fecha_inicio, fecha_fin) {
-    // 1. Ventas reales agrupadas por mes
-    const salesConditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
+    // 1. Ventas reales agrupadas por mes (TODAS las remisiones — sin filtro de facturación)
+    const salesConditions = ['r.deleted_at IS NULL'];
     const salesParams = [];
     let i = 1;
 
