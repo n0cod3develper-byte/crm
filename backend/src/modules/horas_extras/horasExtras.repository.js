@@ -114,7 +114,13 @@ export class HorasExtrasRepository {
   // Upsert para automatización o reprocesamiento
   async upsertJornada(data, segmentos) {
     let check;
-    if (data.remision_id) {
+    // Si se pasa un jornada_id directo (edición desde modal), usarlo directamente
+    if (data.jornada_id) {
+      check = await query(
+        `SELECT id FROM jornadas_laborales WHERE id = $1`,
+        [data.jornada_id]
+      );
+    } else if (data.remision_id) {
       check = await query(
         `SELECT id FROM jornadas_laborales WHERE empleado_id = $1 AND remision_id = $2`,
         [data.empleado_id, data.remision_id]
@@ -187,6 +193,7 @@ export class HorasExtrasRepository {
     const sql = `
       SELECT 
         jl.id,
+        jl.remision_id,
         jl.fecha_trabajo,
         jl.hora_entrada,
         jl.hora_salida,
@@ -208,12 +215,12 @@ export class HorasExtrasRepository {
         CASE WHEN fc.fecha IS NOT NULL THEN TRUE ELSE FALSE END AS es_festivo,
         COALESCE(SUM(CASE WHEN jld.tipo_hora = 'ORDINARIA_DIURNA' THEN jld.minutos ELSE 0 END), 0) AS min_ord_diurna,
         COALESCE(SUM(CASE WHEN jld.tipo_hora = 'ORDINARIA_NOCTURNA' THEN jld.minutos ELSE 0 END), 0) AS min_ord_nocturna,
-        COALESCE(SUM(CASE WHEN jld.tipo_hora = 'DOMINICAL_DIURNA' THEN jld.minutos ELSE 0 END), 0) AS min_dom_diurna,
-        COALESCE(SUM(CASE WHEN jld.tipo_hora = 'DOMINICAL_NOCTURNA' THEN jld.minutos ELSE 0 END), 0) AS min_dom_nocturna,
+        COALESCE(SUM(CASE WHEN jld.tipo_hora = 'DOMINICAL_FESTIVA_DIURNA' THEN jld.minutos ELSE 0 END), 0) AS min_dom_diurna,
+        COALESCE(SUM(CASE WHEN jld.tipo_hora = 'DOMINICAL_FESTIVA_NOCTURNA' THEN jld.minutos ELSE 0 END), 0) AS min_dom_nocturna,
         COALESCE(SUM(CASE WHEN jld.tipo_hora = 'EXTRA_DIURNA' THEN jld.minutos ELSE 0 END), 0) AS min_extra_diurna,
         COALESCE(SUM(CASE WHEN jld.tipo_hora = 'EXTRA_NOCTURNA' THEN jld.minutos ELSE 0 END), 0) AS min_extra_nocturna,
-        COALESCE(SUM(CASE WHEN jld.tipo_hora = 'EXTRA_DOM_DIURNA' THEN jld.minutos ELSE 0 END), 0) AS min_extra_dom_diurna,
-        COALESCE(SUM(CASE WHEN jld.tipo_hora = 'EXTRA_DOM_NOCTURNA' THEN jld.minutos ELSE 0 END), 0) AS min_extra_dom_nocturna
+        COALESCE(SUM(CASE WHEN jld.tipo_hora = 'EXTRA_DOMINICAL_FESTIVA_DIURNA' THEN jld.minutos ELSE 0 END), 0) AS min_extra_dom_diurna,
+        COALESCE(SUM(CASE WHEN jld.tipo_hora = 'EXTRA_DOMINICAL_FESTIVA_NOCTURNA' THEN jld.minutos ELSE 0 END), 0) AS min_extra_dom_nocturna
       FROM jornadas_laborales jl
       JOIN employees em ON em.id = jl.empleado_id
       LEFT JOIN remisiones r ON r.id = jl.remision_id

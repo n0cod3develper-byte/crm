@@ -18,15 +18,17 @@ export function NuevaJornadaModal({ isOpen, onClose, initialData = null }) {
   useEffect(() => {
     if (initialData && isOpen) {
       setFormData({
+        jornada_id: initialData.id || '',
         empleado_id: initialData.operario_id || '',
         fecha_trabajo: initialData.fecha_trabajo ? String(initialData.fecha_trabajo).split('T')[0] : '',
         hora_entrada: initialData.hora_entrada ? String(initialData.hora_entrada).substring(0, 5) : '',
         hora_salida: initialData.hora_salida ? String(initialData.hora_salida).substring(0, 5) : '',
         observacion: initialData.observacion || '',
         minutos_descuento: initialData.minutos_descuento !== undefined ? initialData.minutos_descuento : 50,
+        remision_id: initialData.remision_id || null,
       });
     } else if (!isOpen) {
-      setFormData({ empleado_id: '', fecha_trabajo: '', hora_entrada: '', hora_salida: '', observacion: '', minutos_descuento: 50 });
+      setFormData({ jornada_id: '', empleado_id: '', fecha_trabajo: '', hora_entrada: '', hora_salida: '', observacion: '', minutos_descuento: 50, remision_id: null });
     }
   }, [initialData, isOpen]);
 
@@ -50,11 +52,11 @@ export function NuevaJornadaModal({ isOpen, onClose, initialData = null }) {
 
     try {
       await api.post('/horas-extras/jornada', formData);
-      toast.success('Jornada registrada correctamente');
+      toast.success(initialData ? 'Jornada actualizada correctamente' : 'Jornada registrada correctamente');
       queryClient.invalidateQueries(['he-gestion-humana']);
       queryClient.invalidateQueries(['he-resumen-agrupado']);
       onClose();
-      setFormData({ empleado_id: '', fecha_trabajo: '', hora_entrada: '', hora_salida: '', observacion: '', minutos_descuento: 50 });
+      setFormData({ jornada_id: '', empleado_id: '', fecha_trabajo: '', hora_entrada: '', hora_salida: '', observacion: '', minutos_descuento: 50, remision_id: null });
     } catch (error) {
       toast.error('Error al registrar jornada');
       console.error(error);

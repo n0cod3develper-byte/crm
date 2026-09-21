@@ -71,6 +71,7 @@ export async function calcularYGuardarJornada(data) {
 
   // 4. Preparar payload para la BD
   const jornadaPayload = {
+    jornada_id: data.jornada_id || null,
     empleado_id: data.empleado_id,
     remision_id: data.remision_id || null,
     fecha_trabajo: data.fecha_trabajo,

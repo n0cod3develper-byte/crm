@@ -138,14 +138,14 @@ export function calcularHorasExtrasMotor(
   const configDia = configuracion.filter(c => c.dia_aplicacion === tipoDia);
   
   // Obtener jornada ordinaria decimal (Ej. 8.42 para LUN_JUE, 0 para SAB)
-  // Fallback si no está definida: 8.42 para LUN_JUE, 8.33 para VIE, 0 para SAB y DOM_FESTIVO
+  // Fallback si no está definida: 8.42 para LUN_JUE, 8.33 para VIE, 7 para SAB y DOM_FESTIVO
   let jornadaDecimalConfig = null;
   if (configDia.length > 0 && configDia[0].jornada_ordinaria_decimal != null) {
     jornadaDecimalConfig = parseFloat(configDia[0].jornada_ordinaria_decimal);
   } else {
     if (tipoDia === 'LUN_JUE') jornadaDecimalConfig = 8.42;
     else if (tipoDia === 'VIE') jornadaDecimalConfig = 8.33;
-    else jornadaDecimalConfig = 0; // SAB o DOM_FESTIVO
+    else jornadaDecimalConfig = 7; // SAB o DOM_FESTIVO
   }
 
   // REGLA CRITICA: 8.42 no es 8h42m. Es un decimal directo.
