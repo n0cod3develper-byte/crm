@@ -47,10 +47,10 @@ export async function calcularYGuardarJornada(data) {
   // 1. Obtener salario del empleado
   // Idealmente se lee de employeesRepo, aquí hacemos la consulta directa si no está inyectado
   const { query } = await import('../../config/database.js');
-  const empRes = await query(`SELECT monthly_salary, full_name FROM employees WHERE id = $1`, [data.empleado_id]);
+  const empRes = await query(`SELECT monthly_salary, salario, full_name FROM employees WHERE id = $1`, [data.empleado_id]);
   if (!empRes.rows[0]) throw new Error(`Empleado ${data.empleado_id} no encontrado`);
   
-  const salarioMensual = parseFloat(empRes.rows[0].monthly_salary) || 0;
+  const salarioMensual = parseFloat(empRes.rows[0].monthly_salary) || parseFloat(empRes.rows[0].salario) || 0;
 
   // 2. Obtener config y festivos
   const configuracion = await getConfiguracion();

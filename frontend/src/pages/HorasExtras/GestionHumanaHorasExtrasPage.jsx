@@ -100,19 +100,7 @@ export function GestionHumanaHorasExtrasPage() {
     },
   });
 
-  // KPIs calculados
-  const kpis = React.useMemo(() => {
-    const ops = new Set();
-    let totalExtras = 0, totalNoctMin = 0, totalGH = 0, totalLiq = 0;
-    for (const r of rows) {
-      ops.add(r.empleado_id);
-      totalExtras += parseFloat(r.total_horas_extras) || 0;
-      totalNoctMin += (parseInt(r.min_ord_nocturna) || 0) + (parseInt(r.min_extra_nocturna) || 0);
-      totalGH += parseFloat(r.total_horas_gestion_humana) || 0;
-      totalLiq += parseFloat(r.total_liquidado) || 0;
-    }
-    return { operarios: ops.size, totalExtras, totalNoctMin, totalGH, totalLiq };
-  }, [rows]);
+
 
   const handleFilter = () => {
     setAppliedFilters({ desde: fechaInicio, hasta: fechaFin });
@@ -133,30 +121,44 @@ export function GestionHumanaHorasExtrasPage() {
 
     if (!mostrarTodo) {
       result = result.filter(r => {
-        // Las manuales (sin remision) siempre se muestran
-        if (!r.numero_remision) return true;
-        
         // Fines de semana / Festivos siempre se muestran
         if (r.es_festivo || parseInt(r.dia_semana) === 0 || parseInt(r.dia_semana) === 6) return true;
         
         // Si tiene horas extras, mostrar
         if (parseFloat(r.total_horas_extras) > 0) return true;
         
-        // Si el horario es diferente al estándar, mostrar
         const isViernes = parseInt(r.dia_semana) === 5;
         const finNormal = isViernes ? '16:10' : '16:15';
         const entrada = r.hora_entrada ? r.hora_entrada.substring(0, 5) : null;
         const salida = r.hora_salida ? r.hora_salida.substring(0, 5) : null;
         
-        if (entrada !== '07:00' || salida !== finNormal) return true;
+        // Mostrar si entró antes de las 07:00
+        if (entrada && entrada < '07:00') return true;
         
-        // Si es una jornada perfectamente normal (07:00 a 16:15/10), se oculta
+        // Mostrar si salió después de su horario normal (16:15 o 16:10)
+        if (salida && salida > finNormal) return true;
+        
+        // Si la jornada estuvo completamente dentro del horario normal y no tiene extras, se oculta
         return false;
       });
     }
 
     return result;
   }, [rows, cargoFilter, mostrarTodo]);
+
+  // KPIs calculados
+  const kpis = React.useMemo(() => {
+    const ops = new Set();
+    let totalExtras = 0, totalNoctMin = 0, totalGH = 0, totalLiq = 0;
+    for (const r of filteredRows) {
+      ops.add(r.operario_id);
+      totalExtras += parseFloat(r.total_horas_extras) || 0;
+      totalNoctMin += (parseInt(r.min_ord_nocturna) || 0) + (parseInt(r.min_extra_nocturna) || 0);
+      totalGH += parseFloat(r.total_horas_gestion_humana) || 0;
+      totalLiq += parseFloat(r.total_liquidado) || 0;
+    }
+    return { operarios: ops.size, totalExtras, totalNoctMin, totalGH, totalLiq };
+  }, [filteredRows]);
 
   const toggleRow = (id) => {
     setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
@@ -235,6 +237,11 @@ export function GestionHumanaHorasExtrasPage() {
       'HEDDF': (parseInt(r.min_extra_dom_diurna) || 0) / 60,
       'HENDF': (parseInt(r.min_extra_dom_nocturna) || 0) / 60,
       'RNDF': (parseInt(r.min_dom_nocturna) || 0) / 60,
+      'H. Faltantes': (() => {
+         const esp = getMinutosEsperados(parseInt(r.dia_semana), r.es_festivo);
+         const ord = (parseInt(r.min_ord_diurna) || 0) + (parseInt(r.min_ord_nocturna) || 0);
+         return esp > 0 && ord < esp ? parseFloat(((esp - ord) / 60).toFixed(2)) : 0;
+      })(),
       'Total H. Extras': r.total_horas_extras,
       'Liquidación $': r.total_liquidado,
     }));
@@ -410,6 +417,7 @@ export function GestionHumanaHorasExtrasPage() {
                 <th style={{ ...thStyle, textAlign: 'right' }} title="Hora Extra Diurna Dom/Fest">HEDDF</th>
                 <th style={{ ...thStyle, textAlign: 'right' }} title="Hora Extra Nocturna Dom/Fest">HENDF</th>
                 <th style={{ ...thStyle, textAlign: 'right' }} title="Recargo Nocturno Dom/Fest">RNDF</th>
+                <th style={{ ...thStyle, textAlign: 'right', color: '#ef4444' }} title="Horas que le faltaron para completar su jornada ordinaria">H. Faltantes</th>
                 <th style={{ ...thStyle, textAlign: 'right', color: '#f59e0b' }}>Total H. Extras</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>Liquidación $</th>
                 <th style={{ ...thStyle, textAlign: 'center', width: 50 }}></th>
@@ -459,6 +467,14 @@ export function GestionHumanaHorasExtrasPage() {
                     <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtH((parseInt(row.min_extra_dom_diurna) || 0) / 60)}</td>
                     <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtH((parseInt(row.min_extra_dom_nocturna) || 0) / 60)}</td>
                     <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtH((parseInt(row.min_dom_nocturna) || 0) / 60)}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600, color: '#ef4444' }}>
+                      {(() => {
+                        const esp = getMinutosEsperados(parseInt(row.dia_semana), row.es_festivo);
+                        const ord = (parseInt(row.min_ord_diurna) || 0) + (parseInt(row.min_ord_nocturna) || 0);
+                        const faltanMin = esp > 0 && ord < esp ? esp - ord : 0;
+                        return faltanMin > 0 ? fmtH(faltanMin / 60) : '';
+                      })()}
+                    </td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: '#f59e0b' }}>
                       {fmtH(row.total_horas_extras)}
                     </td>
