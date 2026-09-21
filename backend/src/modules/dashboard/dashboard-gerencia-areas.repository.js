@@ -400,22 +400,20 @@ export class DashboardGerenciaAreasRepository {
     const inicioAcum = `${anioKpi}-01-01`;
     const finAcum = fecha_hasta || `${anioKpi}-${String(mesKpi).padStart(2, '0')}-${new Date(anioKpi, mesKpi, 0).getDate()}`;
 
-    // 1. Ventas reales del mes KPI (remisiones FACTURADAS — consistente con Informes)
+    // 1. Ventas reales del mes KPI (TODAS las remisiones — consistente con Informes/Servicios)
     const realMesSql = `
       SELECT COALESCE(SUM(r.total_bruto), 0)::numeric(14,2) AS total
       FROM remisiones r
-      WHERE r.estado = 'FACTURADA'
-        AND r.deleted_at IS NULL
+      WHERE r.deleted_at IS NULL
         AND EXTRACT(YEAR FROM r.fecha_servicio) = $1
         AND EXTRACT(MONTH FROM r.fecha_servicio) = $2
     `;
 
-    // 2. Ventas reales acumuladas (enero hasta finAcum)
+    // 2. Ventas reales acumuladas (enero hasta finAcum) — TODAS las remisiones
     const realAcumSql = `
       SELECT COALESCE(SUM(r.total_bruto), 0)::numeric(14,2) AS total
       FROM remisiones r
-      WHERE r.estado = 'FACTURADA'
-        AND r.deleted_at IS NULL
+      WHERE r.deleted_at IS NULL
         AND r.fecha_servicio >= $1::date
         AND r.fecha_servicio <= $2::date
     `;
