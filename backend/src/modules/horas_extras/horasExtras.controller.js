@@ -57,6 +57,18 @@ export const horasExtrasController = {
     }
   },
 
+  async deleteJornada(req, res, next) {
+    try {
+      const { id } = req.params;
+      const result = await repo.deleteJornada(id);
+      if (!result) return res.status(404).json({ error: 'Jornada no encontrada' });
+      res.json({ ok: true, data: result });
+    } catch (error) {
+      logger.error('Error en deleteJornada', { error: error.message });
+      next(error);
+    }
+  },
+
   async updateObservacion(req, res, next) {
     try {
       const { id } = req.params;

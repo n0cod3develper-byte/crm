@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Calendar, Filter, Clock, DollarSign, Users, Moon,
-  FileSpreadsheet, ChevronDown, ChevronRight, Edit2, RefreshCw
+  FileSpreadsheet, ChevronDown, ChevronRight, Edit2, RefreshCw, Trash2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
@@ -481,7 +481,7 @@ export function GestionHumanaHorasExtrasPage() {
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
                       {formatCOP(row.total_liquidado)}
                     </td>
-                    <td style={{ ...tdStyle, textAlign: 'center' }}>
+                    <td style={{ ...tdStyle, textAlign: 'center', display: 'flex', gap: 4, justifyContent: 'center' }}>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -492,6 +492,25 @@ export function GestionHumanaHorasExtrasPage() {
                         title="Editar Jornada"
                       >
                         <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!window.confirm(`¿Eliminar la jornada de ${row.operario_nombre} del ${formatDate(row.fecha_trabajo)}?`)) return;
+                          try {
+                            await api.delete(`/horas-extras/jornada/${row.id}`);
+                            toast.success('Jornada eliminada');
+                            queryClient.invalidateQueries(['he-gestion-humana']);
+                            queryClient.invalidateQueries(['he-resumen-agrupado']);
+                          } catch (err) {
+                            toast.error('Error al eliminar');
+                            console.error(err);
+                          }
+                        }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#ef4444' }}
+                        title="Eliminar Jornada"
+                      >
+                        <Trash2 size={16} />
                       </button>
                     </td>
                   </tr>

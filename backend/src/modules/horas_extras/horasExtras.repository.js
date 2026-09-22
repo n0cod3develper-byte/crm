@@ -161,6 +161,12 @@ export class HorasExtrasRepository {
     return jornadaId;
   }
 
+  async deleteJornada(id) {
+    await query(`DELETE FROM jornadas_laborales_detalle WHERE jornada_id = $1`, [id]);
+    const res = await query(`DELETE FROM jornadas_laborales WHERE id = $1 RETURNING id`, [id]);
+    return res.rows[0];
+  }
+
   async updateObservacion(id, observacion) {
     const res = await query(
       `UPDATE jornadas_laborales SET observacion = $1, updated_at = NOW() WHERE id = $2 RETURNING id`,

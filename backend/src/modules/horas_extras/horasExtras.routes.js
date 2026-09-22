@@ -31,6 +31,7 @@ router.get('/detalle/:jornada_id', horasExtrasController.getDetalle);
 // ─── Creación y Cálculos ────────────────────────────────────
 router.post('/jornada',           horasExtrasController.crearJornadaManual);
 router.patch('/jornada/:id/observacion', horasExtrasController.updateObservacion);
+router.delete('/jornada/:id',             horasExtrasController.deleteJornada);
 router.post('/calcular-remision/:remision_id', horasExtrasController.calcularDesdeRemision);
 router.post('/sincronizar-historico', horasExtrasController.sincronizarHistorico);
 
