@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Calendar, Filter, Clock, DollarSign, Users, Moon,
-  FileSpreadsheet, ChevronDown, ChevronRight, Edit2, RefreshCw, Trash2
+  FileSpreadsheet, ChevronDown, ChevronRight, ChevronLeft, Edit2, RefreshCw, Trash2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
@@ -22,6 +22,8 @@ const formatDate = (d) => {
 };
 
 const fmtH = (v) => `${(parseFloat(v) || 0).toFixed(2)}h`;
+const roundH = (v) => parseFloat(((parseFloat(v) || 0)).toFixed(2));
+const PAGE_SIZE = 30;
 const fmtMin = (min) => {
   if (!min) return '0h 0min';
   const h = Math.floor(min / 60), m = min % 60;
@@ -74,6 +76,7 @@ export function GestionHumanaHorasExtrasPage() {
   const [editingRow, setEditingRow] = useState(null);
   const [mostrarTodo, setMostrarTodo] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [appliedFilters, setAppliedFilters] = useState({
     desde: getLocalDateStr(firstDay),
@@ -81,16 +84,20 @@ export function GestionHumanaHorasExtrasPage() {
     operario: '',
   });
 
-  const { data: rows = [], isLoading } = useQuery({
-    queryKey: ['he-gestion-humana', appliedFilters],
+  const { data: queryResult, isLoading } = useQuery({
+    queryKey: ['he-gestion-humana', appliedFilters, currentPage],
     queryFn: async () => {
-      const params = {};
+      const params = { page: currentPage, limit: PAGE_SIZE };
       if (appliedFilters.desde) params.fecha_inicio = appliedFilters.desde;
       if (appliedFilters.hasta) params.fecha_fin = appliedFilters.hasta;
       const res = await api.get('/horas-extras/gestion-humana', { params });
-      return res.data || [];
+      return res.data || { data: [], pagination: { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 }, totals: {} };
     },
   });
+
+  const rows = queryResult?.data || [];
+  const pagination = queryResult?.pagination || { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 };
+  const backendTotals = queryResult?.totals || {};
 
   const { data: operarios = [] } = useQuery({
     queryKey: ['he-operarios'],
@@ -103,6 +110,7 @@ export function GestionHumanaHorasExtrasPage() {
 
 
   const handleFilter = () => {
+    setCurrentPage(1);
     setAppliedFilters({ desde: fechaInicio, hasta: fechaFin });
   };
 
@@ -146,19 +154,14 @@ export function GestionHumanaHorasExtrasPage() {
     return result;
   }, [rows, cargoFilter, mostrarTodo]);
 
-  // KPIs calculados
+  // KPIs calculados — usan totales del backend (rango completo, no solo la página)
   const kpis = React.useMemo(() => {
-    const ops = new Set();
-    let totalExtras = 0, totalNoctMin = 0, totalGH = 0, totalLiq = 0;
-    for (const r of filteredRows) {
-      ops.add(r.operario_id);
-      totalExtras += parseFloat(r.total_horas_extras) || 0;
-      totalNoctMin += (parseInt(r.min_ord_nocturna) || 0) + (parseInt(r.min_extra_nocturna) || 0);
-      totalGH += parseFloat(r.total_horas_gestion_humana) || 0;
-      totalLiq += parseFloat(r.total_liquidado) || 0;
-    }
-    return { operarios: ops.size, totalExtras, totalNoctMin, totalGH, totalLiq };
-  }, [filteredRows]);
+    return {
+      operarios: backendTotals.operarios || 0,
+      totalExtras: backendTotals.total_extras || 0,
+      totalLiq: backendTotals.total_liquidado || 0,
+    };
+  }, [backendTotals]);
 
   const toggleRow = (id) => {
     setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
@@ -222,34 +225,50 @@ export function GestionHumanaHorasExtrasPage() {
     }
   };
 
-  const handleExportExcel = () => {
-    if (!filteredRows.length) return;
-    const data = filteredRows.map(r => ({
-      Remisión: r.numero_remision,
-      Operario: r.operario_nombre,
-      Fecha: formatDate(r.fecha_trabajo),
-      Día: DIAS[parseInt(r.dia_semana)],
-      'HO': (parseInt(r.min_ord_diurna) || 0) / 60,
-      'RN': (parseInt(r.min_ord_nocturna) || 0) / 60,
-      'RDF': (parseInt(r.min_dom_diurna) || 0) / 60,
-      'HED': (parseInt(r.min_extra_diurna) || 0) / 60,
-      'HEN': (parseInt(r.min_extra_nocturna) || 0) / 60,
-      'HEDDF': (parseInt(r.min_extra_dom_diurna) || 0) / 60,
-      'HENDF': (parseInt(r.min_extra_dom_nocturna) || 0) / 60,
-      'RNDF': (parseInt(r.min_dom_nocturna) || 0) / 60,
-      'H. Faltantes': (() => {
-         const esp = getMinutosEsperados(parseInt(r.dia_semana), r.es_festivo);
-         const ord = (parseInt(r.min_ord_diurna) || 0) + (parseInt(r.min_ord_nocturna) || 0);
-         return esp > 0 && ord < esp ? parseFloat(((esp - ord) / 60).toFixed(2)) : 0;
-      })(),
-      'Total H. Extras': r.total_horas_extras,
-      'Liquidación $': r.total_liquidado,
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'GestionHumana');
-    XLSX.writeFile(wb, `GestionHumana_HE_${appliedFilters.desde}_${appliedFilters.hasta}.xlsx`);
-    toast.success('Excel exportado');
+  const handleExportExcel = async () => {
+    try {
+      toast.loading('Generando Excel con todos los registros...', { id: 'excel-he' });
+      // Consulta independiente SIN paginación para obtener TODOS los registros del rango
+      const params = {};
+      if (appliedFilters.desde) params.fecha_inicio = appliedFilters.desde;
+      if (appliedFilters.hasta) params.fecha_fin = appliedFilters.hasta;
+      const res = await api.get('/horas-extras/gestion-humana', { params });
+      const allRows = res.data || [];
+
+      if (!allRows.length) {
+        toast.error('No hay registros para exportar', { id: 'excel-he' });
+        return;
+      }
+
+      const data = allRows.map(r => ({
+        Remisión: r.numero_remision || '',
+        Operario: r.operario_nombre,
+        Fecha: formatDate(r.fecha_trabajo),
+        Día: DIAS[parseInt(r.dia_semana)],
+        'HO': roundH((parseInt(r.min_ord_diurna) || 0) / 60),
+        'RN': roundH((parseInt(r.min_ord_nocturna) || 0) / 60),
+        'RDF': roundH((parseInt(r.min_dom_diurna) || 0) / 60),
+        'HED': roundH((parseInt(r.min_extra_diurna) || 0) / 60),
+        'HEN': roundH((parseInt(r.min_extra_nocturna) || 0) / 60),
+        'HEDDF': roundH((parseInt(r.min_extra_dom_diurna) || 0) / 60),
+        'HENDF': roundH((parseInt(r.min_extra_dom_nocturna) || 0) / 60),
+        'RNDF': roundH((parseInt(r.min_dom_nocturna) || 0) / 60),
+        'H. Faltantes': (() => {
+           const esp = getMinutosEsperados(parseInt(r.dia_semana), r.es_festivo);
+           const ord = (parseInt(r.min_ord_diurna) || 0) + (parseInt(r.min_ord_nocturna) || 0);
+           return esp > 0 && ord < esp ? roundH((esp - ord) / 60) : 0;
+        })(),
+        'Total H. Extras': roundH(r.total_horas_extras),
+        'Liquidación $': parseFloat(r.total_liquidado) || 0,
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'GestionHumana');
+      XLSX.writeFile(wb, `GestionHumana_HE_${appliedFilters.desde}_${appliedFilters.hasta}.xlsx`);
+      toast.success(`Excel exportado: ${allRows.length} registros`, { id: 'excel-he' });
+    } catch (err) {
+      toast.error('Error al exportar Excel: ' + (err.response?.data?.message || err.message), { id: 'excel-he' });
+    }
   };
 
   const handleSincronizar = async () => {
@@ -570,8 +589,39 @@ export function GestionHumanaHorasExtrasPage() {
         )}
       </div>
 
-      <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-        {rows.length} registros · Solo lectura · Consume el mismo motor de cálculo
+      {/* Controles de Paginación */}
+      {pagination.totalPages > 0 && (
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          marginTop: '1rem', padding: '0.75rem 1.25rem',
+          background: 'var(--bg-elevated)', borderRadius: 12,
+          border: '1px solid var(--border-color)',
+        }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage <= 1}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 14px', opacity: currentPage <= 1 ? 0.4 : 1 }}
+          >
+            <ChevronLeft size={16} /> Anterior
+          </button>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Página <strong style={{ color: 'var(--text-primary)' }}>{pagination.page}</strong> de <strong style={{ color: 'var(--text-primary)' }}>{pagination.totalPages}</strong>
+            {' · '}{pagination.total} registros
+          </span>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setCurrentPage(p => Math.min(pagination.totalPages, p + 1))}
+            disabled={currentPage >= pagination.totalPages}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 14px', opacity: currentPage >= pagination.totalPages ? 0.4 : 1 }}
+          >
+            Siguiente <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+
+      <div style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+        {pagination.total || rows.length} registros totales · Solo lectura · Consume el mismo motor de cálculo
       </div>
       
       <NuevaJornadaModal 
@@ -581,6 +631,7 @@ export function GestionHumanaHorasExtrasPage() {
           setEditingRow(null);
         }} 
         initialData={editingRow}
+        tipoEmpleados="todos"
       />
     </Layout>
   );

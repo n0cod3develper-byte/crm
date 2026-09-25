@@ -1739,9 +1739,70 @@ export class InformesRepository {
           cliente_nombre: row.cliente_nombre,
           horas_extras: horasExtras.toFixed(2),
           total_neto: row.total_neto,
+          hora_salida_cargar: row.hora_salida_cargar,
+          hora_llegada_cargar: row.hora_llegada_cargar,
+          fuente: 'REMISION',
         });
       }
     }
+
+    // ── Incluir jornadas manuales (sin remisión) ──
+    const manualConditions = ['jl.remision_id IS NULL'];
+    const manualParams = [];
+    let j = 1;
+
+    if (fecha_inicio) {
+      manualConditions.push(`jl.fecha_trabajo >= $${j++}`);
+      manualParams.push(fecha_inicio);
+    }
+    if (fecha_fin) {
+      manualConditions.push(`jl.fecha_trabajo <= $${j++}`);
+      manualParams.push(fecha_fin);
+    }
+
+    const manualSql = `
+      SELECT
+        jl.id AS jornada_id,
+        jl.fecha_trabajo AS fecha_servicio,
+        jl.total_horas_extras,
+        jl.observacion,
+        jl.hora_entrada,
+        jl.hora_salida,
+        jl.minutos_descuento,
+        em.id AS operario_id,
+        em.full_name AS operario_nombre
+      FROM jornadas_laborales jl
+      JOIN employees em ON em.id = jl.empleado_id
+      WHERE ${manualConditions.join(' AND ')}
+        AND jl.total_horas_extras > 0
+      ORDER BY jl.fecha_trabajo DESC
+    `;
+
+    const manualRes = await query(manualSql, manualParams);
+
+    for (const row of manualRes.rows) {
+      resultado.push({
+        jornada_id: row.jornada_id,
+        remision_id: null,
+        numero_remision: 'MANUAL',
+        operario_id: row.operario_id,
+        operario_nombre: row.operario_nombre,
+        equipo_marca: null,
+        equipo_modelo: null,
+        equipo_serie: null,
+        fecha_servicio: row.fecha_servicio,
+        cliente_nombre: row.observacion || 'Jornada Manual',
+        horas_extras: parseFloat(row.total_horas_extras).toFixed(2),
+        total_neto: 0,
+        fuente: 'MANUAL',
+        hora_entrada: row.hora_entrada,
+        hora_salida: row.hora_salida,
+        minutos_descuento: row.minutos_descuento,
+      });
+    }
+
+    // Reordenar por fecha descendente
+    resultado.sort((a, b) => new Date(b.fecha_servicio) - new Date(a.fecha_servicio));
 
     return resultado;
   }

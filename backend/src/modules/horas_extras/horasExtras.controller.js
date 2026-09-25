@@ -129,9 +129,20 @@ export const horasExtrasController = {
 
   async getInformeGestionHumana(req, res, next) {
     try {
-      const { fecha_inicio, fecha_fin, operario_id } = req.query;
-      const data = await repo.getInformeGestionHumana({ fecha_inicio, fecha_fin, operario_id });
-      res.json(data);
+      const { fecha_inicio, fecha_fin, operario_id, page, limit } = req.query;
+      const result = await repo.getInformeGestionHumana({ fecha_inicio, fecha_fin, operario_id, page, limit });
+      
+      // Si el resultado tiene paginación (page/limit fueron proporcionados)
+      if (result && result.pagination) {
+        res.json({
+          data: result.rows,
+          pagination: result.pagination,
+          totals: result.totals,
+        });
+      } else {
+        // Sin paginación (exportación Excel) — devuelve array plano
+        res.json(result);
+      }
     } catch (error) {
       logger.error('Error en getInformeGestionHumana', { error: error.message });
       next(error);
@@ -140,7 +151,8 @@ export const horasExtrasController = {
 
   async getOperarios(req, res, next) {
     try {
-      const data = await repo.getOperariosConJornadas();
+      const { tipo } = req.query;
+      const data = await repo.getOperariosConJornadas(tipo);
       res.json(data);
     } catch (error) {
       logger.error('Error en getOperarios', { error: error.message });

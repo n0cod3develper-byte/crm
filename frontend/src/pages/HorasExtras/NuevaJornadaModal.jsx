@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
 
-export function NuevaJornadaModal({ isOpen, onClose, initialData = null }) {
+export function NuevaJornadaModal({ isOpen, onClose, initialData = null, onSuccess = null, tipoEmpleados = 'operarios' }) {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     empleado_id: '',
@@ -33,9 +33,10 @@ export function NuevaJornadaModal({ isOpen, onClose, initialData = null }) {
   }, [initialData, isOpen]);
 
   const { data: operarios = [] } = useQuery({
-    queryKey: ['he-operarios'],
+    queryKey: ['he-operarios', tipoEmpleados],
     queryFn: async () => {
-      const res = await api.get('/horas-extras/operarios');
+      const url = tipoEmpleados === 'todos' ? '/horas-extras/operarios?tipo=todos' : '/horas-extras/operarios';
+      const res = await api.get(url);
       return res.data || [];
     },
     enabled: isOpen,
@@ -55,6 +56,7 @@ export function NuevaJornadaModal({ isOpen, onClose, initialData = null }) {
       toast.success(initialData ? 'Jornada actualizada correctamente' : 'Jornada registrada correctamente');
       queryClient.invalidateQueries(['he-gestion-humana']);
       queryClient.invalidateQueries(['he-resumen-agrupado']);
+      if (onSuccess) onSuccess();
       onClose();
       setFormData({ jornada_id: '', empleado_id: '', fecha_trabajo: '', hora_entrada: '', hora_salida: '', observacion: '', minutos_descuento: 50, remision_id: null });
     } catch (error) {
@@ -112,6 +114,9 @@ export function NuevaJornadaModal({ isOpen, onClose, initialData = null }) {
                 {operarios.map(op => (
                   <option key={op.id} value={op.id}>{op.full_name}</option>
                 ))}
+                {formData.empleado_id && !operarios.find(op => String(op.id) === String(formData.empleado_id)) && (
+                  <option value={formData.empleado_id}>{initialData?.operario_nombre || 'Empleado Actual'}</option>
+                )}
               </select>
             </div>
           </div>

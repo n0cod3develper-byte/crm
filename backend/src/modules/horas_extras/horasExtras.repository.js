@@ -177,7 +177,7 @@ export class HorasExtrasRepository {
 
   // ─── Consultas para Informes ──────────────────────────────
 
-  async getInformeGestionHumana({ fecha_inicio, fecha_fin, operario_id }) {
+  async getInformeGestionHumana({ fecha_inicio, fecha_fin, operario_id, page, limit }) {
     const conditions = ['1=1'];
     const params = [];
     let i = 1;
@@ -195,8 +195,10 @@ export class HorasExtrasRepository {
       params.push(operario_id);
     }
 
+    const whereClause = conditions.join(' AND ');
+
     // Consulta enfocada 100% en jornadas laborales, sin depender de la existencia de remisión
-    const sql = `
+    const baseSql = `
       SELECT 
         jl.id,
         jl.remision_id,
@@ -232,13 +234,69 @@ export class HorasExtrasRepository {
       LEFT JOIN remisiones r ON r.id = jl.remision_id
       LEFT JOIN festivos_colombia fc ON fc.fecha = jl.fecha_trabajo AND fc.activo = TRUE
       LEFT JOIN jornadas_laborales_detalle jld ON jld.jornada_id = jl.id
-      WHERE ${conditions.join(' AND ')}
+      WHERE ${whereClause}
       GROUP BY jl.id, em.id, r.id, fc.fecha
       ORDER BY jl.fecha_trabajo DESC, em.full_name ASC
     `;
 
-    const res = await query(sql, params);
-    return res.rows;
+    // Si no se pide paginación (exportación Excel), devolver todos los registros
+    if (!page || !limit) {
+      const res = await query(baseSql, params);
+      return res.rows;
+    }
+
+    // ─── Paginación ──────────────────────────────────────────
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.max(1, parseInt(limit));
+    const offset = (pageNum - 1) * limitNum;
+
+    // COUNT total de registros con los mismos filtros
+    const countSql = `
+      SELECT COUNT(DISTINCT jl.id) AS total
+      FROM jornadas_laborales jl
+      JOIN employees em ON em.id = jl.empleado_id
+      LEFT JOIN remisiones r ON r.id = jl.remision_id
+      LEFT JOIN festivos_colombia fc ON fc.fecha = jl.fecha_trabajo AND fc.activo = TRUE
+      WHERE ${whereClause}
+    `;
+
+    // KPIs agregados de todo el rango (no solo la página)
+    const totalsCleanSql = `
+      SELECT
+        COUNT(DISTINCT jl.empleado_id) AS operarios,
+        COALESCE(SUM(jl.total_horas_extras), 0) AS total_extras,
+        COALESCE(SUM(jl.total_liquidado), 0) AS total_liquidado
+      FROM jornadas_laborales jl
+      WHERE ${whereClause}
+    `;
+
+    // Datos paginados
+    const paginatedParams = [...params, limitNum, offset];
+    const paginatedSql = baseSql + ` LIMIT $${i++} OFFSET $${i++}`;
+
+    const [countRes, totalsRes, dataRes] = await Promise.all([
+      query(countSql, params),
+      query(totalsCleanSql, params),
+      query(paginatedSql, paginatedParams),
+    ]);
+
+    const total = parseInt(countRes.rows[0].total);
+    const totalPages = Math.ceil(total / limitNum);
+
+    return {
+      rows: dataRes.rows,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+      },
+      totals: {
+        operarios: parseInt(totalsRes.rows[0].operarios),
+        total_extras: parseFloat(totalsRes.rows[0].total_extras),
+        total_liquidado: parseFloat(totalsRes.rows[0].total_liquidado),
+      },
+    };
   }
 
   async getDetalleJornada(jornadaId) {
@@ -291,11 +349,15 @@ export class HorasExtrasRepository {
     return res.rows;
   }
 
-  async getOperariosConJornadas() {
+  async getOperariosConJornadas(tipo = null) {
+    const condition = tipo === 'todos' 
+      ? `WHERE status = 'Activo'`
+      : `WHERE status = 'Activo' AND position ILIKE '%operario%'`;
+
     const res = await query(
       `SELECT id, full_name
        FROM employees
-       WHERE status = 'Activo'
+       ${condition}
        ORDER BY full_name ASC`
     );
     return res.rows;

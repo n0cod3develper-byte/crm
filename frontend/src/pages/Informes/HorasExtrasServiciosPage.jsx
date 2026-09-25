@@ -1,19 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Calendar, FileText, FileSpreadsheet, Filter, Clock, DollarSign, AlertCircle } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Calendar, FileText, FileSpreadsheet, Filter, Clock, AlertCircle, Edit2, Trash2, Eye, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Layout } from '../../components/Layout';
 import api from '../../lib/api';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { NuevaJornadaModal } from '../HorasExtras/NuevaJornadaModal';
 
 // ─── Utilidades ─────────────────────────────────────────────────────
-function formatCOP(v) {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', minimumFractionDigits: 0
-  }).format(v || 0);
-}
 
 function formatDate(d) {
   if (!d) return '—';
@@ -44,13 +40,29 @@ const getLocalDateString = (date) => {
   return `${year}-${month}-${day}`;
 };
 
+const extractTimeLocal = (dateStr) => {
+  if (!dateStr) return '';
+  if (typeof dateStr === 'string' && dateStr.length <= 8 && dateStr.includes(':')) {
+    return dateStr.substring(0, 5);
+  }
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
 // ─── Componente Principal ───────────────────────────────────────────
 export function HorasExtrasServiciosPage() {
+  const queryClient = useQueryClient();
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
 
   const [fechaInicio, setFechaInicio] = useState(getLocalDateString(firstDay));
   const [fechaFin, setFechaFin] = useState(getLocalDateString(today));
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingRow, setEditingRow] = useState(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [detailRow, setDetailRow] = useState(null);
 
   const [appliedFilters, setAppliedFilters] = useState({
     desde: getLocalDateString(firstDay),
@@ -183,6 +195,12 @@ export function HorasExtrasServiciosPage() {
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <FileText size={15} /> PDF
           </button>
+          <div style={{ marginLeft: 'auto' }}>
+            <button className="btn btn--primary" onClick={() => { setEditingRow(null); setIsModalOpen(true); }}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              + Nueva Jornada
+            </button>
+          </div>
         </div>
       </div>
 
@@ -251,6 +269,7 @@ export function HorasExtrasServiciosPage() {
                 <th>Fecha Servicio</th>
                 <th>Cliente</th>
                 <th style={{ textAlign: 'right' }}>Horas Extras</th>
+                <th style={{ textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -274,6 +293,61 @@ export function HorasExtrasServiciosPage() {
                   <td style={{ textAlign: 'right', fontWeight: 600, color: '#f59e0b' }}>
                     {formatHoras(row.horas_extras)}
                   </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDetailRow(row);
+                          setIsDetailModalOpen(true);
+                        }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--text-muted)' }}
+                        title="Ver Detalle"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Si es manual, usamos su jornada_id. Si es remisión, pasamos remision_id y horas.
+                          setEditingRow({ 
+                            ...row, 
+                            id: row.jornada_id || '', 
+                            fecha_trabajo: row.fecha_servicio,
+                            hora_entrada: extractTimeLocal(row.hora_salida_cargar || row.hora_entrada),
+                            hora_salida: extractTimeLocal(row.hora_llegada_cargar || row.hora_salida)
+                          });
+                          setIsModalOpen(true);
+                        }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--primary)' }}
+                        title="Editar Jornada"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!row.jornada_id) {
+                            toast.error('Este registro es automático por remisión. Edítelo para ajustarlo manualmente o modifique la remisión.');
+                            return;
+                          }
+                          if (!window.confirm(`¿Eliminar la jornada de ${row.operario_nombre} del ${formatDate(row.fecha_servicio)}?`)) return;
+                          try {
+                            await api.delete(`/horas-extras/jornada/${row.jornada_id}`);
+                            toast.success('Jornada eliminada');
+                            queryClient.invalidateQueries(['horas-extras-servicios']);
+                          } catch (err) {
+                            toast.error('Error al eliminar');
+                            console.error(err);
+                          }
+                        }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#ef4444' }}
+                        title="Eliminar Jornada"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -281,9 +355,71 @@ export function HorasExtrasServiciosPage() {
               <tr style={{ fontWeight: 800, background: 'var(--bg-elevated)' }}>
                 <td colSpan={5} style={{ textAlign: 'right', paddingRight: '1rem' }}>TOTALES</td>
                 <td style={{ textAlign: 'right', color: '#f59e0b' }}>{formatHoras(totals.totalHoras)}</td>
+                <td></td>
               </tr>
             </tfoot>
           </table>
+        </div>
+      )}
+
+      <NuevaJornadaModal
+        isOpen={isModalOpen}
+        initialData={editingRow}
+        onClose={() => { setIsModalOpen(false); setEditingRow(null); }}
+        onSuccess={() => {
+          queryClient.invalidateQueries(['horas-extras-servicios']);
+        }}
+      />
+
+      {isDetailModalOpen && detailRow && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            background: 'var(--bg-elevated)',
+            borderRadius: 16,
+            width: '100%', maxWidth: 400,
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: '1px solid var(--border-color)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid var(--border-color)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              background: 'var(--bg-main)'
+            }}>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Eye size={18} color="var(--primary)" />
+                Detalle de Jornada
+              </h2>
+              <button onClick={() => { setIsDetailModalOpen(false); setDetailRow(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+                <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Hora Ingreso:</span>
+                <span style={{ fontWeight: 600 }}>{extractTimeLocal(detailRow.hora_salida_cargar || detailRow.hora_entrada) || '—'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+                <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Hora Salida:</span>
+                <span style={{ fontWeight: 600 }}>{extractTimeLocal(detailRow.hora_llegada_cargar || detailRow.hora_salida) || '—'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.5rem' }}>
+                <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Horas Totales (Extras):</span>
+                <span style={{ fontWeight: 600, color: '#f59e0b' }}>{formatHoras(detailRow.horas_extras)}</span>
+              </div>
+            </div>
+            <div style={{ padding: '1rem 1.5rem', background: 'var(--bg-main)', borderTop: '1px solid var(--border-color)', textAlign: 'right' }}>
+              <button className="btn btn--primary" onClick={() => { setIsDetailModalOpen(false); setDetailRow(null); }}>
+                Cerrar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </Layout>
