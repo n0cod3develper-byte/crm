@@ -129,8 +129,8 @@ export const horasExtrasController = {
 
   async getInformeGestionHumana(req, res, next) {
     try {
-      const { fecha_inicio, fecha_fin, operario_id, page, limit } = req.query;
-      const result = await repo.getInformeGestionHumana({ fecha_inicio, fecha_fin, operario_id, page, limit });
+      const { fecha_inicio, fecha_fin, operario_id, page, limit, solo_novedades } = req.query;
+      const result = await repo.getInformeGestionHumana({ fecha_inicio, fecha_fin, operario_id, page, limit, solo_novedades: solo_novedades === 'true' });
       
       // Si el resultado tiene paginación (page/limit fueron proporcionados)
       if (result && result.pagination) {

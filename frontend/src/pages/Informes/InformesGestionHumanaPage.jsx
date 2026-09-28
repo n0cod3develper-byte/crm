@@ -247,8 +247,8 @@ export function InformesGestionHumanaPage() {
 
   const totalGeneral = useMemo(() => ({
     registros: data?.detalle?.length || 0,
-    horas: gruposOperario.reduce((s, g) => s + g.subtotal_horas, 0),
-    comision: gruposOperario.reduce((s, g) => s + g.subtotal_comision, 0),
+    horas: gruposOperario.filter(g => g.operario_id != null).reduce((s, g) => s + g.subtotal_horas, 0),
+    comision: gruposOperario.filter(g => g.operario_id != null).reduce((s, g) => s + g.subtotal_comision, 0),
   }), [gruposOperario, data]);
 
   // ── Resumen de productividad ────────────────────────────────────────────────

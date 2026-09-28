@@ -335,7 +335,7 @@ export function HorasExtrasServiciosPage() {
                           try {
                             await api.delete(`/horas-extras/jornada/${row.jornada_id}`);
                             toast.success('Jornada eliminada');
-                            queryClient.invalidateQueries(['horas-extras-servicios']);
+                            queryClient.invalidateQueries({ queryKey: ['horas-extras-servicios'] });
                           } catch (err) {
                             toast.error('Error al eliminar');
                             console.error(err);
@@ -367,7 +367,7 @@ export function HorasExtrasServiciosPage() {
         initialData={editingRow}
         onClose={() => { setIsModalOpen(false); setEditingRow(null); }}
         onSuccess={() => {
-          queryClient.invalidateQueries(['horas-extras-servicios']);
+          queryClient.invalidateQueries({ queryKey: ['horas-extras-servicios'] });
         }}
       />
 

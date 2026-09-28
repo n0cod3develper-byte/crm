@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   Calendar, Filter, Clock, DollarSign, Users, Moon,
   FileSpreadsheet, ChevronDown, ChevronRight, ChevronLeft, Edit2, RefreshCw, Trash2
@@ -85,14 +85,16 @@ export function GestionHumanaHorasExtrasPage() {
   });
 
   const { data: queryResult, isLoading } = useQuery({
-    queryKey: ['he-gestion-humana', appliedFilters, currentPage],
+    queryKey: ['he-gestion-humana', appliedFilters, currentPage, mostrarTodo],
     queryFn: async () => {
       const params = { page: currentPage, limit: PAGE_SIZE };
       if (appliedFilters.desde) params.fecha_inicio = appliedFilters.desde;
       if (appliedFilters.hasta) params.fecha_fin = appliedFilters.hasta;
+      if (!mostrarTodo) params.solo_novedades = true;
       const res = await api.get('/horas-extras/gestion-humana', { params });
       return res.data || { data: [], pagination: { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 }, totals: {} };
     },
+    placeholderData: keepPreviousData,
   });
 
   const rows = queryResult?.data || [];
@@ -117,6 +119,7 @@ export function GestionHumanaHorasExtrasPage() {
   const filteredRows = React.useMemo(() => {
     let result = rows;
     
+    // Filtro local por cargo (el filtro de novedades ahora se aplica en el backend)
     if (cargoFilter) {
       result = result.filter(r => {
         const cargo = (r.cargo || '').toLowerCase();
@@ -127,32 +130,8 @@ export function GestionHumanaHorasExtrasPage() {
       });
     }
 
-    if (!mostrarTodo) {
-      result = result.filter(r => {
-        // Fines de semana / Festivos siempre se muestran
-        if (r.es_festivo || parseInt(r.dia_semana) === 0 || parseInt(r.dia_semana) === 6) return true;
-        
-        // Si tiene horas extras, mostrar
-        if (parseFloat(r.total_horas_extras) > 0) return true;
-        
-        const isViernes = parseInt(r.dia_semana) === 5;
-        const finNormal = isViernes ? '16:10' : '16:15';
-        const entrada = r.hora_entrada ? r.hora_entrada.substring(0, 5) : null;
-        const salida = r.hora_salida ? r.hora_salida.substring(0, 5) : null;
-        
-        // Mostrar si entró antes de las 07:00
-        if (entrada && entrada < '07:00') return true;
-        
-        // Mostrar si salió después de su horario normal (16:15 o 16:10)
-        if (salida && salida > finNormal) return true;
-        
-        // Si la jornada estuvo completamente dentro del horario normal y no tiene extras, se oculta
-        return false;
-      });
-    }
-
     return result;
-  }, [rows, cargoFilter, mostrarTodo]);
+  }, [rows, cargoFilter]);
 
   // KPIs calculados — usan totales del backend (rango completo, no solo la página)
   const kpis = React.useMemo(() => {
@@ -218,7 +197,7 @@ export function GestionHumanaHorasExtrasPage() {
       // Llamada directa al API
       await api.patch(`/horas-extras/jornada/${row.id}/observacion`, { observacion: newObs });
       toast.success(newObs.includes('[AUDITADO]') ? 'Auditoría completada' : 'Auditoría removida');
-      queryClient.invalidateQueries(['he-gestion-humana']);
+      queryClient.invalidateQueries({ queryKey: ['he-gestion-humana'] });
     } catch (error) {
       toast.error('Error al actualizar auditoría');
       console.error(error);
@@ -278,7 +257,7 @@ export function GestionHumanaHorasExtrasPage() {
       const res = await api.post('/horas-extras/sincronizar-historico', { forzar: true });
       const { procesadas = 0 } = res.data?.data || {};
       toast.success(`Sincronización completada: ${procesadas} remisiones procesadas`, { id: 'sync-he' });
-      queryClient.invalidateQueries(['he-gestion-humana']);
+      queryClient.invalidateQueries({ queryKey: ['he-gestion-humana'] });
     } catch (err) {
       toast.error('Error al sincronizar histórico: ' + (err.response?.data?.message || err.message), { id: 'sync-he' });
     } finally {
@@ -352,7 +331,7 @@ export function GestionHumanaHorasExtrasPage() {
         </button>
         <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto', gap: 12 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={mostrarTodo} onChange={e => setMostrarTodo(e.target.checked)} />
+            <input type="checkbox" checked={mostrarTodo} onChange={e => { setMostrarTodo(e.target.checked); setCurrentPage(1); }} />
             Mostrar turnos sin novedades
           </label>
           <button className="btn btn-primary" onClick={() => {
@@ -519,8 +498,8 @@ export function GestionHumanaHorasExtrasPage() {
                           try {
                             await api.delete(`/horas-extras/jornada/${row.id}`);
                             toast.success('Jornada eliminada');
-                            queryClient.invalidateQueries(['he-gestion-humana']);
-                            queryClient.invalidateQueries(['he-resumen-agrupado']);
+                            queryClient.invalidateQueries({ queryKey: ['he-gestion-humana'] });
+                            queryClient.invalidateQueries({ queryKey: ['he-resumen-agrupado'] });
                           } catch (err) {
                             toast.error('Error al eliminar');
                             console.error(err);
@@ -632,6 +611,10 @@ export function GestionHumanaHorasExtrasPage() {
         }} 
         initialData={editingRow}
         tipoEmpleados="todos"
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['he-gestion-humana'] });
+          queryClient.invalidateQueries({ queryKey: ['he-resumen-agrupado'] });
+        }}
       />
     </Layout>
   );

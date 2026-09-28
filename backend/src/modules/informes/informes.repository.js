@@ -551,15 +551,26 @@ export class InformesRepository {
         e.capacidad_carga,
         false         AS is_servicio_fijo,
         CASE WHEN r.estado IN ('ANULADO', 'ANULADA') THEN 0 ELSE
-          GREATEST(1, CASE
-            WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
-              CASE
-                WHEN r.hora_llegada_cargar::time >= r.hora_salida_cargar::time
-                THEN EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time)) / 3600.0
-                ELSE EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time + INTERVAL '24 hours')) / 3600.0
-              END
-            ELSE 0
-          END)
+          COALESCE(
+            (
+              SELECT NULLIF(SUM(rs.cantidad), 0)
+              FROM remision_servicios rs
+              LEFT JOIN inventario inv ON inv.id = rs.catalogo_servicio_id
+              LEFT JOIN catalogo_servicios cs ON cs.id = rs.catalogo_servicio_id
+              WHERE rs.remision_id = r.id
+                AND (inv.nombre_comercial ILIKE '%CON OPERARIO%' OR cs.nombre ILIKE '%CON OPERARIO%' OR rs.descripcion ILIKE '%CON OPERARIO%')
+            ),
+            NULLIF(r.cantidad_horas, 0),
+            GREATEST(1, CASE
+              WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
+                CASE
+                  WHEN r.hora_llegada_cargar::time >= r.hora_salida_cargar::time
+                  THEN EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time)) / 3600.0
+                  ELSE EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time + INTERVAL '24 hours')) / 3600.0
+                END
+              ELSE 0
+            END)
+          )
         END AS horas_efectivas,
         CASE WHEN ghs.id IS NOT NULL THEN true ELSE false END AS is_subrayada
       FROM remisiones r

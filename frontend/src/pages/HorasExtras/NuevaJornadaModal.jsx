@@ -54,8 +54,8 @@ export function NuevaJornadaModal({ isOpen, onClose, initialData = null, onSucce
     try {
       await api.post('/horas-extras/jornada', formData);
       toast.success(initialData ? 'Jornada actualizada correctamente' : 'Jornada registrada correctamente');
-      queryClient.invalidateQueries(['he-gestion-humana']);
-      queryClient.invalidateQueries(['he-resumen-agrupado']);
+      queryClient.invalidateQueries({ queryKey: ['he-gestion-humana'] });
+      queryClient.invalidateQueries({ queryKey: ['he-resumen-agrupado'] });
       if (onSuccess) onSuccess();
       onClose();
       setFormData({ jornada_id: '', empleado_id: '', fecha_trabajo: '', hora_entrada: '', hora_salida: '', observacion: '', minutos_descuento: 50, remision_id: null });

@@ -177,7 +177,7 @@ export class HorasExtrasRepository {
 
   // ─── Consultas para Informes ──────────────────────────────
 
-  async getInformeGestionHumana({ fecha_inicio, fecha_fin, operario_id, page, limit }) {
+  async getInformeGestionHumana({ fecha_inicio, fecha_fin, operario_id, page, limit, solo_novedades }) {
     const conditions = ['1=1'];
     const params = [];
     let i = 1;
@@ -193,6 +193,18 @@ export class HorasExtrasRepository {
     if (operario_id) {
       conditions.push(`jl.empleado_id = $${i++}`);
       params.push(operario_id);
+    }
+
+    // Filtro de novedades: solo registros con alguna anomalía respecto al horario normal
+    if (solo_novedades) {
+      conditions.push(`(
+        EXTRACT(DOW FROM jl.fecha_trabajo) IN (0, 6)
+        OR EXISTS (SELECT 1 FROM festivos_colombia fc2 WHERE fc2.fecha = jl.fecha_trabajo AND fc2.activo = TRUE)
+        OR jl.total_horas_extras > 0
+        OR jl.hora_entrada < '07:00:00'::time
+        OR (EXTRACT(DOW FROM jl.fecha_trabajo) = 5 AND jl.hora_salida > '16:10:00'::time)
+        OR (EXTRACT(DOW FROM jl.fecha_trabajo) NOT IN (0, 5, 6) AND jl.hora_salida > '16:15:00'::time)
+      )`);
     }
 
     const whereClause = conditions.join(' AND ');
