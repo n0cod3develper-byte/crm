@@ -54,3 +54,9 @@ cargar-crm-backups/
 backend/scratch/
 backend/get_schema.js
 test.js
+
+# Herramientas locales, scripts manuales y respaldos: nunca al repositorio
+.freebuff/
+backend/_*.cjs
+respaldos-crm-*/
+*.dump
