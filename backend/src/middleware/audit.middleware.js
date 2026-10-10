@@ -48,6 +48,32 @@ const EXCLUDED_PATHS = [
   '/health'
 ];
 
+// Claves que NUNCA deben persistirse en la bitácora (credenciales / Ley 1581)
+const SENSITIVE_KEY = /^(password|passwd|currentpassword|newpassword|passwordconfirm|passwordconfirmation|token|accesstoken|refreshtoken|invitationtoken|resettoken|secret|clientsecret|apikey|authorization|otp|pin|clave)$/i;
+
+function redact(value) {
+  if (Array.isArray(value)) return value.map(redact);
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (SENSITIVE_KEY.test(k)) continue;
+      out[k] = redact(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
+ * Devuelve una copia del body apta para auditoría: elimina claves sensibles
+ * de forma recursiva y descarta cuerpos que no sean objetos JSON
+ * (evita persistir passwords en claro en audit_logs.datos_antes).
+ */
+export function sanitizeRequestBody(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  return redact(body);
+}
+
 function extractModule(routePath) {
   const sortedPrefixes = Object.keys(MODULE_MAP).sort((a, b) => b.length - a.length);
   for (const prefix of sortedPrefixes) {
@@ -83,9 +109,9 @@ export function auditMiddleware(req, res, next) {
     return next();
   }
 
-  // Capturar datos de la request antes de que los handlers la consuman
+  // Capturar datos de la request (YA SINIALIZADOS) antes de que los handlers la consuman
   const requestBody = (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH')
-    ? (req.body ? { ...req.body } : null)
+    ? sanitizeRequestBody(req.body)
     : null;
 
   // Usar evento 'finish' en vez de monkey-patchear res.send
