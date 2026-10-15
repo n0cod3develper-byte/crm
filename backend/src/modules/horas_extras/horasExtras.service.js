@@ -139,7 +139,7 @@ export async function calcularDesdeRemision(remisionId) {
             hora_salida: String(hl.hora_salida).substring(0, 5),
             remision_id: remisionId,
             observacion: 'Generado automáticamente desde horas laborales de remisión',
-            minutos_descuento: 50
+            minutos_descuento: 0
           });
           resultados.push(res);
         } catch (err) {
@@ -173,7 +173,7 @@ export async function calcularDesdeRemision(remisionId) {
             hora_salida: horaFin,
             remision_id: remisionId,
             observacion: 'Generado automáticamente desde remisión legacy',
-            minutos_descuento: 50
+            minutos_descuento: 0
           });
           resultados.push(res);
         } catch (err) {

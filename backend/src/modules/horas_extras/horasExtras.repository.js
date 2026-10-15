@@ -161,6 +161,12 @@ export class HorasExtrasRepository {
     return jornadaId;
   }
 
+  async deleteJornada(id) {
+    await query(`DELETE FROM jornadas_laborales_detalle WHERE jornada_id = $1`, [id]);
+    const res = await query(`DELETE FROM jornadas_laborales WHERE id = $1 RETURNING id`, [id]);
+    return res.rows[0];
+  }
+
   async updateObservacion(id, observacion) {
     const res = await query(
       `UPDATE jornadas_laborales SET observacion = $1, updated_at = NOW() WHERE id = $2 RETURNING id`,
@@ -171,7 +177,7 @@ export class HorasExtrasRepository {
 
   // ─── Consultas para Informes ──────────────────────────────
 
-  async getInformeGestionHumana({ fecha_inicio, fecha_fin, operario_id }) {
+  async getInformeGestionHumana({ fecha_inicio, fecha_fin, operario_id, page, limit, solo_novedades }) {
     const conditions = ['1=1'];
     const params = [];
     let i = 1;
@@ -189,8 +195,22 @@ export class HorasExtrasRepository {
       params.push(operario_id);
     }
 
+    // Filtro de novedades: solo registros con alguna anomalía respecto al horario normal
+    if (solo_novedades) {
+      conditions.push(`(
+        EXTRACT(DOW FROM jl.fecha_trabajo) IN (0, 6)
+        OR EXISTS (SELECT 1 FROM festivos_colombia fc2 WHERE fc2.fecha = jl.fecha_trabajo AND fc2.activo = TRUE)
+        OR jl.total_horas_extras > 0
+        OR jl.hora_entrada < '07:00:00'::time
+        OR (EXTRACT(DOW FROM jl.fecha_trabajo) = 5 AND jl.hora_salida > '16:10:00'::time)
+        OR (EXTRACT(DOW FROM jl.fecha_trabajo) NOT IN (0, 5, 6) AND jl.hora_salida > '16:15:00'::time)
+      )`);
+    }
+
+    const whereClause = conditions.join(' AND ');
+
     // Consulta enfocada 100% en jornadas laborales, sin depender de la existencia de remisión
-    const sql = `
+    const baseSql = `
       SELECT 
         jl.id,
         jl.remision_id,
@@ -226,13 +246,69 @@ export class HorasExtrasRepository {
       LEFT JOIN remisiones r ON r.id = jl.remision_id
       LEFT JOIN festivos_colombia fc ON fc.fecha = jl.fecha_trabajo AND fc.activo = TRUE
       LEFT JOIN jornadas_laborales_detalle jld ON jld.jornada_id = jl.id
-      WHERE ${conditions.join(' AND ')}
+      WHERE ${whereClause}
       GROUP BY jl.id, em.id, r.id, fc.fecha
       ORDER BY jl.fecha_trabajo DESC, em.full_name ASC
     `;
 
-    const res = await query(sql, params);
-    return res.rows;
+    // Si no se pide paginación (exportación Excel), devolver todos los registros
+    if (!page || !limit) {
+      const res = await query(baseSql, params);
+      return res.rows;
+    }
+
+    // ─── Paginación ──────────────────────────────────────────
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.max(1, parseInt(limit));
+    const offset = (pageNum - 1) * limitNum;
+
+    // COUNT total de registros con los mismos filtros
+    const countSql = `
+      SELECT COUNT(DISTINCT jl.id) AS total
+      FROM jornadas_laborales jl
+      JOIN employees em ON em.id = jl.empleado_id
+      LEFT JOIN remisiones r ON r.id = jl.remision_id
+      LEFT JOIN festivos_colombia fc ON fc.fecha = jl.fecha_trabajo AND fc.activo = TRUE
+      WHERE ${whereClause}
+    `;
+
+    // KPIs agregados de todo el rango (no solo la página)
+    const totalsCleanSql = `
+      SELECT
+        COUNT(DISTINCT jl.empleado_id) AS operarios,
+        COALESCE(SUM(jl.total_horas_extras), 0) AS total_extras,
+        COALESCE(SUM(jl.total_liquidado), 0) AS total_liquidado
+      FROM jornadas_laborales jl
+      WHERE ${whereClause}
+    `;
+
+    // Datos paginados
+    const paginatedParams = [...params, limitNum, offset];
+    const paginatedSql = baseSql + ` LIMIT $${i++} OFFSET $${i++}`;
+
+    const [countRes, totalsRes, dataRes] = await Promise.all([
+      query(countSql, params),
+      query(totalsCleanSql, params),
+      query(paginatedSql, paginatedParams),
+    ]);
+
+    const total = parseInt(countRes.rows[0].total);
+    const totalPages = Math.ceil(total / limitNum);
+
+    return {
+      rows: dataRes.rows,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+      },
+      totals: {
+        operarios: parseInt(totalsRes.rows[0].operarios),
+        total_extras: parseFloat(totalsRes.rows[0].total_extras),
+        total_liquidado: parseFloat(totalsRes.rows[0].total_liquidado),
+      },
+    };
   }
 
   async getDetalleJornada(jornadaId) {
@@ -285,11 +361,15 @@ export class HorasExtrasRepository {
     return res.rows;
   }
 
-  async getOperariosConJornadas() {
+  async getOperariosConJornadas(tipo = null) {
+    const condition = tipo === 'todos' 
+      ? `WHERE status = 'Activo'`
+      : `WHERE status = 'Activo' AND position ILIKE '%operario%'`;
+
     const res = await query(
       `SELECT id, full_name
        FROM employees
-       WHERE status = 'Activo'
+       ${condition}
        ORDER BY full_name ASC`
     );
     return res.rows;
