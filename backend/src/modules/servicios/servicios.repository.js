@@ -309,7 +309,8 @@ export class ServiciosRepository {
         'horas_otras', 'valor_hora_otras',
         'horas_ordinarias', 'valor_hora_ordinaria', 'horas_recargo', 'valor_hora_recargo',
         'total_bruto', 'iva_pct', 'iva_valor', 'descuentos', 'total_neto',
-        'estado', 'observaciones', 'bonificacion_hora', 'is_servicio_fijo'
+        'estado', 'observaciones', 'bonificacion_hora', 'is_servicio_fijo',
+        'motivo_anulacion'
       ];
       for (const key of allowed) {
         if (key in data) {
@@ -637,7 +638,7 @@ export class ServiciosRepository {
     });
   }
 
-  async softDelete(id, user) {
+  async softDelete(id, user, motivo = null) {
     const userStr = user ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || user.email : 'Sistema';
     return await withTransaction(async (client) => {
       const currentRes = await client.query('SELECT equipo_id, estado, numero_remision FROM remisiones WHERE id = $1', [id]);
@@ -645,8 +646,8 @@ export class ServiciosRepository {
       if (!current) return null;
 
       const result = await client.query(
-        `UPDATE remisiones SET deleted_at = NOW(), estado = 'ANULADO' WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
-        [id]
+        `UPDATE remisiones SET deleted_at = NOW(), estado = 'ANULADO', motivo_anulacion = $2 WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
+        [id, motivo || null]
       );
 
       if (current.equipo_id && current.estado !== 'ANULADO') {
@@ -666,6 +667,10 @@ export class ServiciosRepository {
           const otrasActivas = parseInt(otrasActivasRes.rows[0]?.total || 0);
 
           if (otrasActivas === 0) {
+            const motivoHistorial = motivo 
+              ? `Liberado por anulación de remisión ${current.numero_remision}: ${motivo}`
+              : `Liberado por anulación de remisión ${current.numero_remision}`;
+
             await client.query(
               `UPDATE equipos SET 
                 estado = 'OPERATIVO',
@@ -674,13 +679,13 @@ export class ServiciosRepository {
                 actualizado_por = $2,
                 updated_at = NOW()
                WHERE id = $3`,
-              [`Liberado por anulación de remisión ${current.numero_remision}`, userStr, current.equipo_id]
+              [motivoHistorial, userStr, current.equipo_id]
             );
             await client.query(
               `INSERT INTO equipos_historial_estado (
                 equipo_id, estado_anterior, estado_nuevo, motivo, cambiado_por
               ) VALUES ($1, $2, $3, $4, $5)`,
-              [current.equipo_id, state, 'OPERATIVO', `Liberado por anulación de remisión ${current.numero_remision}`, userStr]
+              [current.equipo_id, state, 'OPERATIVO', motivoHistorial, userStr]
             );
           }
         }

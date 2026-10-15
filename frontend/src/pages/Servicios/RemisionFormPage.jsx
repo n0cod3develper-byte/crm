@@ -33,6 +33,7 @@ const EMPTY = {
   horas_ordinarias: 0, valor_hora_ordinaria: 0, horas_recargo: 0, valor_hora_recargo: 0,
   total_bruto: 0, iva_pct: 0, aplica_iva: false, iva_valor: 0, descuentos: 0, total_neto: 0,
   observaciones: '',
+  motivo_anulacion: '',
   estado: 'BORRADOR',
   bonificacion_hora: 0,
   items: [],
@@ -157,7 +158,7 @@ function calcularDesgloseHoras(fechaServicio, salidaStr, llegadaStr) {
   }
 
   let ordMin = 0, recMin = 0;
-  let current = new Date(s);
+    let current = new Date(s);
   while (current < l) {
     const minutoDelDia = current.getHours() * 60 + current.getMinutes();
     if (minutoDelDia < normalStartMin || minutoDelDia >= normalEndMin) {
@@ -168,8 +169,11 @@ function calcularDesgloseHoras(fechaServicio, salidaStr, llegadaStr) {
     current.setMinutes(current.getMinutes() + 1);
   }
 
-  let hOrd = Math.ceil((ordMin / 60) * 100) / 100;
+  const totalMin = ordMin + recMin;
+  const hTotal = Math.ceil((totalMin / 60) * 100) / 100;
   let hRec = Math.ceil((recMin / 60) * 100) / 100;
+  let hOrd = parseFloat((hTotal - hRec).toFixed(2));
+  if (hOrd < 0) hOrd = 0;
   
   // Garantizar cobro mínimo de 1 hora
   const totalRaw = parseFloat((hOrd + hRec).toFixed(2));
@@ -406,6 +410,7 @@ export function RemisionFormPage() {
         }
       }
       if (existingData.estado) f.estado = existingData.estado;
+      if (existingData.motivo_anulacion) f.motivo_anulacion = existingData.motivo_anulacion;
       // Inferir aplica_iva desde el iva_pct guardado
       f.aplica_iva = parseFloat(existingData.iva_pct || 0) > 0;
       setForm(f);
@@ -800,7 +805,13 @@ export function RemisionFormPage() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'estado') setEstadoManual(true);
+    if (name === 'estado') {
+      setEstadoManual(true);
+      if (value !== 'ANULADO' && value !== 'ANULADA') {
+        setForm(prev => ({ ...prev, estado: value, motivo_anulacion: '' }));
+        return;
+      }
+    }
 
     // Se permite que el operario inicial y el segundo operario sean el mismo,
     // ya que puede realizar dos servicios separados.
@@ -1004,8 +1015,24 @@ export function RemisionFormPage() {
         }
       }
     }
+    if (['ANULADO', 'ANULADA'].includes(form.estado)) {
+      const motivo = (form.motivo_anulacion || '').trim();
+      if (!motivo || motivo.length < 5) {
+        toast.error('El motivo de anulación es obligatorio y debe tener al menos 5 caracteres');
+        return;
+      }
+      if (motivo.length > 1000) {
+        toast.error('El motivo de anulación no puede exceder 1.000 caracteres');
+        return;
+      }
+    }
     // Construir payload con hora_acordada incluyendo offset de zona horaria local
     const payload = { ...form };
+    if (['ANULADO', 'ANULADA'].includes(payload.estado)) {
+      payload.motivo_anulacion = (payload.motivo_anulacion || '').trim();
+    } else {
+      payload.motivo_anulacion = null;
+    }
     if (payload.hora_acordada) {
       // datetime-local da "YYYY-MM-DDTHH:MM" sin timezone.
       // Calcular offset local para que PostgreSQL TIMESTAMPTZ lo interprete correctamente.
@@ -1125,6 +1152,30 @@ export function RemisionFormPage() {
                 <option value="ANULADO">Anulada</option>
               </select>
             </div>
+            {['ANULADO', 'ANULADA'].includes(form.estado) && (
+              <div style={{ gridColumn: '1 / -1', padding: '0.85rem 1rem', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: '8px' }}>
+                <label style={{ ...label, color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <span><strong>Motivo de Anulación *</strong> (obligatorio)</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Mínimo 5 caracteres</span>
+                </label>
+                <textarea
+                  name="motivo_anulacion"
+                  className="input"
+                  rows={2}
+                  style={{ width: '100%', borderColor: (form.motivo_anulacion || '').trim().length < 5 ? '#ef4444' : undefined }}
+                  value={form.motivo_anulacion || ''}
+                  onChange={isReadOnly ? undefined : handleChange}
+                  readOnly={isReadOnly}
+                  placeholder="Escriba el motivo detallado de la anulación..."
+                  required
+                />
+                {(form.motivo_anulacion || '').trim().length > 0 && (form.motivo_anulacion || '').trim().length < 5 && (
+                  <p style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px', marginBottom: 0 }}>
+                    Debe ingresar al menos 5 caracteres ({5 - (form.motivo_anulacion || '').trim().length} restantes)
+                  </p>
+                )}
+              </div>
+            )}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.375rem' }}>
                 <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)' }}>Solicitado Por</label>
@@ -1677,7 +1728,12 @@ export function RemisionFormPage() {
               <button type="button" className="btn btn--ghost" onClick={() => navigate(isEditing ? `/servicios/${id}` : '/servicios')}>
                 Cancelar
               </button>
-              <button type="submit" className="btn btn--primary" disabled={mutation.isPending}>
+              <button
+                type="submit"
+                className="btn btn--primary"
+                disabled={mutation.isPending || (['ANULADO', 'ANULADA'].includes(form.estado) && (form.motivo_anulacion || '').trim().length < 5)}
+                title={['ANULADO', 'ANULADA'].includes(form.estado) && (form.motivo_anulacion || '').trim().length < 5 ? 'Debe ingresar un motivo de anulación de al menos 5 caracteres' : undefined}
+              >
                 <Save size={16} /> {mutation.isPending ? 'Guardando...' : isEditing ? 'Guardar Cambios' : 'Crear Remisión'}
               </button>
             </div>

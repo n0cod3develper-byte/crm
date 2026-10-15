@@ -168,6 +168,7 @@ const MIGRATION_FILES = [
   '134_compras_registro_simple.sql',
   '135_rol_gerencia.sql',
   '136_dashboard_gerencia_indexes.sql',
+  '137_remisiones_motivo_anulacion.sql',
 ];
 
 

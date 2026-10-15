@@ -14,8 +14,6 @@ import * as XLSX from 'xlsx';
 
 // ─── Utilidades ────────────────────────────────────────────────────────────────
 
-const HORAS_ESPERADAS_QUINCENA = 84; // 14 días × 6h (o ajuste solicitado)
-
 function formatCOP(v) {
   return new Intl.NumberFormat('es-CO', {
     style: 'currency', currency: 'COP', minimumFractionDigits: 0
@@ -37,82 +35,26 @@ function formatHoras(h) {
   return `${hh}h ${String(mm).padStart(2, '0')}m`;
 }
 
-/** Calcula el rango de la quincena seleccionada */
-function calcularRangoQuincena(quincena) {
-  // quincena: "Q1-YYYY-MM" o "Q2-YYYY-MM"
-  const [tipo, year, month] = quincena.split('-');
-  const y = parseInt(year);
-  const m = parseInt(month) - 1;
-  if (tipo === 'Q1') {
-    const inicio = new Date(y, m, 1);
-    const fin    = new Date(y, m, 15);
-    return { inicio: fmtDate(inicio), fin: fmtDate(fin) };
+/** Obtiene el rango de la quincena actual en curso por defecto */
+function getDefaultDateRange() {
+  const hoy = new Date();
+  const y = hoy.getFullYear();
+  const m = hoy.getMonth();
+  const dia = hoy.getDate();
+  const pad = n => String(n).padStart(2, '0');
+
+  if (dia <= 15) {
+    return {
+      inicio: `${y}-${pad(m + 1)}-01`,
+      fin: `${y}-${pad(m + 1)}-15`
+    };
   } else {
-    const inicio = new Date(y, m, 16);
-    const fin    = new Date(y, m + 1, 0); // último día del mes
-    return { inicio: fmtDate(inicio), fin: fmtDate(fin) };
+    const ultimoDia = new Date(y, m + 1, 0).getDate();
+    return {
+      inicio: `${y}-${pad(m + 1)}-16`,
+      fin: `${y}-${pad(m + 1)}-${pad(ultimoDia)}`
+    };
   }
-}
-
-function fmtDate(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function nombreMes(m) {
-  return ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][m];
-}
-
-/** Genera todas las quincenas completadas del año en curso, más reciente primero.
- *
- * Regla:
- *  - Si hoy es día 1-15: estamos en Q1 → última quincena PAGABLE = Q2 del mes anterior.
- *  - Si hoy es día 16-31: estamos en Q2 → última quincena PAGABLE = Q1 del mes actual.
- *
- * Ejemplo: 26/06 → está en Q2 de junio → la quincena a liquidar es Q1 de junio (01-15/06).
- */
-function generarOpcionesQuincena() {
-  const hoy  = new Date();
-  const año  = hoy.getFullYear();
-  const mesHoy = hoy.getMonth();   // 0-indexed
-  const diaHoy = hoy.getDate();
-
-  // Determinar la quincena completada más reciente
-  let curMes, curQ;
-  if (diaHoy <= 15) {
-    // Estamos en Q1 del mes actual → última completada = Q2 del mes anterior
-    curMes = mesHoy - 1;
-    curQ   = 2;
-    if (curMes < 0) curMes = 0; // protección enero
-  } else {
-    // Estamos en Q2 del mes actual → última completada = Q1 del mes actual
-    curMes = mesHoy;
-    curQ   = 1;
-  }
-
-  const opciones = [];
-
-  // Recorrer hacia atrás desde la quincena más reciente hasta enero Q1
-  while (curMes >= 0) {
-    const mStr     = String(curMes + 1).padStart(2, '0');
-    const ultimoDia = new Date(año, curMes + 1, 0).getDate();
-
-    if (curQ === 2) {
-      opciones.push({
-        value: `Q2-${año}-${mStr}`,
-        label: `2ª quincena – ${nombreMes(curMes)} ${año} (16 al ${ultimoDia})`,
-      });
-      curQ = 1; // siguiente: Q1 del mismo mes
-    } else {
-      opciones.push({
-        value: `Q1-${año}-${mStr}`,
-        label: `1ª quincena – ${nombreMes(curMes)} ${año} (01 al 15)`,
-      });
-      curMes--; // mes anterior, Q2
-      curQ = 2;
-    }
-  }
-
-  return opciones;
 }
 
 /** Genera observación automática para el resumen de productividad */
@@ -122,22 +64,44 @@ function generarObservacion(horasActual, horasAnterior, productividad) {
   if (horasAnterior === 0) {
     return productividad >= 80 ? 'Primer registro. Productividad dentro del rango esperado.' : 'Primer registro. Productividad por debajo del objetivo.';
   }
-  if (variacion > 2) return `Aumentó ${formatHoras(Math.abs(variacion))} (${pct}%) respecto a la quincena anterior.`;
-  if (variacion < -2) return `Bajó ${formatHoras(Math.abs(variacion))} (${Math.abs(pct)}%) respecto a la quincena anterior.`;
-  return 'Se mantuvo estable respecto a la quincena anterior.';
+  if (variacion > 2) return `Aumentó ${formatHoras(Math.abs(variacion))} (${pct}%) respecto al período anterior.`;
+  if (variacion < -2) return `Bajó ${formatHoras(Math.abs(variacion))} (${Math.abs(pct)}%) respecto al período anterior.`;
+  return 'Se mantuvo estable respecto al período anterior.';
+}
+
+/** Estilo del badge según estado de la remisión */
+function getEstadoBadgeStyle(estado) {
+  switch (estado) {
+    case 'LIQUIDADA':
+      return { background: 'rgba(99,102,241,0.12)', color: '#6366f1' };
+    case 'ANULADA':
+    case 'ANULADO':
+      return { background: 'rgba(239,68,68,0.12)', color: '#ef4444' };
+    case 'FACTURADA':
+      return { background: 'rgba(16,185,129,0.12)', color: '#10b981' };
+    case 'PARCIALMENTE_FACTURADA':
+      return { background: 'rgba(14,165,233,0.12)', color: '#0284c7' };
+    case 'REALIZADA':
+      return { background: 'rgba(20,184,166,0.12)', color: '#0d9488' };
+    case 'PENDIENTE':
+      return { background: 'rgba(245,158,11,0.12)', color: '#d97706' };
+    case 'BORRADOR':
+      return { background: 'rgba(156,163,175,0.2)', color: '#4b5563' };
+    default:
+      return { background: 'rgba(107,114,128,0.12)', color: '#6b7280' };
+  }
 }
 
 // ─── Componente Principal ──────────────────────────────────────────────────────
 
 export function InformesGestionHumanaPage() {
-  const opciones = useMemo(() => generarOpcionesQuincena(), []);
-  const [quincenaSeleccionada, setQuincenaSeleccionada] = useState(opciones[0]?.value || '');
-  const [quincenaAplicada, setQuincenaAplicada] = useState(opciones[0]?.value || '');
+  const defaultRange = useMemo(() => getDefaultDateRange(), []);
+  const [fechaDesde, setFechaDesde] = useState(defaultRange.inicio);
+  const [fechaHasta, setFechaHasta] = useState(defaultRange.fin);
+  const [rango, setRango] = useState(defaultRange);
   const [manualHours, setManualHours] = useState({});
   const [manualNotes, setManualNotes] = useState({});
   const [notePopoverId, setNotePopoverId] = useState(null);
-
-  const rango = useMemo(() => quincenaAplicada ? calcularRangoQuincena(quincenaAplicada) : null, [quincenaAplicada]);
 
   const queryClient = useQueryClient();
 
@@ -171,15 +135,20 @@ export function InformesGestionHumanaPage() {
   });
 
   const { data: ajustesData, refetch: refetchAjustes } = useQuery({
-    queryKey: ['liquidacionAjustes', quincenaAplicada],
+    queryKey: ['liquidacionAjustes', rango?.inicio, rango?.fin],
     queryFn: async () => {
       const res = await api.get('/informes/gestion-humana/liquidacion-ajustes', {
-        params: { quincena: quincenaAplicada }
+        params: { fecha_inicio: rango.inicio, fecha_fin: rango.fin }
       });
       return res.data;
     },
-    enabled: !!quincenaAplicada,
+    enabled: !!rango?.inicio && !!rango?.fin,
   });
+
+  React.useEffect(() => {
+    setManualHours({});
+    setManualNotes({});
+  }, [rango?.inicio, rango?.fin]);
 
   React.useEffect(() => {
     if (ajustesData && Array.isArray(ajustesData)) {
@@ -207,7 +176,8 @@ export function InformesGestionHumanaPage() {
         };
       });
       await api.put('/informes/gestion-humana/liquidacion-ajustes', {
-        quincena: quincenaAplicada,
+        fecha_inicio: rango.inicio,
+        fecha_fin: rango.fin,
         ajustes: payload
       });
       toast.success('Ajustes manuales guardados correctamente');
@@ -218,6 +188,83 @@ export function InformesGestionHumanaPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleFechaDesdeChange = (val) => {
+    setFechaDesde(val);
+    if (val && fechaHasta && val <= fechaHasta) {
+      setRango({ inicio: val, fin: fechaHasta });
+    }
+  };
+
+  const handleFechaHastaChange = (val) => {
+    setFechaHasta(val);
+    if (fechaDesde && val && fechaDesde <= val) {
+      setRango({ inicio: fechaDesde, fin: val });
+    }
+  };
+
+  const aplicarPreset = (tipo) => {
+    const hoy = new Date();
+    const y = hoy.getFullYear();
+    const m = hoy.getMonth();
+    const pad = n => String(n).padStart(2, '0');
+    let inicio, fin;
+
+    if (tipo === 'esta_quincena') {
+      const dia = hoy.getDate();
+      if (dia <= 15) {
+        inicio = `${y}-${pad(m + 1)}-01`;
+        fin = `${y}-${pad(m + 1)}-15`;
+      } else {
+        const uDia = new Date(y, m + 1, 0).getDate();
+        inicio = `${y}-${pad(m + 1)}-16`;
+        fin = `${y}-${pad(m + 1)}-${pad(uDia)}`;
+      }
+    } else if (tipo === 'quincena_anterior') {
+      const dia = hoy.getDate();
+      if (dia <= 15) {
+        const mesAnt = new Date(y, m, 0);
+        const yAnt = mesAnt.getFullYear();
+        const mAnt = mesAnt.getMonth() + 1;
+        const uDia = mesAnt.getDate();
+        inicio = `${yAnt}-${pad(mAnt)}-16`;
+        fin = `${yAnt}-${pad(mAnt)}-${pad(uDia)}`;
+      } else {
+        inicio = `${y}-${pad(m + 1)}-01`;
+        fin = `${y}-${pad(m + 1)}-15`;
+      }
+    } else if (tipo === 'este_mes') {
+      const uDia = new Date(y, m + 1, 0).getDate();
+      inicio = `${y}-${pad(m + 1)}-01`;
+      fin = `${y}-${pad(m + 1)}-${pad(uDia)}`;
+    } else if (tipo === 'mes_anterior') {
+      const mesAnt = new Date(y, m, 0);
+      const yAnt = mesAnt.getFullYear();
+      const mAnt = mesAnt.getMonth() + 1;
+      const uDia = mesAnt.getDate();
+      inicio = `${yAnt}-${pad(mAnt)}-01`;
+      fin = `${yAnt}-${pad(mAnt)}-${pad(uDia)}`;
+    }
+
+    if (inicio && fin) {
+      setFechaDesde(inicio);
+      setFechaHasta(fin);
+      setRango({ inicio, fin });
+    }
+  };
+
+  const handleGenerarInforme = () => {
+    if (!fechaDesde || !fechaHasta) {
+      toast.error('Debe seleccionar fecha desde y fecha hasta');
+      return;
+    }
+    if (fechaDesde > fechaHasta) {
+      toast.error('La fecha desde debe ser menor o igual a la fecha hasta');
+      return;
+    }
+    setRango({ inicio: fechaDesde, fin: fechaHasta });
+    refetch();
   };
 
   // ── Agrupación por operario ────────────────────────────────────────────────
@@ -232,10 +279,13 @@ export function InformesGestionHumanaPage() {
         row.comision = row.horas_efectivas * row.bonificacion_hora;
       }
 
-      if (!mapa.has(row.operario_id)) {
-        mapa.set(row.operario_id, { operario_id: row.operario_id, operario_nombre: row.operario_nombre, filas: [] });
+      const opKey = row.operario_id || 'sin_operario';
+      const opNombre = row.operario_nombre || 'Sin operario asignado';
+
+      if (!mapa.has(opKey)) {
+        mapa.set(opKey, { operario_id: opKey, operario_nombre: opNombre, filas: [] });
       }
-      mapa.get(row.operario_id).filas.push(row);
+      mapa.get(opKey).filas.push(row);
     }
     return Array.from(mapa.values()).map(g => ({
       ...g,
@@ -251,18 +301,31 @@ export function InformesGestionHumanaPage() {
     comision: gruposOperario.reduce((s, g) => s + g.subtotal_comision, 0),
   }), [gruposOperario, data]);
 
+  // Días en el rango para cálculo dinámico de horas esperadas (6h por día)
+  const diasEnRango = useMemo(() => {
+    if (data?.dias_rango) return data.dias_rango;
+    if (!rango?.inicio || !rango?.fin) return 15;
+    const d1 = new Date(rango.inicio + 'T00:00:00');
+    const d2 = new Date(rango.fin + 'T00:00:00');
+    return Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+  }, [data, rango]);
+
+  const horasEsperadas = useMemo(() => diasEnRango * 6, [diasEnRango]);
+
   // ── Resumen de productividad ────────────────────────────────────────────────
   const resumenProductividad = useMemo(() => {
     if (!data) return [];
     const anteriorMap = new Map(
       (data.quincena_anterior?.por_operario || []).map(r => [r.operario_id, r])
     );
-    return gruposOperario.map(g => {
+    return gruposOperario
+      .filter(g => g.operario_id !== 'sin_operario')
+      .map(g => {
       const anterior = anteriorMap.get(g.operario_id);
       const horasAnt = anterior?.horas_total || 0;
       const variacion = g.subtotal_horas - horasAnt;
       const variacionPct = horasAnt > 0 ? (variacion / horasAnt) * 100 : null;
-      const productividad = (g.subtotal_horas / HORAS_ESPERADAS_QUINCENA) * 100;
+      const productividad = horasEsperadas > 0 ? (g.subtotal_horas / horasEsperadas) * 100 : 0;
       return {
         operario_nombre: g.operario_nombre,
         cedula: g.cedula,
@@ -275,7 +338,7 @@ export function InformesGestionHumanaPage() {
         observacion: generarObservacion(g.subtotal_horas, horasAnt, productividad),
       };
     });
-  }, [gruposOperario, data]);
+  }, [gruposOperario, data, horasEsperadas]);
 
   const alertas = data?.alertas || {};
   const totalAlertas = (alertas.sin_operario?.length || 0) +
@@ -283,11 +346,11 @@ export function InformesGestionHumanaPage() {
     (alertas.bonificacion_cero?.length || 0) +
     (alertas.horas_invalidas?.length || 0);
 
-  // ── Etiqueta de quincena aplicada ──────────────────────────────────────────
-  const etiquetaQuincena = useMemo(() => {
-    const op = opciones.find(o => o.value === quincenaAplicada);
-    return op?.label || '';
-  }, [quincenaAplicada, opciones]);
+  // ── Etiqueta de período aplicado ──────────────────────────────────────────
+  const etiquetaPeriodo = useMemo(() => {
+    if (!rango?.inicio || !rango?.fin) return '';
+    return `${formatDate(rango.inicio)} al ${formatDate(rango.fin)}`;
+  }, [rango]);
 
   // ── Exportar PDF ───────────────────────────────────────────────────────────
   const handleExportPDF = () => {
@@ -299,7 +362,7 @@ export function InformesGestionHumanaPage() {
       doc.setFontSize(18); doc.setFont('helvetica', 'bold');
       doc.text('LIQUIDACIÓN DE BONIFICACIÓN POR HORAS', 14, 18);
       doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-      doc.text(`Gestión Humana — ${etiquetaQuincena}`, 14, 25);
+      doc.text(`Gestión Humana — Período: ${etiquetaPeriodo}`, 14, 25);
       doc.text(`Período: ${formatDate(rango.inicio)} al ${formatDate(rango.fin)}`, 14, 30);
       doc.text(`Generado el: ${new Date().toLocaleString('es-CO')}`, 14, 35);
       doc.setFont('helvetica', 'bold'); doc.text('CARGAR SAS', 230, 20);
@@ -411,7 +474,7 @@ export function InformesGestionHumanaPage() {
 
       const aoa1 = [];
       // Fila 1: Título principal
-      aoa1.push([`INFORME GESTIÓN HUMANA. LIQUIDACIÓN DE BONIFICACIÓN POR HORAS  ${etiquetaQuincena.toUpperCase()}`]);
+      aoa1.push([`INFORME GESTIÓN HUMANA. LIQUIDACIÓN DE BONIFICACIÓN POR HORAS (${etiquetaPeriodo})`]);
       aoa1.push([]); // espacio
       // Fila 3: Encabezados de tabla
       aoa1.push([
@@ -508,7 +571,7 @@ export function InformesGestionHumanaPage() {
 
       // ── HOJA 2: RESUMEN PRODUCTIVIDAD ───────────────────────────────
       const aoa2 = [];
-      aoa2.push([`RESUMEN DE PRODUCTIVIDAD — ${etiquetaQuincena.toUpperCase()}`]);
+      aoa2.push([`RESUMEN DE PRODUCTIVIDAD (${etiquetaPeriodo})`]);
       aoa2.push([`Comparado con: ${data.quincena_anterior?.fecha_inicio || ''} al ${data.quincena_anterior?.fecha_fin || ''}`]);
       aoa2.push([]);
       aoa2.push([
@@ -564,7 +627,7 @@ export function InformesGestionHumanaPage() {
   return (
     <Layout
       title="Liquidación de Bonificación por Horas"
-      subtitle="Gestión Humana — Informe Quincenal de Comisiones de Operarios"
+      subtitle="Gestión Humana — Informe de Comisiones de Operarios"
       rightContent={
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn btn--primary" onClick={handleSaveAjustes} disabled={isSaving || isLoading || !data?.detalle?.length}>
@@ -579,39 +642,82 @@ export function InformesGestionHumanaPage() {
         </div>
       }
     >
-      {/* ── Selector de Quincena ─────────────────────────────────────── */}
+      {/* ── Filtro por Rango de Fechas ─────────────────────────────────────── */}
       <div className="card" style={{ marginBottom: '1.5rem', padding: '1.25rem' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 320px' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+          <div style={{ flex: '1 1 180px' }}>
             <label className="label" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.35rem' }}>
-              <Clock size={14} className="text-muted" /> Quincena a liquidar
+              <Clock size={14} className="text-muted" /> Fecha desde
             </label>
-            <div style={{ position: 'relative' }}>
-              <select
-                className="input"
-                value={quincenaSeleccionada}
-                onChange={e => setQuincenaSeleccionada(e.target.value)}
-                style={{ paddingRight: '2.5rem', appearance: 'none' }}
-              >
-                {opciones.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              <ChevronDown size={16} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-            </div>
+            <input
+              type="date"
+              className="input"
+              value={fechaDesde}
+              onChange={e => handleFechaDesdeChange(e.target.value)}
+            />
           </div>
 
-          {rango && (
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', paddingBottom: '0.35rem' }}>
-              Período: <strong style={{ color: 'var(--text-secondary)' }}>{formatDate(rango.inicio)}</strong> al <strong style={{ color: 'var(--text-secondary)' }}>{formatDate(rango.fin)}</strong>
-            </div>
-          )}
+          <div style={{ flex: '1 1 180px' }}>
+            <label className="label" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.35rem' }}>
+              <Clock size={14} className="text-muted" /> Fecha hasta
+            </label>
+            <input
+              type="date"
+              className="input"
+              value={fechaHasta}
+              onChange={e => handleFechaHastaChange(e.target.value)}
+            />
+          </div>
 
           <button
             className="btn btn--primary"
-            onClick={() => setQuincenaAplicada(quincenaSeleccionada)}
+            onClick={handleGenerarInforme}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '140px' }}
           >
             <Filter size={15} /> Generar Informe
           </button>
+        </div>
+
+        {/* Accesos rápidos a períodos comunes */}
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)', fontSize: '0.8rem' }}>
+          <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Atajos rápidos:</span>
+          <button
+            type="button"
+            className="btn btn--sm btn--secondary"
+            style={{ padding: '2px 8px', fontSize: '11px', borderRadius: '4px' }}
+            onClick={() => aplicarPreset('esta_quincena')}
+          >
+            Esta Quincena
+          </button>
+          <button
+            type="button"
+            className="btn btn--sm btn--secondary"
+            style={{ padding: '2px 8px', fontSize: '11px', borderRadius: '4px' }}
+            onClick={() => aplicarPreset('quincena_anterior')}
+          >
+            Quincena Anterior
+          </button>
+          <button
+            type="button"
+            className="btn btn--sm btn--secondary"
+            style={{ padding: '2px 8px', fontSize: '11px', borderRadius: '4px' }}
+            onClick={() => aplicarPreset('este_mes')}
+          >
+            Este Mes
+          </button>
+          <button
+            type="button"
+            className="btn btn--sm btn--secondary"
+            style={{ padding: '2px 8px', fontSize: '11px', borderRadius: '4px' }}
+            onClick={() => aplicarPreset('mes_anterior')}
+          >
+            Mes Anterior
+          </button>
+          {rango && (
+            <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>
+              Período activo: <strong style={{ color: 'var(--text-secondary)' }}>{formatDate(rango.inicio)}</strong> al <strong style={{ color: 'var(--text-secondary)' }}>{formatDate(rango.fin)}</strong>
+            </span>
+          )}
         </div>
       </div>
 
@@ -688,10 +794,10 @@ export function InformesGestionHumanaPage() {
 
           {/* ── KPI Strip ────────────────────────────────────────────── */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-            <KpiCard label="Registros" valor={totalGeneral.registros} icono={<Users size={18} />} color="#6366f1" />
-            <KpiCard label="Horas Liquidadas" valor={formatHoras(totalGeneral.horas)} icono={<Clock size={18} />} color="#10b981" />
-            <KpiCard label="Comisión Total" valor={formatCOP(totalGeneral.comision)} icono={<DollarSign size={18} />} color="#f59e0b" />
-            <KpiCard label="Operarios activos" valor={gruposOperario.length} icono={<Users size={18} />} color="#8b5cf6" />
+            <KpiCard label="Registros" valor={totalGeneral.registros} icono={<Users size={18} />} color="#6366f1" subtexto={`${formatDate(rango?.inicio)} – ${formatDate(rango?.fin)}`} />
+            <KpiCard label="Horas Liquidadas" valor={formatHoras(totalGeneral.horas)} icono={<Clock size={18} />} color="#10b981" subtexto={`${formatDate(rango?.inicio)} – ${formatDate(rango?.fin)}`} />
+            <KpiCard label="Comisión Total" valor={formatCOP(totalGeneral.comision)} icono={<DollarSign size={18} />} color="#f59e0b" subtexto={`${formatDate(rango?.inicio)} – ${formatDate(rango?.fin)}`} />
+            <KpiCard label="Operarios activos" valor={gruposOperario.length} icono={<Users size={18} />} color="#8b5cf6" subtexto={`${formatDate(rango?.inicio)} – ${formatDate(rango?.fin)}`} />
           </div>
 
           {/* ── SECCIÓN 1 – Detalle por Operario ─────────────────────── */}
@@ -699,7 +805,7 @@ export function InformesGestionHumanaPage() {
             <div className="empty-state" style={{ minHeight: '250px' }}>
               <Users size={48} className="empty-state__icon" />
               <h2 className="empty-state__title">Sin registros</h2>
-              <p className="empty-state__desc">No se encontraron servicios LIQUIDADOS con operarios asignados en la quincena seleccionada.</p>
+              <p className="empty-state__desc">No se encontraron servicios con operarios asignados en el período seleccionado.</p>
             </div>
           ) : (
             <div className="card" style={{ marginBottom: '2rem', overflow: 'hidden' }}>
@@ -725,7 +831,7 @@ export function InformesGestionHumanaPage() {
                       <th>N° Orden</th>
                       <th>Máquina</th>
                       <th style={{ width: 100 }}>Fecha</th>
-                      <th style={{ width: 90, textAlign: 'center' }}>Estado</th>
+                      <th style={{ width: 100, textAlign: 'center' }}>Estado</th>
                       <th style={{ width: 120, textAlign: 'right' }}>Bonif. x Hora</th>
                       <th style={{ width: 110, textAlign: 'right' }}>Horas Liq.</th>
                       <th style={{ width: 130, textAlign: 'right' }}>Comisión $</th>
@@ -736,7 +842,7 @@ export function InformesGestionHumanaPage() {
                       <React.Fragment key={g.operario_id}>
                         {/* Cabecera del grupo */}
                         <tr style={{ background: 'rgba(99,102,241,0.04)' }}>
-                          <td colSpan={9} style={{ padding: '0.6rem 1rem', fontWeight: 700, fontSize: '0.85rem', color: '#6366f1', letterSpacing: '0.02em' }}>
+                          <td colSpan={8} style={{ padding: '0.6rem 1rem', fontWeight: 700, fontSize: '0.85rem', color: '#6366f1', letterSpacing: '0.02em' }}>
                             <Users size={13} style={{ marginRight: 6, verticalAlign: 'middle' }} />
                             {g.operario_nombre}
                             {g.filas[0]?.cedula && g.filas[0].cedula !== '—' && (
@@ -779,8 +885,7 @@ export function InformesGestionHumanaPage() {
                                 borderRadius: '20px',
                                 fontSize: '11px',
                                 fontWeight: 700,
-                                background: f.estado === 'LIQUIDADA' ? 'rgba(99,102,241,0.12)' : (f.estado === 'ANULADA' || f.estado === 'ANULADO') ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)',
-                                color: f.estado === 'LIQUIDADA' ? '#6366f1' : (f.estado === 'ANULADA' || f.estado === 'ANULADO') ? '#ef4444' : '#10b981',
+                                ...getEstadoBadgeStyle(f.estado),
                               }}>{f.estado}</span>
                             </td>
                             <td style={{ textAlign: 'right', fontSize: '13px' }}>{formatCOP(f.bonificacion_hora)}</td>
@@ -879,7 +984,7 @@ export function InformesGestionHumanaPage() {
                 <div>
                   <h3 style={{ margin: 0, fontWeight: 700, color: 'var(--text-primary)' }}>Sección 2 — Resumen de Productividad</h3>
                   <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Comparación con quincena anterior ({formatDate(data.quincena_anterior?.fecha_inicio)} – {formatDate(data.quincena_anterior?.fecha_fin)}) · Objetivo: {HORAS_ESPERADAS_QUINCENA}h
+                    Comparación con período anterior ({formatDate(data.quincena_anterior?.fecha_inicio)} – {formatDate(data.quincena_anterior?.fecha_fin)}) · Objetivo: {horasEsperadas}h
                   </p>
                 </div>
               </div>
@@ -944,13 +1049,16 @@ export function InformesGestionHumanaPage() {
 
 // ─── Subcomponentes ───────────────────────────────────────────────────────────
 
-function KpiCard({ label, valor, icono, color }) {
+function KpiCard({ label, valor, icono, color, subtexto }) {
   return (
     <div className="card" style={{ padding: '1.25rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</p>
           <p style={{ margin: '0.35rem 0 0', fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>{valor}</p>
+          {subtexto && (
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.73rem', color: 'var(--text-muted)', fontWeight: 500 }}>{subtexto}</p>
+          )}
         </div>
         <div style={{ background: `${color}18`, padding: '10px', borderRadius: '10px', color }}>
           {icono}

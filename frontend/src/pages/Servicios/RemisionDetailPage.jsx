@@ -178,6 +178,26 @@ export function RemisionDetailPage() {
           )}
         </div>
 
+        {['ANULADO', 'ANULADA'].includes(remision.estado) && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: '8px',
+            padding: '1rem 1.25rem',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.35rem',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#dc2626', fontWeight: 700, fontSize: '13px' }}>
+              <span>⚠ REMISIÓN ANULADA</span>
+            </div>
+            <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>
+              <strong>Motivo de anulación:</strong> {remision.motivo_anulacion || <em style={{ color: 'var(--text-muted)' }}>Sin motivo registrado</em>}
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
           {/* Columna principal */}
           <div>

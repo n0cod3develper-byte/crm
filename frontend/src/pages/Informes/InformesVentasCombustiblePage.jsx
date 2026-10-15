@@ -55,7 +55,7 @@ export function InformesVentasCombustiblePage() {
   };
 
   const rows = data?.data || [];
-  const totalBruto = rows.reduce((sum, r) => sum + parseFloat(r.total_bruto || 0), 0);
+  const totalBruto = rows.reduce((sum, r) => sum + parseFloat(r.total_neto || 0), 0);
   const totalHoras = rows.reduce((sum, r) => sum + parseFloat(r.cantidad_horas || 0), 0);
 
   // ── Export helpers ──
@@ -70,7 +70,7 @@ export function InformesVentasCombustiblePage() {
         [`Rango de fechas: ${formatDate(appliedFilters.desde)} al ${formatDate(appliedFilters.hasta)}`],
         [`Generado el: ${new Date().toLocaleString('es-CO')}`],
         [],
-        ['No. Remisión', 'Fecha Servicio', 'Cliente', 'Equipo', 'Tipo Servicio', 'Estado', 'Horas', 'Valor Bruto (COP)'],
+        ['No. Remisión', 'Fecha Servicio', 'Cliente', 'Equipo', 'Tipo Servicio', 'Estado', 'Horas', 'Valor Neto (COP)'],
         ...rows.map(r => [
           r.numero_remision || '',
           formatDate(r.fecha_servicio),
@@ -79,7 +79,7 @@ export function InformesVentasCombustiblePage() {
           r.tipo_servicio || '—',
           r.estado || '',
           parseFloat(r.cantidad_horas || 0),
-          parseFloat(r.total_bruto || 0)
+          parseFloat(r.total_neto || 0)
         ]),
         [],
         ['TOTALES', '', '', '', '', `${rows.length} Remisión(es)`, totalHoras, totalBruto]
@@ -285,7 +285,7 @@ export function InformesVentasCombustiblePage() {
                       {parseFloat(r.cantidad_horas || 0).toFixed(2)} h
                     </td>
                     <td style={{ padding: '0.6rem 1rem', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                      {formatCOP(r.total_bruto)}
+                      {formatCOP(r.total_neto)}
                     </td>
                   </tr>
                 ))}

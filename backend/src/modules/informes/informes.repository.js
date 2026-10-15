@@ -1,8 +1,41 @@
 import { query, withTransaction } from '../../config/database.js';
 
+/**
+ * Deriva la quincena natural (Q1/Q2) a partir de una fecha.
+ * Día 1-15 → Q1-YYYY-MM, día 16-31 → Q2-YYYY-MM.
+ */
+export function derivarQuincena(fecha) {
+  const d = new Date(fecha);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return d.getUTCDate() <= 15 ? `Q1-${y}-${m}` : `Q2-${y}-${m}`;
+}
+
+/**
+ * Genera todas las quincenas Q1/Q2 que intersectan un rango de fechas.
+ * Ejemplo: 2026-09-10 a 2026-10-20 → ['Q1-2026-09','Q2-2026-09','Q1-2026-10','Q2-2026-10']
+ */
+export function quincenasEnRango(fechaInicio, fechaFin) {
+  const quincenas = [];
+  const d = new Date(fechaInicio + 'T00:00:00Z');
+  const fin = new Date(fechaFin + 'T00:00:00Z');
+  while (d <= fin) {
+    const q = derivarQuincena(d);
+    if (!quincenas.includes(q)) quincenas.push(q);
+    // Avanzar al siguiente punto de quincena (día 16 o día 1 del mes siguiente)
+    if (d.getUTCDate() <= 15) {
+      d.setUTCDate(16);
+    } else {
+      d.setUTCMonth(d.getUTCMonth() + 1);
+      d.setUTCDate(1);
+    }
+  }
+  return quincenas;
+}
+
 export class InformesRepository {
   async getVentasPorLineaNegocio(fecha_inicio, fecha_fin) {
-    const conditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
+    const conditions = ['(r.deleted_at IS NULL OR r.estado = \'ANULADO\')'];
     const params = [];
     let i = 1;
 
@@ -15,10 +48,9 @@ export class InformesRepository {
       params.push(fecha_fin);
     }
 
-    // Usamos el total_bruto o el subtotal. Seguiremos con total_bruto de remisiones
     const sql = `
       SELECT COALESCE(cs.tipo_servicio, 'Otras Ventas') AS linea_negocio,
-             SUM(r.total_bruto) AS total_ventas
+             SUM(CASE WHEN r.estado = 'ANULADO' THEN 0 ELSE r.total_neto END) AS total_ventas
       FROM remisiones r
       LEFT JOIN catalogo_servicios cs ON cs.id = r.catalogo_servicio_id
       WHERE ${conditions.join(' AND ')}
@@ -32,7 +64,7 @@ export class InformesRepository {
 
   async getVentasMensuales(fecha_inicio, fecha_fin) {
     // TODAS las remisiones — sin filtro de facturación
-    const conditions = ['r.deleted_at IS NULL'];
+    const conditions = ['(r.deleted_at IS NULL OR r.estado = \'ANULADO\')'];
     const params = [];
     let i = 1;
 
@@ -48,7 +80,7 @@ export class InformesRepository {
     const sql = `
       SELECT 
         to_char(date_trunc('month', r.fecha_servicio), 'YYYY-MM') AS mes,
-        SUM(r.total_bruto) AS total_ventas
+        SUM(CASE WHEN r.estado = 'ANULADO' THEN 0 ELSE r.total_neto END) AS total_ventas
       FROM remisiones r
       WHERE ${conditions.join(' AND ')}
       GROUP BY date_trunc('month', r.fecha_servicio)
@@ -59,7 +91,7 @@ export class InformesRepository {
     return result.rows;
   }
   async getVentasPorEquipo(fecha_inicio, fecha_fin) {
-    const conditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
+    const conditions = ['(r.deleted_at IS NULL OR r.estado = \'ANULADO\')'];
     const params = [];
     let i = 1;
 
@@ -76,7 +108,7 @@ export class InformesRepository {
       WITH tramo_calc AS (
         SELECT 
           r.id AS remision_id,
-          r.total_bruto,
+          CASE WHEN r.estado = 'ANULADO' THEN 0 ELSE r.total_neto END AS neto,
           r.tiene_sustitucion,
           r.equipo_id AS remision_equipo_id,
           t.equipo_id AS tramo_equipo_id,
@@ -97,9 +129,9 @@ export class InformesRepository {
         SUM(
           CASE 
             WHEN tt.tiene_sustitucion = TRUE AND tt.total_dias_remision > 0 THEN 
-              tt.total_bruto * (tt.dias_tramo / tt.total_dias_remision)
+              tt.neto * (tt.dias_tramo / tt.total_dias_remision)
             ELSE 
-              tt.total_bruto
+              tt.neto
           END
         ) AS total_ventas
       FROM tramo_totals tt
@@ -121,8 +153,7 @@ export class InformesRepository {
       targetEmpresaId = resEmp.rows[0]?.id;
     }
 
-    // 1. Obtener las ventas agrupadas por mes para el equipo (Real)
-    const salesConditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
+    const salesConditions = ['(r.deleted_at IS NULL OR r.estado = \'ANULADO\')'];
     const salesParams = [];
     let i = 1;
 
@@ -150,7 +181,7 @@ export class InformesRepository {
         SELECT 
           r.id,
           r.fecha_servicio,
-          r.total_bruto,
+          CASE WHEN r.estado = 'ANULADO' THEN 0 ELSE r.total_neto END AS neto,
           r.tiene_sustitucion,
           r.equipo_id AS remision_equipo_id
         FROM remisiones r
@@ -176,9 +207,9 @@ export class InformesRepository {
         SUM(
           CASE 
             WHEN tt.tiene_sustitucion = TRUE AND tt.total_dias_remision > 0 THEN 
-              tt.total_bruto * (tt.dias_tramo / tt.total_dias_remision)
+              tt.neto * (tt.dias_tramo / tt.total_dias_remision)
             ELSE 
-              tt.total_bruto
+              tt.neto
           END
         ) AS sales
       FROM tramos_totals tt
@@ -551,15 +582,7 @@ export class InformesRepository {
         e.capacidad_carga,
         false         AS is_servicio_fijo,
         CASE WHEN r.estado IN ('ANULADO', 'ANULADA') THEN 0 ELSE
-          GREATEST(1, CASE
-            WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
-              CASE
-                WHEN r.hora_llegada_cargar::time >= r.hora_salida_cargar::time
-                THEN EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time)) / 3600.0
-                ELSE EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time + INTERVAL '24 hours')) / 3600.0
-              END
-            ELSE 0
-          END)
+          COALESCE(r.cantidad_horas, 0)
         END AS horas_efectivas,
         CASE WHEN ghs.id IS NOT NULL THEN true ELSE false END AS is_subrayada
       FROM remisiones r
@@ -569,8 +592,9 @@ export class InformesRepository {
       LEFT JOIN gestion_humana_subrayados ghs ON ghs.remision_id = r.id ${usuarioParamIdx ? `AND ghs.usuario_id = $${usuarioParamIdx}` : 'AND false'}
       WHERE r.deleted_at IS NULL
         AND r.is_servicio_fijo = false
-        AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
-        AND COALESCE(r.hora_acordada, r.fecha_servicio) < $2
+        AND r.estado IN ('LIQUIDADA', 'ANULADO', 'ANULADA', 'REALIZADA', 'PENDIENTE', 'BORRADOR', 'FACTURADA', 'PARCIALMENTE_FACTURADA')
+        AND COALESCE(r.hora_acordada::date, r.fecha_servicio) >= $1::date
+        AND COALESCE(r.hora_acordada::date, r.fecha_servicio) < $2::date
 
       UNION ALL
 
@@ -600,7 +624,7 @@ export class InformesRepository {
         e.capacidad_carga,
         true          AS is_servicio_fijo,
         CASE WHEN r.estado IN ('ANULADO', 'ANULADA') THEN 0 ELSE
-          GREATEST(1, rdf.horas_netas)
+          COALESCE(rdf.horas_netas, r.cantidad_horas, 0)
         END AS horas_efectivas,
         CASE WHEN ghs.id IS NOT NULL THEN true ELSE false END AS is_subrayada
       FROM remision_dias_fijo rdf
@@ -609,8 +633,9 @@ export class InformesRepository {
       LEFT JOIN equipos e ON e.id = r.equipo_id
       LEFT JOIN gestion_humana_subrayados ghs ON ghs.remision_id = r.id ${usuarioParamIdx ? `AND ghs.usuario_id = $${usuarioParamIdx}` : 'AND false'}
       WHERE r.deleted_at IS NULL
-        AND rdf.fecha >= $1
-        AND rdf.fecha < $2
+        AND r.estado IN ('LIQUIDADA', 'ANULADO', 'ANULADA', 'REALIZADA', 'PENDIENTE', 'BORRADOR', 'FACTURADA', 'PARCIALMENTE_FACTURADA')
+        AND rdf.fecha >= $1::date
+        AND rdf.fecha < $2::date
       ORDER BY operario_nombre ASC, fecha_servicio ASC, numero_remision ASC
     `;
 
@@ -620,8 +645,9 @@ export class InformesRepository {
              COALESCE(r.numero_maquina, 'S/N') AS numero_maquina
       FROM remisiones r
       WHERE r.deleted_at IS NULL
-        AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
-        AND COALESCE(r.hora_acordada, r.fecha_servicio) < $2
+        AND r.estado IN ('LIQUIDADA', 'ANULADO', 'ANULADA', 'REALIZADA', 'PENDIENTE', 'BORRADOR', 'FACTURADA', 'PARCIALMENTE_FACTURADA')
+        AND COALESCE(r.hora_acordada::date, r.fecha_servicio) >= $1::date
+        AND COALESCE(r.hora_acordada::date, r.fecha_servicio) < $2::date
         AND NOT EXISTS (SELECT 1 FROM remision_operarios ro WHERE ro.remision_id = r.id)
       ORDER BY fecha_servicio ASC
     `;
@@ -632,8 +658,9 @@ export class InformesRepository {
       FROM remisiones r
       LEFT JOIN remision_operarios ro ON ro.remision_id = r.id
       WHERE r.deleted_at IS NULL
-        AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
-        AND COALESCE(r.hora_acordada, r.fecha_servicio) < $2
+        AND r.estado IN ('LIQUIDADA', 'ANULADO', 'ANULADA', 'REALIZADA', 'PENDIENTE', 'BORRADOR', 'FACTURADA', 'PARCIALMENTE_FACTURADA')
+        AND COALESCE(r.hora_acordada::date, r.fecha_servicio) >= $1::date
+        AND COALESCE(r.hora_acordada::date, r.fecha_servicio) < $2::date
         AND (r.hora_salida_cargar IS NULL OR r.hora_llegada_cargar IS NULL)
       ORDER BY fecha_servicio ASC
     `;
@@ -646,8 +673,9 @@ export class InformesRepository {
       LEFT JOIN remision_operarios ro ON ro.remision_id = r.id
       LEFT JOIN equipos e ON e.id = r.equipo_id
       WHERE r.deleted_at IS NULL
-        AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1
-        AND COALESCE(r.hora_acordada, r.fecha_servicio) < $2
+        AND r.estado IN ('LIQUIDADA', 'ANULADO', 'ANULADA', 'REALIZADA', 'PENDIENTE', 'BORRADOR', 'FACTURADA', 'PARCIALMENTE_FACTURADA')
+        AND COALESCE(r.hora_acordada::date, r.fecha_servicio) >= $1::date
+        AND COALESCE(r.hora_acordada::date, r.fecha_servicio) < $2::date
         AND (r.bonificacion_hora IS NULL OR r.bonificacion_hora = 0)
         AND (e.bonificacion_hora IS NULL OR e.bonificacion_hora = 0)
       ORDER BY fecha_servicio ASC
@@ -664,7 +692,7 @@ export class InformesRepository {
 
     const detalleRows = detalleRes.rows.map(r => {
       // Órdenes ANULADAS: horas y bonificación en 0 (la comisión resulta automáticamente 0)
-      const esAnulada = r.estado === 'ANULADO';
+      const esAnulada = r.estado === 'ANULADO' || r.estado === 'ANULADA';
       const horas = esAnulada
         ? 0
         : parseFloat(parseFloat(r.horas_efectivas || 0).toFixed(2));
@@ -681,7 +709,7 @@ export class InformesRepository {
 
     // Alerta 4: horas = 0 aunque tienen timestamps (posible error). Excluir ANULADAS porque horas=0 es comportamiento esperado, no error.
     const horasInvalidas = detalleRows
-      .filter(r => r.estado !== 'ANULADO'
+      .filter(r => r.estado !== 'ANULADO' && r.estado !== 'ANULADA'
           && r.hora_salida_cargar && r.hora_llegada_cargar && r.horas_efectivas <= 0)
       .map(r => ({ remision_id: r.remision_id, numero_remision: r.numero_remision, fecha_servicio: r.fecha_servicio }));
 
@@ -714,15 +742,7 @@ export class InformesRepository {
         SELECT em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
                e.serie AS numero_equipo,
                CASE WHEN r.estado IN ('ANULADO', 'ANULADA') THEN 0 ELSE
-                 GREATEST(1, CASE
-                   WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
-                     CASE
-                       WHEN r.hora_llegada_cargar::time >= r.hora_salida_cargar::time
-                       THEN EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time)) / 3600.0
-                       ELSE EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time + INTERVAL '24 hours')) / 3600.0
-                     END
-                   ELSE 0
-                 END)
+                 COALESCE(r.cantidad_horas, 0)
                END AS horas_efectivas
         FROM remisiones r
         LEFT JOIN remision_operarios ro ON ro.remision_id = r.id
@@ -730,21 +750,23 @@ export class InformesRepository {
         LEFT JOIN equipos e ON e.id = r.equipo_id
         WHERE r.deleted_at IS NULL
           AND r.is_servicio_fijo = false
-          AND COALESCE(r.hora_acordada, r.fecha_servicio) >= $1 AND COALESCE(r.hora_acordada, r.fecha_servicio) < $2
+          AND r.estado IN ('LIQUIDADA', 'ANULADO', 'ANULADA', 'REALIZADA', 'PENDIENTE', 'BORRADOR', 'FACTURADA', 'PARCIALMENTE_FACTURADA')
+          AND COALESCE(r.hora_acordada::date, r.fecha_servicio) >= $1::date AND COALESCE(r.hora_acordada::date, r.fecha_servicio) < $2::date
 
         UNION ALL
 
         SELECT em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
                e.serie AS numero_equipo,
                CASE WHEN r.estado IN ('ANULADO', 'ANULADA') THEN 0 ELSE
-                 GREATEST(1, rdf.horas_netas)
+                 COALESCE(rdf.horas_netas, r.cantidad_horas, 0)
                END AS horas_efectivas
         FROM remision_dias_fijo rdf
         JOIN remisiones r ON r.id = rdf.remision_id
         LEFT JOIN employees em ON em.id = rdf.empleado_id
         LEFT JOIN equipos e ON e.id = r.equipo_id
         WHERE r.deleted_at IS NULL
-          AND rdf.fecha >= $1 AND rdf.fecha < $2
+          AND r.estado IN ('LIQUIDADA', 'ANULADO', 'ANULADA', 'REALIZADA', 'PENDIENTE', 'BORRADOR', 'FACTURADA', 'PARCIALMENTE_FACTURADA')
+          AND rdf.fecha >= $1::date AND rdf.fecha < $2::date
       ) base
       WHERE operario_id IS NOT NULL
       GROUP BY operario_id, operario_nombre, cedula, numero_equipo
@@ -787,26 +809,50 @@ export class InformesRepository {
    * Ventas reales vs presupuesto agrupadas por equipo en un rango de fechas.
    * Devuelve [{ nombre, real, presupuesto }] para el gráfico del frontend.
    */
-  async getLiquidacionAjustes(quincena) {
-    const sql = `SELECT remision_id, horas_ajustadas, nota FROM liquidacion_ajustes WHERE quincena = $1`;
-    const result = await query(sql, [quincena]);
+  async getLiquidacionAjustes(quincenas) {
+    if (Array.isArray(quincenas)) {
+      if (quincenas.length === 0) return [];
+      const sql = `SELECT remision_id, quincena, horas_ajustadas, nota FROM liquidacion_ajustes WHERE quincena = ANY($1::text[])`;
+      const result = await query(sql, [quincenas]);
+      return result.rows;
+    }
+    const sql = `SELECT remision_id, quincena, horas_ajustadas, nota FROM liquidacion_ajustes WHERE quincena = $1`;
+    const result = await query(sql, [quincenas]);
     return result.rows;
   }
 
   async upsertLiquidacionAjustes(quincena, ajustes) {
-    // ajustes es un objeto { remision_id: { horas, nota } }
+    // ajustes es un objeto { remision_id: { horas, nota, quincena? } }
     await withTransaction(async (client) => {
+      // Si no hay quincena global, consultamos la fecha de las remisiones involucradas
+      const quincenasPorRemision = {};
+      if (!quincena) {
+        const ids = Object.keys(ajustes);
+        if (ids.length > 0) {
+          const res = await client.query(
+            `SELECT id, COALESCE(hora_acordada, fecha_servicio) AS fecha FROM remisiones WHERE id = ANY($1::uuid[])`,
+            [ids]
+          );
+          for (const row of res.rows) {
+            quincenasPorRemision[row.id] = derivarQuincena(row.fecha);
+          }
+        }
+      }
+
       for (const [remision_id, data] of Object.entries(ajustes)) {
+        const q = data.quincena || quincena || quincenasPorRemision[remision_id];
+        if (!q) continue;
+
         if (!data.horas && !data.nota) {
-           await client.query('DELETE FROM liquidacion_ajustes WHERE quincena = $1 AND remision_id = $2', [quincena, remision_id]);
-           continue;
+          await client.query('DELETE FROM liquidacion_ajustes WHERE quincena = $1 AND remision_id = $2', [q, remision_id]);
+          continue;
         }
         await client.query(`
           INSERT INTO liquidacion_ajustes (remision_id, quincena, horas_ajustadas, nota, updated_at)
           VALUES ($1, $2, $3, $4, NOW())
           ON CONFLICT (remision_id, quincena) 
           DO UPDATE SET horas_ajustadas = EXCLUDED.horas_ajustadas, nota = EXCLUDED.nota, updated_at = NOW()
-        `, [remision_id, quincena, data.horas !== '' ? data.horas : null, data.nota || null]);
+        `, [remision_id, q, data.horas !== '' ? data.horas : null, data.nota || null]);
       }
     });
   }
@@ -816,7 +862,7 @@ export class InformesRepository {
    * Devuelve [{ nombre, total_ventas, total_remisiones }].
    */
   async getTop10Clientes(fecha_inicio, fecha_fin) {
-    const conditions = ['r.deleted_at IS NULL', "r.estado = 'FACTURADA'"];
+    const conditions = ['(r.deleted_at IS NULL OR r.estado = \'ANULADO\')'];
     const params = [];
     let i = 1;
 
@@ -832,7 +878,7 @@ export class InformesRepository {
     const sql = `
       SELECT
         COALESCE(c.name, 'Sin Cliente') AS nombre,
-        SUM(r.total_bruto)              AS total_ventas,
+        SUM(CASE WHEN r.estado = 'ANULADO' THEN 0 ELSE r.total_neto END) AS total_ventas,
         COUNT(r.id)                     AS total_remisiones
       FROM remisiones r
       LEFT JOIN companies c ON c.id = r.company_id
@@ -855,7 +901,7 @@ export class InformesRepository {
   // =============================================
   async getVentasCombustible(fecha_inicio, fecha_fin) {
     const conditions = [
-      'r.deleted_at IS NULL',
+      '(r.deleted_at IS NULL OR r.estado = \'ANULADO\')',
       "cs.nombre ILIKE '%con combustible%'"
     ];
     const params = [];
@@ -880,7 +926,7 @@ export class InformesRepository {
         eq.serie AS equipo,
         cs.nombre AS tipo_servicio,
         COALESCE(r.cantidad_horas, 0)::numeric AS cantidad_horas,
-        r.total_bruto
+        CASE WHEN r.estado = 'ANULADO' THEN 0 ELSE r.total_neto END AS total_neto
       FROM remisiones r
       LEFT JOIN catalogo_servicios cs ON cs.id = r.catalogo_servicio_id
       LEFT JOIN companies c ON c.id = r.company_id
@@ -986,7 +1032,7 @@ export class InformesRepository {
    */
   async getVentasVsPresupuestoSimple(fecha_inicio, fecha_fin) {
     // 1. Ventas reales agrupadas por mes (TODAS las remisiones — sin filtro de facturación)
-    const salesConditions = ['r.deleted_at IS NULL'];
+    const salesConditions = ['(r.deleted_at IS NULL OR r.estado = \'ANULADO\')'];
     const salesParams = [];
     let i = 1;
 
@@ -1002,7 +1048,7 @@ export class InformesRepository {
     const salesSql = `
       SELECT
         to_char(date_trunc('month', r.fecha_servicio), 'YYYY-MM') AS mes,
-        SUM(r.total_bruto) AS real
+        SUM(CASE WHEN r.estado = 'ANULADO' THEN 0 ELSE r.total_neto END) AS real
       FROM remisiones r
       WHERE ${salesConditions.join(' AND ')}
       GROUP BY date_trunc('month', r.fecha_servicio)
@@ -1012,11 +1058,14 @@ export class InformesRepository {
     const salesMap = new Map(salesRes.rows.map(r => [r.mes, parseFloat(r.real || 0)]));
 
     // 2. Presupuesto mensual del área de Servicios (area_id = 2)
-    //    Sumamos todos los budget_monthly_detail de equipos de esa área
-    const yearFrom  = fecha_inicio ? parseInt(fecha_inicio.substring(0, 4)) : new Date().getFullYear();
-    const yearTo    = fecha_fin    ? parseInt(fecha_fin.substring(0, 4))    : new Date().getFullYear();
-    const monthFrom = fecha_inicio ? parseInt(fecha_inicio.substring(5, 7)) : 1;
-    const monthTo   = fecha_fin    ? parseInt(fecha_fin.substring(5, 7))   : 12;
+    //    Sumamos los budget_monthly_detail de equipos de esa área según el rango de meses seleccionado
+    const dIni = fecha_inicio ? new Date(fecha_inicio + 'T00:00:00') : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const dFin = fecha_fin    ? new Date(fecha_fin    + 'T00:00:00') : new Date();
+
+    const startYear  = dIni.getFullYear();
+    const startMonth = dIni.getMonth() + 1;
+    const endYear    = dFin.getFullYear();
+    const endMonth   = dFin.getMonth() + 1;
 
     const budgetSql = `
       SELECT
@@ -1028,16 +1077,12 @@ export class InformesRepository {
       JOIN budget_annual ba    ON ba.id = be.budget_annual_id
       JOIN budget_areas  ar    ON ar.id = ba.area_id
       WHERE ar.name ILIKE 'Servicios'
-        AND ba.year >= $1 AND ba.year <= $2
-        AND (
-          (ba.year = $1 AND bmd.month >= $3)
-          OR (ba.year > $1 AND ba.year < $2)
-          OR (ba.year = $2 AND bmd.month <= $4)
-        )
+        AND make_date(ba.year, bmd.month, 1) >= make_date($1, $2, 1)
+        AND make_date(ba.year, bmd.month, 1) <= make_date($3, $4, 1)
       GROUP BY ba.year, bmd.month
       ORDER BY ba.year ASC, bmd.month ASC
     `;
-    const budgetRes = await query(budgetSql, [yearFrom, yearTo, monthFrom, monthTo]);
+    const budgetRes = await query(budgetSql, [startYear, startMonth, endYear, endMonth]);
     const budgetMap = new Map(
       budgetRes.rows.map(r => [
         `${r.year}-${String(r.month).padStart(2, '0')}`,
@@ -1045,10 +1090,25 @@ export class InformesRepository {
       ])
     );
 
-    // 3. Combinar: todos los meses que aparezcan en ventas o presupuesto
-    const allMonths = Array.from(
-      new Set([...salesMap.keys(), ...budgetMap.keys()])
-    ).sort();
+    // 3. Generar la lista de meses en el rango seleccionado
+    const mesDesde = `${startYear}-${String(startMonth).padStart(2, '0')}`;
+    const mesHasta = `${endYear}-${String(endMonth).padStart(2, '0')}`;
+
+    const monthsInRange = [];
+    let cur = new Date(startYear, startMonth - 1, 1);
+    const end = new Date(endYear, endMonth - 1, 1);
+    while (cur <= end) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      monthsInRange.push(`${y}-${m}`);
+      cur.setMonth(cur.getMonth() + 1);
+    }
+
+    const allMonths = monthsInRange.length > 0
+      ? monthsInRange
+      : Array.from(new Set([...salesMap.keys(), ...budgetMap.keys()]))
+          .filter(m => m >= mesDesde && m <= mesHasta)
+          .sort();
 
     return allMonths.map(mes => {
       const real        = salesMap.get(mes)  || 0;

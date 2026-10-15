@@ -2,7 +2,7 @@ import { query } from '../../config/database.js';
 
 export class ReportsRepository {
   async findServiciosSales(fecha_desde, fecha_hasta) {
-    const conditions = ['r.deleted_at IS NULL'];
+    const conditions = ['(r.deleted_at IS NULL OR r.estado = \'ANULADO\')'];
     const params = [];
     let i = 1;
 
@@ -19,10 +19,12 @@ export class ReportsRepository {
       SELECT r.id,
              r.numero_remision,
              r.fecha_servicio,
+             r.estado,
+             r.motivo_anulacion,
              r.total_bruto,
              r.iva_valor,
              r.descuentos,
-             r.total_neto,
+             CASE WHEN r.estado = 'ANULADO' THEN 0 ELSE r.total_neto END AS total_neto,
              r.cantidad_horas,
              r.horometro_salida,
              r.horometro_regreso,
@@ -58,6 +60,39 @@ export class ReportsRepository {
     const result = await query(sql, params);
     return result.rows;
   }
+
+  /**
+   * Obtiene remisiones en el rango de fechas con valor neto ajustado.
+   * Aplica 0 al neto cuando la remisión está ANULADA y elimina duplicados.
+   */
+  async getRemisionesPeriodo(fechaDesde, fechaHasta) {
+    const conditions = ['(r.deleted_at IS NULL OR r.estado = \'ANULADO\')'];
+    const params = [];
+    let i = 1;
+    if (fechaDesde) {
+      conditions.push(`r.fecha_servicio >= $${i++}`);
+      params.push(fechaDesde);
+    }
+    if (fechaHasta) {
+      conditions.push(`r.fecha_servicio <= $${i++}`);
+      params.push(fechaHasta);
+    }
+    const sql = `
+      SELECT DISTINCT ON (r.id)
+             r.id,
+             r.numero_remision,
+             r.fecha_servicio,
+             r.estado,
+             r.motivo_anulacion,
+             CASE WHEN r.estado = 'ANULADO' THEN 0 ELSE r.total_neto END AS neto
+      FROM remisiones r
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY r.id, r.fecha_servicio DESC
+    `;
+    const result = await query(sql, params);
+    return result.rows;
+  }
+
 
   async findMantenimientoSales(fecha_desde, fecha_hasta) {
     const conditions = ['ot.deleted_at IS NULL'];

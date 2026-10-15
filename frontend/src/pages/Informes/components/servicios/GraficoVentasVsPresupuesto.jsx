@@ -185,7 +185,7 @@ export default function GraficoVentasVsPresupuesto({ appliedFilters }) {
           <KpiCard
             label="Presupuesto"
             value={formatCOP(totalPresupuesto)}
-            sub={totalPresupuesto === 0 ? 'Sin presupuesto registrado' : undefined}
+            sub={totalPresupuesto === 0 ? 'Sin presupuesto registrado' : chartData.length === 1 ? `Mes: ${formatMes(chartData[0].mes)}` : `Período: ${chartData.length} meses`}
             color="#94a3b8"
             icon={Minus}
           />

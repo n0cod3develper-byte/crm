@@ -4,6 +4,7 @@ import { Plus, Search, ClipboardList, FileText, Trash2, Eye, Edit, Calendar, Bui
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Topbar } from '../../components/layout/Topbar';
+import { Modal } from '../../components/common/Modal';
 import { usePermissions } from '../../contexts/PermissionsContext';
 import api from '../../lib/api';
 
@@ -27,6 +28,8 @@ export function ServiciosPage() {
   const [filterEstado, setFilterEstado] = React.useState('all');
   const [cursor, setCursor] = React.useState(null);
   const [prevCursors, setPrevCursors] = React.useState([]);
+  const [anulacionModal, setAnulacionModal] = React.useState(null);
+  const [motivoAnulacion, setMotivoAnulacion] = React.useState('');
   const PAGE_SIZE = 50;
   const { esAdmin } = usePermissions();
 
@@ -62,9 +65,17 @@ export function ServiciosPage() {
   };
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => api.delete(`/servicios/${id}`),
-    onSuccess: () => { toast.success('Remisión anulada'); qc.invalidateQueries({ queryKey: ['servicios'] }); },
-    onError: (err) => toast.error((err.response && err.response.data && err.response.data.message) || 'Error al anular'),
+    mutationFn: ({ id, motivo_anulacion }) => api.delete(`/servicios/${id}`, { data: { motivo_anulacion } }),
+    onSuccess: () => {
+      toast.success('Remisión anulada');
+      setAnulacionModal(null);
+      setMotivoAnulacion('');
+      qc.invalidateQueries({ queryKey: ['servicios'] });
+    },
+    onError: (err) => {
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || 'Error al anular';
+      toast.error(msg);
+    },
   });
 
   const items = [...((data && data.data) || [])].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -276,9 +287,8 @@ export function ServiciosPage() {
                               style={{ color: 'var(--clr-danger)' }}
                               title="Anular"
                               onClick={() => {
-                                if (window.confirm('¿Anular esta remisión?')) {
-                                  deleteMutation.mutate(item.id);
-                                }
+                                setAnulacionModal(item);
+                                setMotivoAnulacion('');
                               }}
                             >
                               <Trash2 size={14} />
@@ -320,6 +330,79 @@ export function ServiciosPage() {
           </>
         )}
       </main>
+
+      {anulacionModal && (
+        <Modal
+          title={`Anular Remisión No. ${anulacionModal.numero_remision || ''}`}
+          onClose={() => {
+            if (!deleteMutation.isPending) {
+              setAnulacionModal(null);
+              setMotivoAnulacion('');
+            }
+          }}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const m = motivoAnulacion.trim();
+              if (m.length < 5) {
+                toast.error('El motivo de anulación es obligatorio y debe tener al menos 5 caracteres');
+                return;
+              }
+              deleteMutation.mutate({ id: anulacionModal.id, motivo_anulacion: m });
+            }}
+            style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
+          >
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+              ¿Está seguro de que desea anular esta remisión? Por favor indique el motivo de la anulación:
+            </p>
+            <div>
+              <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: '#dc2626', display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                <span>Motivo de anulación *</span>
+                <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--text-muted)' }}>Mínimo 5 caracteres</span>
+              </label>
+              <textarea
+                className="input"
+                rows={3}
+                style={{
+                  width: '100%',
+                  borderColor: motivoAnulacion.trim().length > 0 && motivoAnulacion.trim().length < 5 ? '#ef4444' : undefined,
+                }}
+                placeholder="Especifique detalladamente el motivo de anulación..."
+                value={motivoAnulacion}
+                onChange={(e) => setMotivoAnulacion(e.target.value)}
+                autoFocus
+                required
+              />
+              {motivoAnulacion.trim().length > 0 && motivoAnulacion.trim().length < 5 && (
+                <p style={{ fontSize: '12px', color: '#ef4444', margin: '4px 0 0' }}>
+                  Faltan {5 - motivoAnulacion.trim().length} caracteres
+                </p>
+              )}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                className="btn btn--secondary"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  setAnulacionModal(null);
+                  setMotivoAnulacion('');
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="btn btn--danger"
+                disabled={deleteMutation.isPending || motivoAnulacion.trim().length < 5}
+              >
+                {deleteMutation.isPending ? 'Anulando...' : 'Confirmar Anulación'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

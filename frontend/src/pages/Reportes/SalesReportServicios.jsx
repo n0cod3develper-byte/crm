@@ -8,6 +8,15 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
+const ESTADO_BADGE = {
+  BORRADOR: 'gray',
+  PENDIENTE: 'warning',
+  REALIZADA: 'primary',
+  LIQUIDADA: 'green',
+  ANULADO: 'danger',
+  ANULADA: 'danger'
+};
+
 // Formateador de moneda en pesos colombianos
 function formatCOP(v) {
   return new Intl.NumberFormat('es-CO', {
@@ -86,20 +95,15 @@ export function SalesReportServicios() {
   // Cálculo de totales al pie de la tabla
   const totals = useMemo(() => {
     const sum = {
-      bruto: 0,
-      iva: 0,
       descuentos: 0,
       neto: 0,
       count: items.length
     };
     items.forEach(item => {
-      const bruto = parseFloat(item.total_bruto || 0);
-      const iva = parseFloat(item.iva_valor || 0);
+      const isAnulada = item.estado === 'ANULADO' || item.estado === 'ANULADA';
       const descuentos = parseFloat(item.descuentos || 0);
-      const neto = parseFloat(item.total_neto || 0);
+      const neto = isAnulada ? 0 : parseFloat(item.total_neto || 0);
 
-      sum.bruto += bruto;
-      sum.iva += iva;
       sum.descuentos += descuentos;
       sum.neto += neto;
     });
@@ -134,17 +138,19 @@ export function SalesReportServicios() {
       doc.line(14, 38, 282, 38);
 
       const tableBody = items.map(item => {
-        const bruto = parseFloat(item.total_bruto || 0);
-        const iva = parseFloat(item.iva_valor || 0);
+        const isAnulada = item.estado === 'ANULADO' || item.estado === 'ANULADA';
         const descuentos = parseFloat(item.descuentos || 0);
-        const neto = parseFloat(item.total_neto || 0);
+        const neto = isAnulada ? 0 : parseFloat(item.total_neto || 0);
         const horas = parseFloat(item.cantidad_horas || 0);
         const hmSalida = item.horometro_salida != null ? parseFloat(item.horometro_salida).toFixed(1) : '—';
         const hmLlegada = item.horometro_regreso != null ? parseFloat(item.horometro_regreso).toFixed(1) : '—';
+        const motivo = item.motivo_anulacion || (isAnulada ? 'Sin motivo' : '—');
+        const estadoLabel = item.estado === 'ANULADO' ? 'ANULADA' : (item.estado || '—');
 
         return [
           item.numero_remision,
           formatDate(item.fecha_servicio),
+          estadoLabel,
           item.empresa_nombre,
           item.operario_nombre || '—',
           item.servicio_nombre,
@@ -154,11 +160,10 @@ export function SalesReportServicios() {
           hmSalida,
           hmLlegada,
           horas > 0 ? horas.toFixed(2) : '—',
-          formatCOP(bruto),
-          formatCOP(iva),
           formatCOP(descuentos),
           formatCOP(neto),
-          item.numero_factura || '—'
+          item.numero_factura || '—',
+          motivo
         ];
       });
 
@@ -171,41 +176,41 @@ export function SalesReportServicios() {
         '',
         '',
         '',
+        '',
         `${totals.count} Remisiones`,
         '',
         '',
         '',
-        formatCOP(totals.bruto),
-        formatCOP(totals.iva),
         formatCOP(totals.descuentos),
         formatCOP(totals.neto),
+        '',
         ''
       ]);
 
       autoTable(doc, {
         startY: 44,
-        head: [['No. Rem', 'Fecha', 'Cliente', 'Operario', 'Servicio', 'Asunto', 'Tipo', 'Equipo', 'Hm. Salida', 'Hm. Llegada', 'Horas', 'Bruto', 'IVA', 'Descuento', 'Neto', 'N° Factura']],
+        head: [['No. Rem', 'Fecha', 'Estado', 'Cliente', 'Operario', 'Servicio', 'Asunto', 'Tipo', 'Equipo', 'Hm. Sal', 'Hm. Lleg', 'Horas', 'Descuento', 'Neto', 'N° Factura', 'Motivo Anulación']],
         body: tableBody,
         theme: 'grid',
         headStyles: { fillColor: [99, 102, 241], textColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
         styles: { fontSize: 7, cellPadding: 2 },
         columnStyles: {
-          0: { fontStyle: 'bold', cellWidth: 16 },
-          1: { halign: 'center', cellWidth: 16 },
-          2: { cellWidth: 28 },
-          3: { cellWidth: 26 },
-          4: { cellWidth: 28 },
-          5: { halign: 'center', cellWidth: 14 },
-          6: { halign: 'center', cellWidth: 12 },
-          7: { cellWidth: 20 },
-          8: { halign: 'center', cellWidth: 14 },
-          9: { halign: 'center', cellWidth: 14 },
-          10: { halign: 'center', cellWidth: 11 },
-          11: { halign: 'right', cellWidth: 18 },
+          0: { fontStyle: 'bold', cellWidth: 14 },
+          1: { halign: 'center', cellWidth: 15 },
+          2: { halign: 'center', cellWidth: 16 },
+          3: { cellWidth: 25 },
+          4: { cellWidth: 23 },
+          5: { cellWidth: 24 },
+          6: { halign: 'center', cellWidth: 13 },
+          7: { halign: 'center', cellWidth: 11 },
+          8: { cellWidth: 16 },
+          9: { halign: 'center', cellWidth: 13 },
+          10: { halign: 'center', cellWidth: 13 },
+          11: { halign: 'center', cellWidth: 10 },
           12: { halign: 'right', cellWidth: 16 },
-          13: { halign: 'right', cellWidth: 16 },
-          14: { halign: 'right', fontStyle: 'bold', cellWidth: 18 },
-          15: { halign: 'center', cellWidth: 17 }
+          13: { halign: 'right', fontStyle: 'bold', cellWidth: 17 },
+          14: { halign: 'center', cellWidth: 15 },
+          15: { cellWidth: 26 }
         },
         didParseCell: function (data) {
           // Destacar fila de totales
@@ -232,17 +237,19 @@ export function SalesReportServicios() {
     }
     try {
       const excelRows = items.map(item => {
-        const bruto = parseFloat(item.total_bruto || 0);
-        const iva = parseFloat(item.iva_valor || 0);
+        const isAnulada = item.estado === 'ANULADO' || item.estado === 'ANULADA';
         const descuentos = parseFloat(item.descuentos || 0);
-        const neto = parseFloat(item.total_neto || 0);
+        const neto = isAnulada ? 0 : parseFloat(item.total_neto || 0);
         const horas = parseFloat(item.cantidad_horas || 0);
         const hmSalida = item.horometro_salida != null ? parseFloat(item.horometro_salida) : '—';
         const hmLlegada = item.horometro_regreso != null ? parseFloat(item.horometro_regreso) : '—';
+        const motivo = item.motivo_anulacion || (isAnulada ? 'Sin motivo' : '');
+        const estadoLabel = item.estado === 'ANULADO' ? 'ANULADA' : (item.estado || '');
 
         return {
           'No. Remisión': item.numero_remision,
           'Fecha Servicio': formatDate(item.fecha_servicio),
+          'Estado': estadoLabel,
           'Cliente': item.empresa_nombre,
           'Operario': item.operario_nombre || '—',
           'Servicio': item.servicio_nombre,
@@ -252,11 +259,10 @@ export function SalesReportServicios() {
           'Horómetro Salida': hmSalida,
           'Horómetro Llegada': hmLlegada,
           'Cant. Horas': horas,
-          'Valor Bruto': bruto,
-          'Valor IVA': iva,
           'Descuentos': descuentos,
           'Valor Neto': neto,
-          'N° Factura': item.numero_factura || '—'
+          'N° Factura': item.numero_factura || '—',
+          'Motivo Anulación': motivo
         };
       });
 
@@ -264,6 +270,7 @@ export function SalesReportServicios() {
       excelRows.push({
         'No. Remisión': 'TOTALES',
         'Fecha Servicio': '',
+        'Estado': '',
         'Cliente': '',
         'Operario': '',
         'Servicio': '',
@@ -273,11 +280,10 @@ export function SalesReportServicios() {
         'Horómetro Salida': '',
         'Horómetro Llegada': '',
         'Cant. Horas': '',
-        'Valor Bruto': totals.bruto,
-        'Valor IVA': totals.iva,
         'Descuentos': totals.descuentos,
         'Valor Neto': totals.neto,
-        'N° Factura': ''
+        'N° Factura': '',
+        'Motivo Anulación': ''
       });
 
       const ws = XLSX.utils.json_to_sheet(excelRows);
@@ -370,6 +376,7 @@ export function SalesReportServicios() {
               <tr>
                 <th style={{ width: 95 }}>Nro. Remisión</th>
                 <th style={{ width: 95 }}><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={12} />Fecha</span></th>
+                <th style={{ width: 95, textAlign: 'center' }}>Estado</th>
                 <th><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Building2 size={12} />Cliente</span></th>
                 <th>Operario</th>
                 <th>Servicio</th>
@@ -379,19 +386,17 @@ export function SalesReportServicios() {
                 <th style={{ width: 85, textAlign: 'center' }}>Hm. Salida</th>
                 <th style={{ width: 85, textAlign: 'center' }}>Hm. Llegada</th>
                 <th style={{ width: 65, textAlign: 'center' }}>Horas</th>
-                <th style={{ width: 110, textAlign: 'right' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Bruto</span></th>
-                <th style={{ width: 90, textAlign: 'right' }}>IVA</th>
                 <th style={{ width: 90, textAlign: 'right' }}>Descuentos</th>
                 <th style={{ width: 110, textAlign: 'right', fontWeight: 'bold' }}><span style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><DollarSign size={12} />Total Neto</span></th>
                 <th style={{ width: 100, textAlign: 'center' }}>N° Factura</th>
+                <th style={{ minWidth: 150 }}>Motivo Anulación</th>
               </tr>
             </thead>
             <tbody>
               {items.map(item => {
-                const bruto = parseFloat(item.total_bruto || 0);
-                const iva = parseFloat(item.iva_valor || 0);
+                const isAnulada = item.estado === 'ANULADO' || item.estado === 'ANULADA';
                 const descuentos = parseFloat(item.descuentos || 0);
-                const neto = parseFloat(item.total_neto || 0);
+                const neto = isAnulada ? 0 : parseFloat(item.total_neto || 0);
                 const hmSalida = item.horometro_salida != null ? parseFloat(item.horometro_salida).toFixed(1) : '—';
                 const hmLlegada = item.horometro_regreso != null ? parseFloat(item.horometro_regreso).toFixed(1) : '—';
                 
@@ -404,6 +409,11 @@ export function SalesReportServicios() {
                     </td>
                     <td>
                       <span style={{ fontWeight: 600, fontSize: '13px' }}>{formatDate(item.fecha_servicio)}</span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className={`badge badge--${ESTADO_BADGE[item.estado] || 'gray'}`} style={{ fontSize: '10px' }}>
+                        {item.estado === 'ANULADO' ? 'ANULADA' : (item.estado || '—')}
+                      </span>
                     </td>
                     <td>
                       <span style={{ fontWeight: 600, fontSize: '13px', display: 'block' }}>{item.empresa_nombre}</span>
@@ -439,21 +449,28 @@ export function SalesReportServicios() {
                       </span>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '13px' }}>{formatCOP(bruto)}</span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{formatCOP(iva)}</span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
                       <span style={{ fontSize: '13px', color: 'var(--clr-danger-400)' }}>{formatCOP(descuentos)}</span>
                     </td>
                     <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                      <span style={{ fontSize: '14px', color: 'var(--clr-success-500)' }}>{formatCOP(neto)}</span>
+                      <span style={{ fontSize: '14px', color: isAnulada ? 'var(--text-muted)' : 'var(--clr-success-500)' }}>{formatCOP(neto)}</span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <span style={{ fontSize: '12px', fontWeight: 600, color: item.numero_factura ? 'var(--clr-success-500)' : 'var(--text-muted)' }}>
                         {item.numero_factura || '—'}
                       </span>
+                    </td>
+                    <td>
+                      {item.motivo_anulacion ? (
+                        <span style={{ fontSize: '12px', color: 'var(--clr-danger-500)', display: 'block' }}>
+                          {item.motivo_anulacion}
+                        </span>
+                      ) : isAnulada ? (
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                          Sin motivo
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      )}
                     </td>
                   </tr>
                 );
@@ -462,15 +479,14 @@ export function SalesReportServicios() {
             {/* ── Fila de Totales/Resumen ── */}
             <tfoot style={{ borderTop: '2px solid var(--border-color)', background: 'var(--bg-subtle)' }}>
               <tr style={{ fontWeight: 'bold', borderBottom: 'none' }}>
-                <td colSpan={7}>TOTALES</td>
+                <td colSpan={8}>TOTALES</td>
                 <td>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{totals.count} registros</span>
                 </td>
-                <td colSpan={2}></td>
-                <td style={{ textAlign: 'right', fontSize: '13px' }}>{formatCOP(totals.bruto)}</td>
-                <td style={{ textAlign: 'right', fontSize: '13px', color: 'var(--text-muted)' }}>{formatCOP(totals.iva)}</td>
+                <td colSpan={3}></td>
                 <td style={{ textAlign: 'right', fontSize: '13px', color: 'var(--clr-danger-400)' }}>{formatCOP(totals.descuentos)}</td>
                 <td style={{ textAlign: 'right', fontSize: '14px', color: 'var(--clr-success-500)' }}>{formatCOP(totals.neto)}</td>
+                <td></td>
                 <td></td>
               </tr>
             </tfoot>

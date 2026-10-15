@@ -76,50 +76,104 @@ export default function GraficoVentasPorLinea({ appliedFilters }) {
 
   return (
     <div className="card" style={{ padding: '1.5rem' }}>
-      <h4 style={{ margin: '0 0 1rem', fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-        Ventas por Línea de Servicio
-      </h4>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <h4 style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+          Ventas por Línea de Servicio
+        </h4>
+        {total > 0 && (
+          <span style={{
+            fontSize: '12px', color: 'var(--text-muted)',
+            background: 'var(--bg-muted)', borderRadius: '20px',
+            padding: '2px 10px', fontWeight: 600,
+          }}>
+            Total: {formatCOP(total)}
+          </span>
+        )}
+      </div>
 
       {chartData.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Sin datos disponibles</div>
       ) : (
         <>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={chartData}
-                cx="50%"
-                cy="50%"
-                innerRadius={70}
-                outerRadius={120}
-                paddingAngle={3}
-                dataKey="value"
-                labelLine={false}
-                label={renderCustomLabel}
-                animationBegin={0}
-                animationDuration={700}
-              >
-                {chartData.map((_, idx) => (
-                  <Cell key={idx} fill={COLORS[idx % COLORS.length]} stroke="transparent" />
-                ))}
-              </Pie>
-              <Tooltip content={<CustomTooltip />} />
-            </PieChart>
-          </ResponsiveContainer>
+          <div style={{ position: 'relative' }}>
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={70}
+                  outerRadius={110}
+                  paddingAngle={3}
+                  dataKey="value"
+                  labelLine={false}
+                  label={renderCustomLabel}
+                  animationBegin={0}
+                  animationDuration={700}
+                >
+                  {chartData.map((_, idx) => (
+                    <Cell key={idx} fill={COLORS[idx % COLORS.length]} stroke="transparent" />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+            {/* Total central en el donut */}
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              textAlign: 'center',
+              pointerEvents: 'none'
+            }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', fontWeight: 500 }}>
+                Total
+              </span>
+              <strong style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 700 }}>
+                {formatCOP(total)}
+              </strong>
+            </div>
+          </div>
 
-          {/* Leyenda manual */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 1rem', marginTop: '0.75rem', justifyContent: 'center' }}>
+          {/* Desglose de valores y porcentajes por línea */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.75rem' }}>
             {chartData.map((item, idx) => (
-              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                <span style={{
-                  width: 10, height: 10, borderRadius: '50%',
-                  background: COLORS[idx % COLORS.length],
-                  flexShrink: 0, display: 'inline-block'
-                }} />
-                <span>{item.nombre}</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
-                  ({total > 0 ? ((item.value / total) * 100).toFixed(1) : 0}%)
-                </span>
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.4rem 0.75rem',
+                  borderRadius: '8px',
+                  background: 'var(--bg-muted, rgba(0,0,0,0.03))',
+                  fontSize: '12.5px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{
+                    width: 10, height: 10, borderRadius: '50%',
+                    background: COLORS[idx % COLORS.length],
+                    flexShrink: 0, display: 'inline-block'
+                  }} />
+                  <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{item.nombre}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <strong style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                    {formatCOP(item.value)}
+                  </strong>
+                  <span style={{
+                    color: 'var(--text-muted)',
+                    fontSize: '11px',
+                    background: 'var(--bg-elevated)',
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    fontWeight: 600
+                  }}>
+                    {total > 0 ? ((item.value / total) * 100).toFixed(1) : 0}%
+                  </span>
+                </div>
               </div>
             ))}
           </div>

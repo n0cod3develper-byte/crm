@@ -58,6 +58,22 @@ export const serviciosController = {
 
       const isAdmin = req.user && req.user.role === 'admin';
 
+      // Validación obligatoria de motivo_anulacion al cambiar estado a ANULADO
+      if (req.body.estado === 'ANULADO' || req.body.estado === 'ANULADA') {
+        const motivo = (req.body.motivo_anulacion || '').trim();
+        if (!motivo || motivo.length < 5) {
+          throw new BadRequestError('El motivo de anulación es obligatorio y debe tener al menos 5 caracteres');
+        }
+        if (motivo.length > 1000) {
+          throw new BadRequestError('El motivo de anulación no puede exceder 1.000 caracteres');
+        }
+        req.body.estado = 'ANULADO';
+        req.body.motivo_anulacion = motivo;
+      } else if (req.body.estado && req.body.estado !== 'ANULADO') {
+        // Si sale de ANULADO a otro estado, no conservar motivo residual
+        req.body.motivo_anulacion = null;
+      }
+
       // Bloquear edición completa de remisiones ANULADAS o LIQUIDADAS
       // (solo se permite el patch parcial de la liquidación) si no es administrador
       if (!isAdmin) {
@@ -80,7 +96,14 @@ export const serviciosController = {
 
   async remove(req, res, next) {
     try {
-      const result = await repo.softDelete(req.params.id, req.user);
+      const motivo = (req.body?.motivo_anulacion || '').trim();
+      if (!motivo || motivo.length < 5) {
+        throw new BadRequestError('El motivo de anulación es obligatorio y debe tener al menos 5 caracteres');
+      }
+      if (motivo.length > 1000) {
+        throw new BadRequestError('El motivo de anulación no puede exceder 1.000 caracteres');
+      }
+      const result = await repo.softDelete(req.params.id, req.user, motivo);
       if (!result) throw new NotFoundError('Remisión');
       res.json({ success: true, message: 'Remisión anulada correctamente' });
     } catch (err) { next(err); }

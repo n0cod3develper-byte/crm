@@ -1,4 +1,4 @@
-import { informesRepository } from './informes.repository.js';
+import { informesRepository, quincenasEnRango } from './informes.repository.js';
 import { obtenerPermisosUsuario } from '../../middleware/auth.js';
 import { logger } from '../../utils/logger.js';
 
@@ -106,30 +106,58 @@ export const informesController = {
         return res.status(400).json({ error: 'fecha_inicio y fecha_fin son requeridos' });
       }
 
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(fecha_inicio) || !dateRegex.test(fecha_fin)) {
+        return res.status(400).json({ error: 'Formato de fecha inválido. Debe ser YYYY-MM-DD' });
+      }
+
+      const d1 = new Date(fecha_inicio + 'T00:00:00');
+      const d2 = new Date(fecha_fin + 'T00:00:00');
+
+      if (isNaN(d1.getTime()) || isNaN(d2.getTime())) {
+        return res.status(400).json({ error: 'Fechas inválidas' });
+      }
+
+      if (d1 > d2) {
+        return res.status(400).json({ error: 'fecha_inicio debe ser menor o igual a fecha_fin' });
+      }
+
+      const dias_rango = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+      if (dias_rango > 366) {
+        return res.status(400).json({ error: 'El rango de fechas no puede exceder 366 días (1 año)' });
+      }
+
       // ── Intervalo semiabierto: fecha_fin se suma 1 día para incluir el último día completo ──
-      // El SQL usa < en lugar de <=, así que necesitamos fecha_fin + 1 día.
-      // Ejemplo: usuario selecciona 1 al 15 → se busca >= '2026-01-01' AND < '2026-01-16'
       const d2_tmp = new Date(fecha_fin + 'T00:00:00');
       d2_tmp.setDate(d2_tmp.getDate() + 1);
       const fecha_fin_excl = `${d2_tmp.getFullYear()}-${String(d2_tmp.getMonth() + 1).padStart(2, '0')}-${String(d2_tmp.getDate()).padStart(2, '0')}`;
 
-      // Calcular período de quincena anterior automáticamente
-      const d1 = new Date(fecha_inicio + 'T00:00:00');
-      const d2 = new Date(fecha_fin + 'T00:00:00');
+      // Calcular período anterior comparativo
       let prevInicio, prevFin;
+      const ultimoDiaMesD2 = new Date(d2.getFullYear(), d2.getMonth() + 1, 0).getDate();
 
       if (d1.getDate() === 1 && d2.getDate() === 15) {
-        // Quincena 1 actual (1-15) → anterior: 16-último del mes anterior
+        // Quincena 1 estándar (1-15) → anterior: 16-último del mes anterior
         const mesAnterior = new Date(d1.getFullYear(), d1.getMonth() - 1, 1);
         const ultimoDia = new Date(mesAnterior.getFullYear(), mesAnterior.getMonth() + 1, 0).getDate();
         const mStr = String(mesAnterior.getMonth() + 1).padStart(2, '0');
         prevInicio = `${mesAnterior.getFullYear()}-${mStr}-16`;
         prevFin    = `${mesAnterior.getFullYear()}-${mStr}-${ultimoDia}`;
-      } else {
-        // Quincena 2 actual (16-fin) → anterior: 1-15 del mismo mes
+      } else if (d1.getDate() === 16 && d2.getDate() === ultimoDiaMesD2) {
+        // Quincena 2 estándar (16-fin) → anterior: 1-15 del mismo mes
         const mStr = String(d1.getMonth() + 1).padStart(2, '0');
         prevInicio = `${d1.getFullYear()}-${mStr}-01`;
         prevFin    = `${d1.getFullYear()}-${mStr}-15`;
+      } else {
+        // Rango libre genérico: período inmediatamente anterior de igual duración
+        const prevFinDate = new Date(d1);
+        prevFinDate.setDate(prevFinDate.getDate() - 1);
+        const prevInicioDate = new Date(prevFinDate);
+        prevInicioDate.setDate(prevInicioDate.getDate() - dias_rango + 1);
+
+        const pad = n => String(n).padStart(2, '0');
+        prevFin = `${prevFinDate.getFullYear()}-${pad(prevFinDate.getMonth() + 1)}-${pad(prevFinDate.getDate())}`;
+        prevInicio = `${prevInicioDate.getFullYear()}-${pad(prevInicioDate.getMonth() + 1)}-${pad(prevInicioDate.getDate())}`;
       }
 
       const usuario_id = req.user?.id;
@@ -146,6 +174,7 @@ export const informesController = {
 
       res.json({
         ...principal,
+        dias_rango,
         quincena_anterior: {
           fecha_inicio: prevInicio,
           fecha_fin:    prevFin,
@@ -180,9 +209,16 @@ export const informesController = {
 
   async getLiquidacionAjustes(req, res, next) {
     try {
-      const { quincena } = req.query;
-      if (!quincena) return res.status(400).json({ error: 'quincena es requerida' });
-      const data = await informesRepository.getLiquidacionAjustes(quincena);
+      const { quincena, fecha_inicio, fecha_fin } = req.query;
+      let data;
+      if (fecha_inicio && fecha_fin) {
+        const quincenas = quincenasEnRango(fecha_inicio, fecha_fin);
+        data = await informesRepository.getLiquidacionAjustes(quincenas);
+      } else if (quincena) {
+        data = await informesRepository.getLiquidacionAjustes(quincena);
+      } else {
+        return res.status(400).json({ error: 'quincena o rango de fechas (fecha_inicio y fecha_fin) son requeridos' });
+      }
       res.json(data);
     } catch (error) {
       logger.error('Error en getLiquidacionAjustes', { error: error.message });
@@ -193,8 +229,10 @@ export const informesController = {
   async upsertLiquidacionAjustes(req, res, next) {
     try {
       const { quincena, ajustes } = req.body;
-      if (!quincena || !ajustes) return res.status(400).json({ error: 'quincena y ajustes requeridos' });
-      await informesRepository.upsertLiquidacionAjustes(quincena, ajustes);
+      if (!ajustes || typeof ajustes !== 'object') {
+        return res.status(400).json({ error: 'ajustes es requerido' });
+      }
+      await informesRepository.upsertLiquidacionAjustes(quincena || null, ajustes);
       res.json({ success: true });
     } catch (error) {
       logger.error('Error en upsertLiquidacionAjustes', { error: error.message });

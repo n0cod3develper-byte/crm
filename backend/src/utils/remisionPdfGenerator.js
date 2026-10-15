@@ -19,8 +19,14 @@ function getLogoBase64() {
 
 function formatCOP(value) {
   return new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', minimumFractionDigits: 0
-  }).format(value || 0);
+    style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0
+  }).format(Math.round(value || 0));
+}
+
+function formatMonto(value) {
+  return new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: 0, maximumFractionDigits: 0
+  }).format(Math.round(value || 0));
 }
 
 function formatDate(dateStr) {
@@ -49,7 +55,7 @@ const TERMINOS = `CARGAR S.A.S. en la prestación de servicio en montacargas ha 
 3. En caso de siniestro o daños, las partes interesadas se responsabilizaran de manera equitativa por los hechos ocurridos, evitando una reclamacion o demanda futura por perdida o daños quedando por consiguiente CARGAR S.A.S. a paz y salvo y libre de toda responsabilidad.
 4. Si el servicio es después de las 4:15 PM se cobrará a la tarifa con el recargo correspondiente y los sábados después de las 10:50 AM.`;
 
-function buildRemisionHtml(rem, horasLaborales = [], tramos = []) {
+export function buildRemisionHtml(rem, horasLaborales = [], tramos = []) {
   const logo = getLogoBase64();
   const logoHtml = logo
     ? `<img src="${logo}" style="height:55px;" alt="Logo" />`
@@ -57,10 +63,13 @@ function buildRemisionHtml(rem, horasLaborales = [], tramos = []) {
 
   const operarios = rem.operarios || [];
 
+  const subtotalOrd = Math.round((parseFloat(rem.horas_ordinarias) || 0) * (parseFloat(rem.valor_hora_ordinaria) || 0));
+  const subtotalRec = Math.round((parseFloat(rem.horas_recargo) || 0) * (parseFloat(rem.valor_hora_recargo) || 0));
+  const totalHorasValue = subtotalOrd + subtotalRec;
 
   const horarioRows = [
-    { label: 'ORDINARIA', horas: rem.horas_ordinarias, valor: rem.valor_hora_ordinaria },
-    { label: 'CON RECARGO', horas: rem.horas_recargo, valor: rem.valor_hora_recargo },
+    { label: 'ORDINARIA', horas: rem.horas_ordinarias, valor: rem.valor_hora_ordinaria, subtotal: subtotalOrd },
+    { label: 'CON RECARGO', horas: rem.horas_recargo, valor: rem.valor_hora_recargo, subtotal: subtotalRec },
   ];
 
   // Items que NO son el servicio principal del operario (ej: batería, combustible, etc.)
@@ -84,23 +93,16 @@ function buildRemisionHtml(rem, horasLaborales = [], tramos = []) {
     subtotal: Math.round((parseFloat(it.cantidad) || 1) * (parseFloat(it.valor_unitario) || 0)),
   }));
 
-  const totalParcialDesglose =
-    ((parseFloat(rem.horas_ordinarias) || 0) * (parseFloat(rem.valor_hora_ordinaria) || 0)) +
-    ((parseFloat(rem.horas_recargo) || 0) * (parseFloat(rem.valor_hora_recargo) || 0)) +
-    nonHourItems.reduce((sum, it) => sum + it.subtotal, 0);
+  const totalNonHourItems = nonHourItems.reduce((sum, it) => sum + it.subtotal, 0);
+  const totalParcialDesglose = totalHorasValue + totalNonHourItems;
 
   const totalHorasDesglose =
     (parseFloat(rem.horas_ordinarias) || 0) +
     (parseFloat(rem.horas_recargo) || 0);
 
-  const totalHorasValue =
-    ((parseFloat(rem.horas_ordinarias) || 0) * (parseFloat(rem.valor_hora_ordinaria) || 0)) +
-    ((parseFloat(rem.horas_recargo) || 0) * (parseFloat(rem.valor_hora_recargo) || 0));
-
-
   const totalLiquidado = horasLaborales.reduce((sum, h) => sum + parseFloat(h.total_liquidado || 0), 0);
-  // El nuevo TOTAL NETO es el neto de la remisión + lo liquidado a operarios
-  const totalNetoFinal = parseFloat(rem.total_neto || 0) + totalLiquidado;
+  // El TOTAL NETO debe coincidir exactamente con el de pantalla (fuente de verdad)
+  const totalNetoFinal = Math.round(parseFloat(rem.total_neto || 0));
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -359,9 +361,9 @@ function buildRemisionHtml(rem, horasLaborales = [], tramos = []) {
           ${item.descripcion ? `<br><span style="color:#444;">${item.descripcion}</span>` : ''}
         </td>
         <td class="td-center">${item.cantidad || 1}</td>
-        <td class="td-center">${item.valor_unitario > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(item.valor_unitario) : ''}</td>
+        <td class="td-center">${item.valor_unitario > 0 ? 'CO$ ' + formatMonto(item.valor_unitario) : ''}</td>
         <td class="td-center">${item.aplica_iva ? 'SÍ' : ''}</td>
-        <td class="td-center">${(item.cantidad * item.valor_unitario) > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(Math.round(item.cantidad * item.valor_unitario)) : ''}</td>
+        <td class="td-center">${(item.cantidad * item.valor_unitario) > 0 ? 'CO$ ' + formatMonto(item.cantidad * item.valor_unitario) : ''}</td>
       </tr>
       `).join('') : `
       <tr>
@@ -388,15 +390,15 @@ function buildRemisionHtml(rem, horasLaborales = [], tramos = []) {
       <tr>
         <td>${row.label}</td>
         <td class="td-center">${parseFloat(row.horas) > 0 ? row.horas : ''}</td>
-        <td class="td-center">${parseFloat(row.horas) > 0 && parseFloat(row.valor) > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(row.valor) : ''}</td>
-        <td class="td-center">${(parseFloat(row.horas) > 0 && parseFloat(row.valor) > 0) ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(parseFloat(row.horas) * parseFloat(row.valor)) : ''}</td>
+        <td class="td-center">${parseFloat(row.horas) > 0 && parseFloat(row.valor) > 0 ? 'CO$ ' + formatMonto(row.valor) : ''}</td>
+        <td class="td-center">${(parseFloat(row.horas) > 0 && parseFloat(row.valor) > 0) ? 'CO$ ' + formatMonto(row.subtotal) : ''}</td>
       </tr>`).join('')}
       ${nonHourItems.length > 0 ? `
       <tr style="font-weight: bold; background: #f0f0f0;">
         <td></td>
         <td class="td-center">${totalHorasDesglose > 0 ? totalHorasDesglose : ''}</td>
         <td></td>
-        <td class="td-center">${totalHorasValue > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(totalHorasValue) : ''}</td>
+        <td class="td-center">${totalHorasValue > 0 ? 'CO$ ' + formatMonto(totalHorasValue) : ''}</td>
       </tr>
       <tr style="background: #f9f9f9; font-size: 9px; font-weight: bold; text-align: center;">
         <td style="text-align: left;">ITEM</td>
@@ -408,14 +410,14 @@ function buildRemisionHtml(rem, horasLaborales = [], tramos = []) {
       <tr>
         <td style="font-size:9px;">${it.nombre}</td>
         <td class="td-center">${it.cantidad}</td>
-        <td class="td-center">CO$ ${new Intl.NumberFormat('es-CO').format(it.valor_unitario)}</td>
-        <td class="td-center">CO$ ${new Intl.NumberFormat('es-CO').format(it.subtotal)}</td>
+        <td class="td-center">CO$ ${formatMonto(it.valor_unitario)}</td>
+        <td class="td-center">CO$ ${formatMonto(it.subtotal)}</td>
       </tr>`).join('') : ''}
       <tr style="font-weight: bold; background: #f0f0f0; font-size: 12px;">
         <td style="padding: 10px 5px;">TOTAL</td>
         <td style="padding: 10px 5px;"></td>
         <td style="padding: 10px 5px;"></td>
-        <td class="td-center" style="padding: 10px 5px;">${totalParcialDesglose > 0 ? 'CO$ ' + new Intl.NumberFormat('es-CO').format(totalParcialDesglose) : ''}</td>
+        <td class="td-center" style="padding: 10px 5px;">${totalParcialDesglose > 0 ? 'CO$ ' + formatMonto(totalParcialDesglose) : ''}</td>
       </tr>
     </tbody>
   </table>
@@ -423,17 +425,17 @@ function buildRemisionHtml(rem, horasLaborales = [], tramos = []) {
   <!-- TOTALES -->
   <div class="totals-grid">
     <div class="totals-label">TOTAL BRUTO</div>
-    <div class="totals-value">CO$ ${new Intl.NumberFormat('es-CO').format(rem.total_bruto || 0)}</div>
+    <div class="totals-value">CO$ ${formatMonto(rem.total_bruto)}</div>
     ${totalLiquidado > 0 ? `
     <div class="totals-label" style="color:#000;">TOTAL LIQUIDAR OPERARIOS</div>
-    <div class="totals-value" style="color:#000;">CO$ ${new Intl.NumberFormat('es-CO').format(totalLiquidado)}</div>
+    <div class="totals-value" style="color:#000;">CO$ ${formatMonto(totalLiquidado)}</div>
     ` : ''}
     <div class="totals-label">+IVA</div>
-    <div class="totals-value">CO$ ${new Intl.NumberFormat('es-CO').format(rem.iva_valor || 0)}</div>
+    <div class="totals-value">CO$ ${formatMonto(rem.iva_valor)}</div>
     <div class="totals-label">DESCUENTOS</div>
-    <div class="totals-value">CO$ ${new Intl.NumberFormat('es-CO').format(rem.descuentos || 0)}</div>
+    <div class="totals-value">CO$ ${formatMonto(rem.descuentos)}</div>
     <div class="totals-label totals-final">TOTAL NETO</div>
-    <div class="totals-value totals-final">CO$ ${new Intl.NumberFormat('es-CO').format(totalNetoFinal)}</div>
+    <div class="totals-value totals-final">CO$ ${formatMonto(totalNetoFinal)}</div>
   </div>
 
   <!-- NOTA INFORMATIVA -->
