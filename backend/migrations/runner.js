@@ -172,6 +172,7 @@ const MIGRATION_FILES = [
   '138_leads_asignacion_empleado.sql',
   '139_lead_history.sql',
   '140_leads_borrado_logico.sql',
+  '141_lead_gestiones.sql',
 ];
 
 
