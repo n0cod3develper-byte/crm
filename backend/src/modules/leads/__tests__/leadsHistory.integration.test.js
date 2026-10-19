@@ -39,9 +39,13 @@ const {
   LeadsHistoryRepository,
   diffLead,
 } = await import('../leadsHistory.repository.js');
+const {
+  LeadGestionesRepository,
+} = await import('../leadGestiones.repository.js');
 
 const repo = new LeadsRepository();
 const hist = new LeadsHistoryRepository();
+const gestiones = new LeadGestionesRepository();
 
 const CTX = { userId: '00000000-0000-0000-0000-000000000042', userName: 'Tester Historial' };
 const creados = [];
@@ -56,6 +60,14 @@ async function crearLead(extra = {}) {
   return lead;
 }
 
+/** Empleados activos, para asignarlos a gestiones y a la asignación. */
+async function empleadosActivos(n) {
+  const r = await db.query(
+    `SELECT id, full_name FROM employees WHERE status = 'Activo' ORDER BY id LIMIT ${n}`
+  );
+  return r.rows;
+}
+
 afterEach(async () => {
   while (creados.length) {
     const id = creados.pop();
@@ -63,6 +75,7 @@ afterEach(async () => {
     // NO se puede destruir borrando el lead. Estas filas son de PRUEBAS, así que
     // se retira su historial de forma explícita y acotada antes de purgarlas.
     // Sin `catch` silencioso: un fallo aquí debe salir a la superficie.
+    await db.query(`DELETE FROM lead_gestiones WHERE lead_id = $1`, [id]);
     await db.query(`DELETE FROM lead_history WHERE lead_id = $1`, [id]);
     await db.query(`DELETE FROM lead_asignacion_notificaciones WHERE lead_id = $1`, [id]);
     await db.query(`DELETE FROM leads WHERE id = $1`, [id]);
@@ -307,13 +320,6 @@ cond('diffLead', () => {
 // ─────────────────────────────────────────────────────────────
 cond('Integración Fase 2 + Fase 3', () => {
 
-  async function empleadosActivos(n) {
-    const r = await db.query(
-      `SELECT id, full_name FROM employees WHERE status = 'Activo' ORDER BY id LIMIT ${n}`
-    );
-    return r.rows;
-  }
-
   test('I1. Crear un lead CON empleado asignado genera CREACION y ASIGNACION', async () => {
     const [emp] = await empleadosActivos(1);
     if (!emp) return console.warn('   (sin empleados activos: prueba I1 omitida)');
@@ -491,5 +497,272 @@ cond('Archivado lógico y trazabilidad permanente', () => {
     // Y el historial sigue ahí
     const { data } = await hist.findEvents({ leadId: lead.id });
     expect(data.length).toBeGreaterThan(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Gestiones comerciales (tabla lead_gestiones, migración 141)
+// ─────────────────────────────────────────────────────────────
+cond('Gestiones comerciales', () => {
+
+  test('G1. Registrar una gestión la asocia al lead y entra a la línea de tiempo', async () => {
+    const [emp] = await empleadosActivos(1);
+    const lead = await crearLead();
+
+    const g = await gestiones.create(lead.id, {
+      tipo: 'llamada',
+      observaciones: 'Hablé con el dueño, le interesa el plan anual',
+      resultado: 'Pidió cotización',
+      employee_id: emp?.id,
+      employee_name: emp?.full_name,
+    }, CTX);
+
+    expect(g.tipo).toBe('llamada');
+    expect(g.etiquetaTipo).toBe('Llamada');
+    expect(g.empleado).toBe(emp?.full_name || null);
+    expect(g.creadoPor).toBe('Tester Historial');
+
+    // Aparece en la línea de tiempo como ACTIVIDAD, no como evento de auditoría
+    const { data } = await hist.findEvents({ leadId: lead.id, limit: 50 });
+    const act = data.find((e) => e.tipo === 'ACTIVIDAD');
+    expect(act).toBeTruthy();
+    expect(act.fuente).toBe('ACTIVIDAD');
+    expect(act.empleado).toBe(emp?.full_name || null);
+    expect(act.usuario).toBe('Tester Historial');
+    expect(act.descripcion).toContain('Llamada');
+    expect(act.descripcion).toContain('le interesa el plan anual');
+    expect(act.valorNuevo).toBe('Pidió cotización');
+  });
+
+  // Punto 2 del encargo: la última gestión SOLO de actividades reales
+  test('G2. La última gestión comercial ignora las modificaciones del lead', async () => {
+    const lead = await crearLead();
+
+    // Modificaciones que NO son gestión comercial
+    await repo.updateConHistorial(
+      lead.id, { phone: '3001234567', status: 'contacted', score: 60 }, CTX
+    );
+
+    let r = await hist.findSummary(lead.id);
+    expect(r.total_eventos).toBeGreaterThan(1);   // sí hubo actividad registrada
+    expect(r.ultima_gestion).toBeNull();          // pero NINGUNA gestión comercial
+    expect(r.total_gestiones).toBe(0);
+
+    // Al registrar una gestión real, sí se llena
+    await gestiones.create(lead.id, { tipo: 'correo', resultado: 'Enviada' }, CTX);
+
+    r = await hist.findSummary(lead.id);
+    expect(r.total_gestiones).toBe(1);
+    expect(r.ultima_gestion).toBeTruthy();
+    // total_eventos suma auditoría + gestiones
+    expect(r.total_eventos).toBeGreaterThan(1);
+  });
+
+  test('G3. La fecha de la gestión es la de OCURRENCIA, no la de registro', async () => {
+    const lead = await crearLead();
+    const ocurrioHaceUnaSemana = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+
+    await gestiones.create(lead.id, {
+      tipo: 'reunion',
+      fecha_gestion: ocurrioHaceUnaSemana,
+    }, CTX);
+
+    const r = await hist.findSummary(lead.id);
+    const diferenciaMs = Math.abs(new Date(r.ultima_gestion) - ocurrioHaceUnaSemana);
+    // Tolerancia de 2 s por la serialización
+    expect(diferenciaMs).toBeLessThan(2000);
+  });
+
+  test('G4. Filtros por tipo y rango de fechas sobre las gestiones', async () => {
+    const lead = await crearLead();
+    await gestiones.create(lead.id, { tipo: 'llamada' }, CTX);
+    await gestiones.create(lead.id, { tipo: 'reunion' }, CTX);
+    await gestiones.create(lead.id, { tipo: 'llamada', fecha_gestion: new Date('2026-01-15T12:00:00Z') }, CTX);
+
+    const porTipo = await gestiones.findByLead(lead.id, { tipo: 'llamada' });
+    expect(porTipo.data).toHaveLength(2);
+    expect(porTipo.data.every((g) => g.tipo === 'llamada')).toBe(true);
+
+    const porFecha = await gestiones.findByLead(lead.id, {
+      desde: new Date('2026-01-01T00:00:00Z'),
+      hasta: new Date('2026-02-01T00:00:00Z'),
+    });
+    expect(porFecha.data).toHaveLength(1);
+    expect(porFecha.data[0].tipo).toBe('llamada');
+
+    // Paginación con cursor
+    const paginada = await gestiones.findByLead(lead.id, { limit: 2 });
+    expect(paginada.data).toHaveLength(2);
+    expect(paginada.pagination.hasMore).toBe(true);
+    expect(paginada.pagination.nextCursor).toBeTruthy();
+  });
+
+  test('G5. Las gestiones NO se destruyen al archivar el lead', async () => {
+    const lead = await crearLead();
+    await gestiones.create(lead.id, { tipo: 'llamada', resultado: 'Hecha' }, CTX);
+    await repo.delete(lead.id, CTX);
+
+    // Siguen consultables aunque el lead esté archivado
+    const lista = await gestiones.findByLead(lead.id);
+    expect(lista.data).toHaveLength(1);
+    expect(lista.data[0].resultado).toBe('Hecha');
+
+    const r = await hist.findSummary(lead.id);
+    expect(r.total_gestiones).toBe(1);
+    expect(r.ultima_gestion).toBeTruthy();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Restauración de leads archivados
+// ─────────────────────────────────────────────────────────────
+cond('Restauración de leads archivados', () => {
+
+  test('R1. Restaurar registra RESTAURACION y devuelve el lead al listado', async () => {
+    const lead = await crearLead();
+    await repo.delete(lead.id, CTX);
+    expect((await repo.findAll({ limit: 300 })).data.some((l) => l.id === lead.id)).toBe(false);
+
+    const restaurado = await repo.restaurar(lead.id, CTX);
+    expect(restaurado.id).toBe(lead.id);
+    expect(restaurado.deleted_at).toBeNull();
+    expect(restaurado.deleted_by).toBeNull();
+
+    // Vuelve a aparecer en el listado activo
+    const activos = await repo.findAll({ limit: 300 });
+    expect(activos.data.some((l) => l.id === lead.id)).toBe(true);
+
+    // Y sale de la vista de archivados
+    const archivados = await repo.findAll({ limit: 300, archivados: true });
+    expect(archivados.data.some((l) => l.id === lead.id)).toBe(false);
+
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'RESTAURACION' });
+    expect(data).toHaveLength(1);
+    expect(data[0].usuario).toBe('Tester Historial');
+  });
+
+  // Validación explícita del punto 4 del encargo
+  test('R2. El lead restaurado conserva estado y responsable previos', async () => {
+    const [emp] = await empleadosActivos(1);
+    const lead = await crearLead({ status: 'qualified', assigned_employee_id: emp?.id });
+    await repo.updateConHistorial(lead.id, { phone: '3007778899' }, CTX);
+
+    await repo.delete(lead.id, CTX);
+    const restaurado = await repo.restaurar(lead.id, CTX);
+
+    // Estado y responsable intactos
+    expect(restaurado.status).toBe('qualified');
+    expect(restaurado.assigned_employee_id).toBe(emp?.id);
+    expect(restaurado.phone).toBe('3007778899');
+
+    // Y el evento deja constancia de lo conservado
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'RESTAURACION' });
+    expect(data[0].metadata.estado_anterior).toBe('qualified');
+    expect(data[0].metadata.estado_actual).toBe('qualified');
+    expect(data[0].empleado).toBe(emp?.full_name || null);
+    expect(data[0].metadata.archivado_en).toBeTruthy();
+  });
+
+  test('R3. Restaurar un lead NO archivado devuelve null', async () => {
+    const lead = await crearLead();
+    expect(await repo.restaurar(lead.id, CTX)).toBeNull();
+    expect(await repo.restaurar('00000000-0000-4000-8000-000000000000', CTX)).toBeNull();
+  });
+
+  // Garantía del punto 1 del encargo: conservar el historial COMPLETO
+  test('R4. Archivar y restaurar conserva TODO el historial', async () => {
+    const [emp] = await empleadosActivos(1);
+    const lead = await crearLead({ assigned_employee_id: emp?.id });
+    await repo.updateConHistorial(lead.id, { phone: '3001119988', status: 'contacted' }, CTX);
+    await gestiones.create(lead.id, { tipo: 'reunion', resultado: 'Agenda demo' }, CTX);
+
+    const antes = (await hist.findEvents({ leadId: lead.id, limit: 100 })).data;
+    expect(antes.length).toBeGreaterThan(2);
+
+    await repo.delete(lead.id, CTX);
+    await repo.restaurar(lead.id, CTX);
+
+    const despues = (await hist.findEvents({ leadId: lead.id, limit: 100 })).data;
+    // Se añaden el evento de archivado y el de restauración
+    expect(despues).toHaveLength(antes.length + 2);
+
+    // Cada evento anterior sigue intacto, por id
+    const idsAntes = new Set(antes.map((e) => e.id));
+    expect(despues.filter((e) => idsAntes.has(e.id))).toHaveLength(antes.length);
+
+    // Y la gestión comercial también
+    expect((await gestiones.findByLead(lead.id)).data).toHaveLength(1);
+    expect((await hist.findSummary(lead.id)).total_gestiones).toBe(1);
+  });
+
+  test('R5. Archivar y restaurar varias veces deja la cadena completa', async () => {
+    const lead = await crearLead();
+    for (let n = 0; n < 3; n++) {
+      await repo.delete(lead.id, CTX);
+      await repo.restaurar(lead.id, CTX);
+    }
+
+    const archivados = await hist.findEvents({ leadId: lead.id, eventType: 'MODIFICACION' });
+    expect(archivados.data.filter((e) => e.campo === 'deleted_at')).toHaveLength(3);
+
+    const restauraciones = await hist.findEvents({ leadId: lead.id, eventType: 'RESTAURACION' });
+    expect(restauraciones.data).toHaveLength(3);
+  });
+
+  test('R6. La vista de archivados muestra fecha y usuario responsable', async () => {
+    const lead = await crearLead();
+    await repo.delete(lead.id, CTX);
+
+    const { data } = await repo.findAll({ limit: 300, archivados: true });
+    const fila = data.find((l) => l.id === lead.id);
+
+    expect(fila).toBeTruthy();
+    expect(fila.deleted_at).toBeTruthy();
+    // Nombre denormalizado: el usuario no tiene por qué existir en `users`
+    expect(fila.deleted_by_name).toBe('Tester Historial');
+  });
+
+  // Garantía transaccional: o se restaura y se registra, o no ocurre nada.
+  test('R7. Si el registro del evento falla, el restore se revierte entero', async () => {
+    const lead = await crearLead();
+    await repo.delete(lead.id, CTX);
+
+    // Fuerzo el fallo del INSERT en lead_history con un CHECK temporal.
+    await db.query(`
+      ALTER TABLE lead_history ADD CONSTRAINT _test_bloquea_restauracion
+      CHECK (event_type <> 'RESTAURACION')`);
+    try {
+      await expect(repo.restaurar(lead.id, CTX)).rejects.toThrow();
+    } finally {
+      await db.query(
+        `ALTER TABLE lead_history DROP CONSTRAINT IF EXISTS _test_bloquea_restauracion`
+      );
+    }
+
+    // El lead sigue ARCHIVADO: no quedó restaurado a medias
+    const trasFallo = await repo.findByIdIncluyendoArchivado(lead.id);
+    expect(trasFallo.deleted_at).toBeTruthy();
+
+    // Y no hay evento RESTAURACION huérfano
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'RESTAURACION' });
+    expect(data).toHaveLength(0);
+
+    // Con la restricción levantada, el mismo restore sí funciona
+    const ok = await repo.restaurar(lead.id, CTX);
+    expect(ok.deleted_at).toBeNull();
+  });
+
+  // Tras 139/140/141 nada puede destruir la trazabilidad borrando el lead.
+  test('R8. Un DELETE físico del lead no destruye historial ni gestiones (RESTRICT)', async () => {
+    const lead = await crearLead();
+    await gestiones.create(lead.id, { tipo: 'llamada', resultado: 'Hecha' }, CTX);
+
+    await expect(
+      db.query(`DELETE FROM leads WHERE id = $1`, [lead.id])
+    ).rejects.toMatchObject({ code: '23503' });   // foreign_key_violation
+
+    // Ambas cosas siguen intactas
+    expect((await gestiones.findByLead(lead.id)).data).toHaveLength(1);
+    expect((await hist.findEvents({ leadId: lead.id })).data.length).toBeGreaterThan(0);
   });
 });

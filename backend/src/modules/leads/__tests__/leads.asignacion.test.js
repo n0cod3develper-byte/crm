@@ -131,6 +131,11 @@ const mockMarcarEnviada = jest.fn();
 const mockMarcarError = jest.fn();
 const mockDelete = jest.fn();
 const mockConvert = jest.fn();
+const mockRestaurar = jest.fn();
+
+// Gestiones comerciales (módulo leadGestiones)
+const mockGestionesFind = jest.fn();
+const mockGestionesCreate = jest.fn();
 
 // Los métodos transaccionales delegan en los mocks de siempre, de modo que las
 // aserciones existentes sobre create/update siguen valiendo.
@@ -162,8 +167,24 @@ jest.unstable_mockModule('../leads.repository.js', () => ({
     marcarNotificacionEnviada: mockMarcarEnviada,
     marcarNotificacionError: mockMarcarError,
     delete: mockDelete,
+    restaurar: mockRestaurar,
     convertToContact: mockConvert,
   })),
+}));
+
+// El módulo de gestiones comerciales tiene su propio repositorio.
+// El mock debe exportar TAMBIÉN las constantes, porque leadGestiones.schema.js
+// importa TIPOS_GESTION de aquí.
+jest.unstable_mockModule('../leadGestiones.repository.js', () => ({
+  LeadGestionesRepository: jest.fn().mockImplementation(() => ({
+    findByLead: mockGestionesFind,
+    create: mockGestionesCreate,
+  })),
+  TIPOS_GESTION: ['llamada', 'reunion', 'correo', 'observacion', 'otro'],
+  ETIQUETAS_TIPO_GESTION: {
+    llamada: 'Llamada', reunion: 'Reunión', correo: 'Correo de seguimiento',
+    observacion: 'Observación', otro: 'Otra gestión',
+  },
 }));
 
 // El controlador anota el resultado del correo sobre el evento de historial.
@@ -662,5 +683,188 @@ describe('Leads — archivado lógico y conservación de la trazabilidad', () =>
     // Sí hay trazabilidad (4 eventos), pero distingue "con historial" de "con gestión"
     expect(res.body.data.tieneHistorial).toBe(true);
     expect(res.body.data.ultima_modificacion).toBeTruthy();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Restauración de leads archivados
+// ─────────────────────────────────────────────────────────────
+describe('Leads — restauración de archivados', () => {
+  const LEAD_ARCH = '33333333-3333-4333-8333-333333333333';
+
+  beforeEach(() => {
+    mockRestaurar.mockResolvedValue({
+      id: LEAD_ARCH, status: 'qualified', deleted_at: null,
+      assigned_employee_id: EMP_ACTIVO,
+    });
+  });
+
+  test('restaura y pasa el usuario autenticado para la trazabilidad', async () => {
+    const res = await request(app).post(`/api/v1/leads/${LEAD_ARCH}/restaurar`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toContain('restaurado');
+    const [id, ctx] = mockRestaurar.mock.calls[0];
+    expect(id).toBe(LEAD_ARCH);
+    expect(ctx.userId).toBe('00000000-0000-0000-0000-000000000001');
+    expect(ctx.userName).toBe('Tester Automatizado');
+  });
+
+  // Garantía del encargo: restaurar NO vuelve a enviar el correo de asignación
+  test('restaurar NO envía correo de asignación ni registra notificación', async () => {
+    const res = await request(app).post(`/api/v1/leads/${LEAD_ARCH}/restaurar`);
+
+    expect(res.status).toBe(200);
+    expect(mockSendMailWithRetry).not.toHaveBeenCalled();
+    expect(mockRegistrarNotificacion).not.toHaveBeenCalled();
+    // Tampoco toca el empleado asignado: eso es lo que dispararía el correo
+    expect(mockUpdateConHistorial).not.toHaveBeenCalled();
+  });
+
+  test('un lead que no está archivado responde 404', async () => {
+    mockRestaurar.mockResolvedValue(null);
+    const res = await request(app).post(`/api/v1/leads/${LEAD_ARCH}/restaurar`);
+
+    expect(res.status).toBe(404);
+  });
+
+  test('sin permiso responde 403', async () => {
+    permisoDenegado = true;
+    const res = await request(app).post(`/api/v1/leads/${LEAD_ARCH}/restaurar`);
+
+    expect(res.status).toBe(403);
+    expect(mockRestaurar).not.toHaveBeenCalled();
+  });
+
+  test('la vista de archivados llega al repositorio con el flag activado', async () => {
+    mockFindAll.mockResolvedValue({ data: [], pagination: { hasMore: false, nextCursor: null } });
+
+    await request(app).get('/api/v1/leads?archivados=true');
+
+    expect(mockFindAll).toHaveBeenCalledWith(expect.objectContaining({ archivados: true }));
+  });
+
+  test('el listado normal NO incluye archivados', async () => {
+    mockFindAll.mockResolvedValue({ data: [], pagination: { hasMore: false, nextCursor: null } });
+
+    await request(app).get('/api/v1/leads');
+
+    expect(mockFindAll).toHaveBeenCalledWith(expect.objectContaining({ archivados: false }));
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// Gestiones comerciales
+// ─────────────────────────────────────────────────────────────
+describe('Leads — gestiones comerciales', () => {
+  const LEAD_G = '44444444-4444-4444-8444-444444444444';
+
+  beforeEach(() => {
+    mockFindById.mockResolvedValue(leadBase({ id: LEAD_G }));
+    mockGestionesCreate.mockResolvedValue({ id: 1, tipo: 'llamada' });
+    mockGestionesFind.mockResolvedValue({
+      data: [], pagination: { hasMore: false, nextCursor: null },
+    });
+  });
+
+  test('registrar una gestión resuelve el empleado en el BACKEND', async () => {
+    mockFindEmpleadoAsignable.mockResolvedValue(EMPLEADO_ACTIVO);
+
+    const res = await request(app)
+      .post(`/api/v1/leads/${LEAD_G}/gestiones`)
+      .send({ tipo: 'llamada', employee_id: EMP_ACTIVO, resultado: 'Pidió cotización' });
+
+    expect(res.status).toBe(201);
+    // El nombre NO viene del cliente: se consulta en el servidor
+    expect(mockGestionesCreate).toHaveBeenCalledWith(
+      LEAD_G,
+      expect.objectContaining({
+        tipo: 'llamada',
+        resultado: 'Pidió cotización',
+        employee_id: EMP_ACTIVO,
+        employee_name: 'ANA VENDEDORA',
+      }),
+      expect.objectContaining({ userName: 'Tester Automatizado' }),
+    );
+  });
+
+  // Garantía del encargo: registrar gestión NO cambia el responsable
+  test('registrar una gestión NO envía correo de asignación', async () => {
+    mockFindEmpleadoAsignable.mockResolvedValue(EMPLEADO_ACTIVO);
+
+    await request(app)
+      .post(`/api/v1/leads/${LEAD_G}/gestiones`)
+      .send({ tipo: 'reunion' });
+
+    expect(mockSendMailWithRetry).not.toHaveBeenCalled();
+    expect(mockRegistrarNotificacion).not.toHaveBeenCalled();
+    expect(mockUpdateConHistorial).not.toHaveBeenCalled();
+  });
+
+  test('un lead ARCHIVADO no admite gestiones nuevas', async () => {
+    mockFindById.mockResolvedValue(leadBase({ id: LEAD_G, deleted_at: '2026-10-19T12:00:00Z' }));
+
+    const res = await request(app)
+      .post(`/api/v1/leads/${LEAD_G}/gestiones`)
+      .send({ tipo: 'llamada' });
+
+    expect(res.status).toBe(422);
+    // errorHandler responde { success:false, error:{ message, details } }
+    expect(res.body.error.details[0].message).toContain('archivado');
+    expect(mockGestionesCreate).not.toHaveBeenCalled();
+  });
+
+  test('tipo de gestión inválido responde 422', async () => {
+    const res = await request(app)
+      .post(`/api/v1/leads/${LEAD_G}/gestiones`)
+      .send({ tipo: 'baile' });
+
+    expect(res.status).toBe(422);
+    expect(mockGestionesCreate).not.toHaveBeenCalled();
+  });
+
+  test('un empleado INACTIVO no puede quedar registrado en una gestión nueva', async () => {
+    mockFindEmpleadoAsignable.mockResolvedValue(EMPLEADO_INACTIVO);
+
+    const res = await request(app)
+      .post(`/api/v1/leads/${LEAD_G}/gestiones`)
+      .send({ tipo: 'llamada', employee_id: EMP_INACTIVO });
+
+    expect(res.status).toBe(422);
+    expect(mockGestionesCreate).not.toHaveBeenCalled();
+  });
+
+  test('sin permiso de creación responde 403', async () => {
+    permisoDenegado = true;
+    const res = await request(app)
+      .post(`/api/v1/leads/${LEAD_G}/gestiones`)
+      .send({ tipo: 'llamada' });
+
+    expect(res.status).toBe(403);
+    expect(mockGestionesCreate).not.toHaveBeenCalled();
+  });
+
+  test('el listado de gestiones pasa los filtros al repositorio', async () => {
+    const res = await request(app)
+      .get(`/api/v1/leads/${LEAD_G}/gestiones?tipo=llamada&desde=2026-01-01&hasta=2026-02-01&limit=5`);
+
+    expect(res.status).toBe(200);
+    expect(mockGestionesFind).toHaveBeenCalledWith(
+      LEAD_G,
+      expect.objectContaining({ tipo: 'llamada', limit: 5 }),
+    );
+  });
+
+  test('los endpoints de escritura de gestiones exigen permiso', async () => {
+    const rutas = [
+      ['get', `/api/v1/leads/${LEAD_G}/gestiones`],
+      ['post', `/api/v1/leads/${LEAD_G}/gestiones`],
+    ];
+
+    for (const [metodo, ruta] of rutas) {
+      permisoDenegado = true;
+      const res = await request(app)[metodo](ruta).send({ tipo: 'llamada' });
+      expect(res.status).toBe(403);
+    }
   });
 });
