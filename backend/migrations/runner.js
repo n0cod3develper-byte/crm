@@ -169,6 +169,9 @@ const MIGRATION_FILES = [
   '135_rol_gerencia.sql',
   '136_dashboard_gerencia_indexes.sql',
   '137_remisiones_motivo_anulacion.sql',
+  '138_leads_asignacion_empleado.sql',
+  '139_lead_history.sql',
+  '140_leads_borrado_logico.sql',
 ];
 
 
