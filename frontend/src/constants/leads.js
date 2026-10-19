@@ -24,3 +24,8 @@ export const STATUS_COLORS = {
   converted: { bg: '#dbeafe', color: '#1e40af', label: 'Convertido' },
   dead: { bg: '#fee2e2', color: '#991b1b', label: 'Descartado' },
 };
+
+// Tipos de gestión comercial. El orden es el del formulario; el catálogo
+// coincide con el CHECK de `tasks` (call/meeting/email/follow_up) para que el
+// lenguaje sea el mismo en todo el CRM. Coincide con TIPOS_GESTION del backend.
+export const TIPOS_GESTION = ['llamada', 'reunion', 'correo', 'observacion', 'otro'];

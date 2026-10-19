@@ -3,12 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Edit2, History, LayoutDashboard, User, Mail, Phone,
-  Building2, Megaphone, FileText, AlertCircle, Loader2,
+  Building2, Megaphone, FileText, AlertCircle, Loader2, PhoneCall, RotateCcw,
 } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
 import { LeadForm } from '../../components/Leads/LeadForm';
 import { LeadHistoryTimeline } from '../../components/Leads/LeadHistoryTimeline';
 import { LeadLifecycleSummary, ESTADO_LABEL } from '../../components/Leads/LeadLifecycleSummary';
+import { LeadGestiones } from '../../components/Leads/LeadGestiones';
+import { usePermissions } from '../../contexts/PermissionsContext';
 import { STATUS_COLORS } from '../../constants/leads';
 import api from '../../lib/api';
 
@@ -20,6 +22,7 @@ export function LeadDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { puede } = usePermissions();
   const [activeTab, setActiveTab] = React.useState('resumen');
 
   const { data: lead, isLoading, isError, error } = useQuery({
@@ -38,8 +41,26 @@ export function LeadDetailPage() {
     },
   });
 
+  // Restaurar usa el MISMO permiso que archivar ('eliminar'): es su inverso.
+  const puedeRestaurar = puede('leads', 'eliminar');
+
+  const restaurar = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/leads/${id}/restaurar`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lead', id] });
+      queryClient.invalidateQueries({ queryKey: ['lead-summary', id] });
+      queryClient.invalidateQueries({ queryKey: ['lead-history', id] });
+      queryClient.invalidateQueries({ queryKey: ['lead-gestiones', id] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+  });
+
   const tabs = [
     { id: 'resumen', label: 'Resumen', icon: LayoutDashboard },
+    { id: 'gestiones', label: 'Gestiones comerciales', icon: PhoneCall },
     { id: 'historial', label: 'Historial / Trazabilidad', icon: History },
     { id: 'editar', label: 'Editar', icon: Edit2 },
   ];
@@ -115,10 +136,39 @@ export function LeadDetailPage() {
                 borderRadius: '999px', fontSize: 'var(--text-xs)', fontWeight: 700,
                 border: '1px dashed #94a3b8',
               }}>
-                Archivado · no aparece en el listado
+                Archivado el {fmtFecha.format(new Date(lead.deleted_at))}
+                {lead.deleted_by_name ? ` por ${lead.deleted_by_name}` : ''}
               </span>
             )}
+            {lead.deleted_at && puedeRestaurar && (
+              <button
+                className="btn btn--secondary btn--sm"
+                onClick={() => {
+                  if (window.confirm(
+                    '¿Restaurar este lead? Volverá al listado conservando su estado y su responsable. No se envían correos de asignación.'
+                  )) restaurar.mutate();
+                }}
+                disabled={restaurar.isPending}
+              >
+                {restaurar.isPending
+                  ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                  : <RotateCcw size={15} />}
+                Restaurar lead
+              </button>
+            )}
           </div>
+
+          {restaurar.isSuccess && (
+            <p style={{ fontSize: 'var(--text-sm)', color: '#166534', marginBottom: '0.75rem' }}>
+              Lead restaurado. Conserva su estado y su responsable.
+            </p>
+          )}
+          {restaurar.isError && (
+            <p style={{ fontSize: 'var(--text-sm)', color: '#b91c1c', marginBottom: '0.75rem' }}>
+              {restaurar.error?.response?.data?.error?.message || 'No fue posible restaurar el lead.'}
+            </p>
+          )}
+
           <LeadLifecycleSummary resumen={resumen} isLoading={cargandoResumen} />
         </div>
 
@@ -153,6 +203,10 @@ export function LeadDetailPage() {
 
         <div className="card" style={{ minHeight: '400px' }}>
           {activeTab === 'resumen' && <TabResumen lead={lead} />}
+
+          {activeTab === 'gestiones' && (
+            <LeadGestiones leadId={id} leadArchivado={!!lead.deleted_at} />
+          )}
 
           {activeTab === 'historial' && <LeadHistoryTimeline leadId={id} />}
 
