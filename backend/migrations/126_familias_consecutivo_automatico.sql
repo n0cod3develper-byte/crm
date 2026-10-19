@@ -54,10 +54,12 @@ BEGIN
     next_seq := next_seq + 1;
     code_str := LPAD(next_seq::text, 3, '0');
 
-    -- Crear ubicacion de bodega con el consecutivo
-    INSERT INTO ubicaciones_bodega (codigo_ubicacion, descripcion, activo)
-    VALUES (code_str, 'Estantería ' || cat.nombre, true)
-    RETURNING id INTO ubi_id;
+    SELECT id INTO ubi_id FROM ubicaciones_bodega WHERE codigo_ubicacion = code_str;
+    IF ubi_id IS NULL THEN
+      INSERT INTO ubicaciones_bodega (codigo_ubicacion, descripcion, activo, bodega, estante)
+      VALUES (code_str, 'Estantería ' || cat.nombre, true, 'PRINCIPAL', code_str)
+      RETURNING id INTO ubi_id;
+    END IF;
 
     -- Vincular la categoria a su ubicacion
     UPDATE catalogo_categorias
