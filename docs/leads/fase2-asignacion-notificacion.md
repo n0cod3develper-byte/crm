@@ -184,15 +184,13 @@ correo falla, el lead ya existe y no se revierte nada; el fallo queda registrado
 
 ### Pendientes que necesitan tu decisión
 
-1. **`npm test` del backend está roto.** El script llama a
+1. ~~**`npm test` del backend está roto.**~~ **Corregido**: el script llamaba a
    `node_modules/.bin/jest` dentro de `backend/`, pero Jest está hoisted a la raíz del
-   workspace, así que `npm test` termina con `MODULE_NOT_FOUND`. Lo ejecuté por la ruta real.
-   Lo dejo sin tocar porque es de infraestructura y afecta a todos los módulos.
+   workspace. Ahora usa `../node_modules/jest/bin/jest.js` y ejecuta sin `MODULE_NOT_FOUND`.
 
-2. **La URL del correo apunta a `/leads`, no a un detalle.** Pediste "URL directa al Lead",
-   pero **no existe ruta `/leads/:id` en el frontend** (solo `/leads`, con el detalle en un
-   modal). No inventé una ruta que no funciona. Para el enlace directo haría falta crear esa
-   ruta; dime si la quieres.
+2. ~~**La URL del correo apunta a `/leads`, no a un detalle.**~~ **Resuelto en la Fase 3**:
+   existe la ruta `/leads/:id` con el detalle del lead y el correo ya enlaza directamente a
+   `${FRONTEND_URL}/leads/<id>`.
 
 3. **No hay cola de trabajos genérica.** El outbox de SOAT existe pero es de ese dominio
    (`equipo_id NOT NULL`) y su worker es un cron específico, así que no admite filas de
@@ -201,9 +199,10 @@ correo falla, el lead ya existe y no se revierte nada; el fallo queda registrado
 
 ### Riesgos conocidos
 
-4. **`DROP COLUMN assigned_to` es irreversible.** Lo autorizaste y la guarda del backfill
-   protege la ejecución, pero conviene un respaldo previo (`pg_dump -t leads`) antes de
-   desplegar a producción.
+4. ~~**`DROP COLUMN assigned_to` es irreversible.**~~ **Verificado y respaldado.** Se
+   confirmó que no hubo pérdida (36 asignaciones del seed → 36 tras el backfill, 0 FK
+   inválidas) y se volcaron las 5 tablas afectadas con `pg_dump`. Falta repetir el respaldo
+   **en el entorno de producción** antes de desplegar.
 
 5. **La columna ya está aplicada en la copia local.** En producción se aplicará sola en el
    próximo arranque (`npm start` ejecuta `npm run migrate`).
@@ -211,10 +210,11 @@ correo falla, el lead ya existe y no se revierte nada; el fallo queda registrado
 6. **5 minutos de demora en cambios de permiso.** `obtenerPermisosUsuario` cachea 300 s:
    un permiso recién otorgado puede tardar hasta 5 minutos en reflejarse.
 
-7. **`ON DELETE CASCADE` en `lead_asignacion_notificaciones.lead_id`.** Si borras un lead,
-   su historial de notificaciones se borra con él. Se eligió así para no romper el endpoint
-   `DELETE /api/v1/leads/:id`. Si prefieres conservar el historial aunque se borre el lead,
-   habría que cambiarlo a `SET NULL`.
+7. **`ON DELETE CASCADE` en `lead_asignacion_notificaciones.lead_id`.** Se dejó como estaba,
+   pero **ya no puede llegar a ejecutarse**: la migración 140 hizo que los leads se archiven
+   con `UPDATE` en lugar de borrarse, y si alguien intentara un `DELETE` físico en SQL, la FK
+   `RESTRICT` de `lead_history` lo bloquea antes. Queda sin efecto por el mismo motivo que
+   afectaba al historial; no hizo falta tocarlo.
 
 ---
 

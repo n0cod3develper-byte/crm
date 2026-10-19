@@ -73,7 +73,7 @@ viable la atomicidad.
 ```sql
 lead_history (
   id                     BIGSERIAL PK,
-  lead_id                UUID NOT NULL FK → leads(id) ON DELETE CASCADE,
+  lead_id                UUID NOT NULL FK → leads(id) ON DELETE RESTRICT,
   event_type             VARCHAR(40) NOT NULL CHECK en
                          (CREACION, ASIGNACION, CAMBIO_ESTADO, MODIFICACION, CIERRE, ACTIVIDAD),
   field_name             VARCHAR(80),
@@ -138,7 +138,7 @@ El listado enlaza al detalle desde el nombre del lead.
 
 ## 6. Pruebas ejecutadas
 
-### Integración contra PostgreSQL real — 15/15
+### Integración contra PostgreSQL real — 24/24
 
 Estas verifican garantías que un mock **no** puede demostrar:
 
@@ -157,6 +157,15 @@ Estas verifican garantías que un mock **no** puede demostrar:
 | 12 | Lead antiguo sin historial → lista vacía, sin errores | ✔ |
 | — | Filtro por rango de fechas | ✔ |
 | — | 3 pruebas unitarias de `diffLead` | ✔ |
+| I1 | Crear lead **ya asignado** genera `CREACION` + `ASIGNACION` | ✔ |
+| I2 | Reasignar registra empleado **anterior y nuevo** | ✔ |
+| I3 | Dos reasignaciones encadenadas: los 3 eslabones, sin sobrescribir | ✔ |
+| I4 | **Última gestión comercial = NULL** pese a haber modificaciones | ✔ |
+| I7 | Conversión a contacto genera `CAMBIO_ESTADO` + `CIERRE` | ✔ |
+| A1 | Archivar conserva el lead, lo retira del listado y añade su evento | ✔ |
+| A2 | El historial de un lead **archivado** sigue siendo consultable | ✔ |
+| A3 | Un lead archivado no se puede editar ni archivar dos veces | ✔ |
+| A4 | **El borrado físico queda bloqueado** (FK `RESTRICT`) | ✔ |
 
 La prueba 11 instala un trigger que lanza una excepción sobre `lead_history`, ejecuta una
 modificación y comprueba que **el teléfono y el estado del lead quedan intactos** y que no
@@ -165,16 +174,26 @@ queda ningún evento huérfano.
 Tiene guarda anti-producción: solo se ejecuta si el nombre de la base contiene
 `prueba|test|dev|local|sandbox|tmp`; si no, se omite con aviso.
 
-### API — 24/24
+### API — 29/29
 
 Los 12 escenarios de la Fase 2 siguen en verde, más 8 del historial: paginación, filtros,
 tipo inválido (422), lead inexistente (404), resumen de lead sin historial, sin permisos
 (403), **ausencia de endpoints de escritura**, y anotación del resultado del correo.
 
+Y 5 de archivado lógico: `DELETE` archiva y responde «Lead archivado», pasa el usuario
+autenticado para la trazabilidad, doble archivado → 404, **detalle/historial/resumen
+siguen respondiendo de un lead archivado**, y la última gestión comercial queda en `NULL`.
+
 ### Regresiones
 
 `audit.middleware`, `servicios` y `remisionSustitucion` siguen en verde.
-**83 pruebas en verde** en el total relevante (antes 74).
+**103 pruebas en verde** en el total relevante (antes 74), con los mismos 24 fallos de
+siempre.
+
+### Compilación
+
+`npm run build --workspace=frontend` compila (4.146 módulos). `npm test` del backend
+**ejecuta correctamente** (ver limitación 6).
 
 Sigue fallando lo mismo que antes de este cambio y sin relación con Leads:
 `horasExtras` (24 fallos de la lógica de horas), `informes/gestionHumana.test.js` y
@@ -198,21 +217,24 @@ Sigue fallando lo mismo que antes de este cambio y sin relación con Leads:
    aparecerán solas en cuanto se empiecen a vincular. No tiene índice sobre
    `(related_type, related_id)` y no lo añadí para no tocar un módulo ajeno.
 
-4. **`ON DELETE CASCADE` sobre `lead_history.lead_id`.** Al borrar un lead se borra su
-   historial. Se eligió así para no romper `DELETE /api/v1/leads/:id`. Si prefieres
-   conservar la trazabilidad aunque el lead se elimine, habría que pasar a `SET NULL`.
+4. ~~**`ON DELETE CASCADE` sobre `lead_history.lead_id`.**~~ **Resuelto en la migración 140.**
+   Se cambió a `ON DELETE RESTRICT` y se añadió borrado lógico a `leads`. Al verificarlo
+   se comprobó que el `CASCADE` ya había borrado la trazabilidad de verdad: `lead_history`
+   llegó a quedar en **0 filas**. Con `RESTRICT`, ningún `DELETE` físico de un lead con
+   historial es posible; el único camino es `UPDATE ... SET deleted_at`.
 
 5. **Los leads anteriores a esta fase no tienen historial retroactivo.** Se distingue
    explícitamente en la API (`tieneHistorial: false`) para no presentar datos
    reconstruidos como auditados. `audit_logs` sí tiene 8 eventos previos de leads, pero
    como guardan el body nuevo y no el diff, no se integraron para no dar una imagen falsa.
 
-6. **`npm test` del backend sigue roto** (llama a `backend/node_modules/.bin/jest`, pero
-   Jest está hoisted a la raíz). Preexistente y no introducido aquí; lo ejecuté por la
-   ruta real.
+6. ~~**`npm test` del backend sigue roto.**~~ **Corregido**: el script apuntaba a
+   `backend/node_modules/.bin/jest`, que no existe (Jest está hoisted a la raíz). Ahora usa
+   `../node_modules/jest/bin/jest.js`, que es la ruta que sí funciona.
 
-7. **`DROP COLUMN assigned_to` de la migración 138 sigue pendiente de tu respaldo.**
-   Antes de desplegar a producción conviene `pg_dump -t leads`.
+7. ~~**`DROP COLUMN assigned_to` de la migración 138 pendiente de respaldo.**~~ **Resuelto.**
+   Se verificó sin pérdidas (ver la sección 9) y se hizo el respaldo previo de las 5
+   tablas afectadas.
 
 ---
 
@@ -231,4 +253,96 @@ DELETE /api/v1/leads/<id>/history/1      -> 404
 # Revisar en el navegador:
 #   /leads            -> el nombre del lead abre el detalle
 #   /leads/<id>       -> pestañas Resumen | Historial / Trazabilidad | Editar
+
+# Archivado lógico: se retira del listado pero el historial sigue ahí
+DELETE /api/v1/leads/<id>        -> 200 «Lead archivado»
+DELETE /api/v1/leads/<id>        -> 404 la segunda vez
+GET    /api/v1/leads/<id>/history -> 200 también de un lead archivado
 ```
+
+---
+
+## 9. Conservación permanente de la trazabilidad (migración 140)
+
+Verificado sobre la copia local `prueba_restore` antes de escribir nada:
+
+- `leads` **no tiene ninguna restricción UNIQUE** (solo PK, `CHECK` de estado y 3 FKs),
+  así que el borrado lógico no bloquea recrear el mismo correo.
+- **`leads` era el único módulo del proyecto que hacía `DELETE` físico.** `contacts`,
+  `companies`, `opportunities`, `equipos`, `centros_costos`, `proveedores`,
+  `support_tickets`, `ordenes_trabajo`, `remisiones` y las tablas de `email-marketing` ya
+  usan `deleted_at` + `UPDATE ... SET deleted_at = NOW()`. Se alineó Leads con ese patrón.
+- En ningún módulo existe endpoint de restauración, así que se sigue ese mismo criterio:
+  archivar no es reversible desde la interfaz.
+
+Se descartó `ON DELETE SET NULL` porque habría vaciado `lead_id` en cada evento, dejando la
+trazabilidad huérfana sin forma de relacionarla con su lead original. `RESTRICT` mantiene el
+identificador y la consulta tal cual.
+
+`deleted_by` es un UUID **sin FK** a propósito, igual que `assigned_to` en
+`lead_asignacion_notificaciones`: es un dato de auditoría inmutable, y eliminar un usuario
+no debe poder romper ni bloquear la lectura del historial.
+
+### Migración 140 aplicada
+
+| Comprobación | Resultado |
+|---|---|
+| `lead_history_lead_id_fkey` | `ON DELETE RESTRICT` ✔ |
+| `leads.deleted_at` / `deleted_by` | creadas ✔ |
+| `idx_leads_activos` (parcial, `WHERE deleted_at IS NULL`) | creado ✔ |
+| Última migración registrada | `140_leads_borrado_logico.sql` ✔ |
+
+---
+
+## 10. Validación de la migración 138 (sin pérdida de datos)
+
+El resultado llamaba la atención: **los 37 leads asignados apuntan a un único empleado**
+(`ROBINSON ALVEIRO ALVAREZ`). Se investigó antes de dar nada por bueno y se descartó como
+pérdida:
+
+La causa está en el propio seed, en la lógica del responsable:
+
+```sql
+CASE WHEN i % 3 = 0
+     THEN (SELECT id FROM users WHERE estado = 'ACTIVO'
+           ORDER BY id OFFSET (i % 3) LIMIT 1)
+```
+
+La asignación solo se evalúa cuando `i % 3 = 0`, y entonces el `OFFSET (i % 3)` es **siempre
+0**. El seed asignaba todo al primer usuario activo (`admin@gmail.com` → Robinson Alvarez →
+empleado `ROBINSON ALVEIRO ALVAREZ`). Es un artefacto del seed, no de la migración.
+
+| Comprobación | Resultado |
+|---|---|
+| Leads sembrados con responsable | **36** = exactamente los 36 que reportó el backfill |
+| `assigned_to` en `leads` | **0** (columna retirada) |
+| `admin@gmail.com` → empleado | `ROBINSON ALVEIRO ALVAREZ` (Activo) |
+| Asignaciones con FK inválida | **0** |
+| 36 del seed + 1 «Pedro Perez» (prueba manual) | = 37 actuales |
+
+Además, la migración es transaccional y su guarda `IF v_migrada < v_legacy THEN RAISE`
+abortaría todo; se aplicó, luego la guarda pasó.
+
+### Respaldo previo
+
+Se volcaron `leads`, `lead_history`, `lead_asignacion_notificaciones`, `employees` y
+`users` a un `pg_dump` local antes de aplicar la 140. El `COPY public.leads` del respaldo
+es la prueba directa de que `assigned_to` ya no existe y `assigned_employee_id` sí.
+
+**Antes de desplegar a producción hay que repetir ese `pg_dump` en ese entorno.**
+
+---
+
+## 11. Última gestión comercial: fuente estricta
+
+Antes se calculaba como `MAX(fecha)` de cualquier evento que no fuera creación, lo que
+mezclaba gestión comercial real con operaciones administrativas.
+
+Ahora solo cuenta `event_type = 'ACTIVIDAD'` (llamada, seguimiento, reunión o tarea
+vinculada), que es lo único que llega de una actividad comercial real. Un cambio de estado,
+una reasignación o un correo **no cuentan**.
+
+La integración con `tasks` está implementada pero sin efecto hoy: `tasks.related_type` está
+a `NULL` en sus 3 filas y **cero referencian leads**. Por eso el indicador devuelve `NULL`
+y la interfaz muestra **«Sin gestión registrada»**. Es el dato honesto; la integración
+empezará a aparecer sola en cuanto se empiecen a vincular tareas a un lead.
