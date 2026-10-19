@@ -29,6 +29,7 @@ const ContactsPage = lazy(() => import('./pages/Contacts/ContactsPage').then(m =
 const PipelinePage = lazy(() => import('./pages/Pipeline/PipelinePage').then(m => ({ default: m.PipelinePage })));
 const TasksPage = lazy(() => import('./pages/Tasks/TasksPage').then(m => ({ default: m.TasksPage })));
 const LeadsPage = lazy(() => import('./pages/Leads/LeadsPage').then(m => ({ default: m.LeadsPage })));
+const LeadDetailPage = lazy(() => import('./pages/Leads/LeadDetailPage').then(m => ({ default: m.LeadDetailPage })));
 const InventoryPage = lazy(() => import('./pages/Inventory/InventoryPage').then(m => ({ default: m.InventoryPage })));
 const CampaignsPage = lazy(() => import('./pages/Campaigns/CampaignsPage').then(m => ({ default: m.CampaignsPage })));
 const SupportPage = lazy(() => import('./pages/Support/SupportPage').then(m => ({ default: m.SupportPage })));
@@ -237,6 +238,7 @@ function App() {
 
                 {/* Marketing */}
                 <Route path="/leads" element={<ProtectedRoute modulo="leads" accion="ver"><LeadsPage /></ProtectedRoute>} />
+                <Route path="/leads/:id" element={<ProtectedRoute modulo="leads" accion="ver"><LeadDetailPage /></ProtectedRoute>} />
                 <Route path="/campaigns" element={<ProtectedRoute modulo="campanas" accion="ver"><CampaignsPage /></ProtectedRoute>} />
 
                 {/* Operaciones */}

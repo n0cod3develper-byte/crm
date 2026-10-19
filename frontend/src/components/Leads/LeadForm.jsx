@@ -3,8 +3,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'react-hot-toast';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
+import { FUENTES } from '../../constants/leads';
 
 const leadSchema = z.object({
   first_name: z.string().min(2, 'Nombre obligatorio'),
@@ -15,12 +16,51 @@ const leadSchema = z.object({
   source: z.string().optional(),
   status: z.enum(['new', 'contacted', 'qualified', 'converted', 'dead']).default('new'),
   score: z.coerce.number().min(0).max(100).default(0),
+  // Opcional: se permite guardar leads sin asignar. '' viene del select vacío.
+  assigned_employee_id: z
+    .union([z.string().uuid('Empleado asignado inválido'), z.literal(''), z.null()])
+    .optional(),
   notes: z.string().optional(),
 });
 
 export function LeadForm({ lead, onSuccess, onCancel }) {
   const queryClient = useQueryClient();
   const isEditing = !!lead;
+
+  // Si el lead tiene una fuente libre anterior al catálogo (p. ej. 'FB', 'pagina web'),
+  // se añade a la lista para que el <select> la muestre y no se pierda al guardar.
+  const fuentes = React.useMemo(() => {
+    const lista = [...FUENTES];
+    const actual = lead?.source?.trim();
+    if (isEditing && actual && !lista.includes(actual)) lista.unshift(actual);
+    return lista;
+  }, [isEditing, lead?.source]);
+
+  // Empleados activos para el desplegable "Asignado a"
+  const {
+    data: empleados = [],
+    isLoading: cargandoEmpleados,
+    isError: falloEmpleados,
+  } = useQuery({
+    queryKey: ['leads-asignables'],
+    queryFn: async () => {
+      const { data } = await api.get('/leads/asignables');
+      return data?.data || [];
+    },
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+
+  // Si el responsable quedó INACTIVO después de asignarse, no aparece en la lista.
+  // Se añade igualmente para conservar la asignación histórica en lugar de vaciarla.
+  const opcionesEmpleados = React.useMemo(() => {
+    const lista = [...empleados];
+    const idActual = lead?.assigned_employee_id;
+    if (isEditing && idActual && !lista.some((e) => e.id === idActual)) {
+      lista.unshift({ id: idActual, full_name: `${lead.assigned_employee_name || 'Empleado asignado'} (inactivo)` });
+    }
+    return lista;
+  }, [empleados, isEditing, lead?.assigned_employee_id, lead?.assigned_employee_name]);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(leadSchema),
@@ -34,6 +74,8 @@ export function LeadForm({ lead, onSuccess, onCancel }) {
       ['email', 'phone', 'company_name', 'source', 'notes'].forEach(k => {
         if (!payload[k]) payload[k] = '';
       });
+      // El id de empleado vacío debe ir como null: '' rompería la validación de UUID
+      if (!payload.assigned_employee_id) payload.assigned_employee_id = null;
 
       if (isEditing) {
         const { data } = await api.patch(`/leads/${lead.id}`, payload);
@@ -86,7 +128,12 @@ export function LeadForm({ lead, onSuccess, onCancel }) {
         </div>
         <div className="input-group w-full">
           <label className="input-label">Fuente (Source)</label>
-          <input {...register('source')} className="input" placeholder="Ej: Web, Facebook, Referido" />
+          <select {...register('source')} className="input">
+            <option value="">— Sin fuente —</option>
+            {fuentes.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -105,6 +152,29 @@ export function LeadForm({ lead, onSuccess, onCancel }) {
           <label className="input-label">Scoring (0-100)</label>
           <input {...register('score')} className="input" type="number" min="0" max="100" />
         </div>
+      </div>
+
+      <div className="input-group">
+        <label className="input-label">Asignado a (Opcional)</label>
+        <select {...register('assigned_employee_id')} className="input" disabled={cargandoEmpleados}>
+          <option value="">{cargandoEmpleados ? 'Cargando empleados…' : '— Sin asignar —'}</option>
+          {opcionesEmpleados.map((e) => (
+            <option key={e.id} value={e.id}>{e.full_name}</option>
+          ))}
+        </select>
+        {cargandoEmpleados && (
+          <span className="input-hint" style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
+            Cargando empleados activos…
+          </span>
+        )}
+        {falloEmpleados && (
+          <span className="input-error">No fue posible cargar la lista de empleados. Intente de nuevo.</span>
+        )}
+        {!cargandoEmpleados && !falloEmpleados && opcionesEmpleados.length === 0 && (
+          <span className="input-hint" style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
+            No hay empleados activos disponibles.
+          </span>
+        )}
       </div>
 
       <div className="input-group">

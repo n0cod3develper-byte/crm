@@ -1,33 +1,41 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Megaphone, Trash2, Edit2, ArrowRightCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { LeadForm } from '../../components/Leads/LeadForm';
+import { STATUS_COLORS } from '../../constants/leads';
 import api from '../../lib/api';
 
-const STATUS_COLORS = {
-  new: { bg: '#e0f2fe', color: '#0284c7', label: 'Nuevo' },
-  contacted: { bg: '#fef08a', color: '#854d0e', label: 'Contactado' },
-  qualified: { bg: '#dcfce3', color: '#166534', label: 'Calificado' },
-  converted: { bg: '#dbeafe', color: '#1e40af', label: 'Convertido' },
-  dead: { bg: '#fee2e2', color: '#991b1b', label: 'Descartado' },
-};
-
 export function LeadsPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = React.useState('');
   const [filterStatus, setFilterStatus] = React.useState('all');
+  const [filterEmpleado, setFilterEmpleado] = React.useState('all');
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [editingLead, setEditingLead] = React.useState(null);
   const queryClient = useQueryClient();
 
+  // Empleados activos: alimentan el filtro y el texto "Sin asignar"
+  const { data: empleados = [] } = useQuery({
+    queryKey: ['leads-asignables'],
+    queryFn: async () => {
+      const { data } = await api.get('/leads/asignables');
+      return data?.data || [];
+    },
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+
   const { data, isLoading } = useQuery({
-    queryKey: ['leads', search, filterStatus],
+    queryKey: ['leads', search, filterStatus, filterEmpleado],
     queryFn: async () => {
       const params = { limit: 50 };
       if (search) params.search = search;
       if (filterStatus && filterStatus !== 'all') params.status = filterStatus;
+      if (filterEmpleado && filterEmpleado !== 'all') params.assignedTo = filterEmpleado;
       const { data } = await api.get('/leads', { params });
       return data;
     },
@@ -90,6 +98,19 @@ export function LeadsPage() {
                </button>
             ))}
           </div>
+          <select
+            className="input"
+            style={{ maxWidth: 240 }}
+            value={filterEmpleado}
+            onChange={(e) => setFilterEmpleado(e.target.value)}
+            aria-label="Filtrar por empleado asignado"
+          >
+            <option value="all">Todos los responsables</option>
+            <option value="none">Sin asignar</option>
+            {empleados.map((e) => (
+              <option key={e.id} value={e.id}>{e.full_name}</option>
+            ))}
+          </select>
         </div>
 
         {isLoading ? (
@@ -110,6 +131,7 @@ export function LeadsPage() {
                   <th>Empresa</th>
                   <th>Contacto</th>
                   <th>Fuente</th>
+                  <th>Asignado a</th>
                   <th>Scoring</th>
                   <th>Estado</th>
                   <th style={{ textAlign: 'right' }}>Acciones</th>
@@ -123,7 +145,16 @@ export function LeadsPage() {
                   return (
                     <tr key={lead.id} style={{ opacity: isConverted || lead.status === 'dead' ? 0.6 : 1 }}>
                       <td style={{ fontWeight: 600 }}>
-                        {lead.first_name} {lead.last_name || ''}
+                        <button
+                          onClick={() => navigate(`/leads/${lead.id}`)}
+                          title="Ver detalle y trazabilidad del lead"
+                          style={{
+                            background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                            font: 'inherit', color: 'var(--text-primary)', textAlign: 'left',
+                          }}
+                        >
+                          {lead.first_name} {lead.last_name || ''}
+                        </button>
                       </td>
                       <td>{lead.company_name || '—'}</td>
                       <td>
@@ -131,6 +162,18 @@ export function LeadsPage() {
                         <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{lead.phone || '—'}</div>
                       </td>
                       <td style={{ color: 'var(--text-secondary)' }}>{lead.source || '—'}</td>
+                      <td>
+                        {lead.assigned_employee_id ? (
+                          <span
+                            title="Responsable del lead"
+                            style={{ fontSize: 'var(--text-sm)', fontWeight: 600 }}
+                          >
+                            {lead.assigned_employee_name || 'Empleado asignado'}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Sin asignar</span>
+                        )}
+                      </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <div style={{ width: '40px', height: '6px', background: 'var(--bg-elevated)', borderRadius: '3px', overflow: 'hidden' }}>
@@ -169,7 +212,7 @@ export function LeadsPage() {
                           className="btn btn--ghost btn--sm" 
                           style={{ padding: '0.375rem', color: 'var(--clr-danger)' }} 
                           onClick={() => {
-                            if(window.confirm('¿Seguro de eliminar este lead?')) {
+                            if(window.confirm('¿Archivar este lead? Se retira del listado, pero se conserva su información y su trazabilidad completa.')) {
                               deleteMutation.mutate(lead.id);
                             }
                           }}
