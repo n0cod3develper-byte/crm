@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS inventario_locativo (
   numero_documento_soporte VARCHAR(100),
   proveedor_id            UUID REFERENCES proveedores(id),
   proveedor_nombre        VARCHAR(200),
-  documento_adjunto_id    UUID REFERENCES documentos(id),
+  documento_adjunto_id    UUID, -- FK a documentos removida: tabla no existe aún
   especificaciones        JSONB DEFAULT '{}',
   foto_path               VARCHAR(500),
   foto_url                VARCHAR(500),
