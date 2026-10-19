@@ -12,8 +12,16 @@ const historyRepo = new LeadsHistoryRepository();
 const ejecutar = (client, sql, params) => (client ? client.query(sql, params) : query(sql, params));
 
 export class LeadsRepository {
-  async findAll({ status, assignedTo, source, campaignId, search, limit = 50, cursor }) {
-    const conditions = ['1=1', 'l.deleted_at IS NULL'];
+  /**
+   * @param {Object} opts.archivados  `true` → lista SOLO los archivados
+   *  (vista de archivados). Por defecto lista los activos y excluye los
+   *  archivados.
+   */
+  async findAll({ status, assignedTo, source, campaignId, search, limit = 50, cursor, archivados = false }) {
+    // Vista de archivados: en vez de excluirlos, los selecciona.
+    const conditions = archivados
+      ? ['1=1', 'l.deleted_at IS NOT NULL']
+      : ['1=1', 'l.deleted_at IS NULL'];
     const params = [];
     let i = 1;
 
@@ -45,7 +53,10 @@ export class LeadsRepository {
       i++;
     }
     if (cursor) {
-      conditions.push(`l.created_at < (SELECT created_at FROM leads WHERE id = $${i++})`);
+      // En la vista de archivados se pagina por la fecha de archivado, que es
+      // el orden que esa vista usa.
+      const columnaFecha = archivados ? 'l.deleted_at' : 'l.created_at';
+      conditions.push(`${columnaFecha} < (SELECT ${archivados ? 'deleted_at' : 'created_at'} FROM leads WHERE id = $${i++})`);
       params.push(cursor);
     }
 
@@ -59,7 +70,7 @@ export class LeadsRepository {
       LEFT JOIN employees e ON e.id = l.assigned_employee_id
       LEFT JOIN campaigns c ON c.id = l.campaign_id
       WHERE ${conditions.join(' AND ')}
-      ORDER BY l.created_at DESC
+      ORDER BY ${archivados ? 'l.deleted_at DESC' : 'l.created_at DESC'}
       LIMIT $${i}
     `;
 
@@ -437,10 +448,11 @@ export class LeadsRepository {
 
       const r = await ejecutar(client,
         `UPDATE leads
-            SET deleted_at = NOW(), deleted_by = $2, updated_at = NOW()
+            SET deleted_at = NOW(), deleted_by = $2,
+                deleted_by_name = $3, updated_at = NOW()
           WHERE id = $1 AND deleted_at IS NULL
           RETURNING id, deleted_at`,
-        [id, ctx.userId || null]
+        [id, ctx.userId || null, ctx.userName || null]
       );
       const archivado = r.rows[0];
       if (!archivado) return null;
@@ -459,6 +471,75 @@ export class LeadsRepository {
       }, client);
 
       return archivado;
+    });
+  }
+
+  /**
+   * Restaura un lead archivado (invierte el borrado lógico).
+   *
+   * GARANTÍAS:
+   * · Transaccional: si falla el registro RESTAURACION en `lead_history`, se
+   *   revierte el restore. Nunca queda un lead restaurado sin trazabilidad.
+   * · NO envía correo de asignación. El correo solo lo dispara el controlador
+   *   cuando cambia `assigned_employee_id` vía PATCH; este método es un
+   *   UPDATE dedicado que no pasa por esa ruta, y además NO toca
+   *   `assigned_employee_id` ni `status`.
+   * · Conserva responsable y estado: el archivado solo puso `deleted_at` y
+   *   `deleted_by`, así que se limpian esas tres columnas y nada más. Se
+   *   captura el estado antes y después para dejar constancia en el evento.
+   * · El historial completo se conserva sin tocar (las gestiones y los eventos
+   *   viven en sus propias tablas y no se borran al archivar).
+   *
+   * @param {string} id
+   * @param {Object} ctx { userId, userName }
+   */
+  async restaurar(id, ctx = {}) {
+    return withTransaction(async (client) => {
+      // findByIncluyendoArchivado: el activo no tiene nada que restaurar
+      const lead = await this.findByIdIncluyendoArchivado(id, client);
+      if (!lead || !lead.deleted_at) return null;
+
+      const r = await ejecutar(client,
+        `UPDATE leads
+            SET deleted_at = NULL, deleted_by = NULL, deleted_by_name = NULL,
+                updated_at = NOW()
+          WHERE id = $1 AND deleted_at IS NOT NULL
+          RETURNING *`,
+        [id]
+      );
+      const restaurado = r.rows[0];
+      if (!restaurado) return null;
+
+      // Estado conservado: responsable y estado NO se tocaron al archivar.
+      // En `metadata` se usa snake_case, igual que en `contacto_id` al convertir.
+      const estadoConservado = {
+        estado_anterior: lead.status,
+        estado_actual: restaurado.status,
+        empleado_anterior: lead.assigned_employee_name,
+        empleado_actual: restaurado.assigned_employee_id === lead.assigned_employee_id
+          ? lead.assigned_employee_name
+          : null,
+        archivado_en: lead.deleted_at,
+      };
+
+      await historyRepo.registrar({
+        leadId: id,
+        eventType: 'RESTAURACION',
+        fieldName: 'deleted_at',
+        // Valor anterior: cuándo se había archivado. Nuevo: vacío (activo).
+        oldValue: lead.deleted_at instanceof Date
+          ? lead.deleted_at.toISOString()
+          : String(lead.deleted_at),
+        newValue: null,
+        description: `Lead restaurado. Conserva su estado (${estadoConservado.estado_actual}) y su responsable.`,
+        performedByUserId: ctx.userId || null,
+        performedByName: ctx.userName || null,
+        assignedEmployeeId: restaurado.assigned_employee_id || null,
+        assignedEmployeeName: estadoConservado.empleado_actual,
+        metadata: estadoConservado,
+      }, client);
+
+      return { ...restaurado, estadoConservado };
     });
   }
 }

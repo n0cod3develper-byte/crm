@@ -1,6 +1,6 @@
 import z from 'zod';
 
-/** Tipos de evento que reconoce la trazabilidad (coinciden con el CHECK de la migración 139). */
+/** Tipos de evento que reconoce la trazabilidad (coinciden con el CHECK de las migraciones 139 y 141). */
 export const TIPOS_EVENTO = [
   'CREACION',
   'ASIGNACION',
@@ -8,6 +8,7 @@ export const TIPOS_EVENTO = [
   'MODIFICACION',
   'CIERRE',
   'ACTIVIDAD',
+  'RESTAURACION',
 ];
 
 /**

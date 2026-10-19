@@ -123,8 +123,8 @@ export class LeadsHistoryRepository {
       whereHistorial += ` AND h.created_at <= ${p}`;
     }
 
-    // La rama de tareas solo entra cuando el filtro no excluye las actividades.
-    const incluirTareas = !eventType || eventType === 'ACTIVIDAD';
+    // La rama de gestiones solo entra cuando el filtro no excluye las actividades.
+    const incluirGestiones = !eventType || eventType === 'ACTIVIDAD';
 
     const ramas = [`
         SELECT
@@ -143,23 +143,38 @@ export class LeadsHistoryRepository {
         FROM lead_history h
         WHERE ${whereHistorial}`];
 
-    if (incluirTareas) {
+    if (incluirGestiones) {
+      // Las gestiones comerciales viven en su propia tabla (migración 141) y
+      // entran a la línea de tiempo por fecha OCURRENCIA, no por fecha de
+      // registro. Antes se leía de `tasks`, que no guarda el resultado ni el
+      // empleado real ni el momento en que pasó la gestión.
       ramas.push(`
         SELECT
-          'T-' || t.id               AS id_orden,
-          t.created_at               AS fecha,
+          'G-' || g.id               AS id_orden,
+          g.fecha_gestion            AS fecha,
           'ACTIVIDAD'                AS fuente,
-          t.id::text                 AS id_evento,
+          g.id::text                 AS id_evento,
           'ACTIVIDAD'                AS tipo,
-          NULL::varchar              AS campo,
+          g.tipo                     AS campo,
           NULL::text                 AS valor_anterior,
-          t.status                   AS valor_nuevo,
-          (t.title || COALESCE(' — ' || t.description, '')) AS descripcion,
-          NULL::varchar              AS usuario,
-          NULL::varchar              AS empleado,
-          NULL::jsonb                AS metadata
-        FROM tasks t
-        WHERE t.related_type = 'lead' AND t.related_id = ${pLead}`);
+          g.resultado                AS valor_nuevo,
+          (CASE g.tipo
+             WHEN 'llamada'      THEN 'Llamada'
+             WHEN 'reunion'      THEN 'Reunión'
+             WHEN 'correo'       THEN 'Correo de seguimiento'
+             WHEN 'observacion'  THEN 'Observación'
+             ELSE 'Otra gestión'
+           END
+           || COALESCE(': ' || g.observaciones, '')) AS descripcion,
+          g.created_by_name          AS usuario,
+          g.employee_name            AS empleado,
+          jsonb_strip_nulls(jsonb_build_object(
+            'gestion_tipo',         g.tipo,
+            'gestion_resultado',    g.resultado,
+            'proxima_seguimiento',  g.proxima_seguimiento
+          ))                         AS metadata
+        FROM lead_gestiones g
+        WHERE g.lead_id = ${pLead}`);
     }
 
     let whereCursor = '';
@@ -225,14 +240,14 @@ export class LeadsHistoryRepository {
    *
    * OJO con `ultima_gestion`: NO es "última modificación del lead". Un cambio de
    * estado, una reasignación o un correo son operaciones administrativas, no
-   * gestión comercial. Aquí solo cuenta una ACTIVIDAD comercial real (llamada,
-   * seguimiento, reunión, tarea vinculada), que llega con tipo 'ACTIVIDAD' desde
-   * la integración con el módulo de tareas.
+   * gestión comercial. Aquí solo cuenta una gestión comercial REAL registrada en
+   * `lead_gestiones` (llamada, reunión, correo de seguimiento, observación),
+   * por su fecha de OCURRENCIA y no por la de registro.
    *
-   * Hoy `tasks.related_type` está a NULL en sus 3 filas y cero referencian leads,
-   * así que este indicador devuelve NULL y la interfaz muestra "Sin gestión
-   * registrada". Es el dato honesto, no uno reconstruido. La integración
-   * empezará a aparecer sola en cuanto las tareas se vinculen a un lead.
+   * Hoy `lead_gestiones` está vacía, así que este indicador devuelve NULL y la
+   * interfaz muestra "Sin gestión registrada". Es el dato honesto, no uno
+   * reconstruido. Empezará a llenarse en cuanto se registren gestiones desde el
+   * detalle del lead.
    */
   async findSummary(leadId) {
     const sql = `
@@ -245,10 +260,17 @@ export class LeadsHistoryRepository {
         (SELECT MIN(h.created_at) FROM lead_history h
           WHERE h.lead_id = l.id AND h.event_type = 'ASIGNACION')
                           AS fecha_primera_asignacion,
-        (SELECT MAX(h.created_at) FROM lead_history h
-          WHERE h.lead_id = l.id AND h.event_type = 'ACTIVIDAD')
+        -- Solo gestión comercial REAL, por su fecha de ocurrencia.
+        -- lead_gestiones es la única fuente: las modificaciones del lead no
+        -- cuentan.
+        (SELECT MAX(g.fecha_gestion) FROM lead_gestiones g
+          WHERE g.lead_id = l.id)
                           AS ultima_gestion,
-        (SELECT COUNT(*) FROM lead_history h WHERE h.lead_id = l.id)::int
+        (SELECT COUNT(*) FROM lead_gestiones g WHERE g.lead_id = l.id)::int
+                          AS total_gestiones,
+        -- Eventos de auditoría + gestiones: la actividad total del lead
+        ((SELECT COUNT(*) FROM lead_history h WHERE h.lead_id = l.id)
+       + (SELECT COUNT(*) FROM lead_gestiones g WHERE g.lead_id = l.id))::int
                           AS total_eventos
       FROM leads l
       LEFT JOIN employees e ON e.id = l.assigned_employee_id

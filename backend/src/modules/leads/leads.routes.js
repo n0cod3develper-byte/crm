@@ -10,6 +10,12 @@ import {
 } from './leads.schema.js';
 import { leadsHistoryController } from './leadsHistory.controller.js';
 import { historyQuerySchema } from './leadsHistory.schema.js';
+import { leadGestionesController } from './leadGestiones.controller.js';
+import {
+  createGestionSchema,
+  gestionesQuerySchema,
+  restoreLeadSchema,
+} from './leadGestiones.schema.js';
 
 const router = Router();
 
@@ -50,6 +56,19 @@ router.get('/:id/summary',
   verificarPermiso('leads', 'ver'),
   leadsHistoryController.summary);
 
+// ─── Gestiones comerciales ────────────────────────────────────────────
+// Hechos históricos reales (llamada, reunión, correo, observación). Son la
+// ÚNICA fuente de "última gestión comercial".
+router.get('/:id/gestiones',
+  validateQuery(gestionesQuerySchema),
+  verificarPermiso('leads', 'ver'),
+  leadGestionesController.list);
+
+router.post('/:id/gestiones',
+  validate(createGestionSchema),
+  verificarPermiso('leads', 'crear'),
+  leadGestionesController.create);
+
 router.patch('/:id',
   validate(updateLeadSchema),
   verificarPermiso('leads', 'editar'),
@@ -62,5 +81,12 @@ router.patch('/:id/convert',
 router.delete('/:id',
   verificarPermiso('leads', 'eliminar'),
   leadsController.remove);
+
+// Restaurar usa el MISMO permiso que archivar ('eliminar'): es su inverso
+// exacto. No dispara el correo de asignación.
+router.post('/:id/restaurar',
+  validate(restoreLeadSchema),
+  verificarPermiso('leads', 'eliminar'),
+  leadsController.restore);
 
 export default router;

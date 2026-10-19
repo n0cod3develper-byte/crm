@@ -32,10 +32,12 @@ function nombreDeUsuario(user) {
 export const leadsController = {
   async list(req, res, next) {
     try {
-      const { status, assignedTo, source, campaignId, search, limit, cursor } = req.query;
+      const { status, assignedTo, source, campaignId, search, limit, cursor, archivados } = req.query;
       const result = await repo.findAll({
         status, assignedTo, source, campaignId, search,
         limit: parseInt(limit) || 50, cursor,
+        // `archivados=true` → vista de archivados (solo archivados).
+        archivados: archivados === 'true' || archivados === '1',
       });
       res.json({ success: true, ...result });
     } catch (err) { next(err); }
@@ -157,6 +159,29 @@ export const leadsController = {
       });
       if (!result) throw new NotFoundError('Lead no encontrado o ya archivado');
       res.json({ success: true, message: 'Lead archivado' });
+    } catch (err) { next(err); }
+  },
+
+  /**
+   * POST /api/v1/leads/:id/restaurar
+   *
+   * Invierte el archivado. NO pasa por `updateConHistorial`, así que NO se
+   * dispara el correo de asignación de la Fase 2: restaurar no cambia el
+   * responsable, solo lo devuelve al listado.
+   */
+  async restore(req, res, next) {
+    try {
+      const restaurado = await repo.restaurar(req.params.id, {
+        userId: req.userId,
+        userName: nombreDeUsuario(req.user),
+      });
+      if (!restaurado) throw new NotFoundError('Lead no encontrado o no está archivado');
+
+      res.json({
+        success: true,
+        message: 'Lead restaurado. Conserva su estado y su responsable.',
+        data: restaurado,
+      });
     } catch (err) { next(err); }
   },
 };

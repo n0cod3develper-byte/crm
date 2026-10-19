@@ -27,9 +27,13 @@ END $$;
 
 BEGIN;
 
--- El historial es permanente (FK RESTRICT desde la migración 140): para poder
--- regenerar los leads de prueba hay que retirar primero sus eventos. Se limita
+-- El historial es permanente (FK RESTRICT desde la migración 140) y las
+-- gestiones comerciales también (migración 141): para poder regenerar los
+-- leads de prueba hay que retirar primero sus eventos y gestiones. Se limita
 -- explícitamente a los propios leads del seed.
+DELETE FROM lead_gestiones
+WHERE lead_id IN (SELECT id FROM leads WHERE notes LIKE '[SEED-FASE1]%');
+
 DELETE FROM lead_history
 WHERE lead_id IN (SELECT id FROM leads WHERE notes LIKE '[SEED-FASE1]%');
 

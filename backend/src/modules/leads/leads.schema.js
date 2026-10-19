@@ -47,6 +47,8 @@ export const listLeadsQuerySchema = z.object({
   search: z.string().trim().max(255).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   cursor: z.string().uuid().optional(),
+  // `archivados=true` → vista de archivados en vez de los activos
+  archivados: z.enum(['true', 'false', '1', '0']).optional(),
 });
 
 /** Búsqueda de empleados activos para el select (ítem del formulario). */
