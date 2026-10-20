@@ -949,4 +949,15 @@ describe('Leads — nota del cambio de estado y conversión', () => {
     expect(res.status).toBe(403);
     expect(mockConvert).not.toHaveBeenCalled();
   });
+
+  test('sin permiso, cambiar de estado responde 403', async () => {
+    permisoDenegado = true;
+
+    const res = await request(app)
+      .patch(`/api/v1/leads/${LEAD_ID}`)
+      .send({ status: 'contacted', nota: NOTA });
+
+    expect(res.status).toBe(403);
+    expect(mockUpdateConHistorial).not.toHaveBeenCalled();
+  });
 });

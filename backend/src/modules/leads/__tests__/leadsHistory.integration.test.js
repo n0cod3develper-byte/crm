@@ -126,6 +126,16 @@ cond('Historial de Leads (integración con PostgreSQL)', () => {
     expect(data[0].valorNuevo).toBe('new');
   });
 
+  test('1b. La creación con un estado inicial distinto de "new" lo registra', async () => {
+    const lead = await crearLead({ status: 'qualified' });
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'CREACION' });
+
+    expect(data).toHaveLength(1);
+    expect(data[0].valorAnterior).toBeNull();
+    expect(data[0].valorNuevo).toBe('qualified');
+    expect(data[0].usuario).toBe('Tester Historial');
+  });
+
   test('2. La primera asignación registra un evento ASIGNACION con el empleado', async () => {
     // Se toma un empleado activo real de la base de pruebas
     const emp = await db.query(`SELECT id, full_name FROM employees WHERE status = 'Activo' LIMIT 1`);
@@ -194,6 +204,24 @@ cond('Historial de Leads (integración con PostgreSQL)', () => {
     const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'CIERRE' });
     expect(data).toHaveLength(1);
     expect(data[0].valorNuevo).toBe('dead');
+  });
+
+  test('5c. dead → converted conserva un solo CIERRE', async () => {
+    const lead = await crearLead();
+    await repo.updateConHistorial(lead.id, { status: 'dead', nota: NOTA }, CTX);
+
+    // La conversión es la vía realista para pasar de un terminal a otro.
+    const r = await repo.convertToContact(lead.id, { ...CTX, nota: 'Se recuperó y firmó' });
+    creadosContactos.push(r.contact.id);
+
+    // Se registra el cambio de estado…
+    const { data: cambios } = await hist.findEvents({ leadId: lead.id, eventType: 'CAMBIO_ESTADO' });
+    expect(cambios.some((e) => e.valorAnterior === 'dead' && e.valorNuevo === 'converted')).toBe(true);
+
+    // …pero NO se duplica el cierre: el lead ya estaba cerrado como dead.
+    const { data: cierres } = await hist.findEvents({ leadId: lead.id, eventType: 'CIERRE' });
+    expect(cierres).toHaveLength(1);
+    expect(cierres[0].valorNuevo).toBe('dead');
   });
 
   test('7. El nombre del empleado queda guardado de forma histórica', async () => {
@@ -957,5 +985,73 @@ cond('Trazabilidad de estados con nota (migración 142)', () => {
        GROUP BY lead_id
       HAVING COUNT(*) > 1`);
     expect(duplicados.rows).toHaveLength(0);
+  });
+
+  test('N11. Si falla la auditoría, la conversión se revierte entera', async () => {
+    // Correo único para poder comprobar que no queda ningún resto.
+    const sufijo = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    const email = `atomica-${sufijo}@prueba.local`;
+
+    // Sin company_name: el camino de empresa tiene un defecto PREEXISTENTE
+    // (companies.nit y address son NOT NULL y la conversión solo inserta name).
+    // Se reporta aparte; aquí se valida la atomicidad de contacto + lead.
+    const lead = await crearLead({ status: 'qualified', email });
+
+    // Falla SOLO el INSERT de CAMBIO_ESTADO: el contacto y el UPDATE del lead
+    // ya se habrán ejecutado dentro de la transacción.
+    await db.query(`
+      CREATE OR REPLACE FUNCTION _test_falla_cambio_estado() RETURNS trigger AS $fn$
+      BEGIN
+        IF NEW.event_type = 'CAMBIO_ESTADO' THEN
+          RAISE EXCEPTION 'Fallo simulado de auditoria';
+        END IF;
+        RETURN NEW;
+      END;
+      $fn$ LANGUAGE plpgsql;
+      CREATE TRIGGER _test_falla_cambio_estado BEFORE INSERT ON lead_history
+      FOR EACH ROW EXECUTE FUNCTION _test_falla_cambio_estado();
+    `);
+
+    try {
+      await expect(
+        repo.convertToContact(lead.id, { ...CTX, nota: 'Conversión que debe revertirse' })
+      ).rejects.toThrow(/auditoria/i);
+    } finally {
+      await db.query(`DROP TRIGGER IF EXISTS _test_falla_cambio_estado ON lead_history`);
+      await db.query(`DROP FUNCTION IF EXISTS _test_falla_cambio_estado()`);
+    }
+
+    // El lead NO quedó convertido ni a medias.
+    const tras = await repo.findById(lead.id);
+    expect(tras.status).toBe('qualified');
+    expect(tras.converted_contact_id).toBeNull();
+
+    // No quedó contacto huérfano.
+    const contactos = await db.query(
+      `SELECT COUNT(*)::int AS n FROM contacts WHERE email = $1`, [email]
+    );
+    expect(contactos.rows[0].n).toBe(0);
+
+    // Tampoco quedó un CAMBIO_ESTADO suelto.
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'CAMBIO_ESTADO' });
+    expect(data).toHaveLength(0);
+  });
+
+  test('N12. Una nota con SQLi/XSS se guarda literal y la tabla sigue intacta', async () => {
+    const lead = await crearLead();
+    const sql = "'; DROP TABLE lead_history; --";
+    const xss = '<script>alert("x")</script>';
+    const nota = `${sql} ${xss}`;
+
+    await repo.updateConHistorial(lead.id, { status: 'contacted', nota }, CTX);
+
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'CAMBIO_ESTADO' });
+    expect(data).toHaveLength(1);
+    // Se guarda EXACTAMENTE lo escrito: ni se ejecuta ni se escapa en la BD.
+    expect(data[0].nota).toBe(nota);
+
+    // La tabla sigue existiendo (el SQLi no se ejecutó).
+    const r = await db.query(`SELECT to_regclass('public.lead_history') AS t`);
+    expect(r.rows[0].t).toBe('lead_history');
   });
 });
