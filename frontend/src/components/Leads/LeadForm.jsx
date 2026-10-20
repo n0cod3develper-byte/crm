@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { toast } from 'react-hot-toast';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
+import { fetchAsignables } from '../../lib/leads';
 import { FUENTES, STATUS_COLORS } from '../../constants/leads';
 
 const leadSchema = z.object({
@@ -43,10 +44,7 @@ export function LeadForm({ lead, onSuccess, onCancel }) {
     isError: falloEmpleados,
   } = useQuery({
     queryKey: ['leads-asignables'],
-    queryFn: async () => {
-      const { data } = await api.get('/leads/asignables');
-      return data?.data || [];
-    },
+    queryFn: fetchAsignables,
     staleTime: 60 * 1000,
     retry: 1,
   });
@@ -54,7 +52,7 @@ export function LeadForm({ lead, onSuccess, onCancel }) {
   // Si el responsable quedó INACTIVO después de asignarse, no aparece en la lista.
   // Se añade igualmente para conservar la asignación histórica en lugar de vaciarla.
   const opcionesEmpleados = React.useMemo(() => {
-    const lista = [...empleados];
+    const lista = Array.isArray(empleados) ? [...empleados] : [];
     const idActual = lead?.assigned_employee_id;
     if (isEditing && idActual && !lista.some((e) => e.id === idActual)) {
       lista.unshift({ id: idActual, full_name: `${lead.assigned_employee_name || 'Empleado asignado'} (inactivo)` });

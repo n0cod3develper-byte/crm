@@ -5,6 +5,7 @@ import {
   Plus, Loader2, AlertCircle, CalendarClock, CheckCircle2,
 } from 'lucide-react';
 import api from '../../lib/api';
+import { fetchAsignables } from '../../lib/leads';
 import { usePermissions } from '../../contexts/PermissionsContext';
 import { TIPOS_GESTION } from '../../constants/leads';
 
@@ -55,10 +56,7 @@ export function LeadGestiones({ leadId, leadArchivado }) {
 
   const { data: empleadosData } = useQuery({
     queryKey: ['leads-asignables'],
-    queryFn: async () => {
-      const { data } = await api.get('/leads/asignables');
-      return data;
-    },
+    queryFn: fetchAsignables,
     enabled: puedeCrear && !leadArchivado && mostrarForm,
   });
 
@@ -78,7 +76,7 @@ export function LeadGestiones({ leadId, leadArchivado }) {
   });
 
   const gestiones = data?.data || [];
-  const empleados = empleadosData?.data || [];
+  const empleados = Array.isArray(empleadosData) ? empleadosData : [];
 
   const mostrarBotonCrear = puedeCrear && !leadArchivado;
 

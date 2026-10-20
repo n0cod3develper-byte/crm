@@ -11,6 +11,7 @@ import { ConvertirLeadModal } from '../../components/Leads/ConvertirLeadModal';
 import { usePermissions } from '../../contexts/PermissionsContext';
 import { STATUS_COLORS } from '../../constants/leads';
 import api from '../../lib/api';
+import { fetchAsignables } from '../../lib/leads';
 
 const fmtFechaArchivado = new Intl.DateTimeFormat('es-CO', {
   timeZone: 'America/Bogota', dateStyle: 'medium', timeStyle: 'short',
@@ -37,13 +38,13 @@ export function LeadsPage() {
   // Empleados activos: alimentan el filtro y el texto "Sin asignar"
   const { data: empleados = [] } = useQuery({
     queryKey: ['leads-asignables'],
-    queryFn: async () => {
-      const { data } = await api.get('/leads/asignables');
-      return data?.data || [];
-    },
+    queryFn: fetchAsignables,
     staleTime: 60 * 1000,
     retry: 1,
   });
+
+  // Defensa extra: aunque la caché compartida se contamine, el render no falla.
+  const empleadosLista = Array.isArray(empleados) ? empleados : [];
 
   const { data, isLoading } = useQuery({
     queryKey: ['leads', search, filterStatus, filterEmpleado, vistaArchivados],
@@ -143,7 +144,7 @@ export function LeadsPage() {
           >
             <option value="all">Todos los responsables</option>
             <option value="none">Sin asignar</option>
-            {empleados.map((e) => (
+            {empleadosLista.map((e) => (
               <option key={e.id} value={e.id}>{e.full_name}</option>
             ))}
           </select>
