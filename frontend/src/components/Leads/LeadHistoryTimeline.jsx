@@ -3,8 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import {
   UserPlus, UserCheck, RefreshCw, Pencil, CheckCircle2,
   ClipboardList, Filter, AlertCircle, Mail, MailWarning,
+  RotateCcw, Clock,
 } from 'lucide-react';
 import api from '../../lib/api';
+import { formatearDuracion } from '../../constants/leads';
 
 /** Icono y color por tipo de evento. */
 const TIPOS = {
@@ -14,6 +16,7 @@ const TIPOS = {
   MODIFICACION:    { icon: Pencil,      color: '#0d9488', label: 'Modificación' },
   CIERRE:          { icon: CheckCircle2, color: '#166534', label: 'Cierre' },
   ACTIVIDAD:       { icon: ClipboardList, color: '#4f46e5', label: 'Actividad' },
+  RESTAURACION:    { icon: RotateCcw,   color: '#0f766e', label: 'Restauración' },
 };
 
 /** Fecha y hora en zona horaria de Colombia. */
@@ -196,6 +199,33 @@ function TimelineItem({ ev, esUltimo }) {
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', margin: '0.35rem 0 0' }}>
             {ev.descripcion}
           </p>
+        )}
+
+        {/* Nota escrita por el usuario (solo cambios de estado manuales) */}
+        {ev.nota && (
+          <div style={{
+            marginTop: '0.5rem', padding: '0.5rem 0.75rem',
+            background: 'var(--bg-elevated)', borderLeft: '3px solid #d97706',
+            borderRadius: '4px', fontSize: 'var(--text-sm)', color: 'var(--text-primary)',
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          }}>
+            {ev.nota}
+          </div>
+        )}
+
+        {/* Duración en el estado (solo eventos que entran a un estado) */}
+        {ev.duracionSegundos !== null && ev.duracionSegundos !== undefined && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.35rem',
+            marginTop: '0.4rem', fontSize: 'var(--text-xs)', color: 'var(--text-muted)',
+          }}>
+            <Clock size={12} />
+            <span>
+              {ev.duracionConfiable === false
+                ? 'Duración no disponible (anterior a la migración)'
+                : `${ev.esEstadoActual ? 'En este estado' : 'Duración en el estado'}: ${formatearDuracion(ev.duracionSegundos)}`}
+            </span>
+          </div>
         )}
 
         {/* Comparación de valores (solo cuando hay cambio real) */}

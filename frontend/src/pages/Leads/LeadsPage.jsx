@@ -1,11 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Megaphone, Trash2, Edit2, ArrowRightCircle, Archive, RotateCcw, Loader2 } from 'lucide-react';
+import { Plus, Search, Megaphone, Trash2, Edit2, ArrowRightCircle, Archive, RotateCcw, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Topbar } from '../../components/layout/Topbar';
 import { Modal } from '../../components/common/Modal';
 import { LeadForm } from '../../components/Leads/LeadForm';
+import { CambiarEstadoModal } from '../../components/Leads/CambiarEstadoModal';
+import { ConvertirLeadModal } from '../../components/Leads/ConvertirLeadModal';
 import { usePermissions } from '../../contexts/PermissionsContext';
 import { STATUS_COLORS } from '../../constants/leads';
 import api from '../../lib/api';
@@ -23,6 +25,9 @@ export function LeadsPage() {
   const [editingLead, setEditingLead] = React.useState(null);
   // Vista de archivados: alterna entre los leads activos y los archivados.
   const [vistaArchivados, setVistaArchivados] = React.useState(false);
+  // Modales de cambio de estado y conversión (ambos exigen nota).
+  const [leadACambiarEstado, setLeadACambiarEstado] = React.useState(null);
+  const [leadAConvertir, setLeadAConvertir] = React.useState(null);
   const queryClient = useQueryClient();
   const { puede } = usePermissions();
 
@@ -75,19 +80,6 @@ export function LeadsPage() {
     onError: (err) => {
       toast.error(err.response?.data?.error?.message || 'No fue posible restaurar el lead');
     },
-  });
-
-  const convertMutation = useMutation({
-    mutationFn: async (id) => api.patch(`/leads/${id}/convert`),
-    onSuccess: () => {
-      toast.success('¡Lead convertido a Contacto y Empresa exitosamente!');
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      queryClient.invalidateQueries({ queryKey: ['contacts'] });
-      queryClient.invalidateQueries({ queryKey: ['companies'] });
-    },
-    onError: (err) => {
-      toast.error(err.response?.data?.error?.message || 'Error al convertir Lead');
-    }
   });
 
   const leads = data?.data || [];
@@ -281,15 +273,19 @@ export function LeadsPage() {
                           )
                         ) : (
                           <>
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              style={{ padding: '0.375rem', color: '#d97706' }}
+                              onClick={() => setLeadACambiarEstado(lead)}
+                              title="Cambiar estado (exige nota)"
+                            >
+                              <RefreshCw size={16} />
+                            </button>
                             {!isConverted && (
                               <button 
                                 className="btn btn--sm" 
                                 style={{ padding: '0.375rem 0.5rem', background: '#ecfdf5', color: '#10b981', border: '1px solid #10b98120' }} 
-                                onClick={() => {
-                                  if(window.confirm('¿Convertir este lead en Contacto y Empresa real?')) {
-                                    convertMutation.mutate(lead.id);
-                                  }
-                                }}
+                                onClick={() => setLeadAConvertir(lead)}
                                 title="Convertir a Contacto"
                               >
                                 <ArrowRightCircle size={14} style={{ marginRight: '4px' }} /> Convertir
@@ -326,6 +322,20 @@ export function LeadsPage() {
         <Modal title={editingLead ? 'Editar Lead' : 'Nuevo Lead'} onClose={handleClose}>
           <LeadForm lead={editingLead} onSuccess={handleClose} onCancel={handleClose} />
         </Modal>
+      )}
+
+      {leadACambiarEstado && (
+        <CambiarEstadoModal
+          lead={leadACambiarEstado}
+          onClose={() => setLeadACambiarEstado(null)}
+        />
+      )}
+
+      {leadAConvertir && (
+        <ConvertirLeadModal
+          lead={leadAConvertir}
+          onClose={() => setLeadAConvertir(null)}
+        />
       )}
     </div>
   );

@@ -1,15 +1,17 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Edit2, History, LayoutDashboard, User, Mail, Phone,
   Building2, Megaphone, FileText, AlertCircle, Loader2, PhoneCall, RotateCcw,
+  RefreshCw,
 } from 'lucide-react';
 import { Topbar } from '../../components/layout/Topbar';
 import { LeadForm } from '../../components/Leads/LeadForm';
 import { LeadHistoryTimeline } from '../../components/Leads/LeadHistoryTimeline';
 import { LeadLifecycleSummary, ESTADO_LABEL } from '../../components/Leads/LeadLifecycleSummary';
 import { LeadGestiones } from '../../components/Leads/LeadGestiones';
+import { CambiarEstadoModal } from '../../components/Leads/CambiarEstadoModal';
 import { usePermissions } from '../../contexts/PermissionsContext';
 import { STATUS_COLORS } from '../../constants/leads';
 import api from '../../lib/api';
@@ -24,6 +26,7 @@ export function LeadDetailPage() {
   const queryClient = useQueryClient();
   const { puede } = usePermissions();
   const [activeTab, setActiveTab] = React.useState('resumen');
+  const [cambiandoEstado, setCambiandoEstado] = React.useState(false);
 
   const { data: lead, isLoading, isError, error } = useQuery({
     queryKey: ['lead', id],
@@ -43,6 +46,7 @@ export function LeadDetailPage() {
 
   // Restaurar usa el MISMO permiso que archivar ('eliminar'): es su inverso.
   const puedeRestaurar = puede('leads', 'eliminar');
+  const puedeEditar = puede('leads', 'editar');
 
   const restaurar = useMutation({
     mutationFn: async () => {
@@ -129,6 +133,16 @@ export function LeadDetailPage() {
               </span>
             ) : (
               <span style={{ fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>Sin asignar</span>
+            )}
+            {!lead.deleted_at && puedeEditar && (
+              <button
+                className="btn btn--secondary btn--sm"
+                style={{ marginLeft: 'auto' }}
+                onClick={() => setCambiandoEstado(true)}
+                title="Cambiar estado (exige una nota)"
+              >
+                <RefreshCw size={15} /> Cambiar estado
+              </button>
             )}
             {lead.deleted_at && (
               <span style={{
@@ -225,6 +239,13 @@ export function LeadDetailPage() {
           )}
         </div>
       </main>
+
+      {cambiandoEstado && (
+        <CambiarEstadoModal
+          lead={lead}
+          onClose={() => setCambiandoEstado(false)}
+        />
+      )}
     </div>
   );
 }

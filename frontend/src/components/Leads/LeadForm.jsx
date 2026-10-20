@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { toast } from 'react-hot-toast';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
-import { FUENTES } from '../../constants/leads';
+import { FUENTES, STATUS_COLORS } from '../../constants/leads';
 
 const leadSchema = z.object({
   first_name: z.string().min(2, 'Nombre obligatorio'),
@@ -60,7 +60,7 @@ export function LeadForm({ lead, onSuccess, onCancel }) {
       lista.unshift({ id: idActual, full_name: `${lead.assigned_employee_name || 'Empleado asignado'} (inactivo)` });
     }
     return lista;
-  }, [empleados, isEditing, lead?.assigned_employee_id, lead?.assigned_employee_name]);
+  }, [empleados, isEditing, lead]);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(leadSchema),
@@ -78,6 +78,10 @@ export function LeadForm({ lead, onSuccess, onCancel }) {
       if (!payload.assigned_employee_id) payload.assigned_employee_id = null;
 
       if (isEditing) {
+        // El estado NO se edita desde este formulario: se cambia con la acción
+        // «Cambiar estado», que exige una nota (decisión D1). Se reenvía el
+        // estado actual para que el backend no lo interprete como un cambio.
+        payload.status = lead.status;
         const { data } = await api.patch(`/leads/${lead.id}`, payload);
         return data;
       } else {
@@ -140,13 +144,32 @@ export function LeadForm({ lead, onSuccess, onCancel }) {
       <div className="flex gap-4">
         <div className="input-group w-full">
           <label className="input-label">Estado</label>
-          <select {...register('status')} className="input">
-            <option value="new">Nuevo</option>
-            <option value="contacted">Contactado</option>
-            <option value="qualified">Calificado</option>
-            {isEditing && <option value="converted" disabled>Convertido (Use acción rápida)</option>}
-            <option value="dead">Descartado</option>
-          </select>
+          {isEditing ? (
+            <>
+              <div
+                className="input"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-elevated)' }}
+              >
+                <span style={{
+                  padding: '0.2rem 0.55rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700,
+                  background: (STATUS_COLORS[lead.status] || STATUS_COLORS.new).bg,
+                  color: (STATUS_COLORS[lead.status] || STATUS_COLORS.new).color,
+                }}>
+                  {(STATUS_COLORS[lead.status] || STATUS_COLORS.new).label}
+                </span>
+              </div>
+              <span className="input-hint" style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
+                El estado se cambia con «Cambiar estado», que exige una nota.
+              </span>
+            </>
+          ) : (
+            <select {...register('status')} className="input">
+              <option value="new">Nuevo</option>
+              <option value="contacted">Contactado</option>
+              <option value="qualified">Calificado</option>
+              <option value="dead">Descartado</option>
+            </select>
+          )}
         </div>
         <div className="input-group w-full">
           <label className="input-label">Scoring (0-100)</label>
