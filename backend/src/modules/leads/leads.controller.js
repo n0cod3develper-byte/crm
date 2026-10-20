@@ -144,6 +144,7 @@ export const leadsController = {
       const result = await repo.convertToContact(req.params.id, {
         userId: req.userId,
         userName: nombreDeUsuario(req.user),
+        nota: req.body.nota,
       });
       if (!result) throw new NotFoundError('Lead no encontrado o ya convertido');
       res.json({ success: true, data: result });

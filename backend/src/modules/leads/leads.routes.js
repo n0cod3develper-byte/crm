@@ -5,6 +5,7 @@ import { validate, validateQuery } from '../../middleware/validate.js';
 import {
   createLeadSchema,
   updateLeadSchema,
+  convertLeadSchema,
   listLeadsQuerySchema,
   asignablesQuerySchema,
 } from './leads.schema.js';
@@ -75,6 +76,7 @@ router.patch('/:id',
   leadsController.update);
 
 router.patch('/:id/convert',
+  validate(convertLeadSchema),
   verificarPermiso('leads', 'editar'),
   leadsController.convert);
 

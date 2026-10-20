@@ -67,10 +67,10 @@ export class LeadsHistoryRepository {
   async registrar(e, client = null) {
     const sql = `
       INSERT INTO lead_history
-        (lead_id, event_type, field_name, old_value, new_value, description,
+        (lead_id, event_type, field_name, old_value, new_value, description, nota,
          performed_by_user_id, performed_by_name,
          assigned_employee_id, assigned_employee_name, metadata)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       RETURNING id`;
 
     const params = [
@@ -80,6 +80,7 @@ export class LeadsHistoryRepository {
       e.oldValue ?? null,
       e.newValue ?? null,
       e.description || null,
+      e.nota ? String(e.nota).trim() : null,
       e.performedByUserId || null,
       e.performedByName || null,
       e.assignedEmployeeId || null,
@@ -139,8 +140,22 @@ export class LeadsHistoryRepository {
           h.description              AS descripcion,
           h.performed_by_name        AS usuario,
           h.assigned_employee_name   AS empleado,
-          h.metadata                 AS metadata
+          h.metadata                 AS metadata,
+          h.nota                     AS nota,
+          -- Duración en el estado: solo para eventos que ENTRAN a un estado.
+          -- Las modificaciones intermedias no cambian el estado y no la cortan.
+          CASE WHEN en.id IS NULL THEN NULL
+               ELSE EXTRACT(EPOCH FROM (COALESCE(en.siguiente, now()) - h.created_at))::bigint
+          END                        AS duracion_segundos,
+          -- El backfill no reconstruye la historia: su duración no es confiable.
+          CASE WHEN en.id IS NULL THEN NULL
+               WHEN h.metadata->>'origen' = 'migracion' THEN false
+               ELSE true
+          END                        AS duracion_confiable,
+          CASE WHEN en.id IS NOT NULL AND en.siguiente IS NULL THEN true ELSE false END
+                                     AS es_estado_actual
         FROM lead_history h
+        LEFT JOIN entradas en ON en.id = h.id
         WHERE ${whereHistorial}`];
 
     if (incluirGestiones) {
@@ -172,7 +187,11 @@ export class LeadsHistoryRepository {
             'gestion_tipo',         g.tipo,
             'gestion_resultado',    g.resultado,
             'proxima_seguimiento',  g.proxima_seguimiento
-          ))                         AS metadata
+          ))                         AS metadata,
+          NULL::text                 AS nota,
+          NULL::bigint               AS duracion_segundos,
+          NULL::boolean              AS duracion_confiable,
+          NULL::boolean              AS es_estado_actual
         FROM lead_gestiones g
         WHERE g.lead_id = ${pLead}`);
     }
@@ -190,7 +209,17 @@ export class LeadsHistoryRepository {
     params[params.length - 1] = limit + 1;
 
     const sql = `
-      WITH eventos AS (${ramas.join('\n        UNION ALL\n')})
+      WITH entradas AS (
+        -- Entradas a un estado: creación y cambios de estado. La duración se
+        -- calcula SIEMPRE aquí, sin los filtros de la consulta, para que un
+        -- filtro por tipo o por fecha no altere las duraciones mostradas.
+        SELECT id, created_at,
+               LEAD(created_at) OVER (ORDER BY created_at, id) AS siguiente
+          FROM lead_history
+         WHERE lead_id = ${pLead}
+           AND event_type IN ('CREACION', 'CAMBIO_ESTADO')
+      ),
+      eventos AS (${ramas.join('\n        UNION ALL\n')})
       SELECT * FROM eventos
       ${whereCursor}
       ORDER BY fecha DESC, id_orden DESC
@@ -295,5 +324,13 @@ function mapearEvento(row) {
     usuario: row.usuario,
     empleado: row.empleado,
     metadata: row.metadata || null,
+    // Nota escrita por el usuario (solo CAMBIO_ESTADO manuales).
+    nota: row.nota ?? null,
+    // Duración en el estado. NULL en gestiones y modificaciones.
+    duracionSegundos: row.duracion_segundos === null || row.duracion_segundos === undefined
+      ? null
+      : Number(row.duracion_segundos),
+    duracionConfiable: row.duracion_confiable ?? null,
+    esEstadoActual: row.es_estado_actual === true,
   };
 }

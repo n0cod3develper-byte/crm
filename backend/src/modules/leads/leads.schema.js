@@ -1,4 +1,5 @@
 import z from 'zod';
+import { NOTA_MIN, NOTA_MAX } from './leads.constants.js';
 
 export const LEAD_STATUS = ['new', 'contacted', 'qualified', 'converted', 'dead'];
 
@@ -29,8 +30,27 @@ export const createLeadSchema = z.object({
   notes: z.string().max(5000).optional().nullable(),
 });
 
-/** Edita un lead: mismo conjunto de campos, todos opcionales. */
-export const updateLeadSchema = createLeadSchema.partial();
+/**
+ * Edita un lead: mismo conjunto de campos, todos opcionales.
+ *
+ * `nota` acompaña a un cambio de estado manual. Aquí solo se valida el tipo y
+ * el tamaño máximo; la obligatoriedad (mínimo 5) depende de si el estado
+ * cambia de verdad y la aplica el dominio (`validarNotaCambioEstado`).
+ */
+export const updateLeadSchema = createLeadSchema.partial().extend({
+  nota: z.string().trim().max(NOTA_MAX, `La nota no puede superar ${NOTA_MAX} caracteres`).optional(),
+});
+
+/**
+ * Conversión de lead a contacto/empresa. Es un cambio de estado manual, así
+ * que la nota es obligatoria (decisión D1).
+ */
+export const convertLeadSchema = z.object({
+  nota: z.string()
+    .trim()
+    .min(NOTA_MIN, `La nota de la conversión es obligatoria (mínimo ${NOTA_MIN} caracteres)`)
+    .max(NOTA_MAX, `La nota no puede superar ${NOTA_MAX} caracteres`),
+});
 
 /**
  * Listado. Se conserva el nombre del parámetro `assignedTo` por compatibilidad hacia

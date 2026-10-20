@@ -1,4 +1,6 @@
 import { query, withTransaction } from '../../config/database.js';
+import { ValidationError } from '../../utils/errors.js';
+import { NOTA_MIN, NOTA_MAX } from './leads.constants.js';
 import {
   LeadsHistoryRepository,
   diffLead,
@@ -7,6 +9,31 @@ import {
 } from './leadsHistory.repository.js';
 
 const historyRepo = new LeadsHistoryRepository();
+
+/**
+ * Valida la nota de un cambio de estado.
+ * La nota SOLO es obligatoria cuando el estado cambia de verdad: editar otros
+ * campos (o reenviar el mismo estado) no exige nota.
+ * Es la fuente de verdad del dominio: protege también llamadas internas.
+ */
+export function validarNotaCambioEstado(nota, estadoAnterior, estadoNuevo) {
+  if (!estadoNuevo || estadoAnterior === estadoNuevo) return;
+
+  const limpia = typeof nota === 'string' ? nota.trim() : '';
+
+  if (limpia.length < NOTA_MIN) {
+    throw new ValidationError([{
+      field: 'nota',
+      message: `La nota del cambio de estado es obligatoria (mínimo ${NOTA_MIN} caracteres)`,
+    }]);
+  }
+  if (limpia.length > NOTA_MAX) {
+    throw new ValidationError([{
+      field: 'nota',
+      message: `La nota del cambio de estado no puede superar ${NOTA_MAX} caracteres`,
+    }]);
+  }
+}
 
 /** Ejecuta una consulta usando el cliente de transacción cuando se pasa, o el pool. */
 const ejecutar = (client, sql, params) => (client ? client.query(sql, params) : query(sql, params));
@@ -95,6 +122,26 @@ export class LeadsRepository {
        LEFT JOIN employees e ON e.id = l.assigned_employee_id
        LEFT JOIN campaigns c ON c.id = l.campaign_id
        WHERE l.id = $1 AND l.deleted_at IS NULL`, [id]
+    );
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Igual que `findById`, pero bloquea la fila hasta el final de la transacción
+   * (`FOR UPDATE OF l`).
+   *
+   * Se usa en TODA escritura que pueda cambiar el estado: dos cambios
+   * simultáneos se serializan y la cadena anterior → nuevo queda coherente.
+   * `FOR UPDATE OF l` evita bloquear los lados opcionales de los LEFT JOIN.
+   */
+  async lockById(id, client) {
+    const result = await client.query(
+      `SELECT l.*, e.full_name AS assigned_employee_name, c.name AS campaign_name
+         FROM leads l
+         LEFT JOIN employees e ON e.id = l.assigned_employee_id
+         LEFT JOIN campaigns c ON c.id = l.campaign_id
+        WHERE l.id = $1 AND l.deleted_at IS NULL
+        FOR UPDATE OF l`, [id]
     );
     return result.rows[0] || null;
   }
@@ -221,8 +268,11 @@ export class LeadsRepository {
     // Todo el proceso (empresa -> contacto -> estado del lead) y su trazabilidad
     // se ejecutan en UNA transacción: si algo falla, no queda un contacto a medias.
     return withTransaction(async (client) => {
-      const lead = await this.findById(id, client);
+      const lead = await this.lockById(id, client);
       if (!lead || lead.status === 'converted') return null;
+
+      // La conversión es un cambio de estado manual: exige nota (D1).
+      validarNotaCambioEstado(ctx.nota, lead.status, 'converted');
 
       let companyId = null;
 
@@ -255,32 +305,17 @@ export class LeadsRepository {
       );
 
       // 4. Trazabilidad: cambio de estado + cierre comercial
-      const base = {
+      //    Pasa por el ÚNICO escritor de CAMBIO_ESTADO del módulo.
+      await this._registrarCambioEstado(client, {
         leadId: id,
-        performedByUserId: ctx.userId || null,
-        performedByName: ctx.userName || null,
-      };
-
-      if (lead.status !== 'converted') {
-        await historyRepo.registrar({
-          ...base,
-          eventType: 'CAMBIO_ESTADO',
-          fieldName: 'status',
-          oldValue: lead.status,
-          newValue: 'converted',
-          description: `Estado cambiado de "${lead.status}" a "converted" (conversión a contacto)`,
-        }, client);
-
-        await historyRepo.registrar({
-          ...base,
-          eventType: 'CIERRE',
-          fieldName: 'status',
-          oldValue: lead.status,
-          newValue: 'converted',
-          description: `Lead convertido en contacto #${contactId}`,
-          metadata: { contacto_id: contactId, empresa_id: companyId },
-        }, client);
-      }
+        estadoAnterior: lead.status,
+        estadoNuevo: 'converted',
+        nota: ctx.nota,
+        ctx,
+        descripcionCambio: `Estado cambiado de "${lead.status}" a "converted" (conversión a contacto)`,
+        cierreDescripcion: `Lead convertido en contacto #${contactId}`,
+        cierreMetadata: { contacto_id: contactId, empresa_id: companyId },
+      });
 
       return { lead: updatedLead.rows[0], contact: newContact.rows[0] };
     });
@@ -343,6 +378,67 @@ export class LeadsRepository {
   }
 
   /**
+   * ÚNICO punto que inserta eventos CAMBIO_ESTADO (y su CIERRE derivado).
+   *
+   * Debe llamarse SIEMPRE dentro de una transacción y con la fila del lead ya
+   * bloqueada con `lockById`. La nota solo se guarda en CAMBIO_ESTADO; el
+   * CIERRE es un evento derivado y no la duplica.
+   *
+   * @param {Object} p
+   * @param {string} p.leadId
+   * @param {string} p.estadoAnterior
+   * @param {string} p.estadoNuevo
+   * @param {string} [p.nota]
+   * @param {Object} p.ctx  { userId, userName }
+   * @param {string} [p.descripcionCambio]
+   * @param {string} [p.cierreDescripcion]
+   * @param {Object} [p.cierreMetadata]
+   */
+  async _registrarCambioEstado(client, {
+    leadId,
+    estadoAnterior,
+    estadoNuevo,
+    nota,
+    ctx = {},
+    descripcionCambio,
+    cierreDescripcion,
+    cierreMetadata,
+  }) {
+    if (!estadoNuevo || estadoAnterior === estadoNuevo) return null;
+
+    const base = {
+      leadId,
+      performedByUserId: ctx.userId || null,
+      performedByName: ctx.userName || null,
+    };
+
+    const eventoId = await historyRepo.registrar({
+      ...base,
+      eventType: 'CAMBIO_ESTADO',
+      fieldName: 'status',
+      oldValue: estadoAnterior,
+      newValue: estadoNuevo,
+      nota,
+      description: descripcionCambio
+        || `Estado cambiado de "${estadoAnterior}" a "${estadoNuevo}"`,
+    }, client);
+
+    if (ESTADOS_CIERRE.includes(estadoNuevo) && !ESTADOS_CIERRE.includes(estadoAnterior)) {
+      await historyRepo.registrar({
+        ...base,
+        eventType: 'CIERRE',
+        fieldName: 'status',
+        oldValue: estadoAnterior,
+        newValue: estadoNuevo,
+        description: cierreDescripcion || `Lead cerrado en estado "${estadoNuevo}"`,
+        metadata: cierreMetadata || null,
+      }, client);
+    }
+
+    return eventoId;
+  }
+
+  /**
    * Actualiza el lead y registra CADA cambio real en la misma transacción.
    * Si la escritura de auditoría falla, se revierte la modificación completa.
    *
@@ -352,8 +448,12 @@ export class LeadsRepository {
    */
   async updateConHistorial(id, data, ctx = {}) {
     return withTransaction(async (client) => {
-      const actual = await this.findById(id, client);
+      // Bloquea la fila: dos cambios simultáneos se serializan.
+      const actual = await this.lockById(id, client);
       if (!actual) return null;
+
+      // La nota es obligatoria SOLO si el estado cambia de verdad (D1).
+      validarNotaCambioEstado(data.nota, actual.status, data.status);
 
       const lead = await this.update(id, data, client);
       if (!lead) return null;
@@ -381,27 +481,15 @@ export class LeadsRepository {
         }, client);
       }
 
-      // 2. Cambio de estado + cierre
+      // 2. Cambio de estado + cierre (único escritor: _registrarCambioEstado)
       if (esCambioDeEstado) {
-        await historyRepo.registrar({
-          ...base,
-          eventType: 'CAMBIO_ESTADO',
-          fieldName: 'status',
-          oldValue: actual.status,
-          newValue: lead.status,
-          description: `Estado cambiado de "${actual.status}" a "${lead.status}"`,
-        }, client);
-
-        if (ESTADOS_CIERRE.includes(lead.status) && !ESTADOS_CIERRE.includes(actual.status)) {
-          await historyRepo.registrar({
-            ...base,
-            eventType: 'CIERRE',
-            fieldName: 'status',
-            oldValue: actual.status,
-            newValue: lead.status,
-            description: `Lead cerrado en estado "${lead.status}"`,
-          }, client);
-        }
+        await this._registrarCambioEstado(client, {
+          leadId: id,
+          estadoAnterior: actual.status,
+          estadoNuevo: lead.status,
+          nota: data.nota,
+          ctx,
+        });
       }
 
       // 3. Asignación (conserva el historial completo de reasignaciones)
