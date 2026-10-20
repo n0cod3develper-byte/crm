@@ -48,6 +48,8 @@ const hist = new LeadsHistoryRepository();
 const gestiones = new LeadGestionesRepository();
 
 const CTX = { userId: '00000000-0000-0000-0000-000000000042', userName: 'Tester Historial' };
+// Nota válida (mínimo 5) para los cambios de estado de las pruebas.
+const NOTA = 'Nota de prueba del cambio de estado';
 const creados = [];
 const creadosContactos = [];
 
@@ -68,6 +70,29 @@ async function empleadosActivos(n) {
   return r.rows;
 }
 
+/**
+ * Borra el historial de un lead de PRUEBA.
+ *
+ * Desde la migración 142 el trigger `trg_lead_history_proteger` bloquea los
+ * DELETE. El escape `app.permite_borrar_historial` está pensado exactamente
+ * para esto (pruebas y mantenimiento) y se activa SOLO dentro de esta
+ * transacción con `SET LOCAL`.
+ */
+async function borrarHistorialDePrueba(leadId) {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`SET LOCAL app.permite_borrar_historial = 'on'`);
+    await client.query(`DELETE FROM lead_history WHERE lead_id = $1`, [leadId]);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 afterEach(async () => {
   while (creados.length) {
     const id = creados.pop();
@@ -76,7 +101,7 @@ afterEach(async () => {
     // se retira su historial de forma explícita y acotada antes de purgarlas.
     // Sin `catch` silencioso: un fallo aquí debe salir a la superficie.
     await db.query(`DELETE FROM lead_gestiones WHERE lead_id = $1`, [id]);
-    await db.query(`DELETE FROM lead_history WHERE lead_id = $1`, [id]);
+    await borrarHistorialDePrueba(id);
     await db.query(`DELETE FROM lead_asignacion_notificaciones WHERE lead_id = $1`, [id]);
     await db.query(`DELETE FROM leads WHERE id = $1`, [id]);
   }
@@ -121,7 +146,7 @@ cond('Historial de Leads (integración con PostgreSQL)', () => {
 
   test('4. El cambio de estado genera CAMBIO_ESTADO con valor anterior y nuevo', async () => {
     const lead = await crearLead();
-    await repo.updateConHistorial(lead.id, { status: 'contacted' }, CTX);
+    await repo.updateConHistorial(lead.id, { status: 'contacted', nota: NOTA }, CTX);
 
     const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'CAMBIO_ESTADO' });
     expect(data).toHaveLength(1);
@@ -134,7 +159,7 @@ cond('Historial de Leads (integración con PostgreSQL)', () => {
     const lead = await crearLead();
     await repo.updateConHistorial(
       lead.id,
-      { phone: '3001112233', notes: 'nueva descripcion', company_name: 'Otra SAS', status: 'qualified' },
+      { phone: '3001112233', notes: 'nueva descripcion', company_name: 'Otra SAS', status: 'qualified', nota: NOTA },
       CTX
     );
 
@@ -164,7 +189,7 @@ cond('Historial de Leads (integración con PostgreSQL)', () => {
 
   test('5b. El estado terminal dead genera además el evento CIERRE', async () => {
     const lead = await crearLead();
-    await repo.updateConHistorial(lead.id, { status: 'dead' }, CTX);
+    await repo.updateConHistorial(lead.id, { status: 'dead', nota: NOTA }, CTX);
 
     const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'CIERRE' });
     expect(data).toHaveLength(1);
@@ -192,7 +217,7 @@ cond('Historial de Leads (integración con PostgreSQL)', () => {
     const lead = await crearLead();
     await repo.updateConHistorial(lead.id, { phone: '111' }, CTX);
     await repo.updateConHistorial(lead.id, { phone: '222' }, CTX);
-    await repo.updateConHistorial(lead.id, { status: 'contacted' }, CTX);
+    await repo.updateConHistorial(lead.id, { status: 'contacted', nota: NOTA }, CTX);
 
     const { data } = await hist.findEvents({ leadId: lead.id, limit: 50 });
     expect(data.length).toBeGreaterThanOrEqual(4);
@@ -240,7 +265,7 @@ cond('Historial de Leads (integración con PostgreSQL)', () => {
 
     try {
       await expect(
-        repo.updateConHistorial(lead.id, { phone: '3099999999', status: 'contacted' }, CTX)
+        repo.updateConHistorial(lead.id, { phone: '3099999999', status: 'contacted', nota: NOTA }, CTX)
       ).rejects.toThrow(/auditoria/i);
 
       // La modificación NO debe haber quedado a medias
@@ -391,7 +416,7 @@ cond('Integración Fase 2 + Fase 3', () => {
 
   test('I7. La conversión a contacto registra CAMBIO_ESTADO y CIERRE', async () => {
     const lead = await crearLead({ status: 'qualified' });   // sin empresa: solo crea contacto
-    const r = await repo.convertToContact(lead.id, CTX);
+    const r = await repo.convertToContact(lead.id, { ...CTX, nota: 'Conversión de prueba' });
     expect(r.contact).toBeTruthy();
     creadosContactos.push(r.contact.id);
 
@@ -409,7 +434,7 @@ cond('Integración Fase 2 + Fase 3', () => {
   test('I4. La última gestión comercial es NULL pese a haber modificaciones', async () => {
     const lead = await crearLead();
     await repo.updateConHistorial(
-      lead.id, { phone: '3001112233', status: 'contacted' }, CTX
+      lead.id, { phone: '3001112233', status: 'contacted', nota: NOTA }, CTX
     );
 
     const resumen = await hist.findSummary(lead.id);
@@ -540,7 +565,7 @@ cond('Gestiones comerciales', () => {
 
     // Modificaciones que NO son gestión comercial
     await repo.updateConHistorial(
-      lead.id, { phone: '3001234567', status: 'contacted', score: 60 }, CTX
+      lead.id, { phone: '3001234567', status: 'contacted', score: 60, nota: NOTA }, CTX
     );
 
     let r = await hist.findSummary(lead.id);
@@ -673,7 +698,7 @@ cond('Restauración de leads archivados', () => {
   test('R4. Archivar y restaurar conserva TODO el historial', async () => {
     const [emp] = await empleadosActivos(1);
     const lead = await crearLead({ assigned_employee_id: emp?.id });
-    await repo.updateConHistorial(lead.id, { phone: '3001119988', status: 'contacted' }, CTX);
+    await repo.updateConHistorial(lead.id, { phone: '3001119988', status: 'contacted', nota: NOTA }, CTX);
     await gestiones.create(lead.id, { tipo: 'reunion', resultado: 'Agenda demo' }, CTX);
 
     const antes = (await hist.findEvents({ leadId: lead.id, limit: 100 })).data;
@@ -764,5 +789,173 @@ cond('Restauración de leads archivados', () => {
     // Ambas cosas siguen intactas
     expect((await gestiones.findByLead(lead.id)).data).toHaveLength(1);
     expect((await hist.findEvents({ leadId: lead.id })).data.length).toBeGreaterThan(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// Trazabilidad de estados con nota e inmutabilidad (migración 142)
+// ─────────────────────────────────────────────────────────────────────
+cond('Trazabilidad de estados con nota (migración 142)', () => {
+
+  test('N1. El cambio de estado guarda la nota, el usuario y la fecha', async () => {
+    const lead = await crearLead();
+    await repo.updateConHistorial(
+      lead.id,
+      { status: 'contacted', nota: 'Llamé y confirmó interés' },
+      CTX
+    );
+
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'CAMBIO_ESTADO' });
+    expect(data).toHaveLength(1);
+    expect(data[0].valorAnterior).toBe('new');
+    expect(data[0].valorNuevo).toBe('contacted');
+    expect(data[0].nota).toBe('Llamé y confirmó interés');
+    expect(data[0].usuario).toBe('Tester Historial');
+    expect(data[0].fecha).toBeTruthy();
+  });
+
+  test('N2. Cambiar de estado SIN nota se rechaza y no deja rastro', async () => {
+    const lead = await crearLead();
+
+    await expect(
+      repo.updateConHistorial(lead.id, { status: 'contacted' }, CTX)
+    ).rejects.toMatchObject({ statusCode: 422 });
+
+    const tras = await repo.findById(lead.id);
+    expect(tras.status).toBe('new');
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'CAMBIO_ESTADO' });
+    expect(data).toHaveLength(0);
+  });
+
+  test('N3. Una nota de menos de 5 caracteres se rechaza', async () => {
+    const lead = await crearLead();
+    await expect(
+      repo.updateConHistorial(lead.id, { status: 'contacted', nota: 'abc' }, CTX)
+    ).rejects.toMatchObject({ statusCode: 422 });
+  });
+
+  test('N4. Reenviar el MISMO estado no exige nota ni genera evento', async () => {
+    const lead = await crearLead();
+    const r = await repo.updateConHistorial(lead.id, { status: 'new' }, CTX);
+    expect(r.cambios).toHaveLength(0);
+
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'CAMBIO_ESTADO' });
+    expect(data).toHaveLength(0);
+  });
+
+  test('N5. Dos cambios de estado simultáneos quedan encadenados y coherentes', async () => {
+    const lead = await crearLead();
+
+    await Promise.all([
+      repo.updateConHistorial(lead.id, { status: 'contacted', nota: 'Primer cambio' }, CTX),
+      repo.updateConHistorial(lead.id, { status: 'qualified', nota: 'Segundo cambio' }, CTX),
+    ]);
+
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'CAMBIO_ESTADO' });
+    expect(data).toHaveLength(2);
+
+    // Orden descendente: el más reciente arriba.
+    // No se fija CUÁL ganó la carrera; se exige que la cadena sea coherente.
+    expect(data[1].valorAnterior).toBe('new');
+    expect(data[0].valorAnterior).toBe(data[1].valorNuevo);
+    expect(['contacted', 'qualified']).toContain(data[0].valorAnterior);
+    expect(['contacted', 'qualified']).toContain(data[0].valorNuevo);
+    expect(data[0].valorNuevo).not.toBe(data[0].valorAnterior);
+
+    const tras = await repo.findById(lead.id);
+    expect(tras.status).toBe(data[0].valorNuevo);
+  });
+
+  test('N6. La conversión exige nota y la guarda en CAMBIO_ESTADO', async () => {
+    const lead = await crearLead({ status: 'qualified' });
+
+    await expect(
+      repo.convertToContact(lead.id, CTX)
+    ).rejects.toMatchObject({ statusCode: 422 });
+
+    // Sigue sin convertir
+    expect((await repo.findById(lead.id)).status).toBe('qualified');
+
+    const r = await repo.convertToContact(lead.id, { ...CTX, nota: 'Firmó la orden de compra' });
+    creadosContactos.push(r.contact.id);
+
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'CAMBIO_ESTADO' });
+    expect(data[0].nota).toBe('Firmó la orden de compra');
+    expect(data[0].valorNuevo).toBe('converted');
+  });
+
+  test('N7. La duración por estado se calcula y distingue el estado actual', async () => {
+    const lead = await crearLead();
+    await repo.updateConHistorial(lead.id, { status: 'contacted', nota: NOTA }, CTX);
+    await repo.updateConHistorial(lead.id, { status: 'qualified', nota: NOTA }, CTX);
+
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'CAMBIO_ESTADO' });
+    expect(data).toHaveLength(2);
+
+    // El más reciente es el estado actual: sin siguiente.
+    expect(data[0].esEstadoActual).toBe(true);
+    expect(data[0].duracionSegundos).toBeGreaterThanOrEqual(0);
+    // El anterior ya tiene un siguiente que lo cierra.
+    expect(data[1].esEstadoActual).toBe(false);
+    expect(data[1].duracionSegundos).toBeGreaterThanOrEqual(0);
+  });
+
+  test('N8. Las modificaciones no se tratan como entradas de estado', async () => {
+    const lead = await crearLead();
+    await repo.updateConHistorial(lead.id, { phone: '3000000123' }, CTX);
+
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'MODIFICACION' });
+    expect(data.length).toBeGreaterThan(0);
+    expect(data.every((e) => e.duracionSegundos === null)).toBe(true);
+  });
+
+  test('N9. El historial es inmutable: UPDATE auditado y DELETE fallan', async () => {
+    const lead = await crearLead();
+    const { data } = await hist.findEvents({ leadId: lead.id });
+    const id = data[0].id;
+
+    await expect(
+      db.query(`UPDATE lead_history SET description = 'alterado' WHERE id = $1`, [id])
+    ).rejects.toMatchObject({ code: '23001' });   // restrict_violation
+
+    await expect(
+      db.query(`DELETE FROM lead_history WHERE id = $1`, [id])
+    ).rejects.toMatchObject({ code: '23001' });
+
+    // La única anotación permitida es `metadata` (resultado del correo)
+    await db.query(
+      `UPDATE lead_history SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"ok":true}'::jsonb WHERE id = $1`,
+      [id]
+    );
+  });
+
+  test('N10. El backfill es idempotente y nunca duplica el CREACION', async () => {
+    // Un lead creado por la API ya trae su CREACION real.
+    const lead = await crearLead();
+    const { data } = await hist.findEvents({ leadId: lead.id, eventType: 'CREACION' });
+    expect(data).toHaveLength(1);
+
+    // Mismo INSERT del backfill: el índice único + ON CONFLICT lo hacen no-op.
+    await db.query(`
+      INSERT INTO lead_history (
+        lead_id, event_type, field_name, new_value, description, nota,
+        performed_by_name, metadata, created_at
+      )
+      SELECT l.id, 'CREACION', 'status', l.status, 'backfill', 'backfill',
+             'test', '{"origen":"migracion"}'::jsonb, l.created_at
+        FROM leads l
+      ON CONFLICT DO NOTHING`);
+
+    const tras = await hist.findEvents({ leadId: lead.id, eventType: 'CREACION' });
+    expect(tras.data).toHaveLength(1);
+
+    // Invariante global: ningún lead puede tener dos CREACION.
+    const duplicados = await db.query(`
+      SELECT lead_id, COUNT(*)::int AS n
+        FROM lead_history
+       WHERE event_type = 'CREACION'
+       GROUP BY lead_id
+      HAVING COUNT(*) > 1`);
+    expect(duplicados.rows).toHaveLength(0);
   });
 });

@@ -868,3 +868,85 @@ describe('Leads — gestiones comerciales', () => {
     }
   });
 });
+
+// ─────────────────────────────────────────────────────────────
+// Nota del cambio de estado y conversión (migración 142)
+// ─────────────────────────────────────────────────────────────
+describe('Leads — nota del cambio de estado y conversión', () => {
+
+  const NOTA = 'Llamé y confirmó interés en el plan anual';
+
+  test('PATCH con cambio de estado propaga la nota al repositorio', async () => {
+    mockFindById.mockResolvedValue(leadBase({ status: 'new' }));
+    mockUpdateConHistorial.mockResolvedValue({
+      lead: leadBase({ status: 'contacted' }), cambios: [],
+    });
+
+    const res = await request(app)
+      .patch(`/api/v1/leads/${LEAD_ID}`)
+      .send({ status: 'contacted', nota: NOTA });
+
+    expect(res.status).toBe(200);
+    expect(mockUpdateConHistorial).toHaveBeenCalledWith(
+      LEAD_ID,
+      expect.objectContaining({ status: 'contacted', nota: NOTA }),
+      expect.any(Object),
+    );
+  });
+
+  test('PATCH que reenvía el MISMO estado no exige nota', async () => {
+    mockFindById.mockResolvedValue(leadBase({ status: 'new' }));
+    mockUpdateConHistorial.mockResolvedValue({ lead: leadBase({ status: 'new' }), cambios: [] });
+
+    const res = await request(app)
+      .patch(`/api/v1/leads/${LEAD_ID}`)
+      .send({ status: 'new' });
+
+    expect(res.status).toBe(200);
+  });
+
+  test('convertir SIN nota responde 422 y no toca el repositorio', async () => {
+    const res = await request(app).patch(`/api/v1/leads/${LEAD_ID}/convert`).send({});
+
+    expect(res.status).toBe(422);
+    expect(res.body.details[0].field).toBe('nota');
+    expect(mockConvert).not.toHaveBeenCalled();
+  });
+
+  test('convertir con una nota demasiado corta responde 422', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/leads/${LEAD_ID}/convert`)
+      .send({ nota: 'ok' });
+
+    expect(res.status).toBe(422);
+    expect(mockConvert).not.toHaveBeenCalled();
+  });
+
+  test('convertir con nota la propaga al repositorio', async () => {
+    mockConvert.mockResolvedValue({
+      lead: leadBase({ status: 'converted' }),
+      contact: { id: 'c1' },
+    });
+
+    const res = await request(app)
+      .patch(`/api/v1/leads/${LEAD_ID}/convert`)
+      .send({ nota: NOTA });
+
+    expect(res.status).toBe(200);
+    expect(mockConvert).toHaveBeenCalledWith(
+      LEAD_ID,
+      expect.objectContaining({ nota: NOTA }),
+    );
+  });
+
+  test('sin permiso, convertir responde 403', async () => {
+    permisoDenegado = true;
+
+    const res = await request(app)
+      .patch(`/api/v1/leads/${LEAD_ID}/convert`)
+      .send({ nota: NOTA });
+
+    expect(res.status).toBe(403);
+    expect(mockConvert).not.toHaveBeenCalled();
+  });
+});
