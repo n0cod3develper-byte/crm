@@ -27,6 +27,12 @@ END $$;
 
 BEGIN;
 
+-- La migración 142 protege `lead_history` contra DELETE. Este seed es de
+-- PRUEBA LOCAL (la guarda anti-producción de arriba lo garantiza) y necesita
+-- regenerar sus propios leads, así que activa el escape SOLO dentro de esta
+-- transacción. `SET LOCAL` se revierte solo al hacer COMMIT/ROLLBACK.
+SET LOCAL app.permite_borrar_historial = 'on';
+
 -- El historial es permanente (FK RESTRICT desde la migración 140) y las
 -- gestiones comerciales también (migración 141): para poder regenerar los
 -- leads de prueba hay que retirar primero sus eventos y gestiones. Se limita

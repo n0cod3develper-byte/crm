@@ -173,7 +173,52 @@ const MIGRATION_FILES = [
   '139_lead_history.sql',
   '140_leads_borrado_logico.sql',
   '141_lead_gestiones.sql',
+  '142_lead_historial_nota_inmutabilidad.sql',
 ];
+
+// ─── Guardia de numeración ────────────────────────────────────────────────
+// El runner identifica cada migración por NOMBRE DE ARCHIVO, no por número.
+// Renombrar una migración ya aplicada haría que se re-ejecutara en producción
+// (riesgo de datos). Por eso:
+//   · Las colisiones históricas ya aplicadas se conservan y solo se avisan.
+//   · Una colisión NUEVA aborta antes de conectar: obliga a renombrar la
+//     migración nueva, que todavía no está aplicada.
+// Regla: nunca renombrar una migración ya aplicada.
+const COLISIONES_HISTORICAS = new Set(['076', '129']);
+
+function verificarNumeracionMigraciones(files) {
+  const porNumero = new Map();
+
+  for (const filename of files) {
+    const match = /^(\d{3})_/.exec(filename);
+    if (!match) {
+      console.error(`❌ Migración con nombre inválido (se espera NNN_nombre.sql): ${filename}`);
+      process.exit(1);
+    }
+    const numero = match[1];
+    if (!porNumero.has(numero)) porNumero.set(numero, []);
+    porNumero.get(numero).push(filename);
+  }
+
+  const nuevas = [...porNumero.entries()]
+    .filter(([numero, archivos]) => archivos.length > 1 && !COLISIONES_HISTORICAS.has(numero));
+
+  if (nuevas.length > 0) {
+    console.error('❌ Colisión de numeración de migraciones:');
+    for (const [numero, archivos] of nuevas) {
+      console.error(`   ${numero}: ${archivos.join(', ')}`);
+    }
+    console.error('   Renombra la migración NUEVA (aún no aplicada) antes de continuar.');
+    process.exit(1);
+  }
+
+  for (const numero of COLISIONES_HISTORICAS) {
+    const archivos = porNumero.get(numero);
+    if (archivos && archivos.length > 1) {
+      console.warn(`⚠️  Colisión histórica conocida ${numero}: ${archivos.join(', ')} (ya aplicadas; no renombrar)`);
+    }
+  }
+}
 
 
 async function ensureMigrationsTable(client) {
@@ -192,6 +237,8 @@ async function getAppliedMigrations(client) {
 }
 
 async function runMigrations() {
+  verificarNumeracionMigraciones(MIGRATION_FILES);
+
   console.log('🚀 Iniciando runner de migraciones...');
   console.log(`🔗 Conectando a: ${DATABASE_URL.replace(/:([^:@]+)@/, ':***@')}`);
 
