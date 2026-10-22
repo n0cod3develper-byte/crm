@@ -140,7 +140,7 @@ export function CatalogFormPage() {
     e.preventDefault();
     let payload = { ...formData };
     if (!isEdit && formData.tipo === 'PRODUCTO') {
-      payload.ubicacion_id = null;
+      payload.ubicacion_id = formData.ubicacion_id || null;
     }
     mutation.mutate(payload);
   };
