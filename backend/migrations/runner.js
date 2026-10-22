@@ -174,7 +174,14 @@ const MIGRATION_FILES = [
   '140_leads_borrado_logico.sql',
   '141_lead_gestiones.sql',
   '142_lead_historial_nota_inmutabilidad.sql',
+  '143_cotizaciones_historial_trazabilidad.sql',
+  '144_notificaciones_genericas.sql',
+  '145_ubicacion_consecutivo_por_familia.sql',
 ];
+
+// Clave de advisory lock: las 3 réplicas (PM2/Docker) ejecutan el runner al
+// arrancar; solo una puede migrar a la vez. Se libera en el finally.
+const MIGRATION_LOCK_KEY = 727001;
 
 // ─── Guardia de numeración ────────────────────────────────────────────────
 // El runner identifica cada migración por NOMBRE DE ARCHIVO, no por número.
@@ -245,6 +252,12 @@ async function runMigrations() {
   const client = await pool.connect();
 
   try {
+    // Lock global: si otra instancia está migrando, esperamos su turno (no
+    // es try-lock a propósito: así la réplica que gana termina antes y las
+    // demás continúan inmediatamente después con las migraciones ya aplicadas).
+    console.log(`🔒 Adquiriendo advisory lock de migraciones (${MIGRATION_LOCK_KEY})...`);
+    await client.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_KEY]);
+
     await ensureMigrationsTable(client);
     const applied = await getAppliedMigrations(client);
 
@@ -291,6 +304,9 @@ async function runMigrations() {
     console.error('❌ Migración fallida:', err.message);
     process.exit(1);
   } finally {
+    try {
+      await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]);
+    } catch { /* la conexión pudo morir; el lock muere con ella */ }
     client.release();
     await pool.end();
   }
