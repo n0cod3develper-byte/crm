@@ -6,7 +6,7 @@ import { Layout } from '../../components/Layout';
 import api from '../../lib/api';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 const ESTADO_BADGE = {
   BORRADOR: 'gray',
@@ -89,7 +89,13 @@ export function SalesReportServicios() {
   // Lista ordenada por fecha
   const items = useMemo(() => {
     if (!data) return [];
-    return [...data].sort((a, b) => new Date(b.fecha_servicio) - new Date(a.fecha_servicio));
+    return [...data].sort((a, b) => {
+      const diff = new Date(b.fecha_servicio) - new Date(a.fecha_servicio);
+      if (diff !== 0) return diff;
+      const remDiff = String(b.numero_remision || '').localeCompare(String(a.numero_remision || ''), undefined, { numeric: true });
+      if (remDiff !== 0) return remDiff;
+      return (a.orden || 0) - (b.orden || 0);
+    });
   }, [data]);
 
   // Cálculo de totales al pie de la tabla
@@ -97,7 +103,8 @@ export function SalesReportServicios() {
     const sum = {
       descuentos: 0,
       neto: 0,
-      count: items.length
+      count: items.length,
+      remisionesCount: new Set(items.map(it => it.id || it.numero_remision)).size
     };
     items.forEach(item => {
       const isAnulada = item.estado === 'ANULADO' || item.estado === 'ANULADA';
@@ -153,7 +160,7 @@ export function SalesReportServicios() {
           estadoLabel,
           item.empresa_nombre,
           item.operario_nombre || '—',
-          item.servicio_nombre,
+          item.servicio_codigo ? `[${item.servicio_codigo}] ${item.servicio_nombre}` : item.servicio_nombre,
           item.capacidad_nominal ? `${item.capacidad_nominal} Ton` : '—',
           item.tipo_servicio || '—',
           item.equipo_serie || '—',
@@ -177,7 +184,7 @@ export function SalesReportServicios() {
         '',
         '',
         '',
-        `${totals.count} Remisiones`,
+        `${totals.count} Ítems (${totals.remisionesCount} Rem.)`,
         '',
         '',
         '',
@@ -229,68 +236,303 @@ export function SalesReportServicios() {
     }
   };
 
-  // Exportar a Excel con xlsx (SheetJS)
-  const handleExportExcel = () => {
+  // Sanitizador contra inyección de fórmulas en Excel
+  const sanitizeExcelText = (val) => {
+    if (val == null) return '';
+    const str = String(val).trim();
+    if (/^[=+\-@]/.test(str)) {
+      return `'${str}`;
+    }
+    return str;
+  };
+
+  // Exportar a Excel con ExcelJS con formato corporativo completo
+  const handleExportExcel = async () => {
     if (items.length === 0) {
       toast.error('No hay datos para exportar');
       return;
     }
     try {
-      const excelRows = items.map(item => {
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'CARGAR SAS CRM';
+      wb.created = new Date();
+
+      const ws = wb.addWorksheet('Reporte Ventas Servicios', {
+        pageSetup: {
+          orientation: 'landscape',
+          fitToPage: true,
+          fitToWidth: 1,
+          fitToHeight: 0,
+          paperSize: 9,
+          printTitlesRow: '5:5'
+        }
+      });
+
+      // ── Encabezado superior ──
+      // Fila 1: Título institucional
+      const titleRow = ws.addRow(['TOTALIZADO FINAL']);
+      titleRow.font = { name: 'Calibri', size: 14, bold: true, color: { argb: 'FF1E293B' } };
+      titleRow.height = 22;
+
+      // Fila 2: Línea de generación con fecha y hora
+      const now = new Date();
+      const fechaGen = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+      const genRow = ws.addRow([`Generado por ${fechaGen} en Mercadeo Cargar`]);
+      genRow.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF64748B' } };
+      genRow.height = 18;
+
+      // Fila 3: Cantidad de registros exportados
+      const countRow = ws.addRow([`Cantidad de registros : ${items.length}`]);
+      countRow.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF334155' } };
+      countRow.height = 18;
+
+      // Fila 4: Fila en blanco
+      const blankRow = ws.addRow([]);
+      blankRow.height = 10;
+
+      // ── Fila 5: Títulos de columnas ──
+      const headers = [
+        'No. Remisión',
+        'Fecha Servicio',
+        'Estado',
+        'Cliente',
+        'Operario',
+        'Código Servicio',
+        'Servicio',
+        'Asunto',
+        'Tipo',
+        'Código Equipo',
+        'Horómetro Salida',
+        'Horómetro Llegada',
+        'Cant. Horas',
+        'Descuentos',
+        'Valor Neto',
+        'N° Factura',
+        'Motivo Anulación'
+      ];
+      const headerRow = ws.addRow(headers);
+      headerRow.height = 26;
+      headerRow.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF334155' }
+      };
+      headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+
+      const thinBorder = {
+        top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+        right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+      };
+
+      headerRow.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'medium', color: { argb: 'FF1E293B' } },
+          left: { style: 'thin', color: { argb: 'FF475569' } },
+          bottom: { style: 'medium', color: { argb: 'FF1E293B' } },
+          right: { style: 'thin', color: { argb: 'FF475569' } }
+        };
+      });
+
+      // ── Filas de datos ──
+      items.forEach((item) => {
         const isAnulada = item.estado === 'ANULADO' || item.estado === 'ANULADA';
         const descuentos = parseFloat(item.descuentos || 0);
         const neto = isAnulada ? 0 : parseFloat(item.total_neto || 0);
         const horas = parseFloat(item.cantidad_horas || 0);
-        const hmSalida = item.horometro_salida != null ? parseFloat(item.horometro_salida) : '—';
-        const hmLlegada = item.horometro_regreso != null ? parseFloat(item.horometro_regreso) : '—';
+        const hmSalida = item.horometro_salida != null ? parseFloat(item.horometro_salida) : null;
+        const hmLlegada = item.horometro_regreso != null ? parseFloat(item.horometro_regreso) : null;
         const motivo = item.motivo_anulacion || (isAnulada ? 'Sin motivo' : '');
         const estadoLabel = item.estado === 'ANULADO' ? 'ANULADA' : (item.estado || '');
 
-        return {
-          'No. Remisión': item.numero_remision,
-          'Fecha Servicio': formatDate(item.fecha_servicio),
-          'Estado': estadoLabel,
-          'Cliente': item.empresa_nombre,
-          'Operario': item.operario_nombre || '—',
-          'Servicio': item.servicio_nombre,
-          'Asunto': item.capacidad_nominal ? `${item.capacidad_nominal} Ton` : '—',
-          'Tipo': item.tipo_servicio || '—',
-          'Código Equipo': item.equipo_serie || '—',
-          'Horómetro Salida': hmSalida,
-          'Horómetro Llegada': hmLlegada,
-          'Cant. Horas': horas,
-          'Descuentos': descuentos,
-          'Valor Neto': neto,
-          'N° Factura': item.numero_factura || '—',
-          'Motivo Anulación': motivo
+        let fechaServicioVal = null;
+        if (item.fecha_servicio) {
+          const dt = new Date(item.fecha_servicio);
+          if (!isNaN(dt.getTime())) {
+            fechaServicioVal = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()));
+          }
+        }
+
+        const row = ws.addRow([
+          sanitizeExcelText(item.numero_remision),
+          fechaServicioVal,
+          sanitizeExcelText(estadoLabel),
+          sanitizeExcelText(item.empresa_nombre),
+          sanitizeExcelText(item.operario_nombre || '—'),
+          sanitizeExcelText(item.servicio_codigo || '—'),
+          sanitizeExcelText(item.servicio_nombre),
+          sanitizeExcelText(item.capacidad_nominal ? `${item.capacidad_nominal} Ton` : '—'),
+          sanitizeExcelText(item.tipo_servicio || '—'),
+          sanitizeExcelText(item.equipo_serie || '—'),
+          hmSalida,
+          hmLlegada,
+          horas,
+          descuentos,
+          neto,
+          sanitizeExcelText(item.numero_factura || '—'),
+          sanitizeExcelText(motivo)
+        ]);
+
+        row.height = 20;
+
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.border = thinBorder;
+          cell.font = { name: 'Calibri', size: 10 };
+
+          switch (colNumber) {
+            case 1:
+            case 3:
+            case 6:
+            case 8:
+            case 9:
+            case 10:
+            case 16:
+              cell.alignment = { vertical: 'middle', horizontal: 'center' };
+              break;
+
+            case 2:
+              cell.alignment = { vertical: 'middle', horizontal: 'center' };
+              cell.numFmt = 'DD/MM/YYYY';
+              break;
+
+            case 4:
+            case 5:
+            case 7:
+            case 17:
+              cell.alignment = { vertical: 'middle', horizontal: 'left' };
+              break;
+
+            case 11:
+            case 12:
+              cell.alignment = { vertical: 'middle', horizontal: 'right' };
+              cell.numFmt = '#,##0.0';
+              break;
+
+            case 13:
+              cell.alignment = { vertical: 'middle', horizontal: 'right' };
+              cell.numFmt = '#,##0.00';
+              break;
+
+            case 14:
+            case 15:
+              cell.alignment = { vertical: 'middle', horizontal: 'right' };
+              cell.numFmt = '"$"#,##0';
+              break;
+
+            default:
+              cell.alignment = { vertical: 'middle', horizontal: 'left' };
+          }
+        });
+      });
+
+      // ── Fila de totales ──
+      const totalRow = ws.addRow([
+        'TOTALES',
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        `${totals.count} Ítems (${totals.remisionesCount} Remisiones)`,
+        null,
+        null,
+        null,
+        totals.descuentos,
+        totals.neto,
+        null,
+        null
+      ]);
+
+      totalRow.height = 22;
+      totalRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        cell.font = { name: 'Calibri', size: 10, bold: true };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF1F5F9' }
         };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+          bottom: { style: 'double', color: { argb: 'FF475569' } },
+          left: thinBorder.left,
+          right: thinBorder.right
+        };
+
+        if (colNumber === 1) {
+          cell.alignment = { vertical: 'middle', horizontal: 'left' };
+        } else if (colNumber === 10) {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        } else if (colNumber === 14 || colNumber === 15) {
+          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          cell.numFmt = '"$"#,##0';
+        } else {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        }
       });
 
-      // Añadir fila de totales
-      excelRows.push({
-        'No. Remisión': 'TOTALES',
-        'Fecha Servicio': '',
-        'Estado': '',
-        'Cliente': '',
-        'Operario': '',
-        'Servicio': '',
-        'Asunto': '',
-        'Tipo': '',
-        'Código Equipo': `${totals.count} Remisiones`,
-        'Horómetro Salida': '',
-        'Horómetro Llegada': '',
-        'Cant. Horas': '',
-        'Descuentos': totals.descuentos,
-        'Valor Neto': totals.neto,
-        'N° Factura': '',
-        'Motivo Anulación': ''
+      // ── Inmovilizar paneles (Freeze Panes) y AutoFiltro ──
+      ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 5 }];
+      ws.autoFilter = {
+        from: { row: 5, column: 1 },
+        to: { row: 5, column: 17 }
+      };
+
+      // ── Auto-ajuste de ancho de columnas ──
+      const minColWidths = {
+        1: 15,
+        2: 15,
+        3: 13,
+        4: 28,
+        5: 24,
+        6: 16,
+        7: 32,
+        8: 14,
+        9: 15,
+        10: 16,
+        11: 16,
+        12: 16,
+        13: 14,
+        14: 17,
+        15: 19,
+        16: 14,
+        17: 28
+      };
+
+      ws.columns.forEach((column, index) => {
+        const colNum = index + 1;
+        let maxLength = 0;
+        column.eachCell({ includeEmpty: false }, (cell) => {
+          if (cell.row < 5) return;
+          const val = cell.value;
+          if (val instanceof Date) {
+            maxLength = Math.max(maxLength, 10);
+          } else if (typeof val === 'number') {
+            maxLength = Math.max(maxLength, String(val).length + 4);
+          } else if (val != null) {
+            maxLength = Math.max(maxLength, String(val).length);
+          }
+        });
+        const minWidth = minColWidths[colNum] || 12;
+        column.width = Math.max(minWidth, maxLength + 3);
       });
 
-      const ws = XLSX.utils.json_to_sheet(excelRows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Reporte Ventas Servicios");
-      
-      XLSX.writeFile(wb, `Reporte_Ventas_Servicios_${appliedFilters.desde}_a_${appliedFilters.hasta}.xlsx`);
+      // ── Generar y descargar archivo en navegador ──
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `Reporte_Ventas_Servicios_${appliedFilters.desde}_a_${appliedFilters.hasta}.xlsx`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+
       toast.success('Excel descargado con éxito');
     } catch (err) {
       console.error(err);
@@ -393,7 +635,7 @@ export function SalesReportServicios() {
               </tr>
             </thead>
             <tbody>
-              {items.map(item => {
+              {items.map((item, index) => {
                 const isAnulada = item.estado === 'ANULADO' || item.estado === 'ANULADA';
                 const descuentos = parseFloat(item.descuentos || 0);
                 const neto = isAnulada ? 0 : parseFloat(item.total_neto || 0);
@@ -401,7 +643,7 @@ export function SalesReportServicios() {
                 const hmLlegada = item.horometro_regreso != null ? parseFloat(item.horometro_regreso).toFixed(1) : '—';
                 
                 return (
-                  <tr key={item.id}>
+                  <tr key={item.item_id || `${item.id}-${index}`}>
                     <td>
                       <code style={{ fontWeight: 800, fontSize: '13px', color: 'var(--clr-primary-400)' }}>
                         {item.numero_remision}
@@ -422,13 +664,20 @@ export function SalesReportServicios() {
                       <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>{item.operario_nombre || '—'}</span>
                     </td>
                     <td>
-                      <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>{item.servicio_nombre}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {item.servicio_codigo && (
+                          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--clr-primary-400)', fontFamily: 'monospace' }}>
+                            {item.servicio_codigo}
+                          </span>
+                        )}
+                        <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>{item.servicio_nombre}</span>
+                      </div>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <span style={{ fontSize: '12px', color: 'var(--text-primary)' }}>{item.capacidad_nominal ? `${item.capacidad_nominal} Ton` : '—'}</span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <span className={`badge badge--${item.tipo_servicio === 'Fijo' ? 'primary' : 'warning'}`} style={{ fontSize: '10px' }}>
+                      <span className={`badge badge--${item.tipo_servicio === 'Fijo' ? 'primary' : item.tipo_servicio === 'Esporádico' ? 'warning' : 'gray'}`} style={{ fontSize: '10px' }}>
                         {item.tipo_servicio || '—'}
                       </span>
                     </td>
@@ -481,7 +730,7 @@ export function SalesReportServicios() {
               <tr style={{ fontWeight: 'bold', borderBottom: 'none' }}>
                 <td colSpan={8}>TOTALES</td>
                 <td>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{totals.count} registros</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{totals.count} ítems ({totals.remisionesCount} remisiones)</span>
                 </td>
                 <td colSpan={3}></td>
                 <td style={{ textAlign: 'right', fontSize: '13px', color: 'var(--clr-danger-400)' }}>{formatCOP(totals.descuentos)}</td>

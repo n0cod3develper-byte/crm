@@ -169,7 +169,63 @@ const MIGRATION_FILES = [
   '135_rol_gerencia.sql',
   '136_dashboard_gerencia_indexes.sql',
   '137_remisiones_motivo_anulacion.sql',
+  '138_leads_asignacion_empleado.sql',
+  '139_lead_history.sql',
+  '140_leads_borrado_logico.sql',
+  '141_lead_gestiones.sql',
+  '142_lead_historial_nota_inmutabilidad.sql',
+  '143_cotizaciones_historial_trazabilidad.sql',
+  '144_notificaciones_genericas.sql',
+  '145_ubicacion_consecutivo_por_familia.sql',
 ];
+
+// Clave de advisory lock: las 3 réplicas (PM2/Docker) ejecutan el runner al
+// arrancar; solo una puede migrar a la vez. Se libera en el finally.
+const MIGRATION_LOCK_KEY = 727001;
+
+// ─── Guardia de numeración ────────────────────────────────────────────────
+// El runner identifica cada migración por NOMBRE DE ARCHIVO, no por número.
+// Renombrar una migración ya aplicada haría que se re-ejecutara en producción
+// (riesgo de datos). Por eso:
+//   · Las colisiones históricas ya aplicadas se conservan y solo se avisan.
+//   · Una colisión NUEVA aborta antes de conectar: obliga a renombrar la
+//     migración nueva, que todavía no está aplicada.
+// Regla: nunca renombrar una migración ya aplicada.
+const COLISIONES_HISTORICAS = new Set(['076', '129']);
+
+function verificarNumeracionMigraciones(files) {
+  const porNumero = new Map();
+
+  for (const filename of files) {
+    const match = /^(\d{3})_/.exec(filename);
+    if (!match) {
+      console.error(`❌ Migración con nombre inválido (se espera NNN_nombre.sql): ${filename}`);
+      process.exit(1);
+    }
+    const numero = match[1];
+    if (!porNumero.has(numero)) porNumero.set(numero, []);
+    porNumero.get(numero).push(filename);
+  }
+
+  const nuevas = [...porNumero.entries()]
+    .filter(([numero, archivos]) => archivos.length > 1 && !COLISIONES_HISTORICAS.has(numero));
+
+  if (nuevas.length > 0) {
+    console.error('❌ Colisión de numeración de migraciones:');
+    for (const [numero, archivos] of nuevas) {
+      console.error(`   ${numero}: ${archivos.join(', ')}`);
+    }
+    console.error('   Renombra la migración NUEVA (aún no aplicada) antes de continuar.');
+    process.exit(1);
+  }
+
+  for (const numero of COLISIONES_HISTORICAS) {
+    const archivos = porNumero.get(numero);
+    if (archivos && archivos.length > 1) {
+      console.warn(`⚠️  Colisión histórica conocida ${numero}: ${archivos.join(', ')} (ya aplicadas; no renombrar)`);
+    }
+  }
+}
 
 
 async function ensureMigrationsTable(client) {
@@ -188,12 +244,20 @@ async function getAppliedMigrations(client) {
 }
 
 async function runMigrations() {
+  verificarNumeracionMigraciones(MIGRATION_FILES);
+
   console.log('🚀 Iniciando runner de migraciones...');
   console.log(`🔗 Conectando a: ${DATABASE_URL.replace(/:([^:@]+)@/, ':***@')}`);
 
   const client = await pool.connect();
 
   try {
+    // Lock global: si otra instancia está migrando, esperamos su turno (no
+    // es try-lock a propósito: así la réplica que gana termina antes y las
+    // demás continúan inmediatamente después con las migraciones ya aplicadas).
+    console.log(`🔒 Adquiriendo advisory lock de migraciones (${MIGRATION_LOCK_KEY})...`);
+    await client.query('SELECT pg_advisory_lock($1)', [MIGRATION_LOCK_KEY]);
+
     await ensureMigrationsTable(client);
     const applied = await getAppliedMigrations(client);
 
@@ -240,6 +304,9 @@ async function runMigrations() {
     console.error('❌ Migración fallida:', err.message);
     process.exit(1);
   } finally {
+    try {
+      await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]);
+    } catch { /* la conexión pudo morir; el lock muere con ella */ }
     client.release();
     await pool.end();
   }

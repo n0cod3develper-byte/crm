@@ -316,21 +316,12 @@ export class CatalogRepository {
 
   async getSiguienteConsecutivoUbicacion(categoriaId) {
     if (!categoriaId) return { siguiente_numero: 1, codigo: '001' };
-    const res = await query(`
-      SELECT COALESCE(
-        MAX(
-          CASE 
-            WHEN ub.codigo_ubicacion ~ '^\\d+$' THEN ub.codigo_ubicacion::INTEGER 
-            ELSE 0 
-          END
-        ), 0) + 1 AS siguiente_numero
-      FROM inventario i
-      JOIN ubicaciones_bodega ub ON ub.id = i.ubicacion_id
-      WHERE i.categoria_id = $1 AND i.tipo = 'PRODUCTO'
-    `, [categoriaId]);
-
+    const res = await query(
+      'SELECT COALESCE(ultimo_consecutivo_ubicacion, 0) + 1 AS siguiente_numero FROM catalogo_categorias WHERE id = $1',
+      [categoriaId]
+    );
     const nextNum = parseInt(res.rows[0]?.siguiente_numero || 1);
-    const codeStr = String(nextNum).padStart(3, '0');
+    const codeStr = nextNum < 1000 ? String(nextNum).padStart(3, '0') : String(nextNum);
     return { siguiente_numero: nextNum, codigo: codeStr };
   }
 
@@ -379,12 +370,17 @@ export class CatalogRepository {
 
     const codigo = codigo_interno || await this._generarCodigo(tipo, toUuid(categoria_id));
 
-
-    // Ubicacion: si no se envía explícitamente pero la familia tiene una asignada por defecto, se asigna esa
+    // Ubicacion: si no se envía explícitamente y es PRODUCTO con categoría, se autogenera consecutivo atómico por familia
     let ubicacionFinal = toUuid(ubicacion_id);
-    if (!ubicacionFinal && toUuid(categoria_id)) {
-      const famRes = await query('SELECT ubicacion_default_id FROM catalogo_categorias WHERE id = $1', [toUuid(categoria_id)]);
-      ubicacionFinal = famRes.rows[0]?.ubicacion_default_id || null;
+    if (!ubicacionFinal && toUuid(categoria_id) && tipo === 'PRODUCTO') {
+      try {
+        const ubiRes = await query('SELECT generar_ubicacion_por_familia($1) AS ubi_id', [toUuid(categoria_id)]);
+        ubicacionFinal = ubiRes.rows[0]?.ubi_id || null;
+      } catch (err) {
+        console.warn('[CatalogRepository] generar_ubicacion_por_familia failed, falling back:', err.message);
+        const famRes = await query('SELECT ubicacion_default_id FROM catalogo_categorias WHERE id = $1', [toUuid(categoria_id)]);
+        ubicacionFinal = famRes.rows[0]?.ubicacion_default_id || null;
+      }
     }
 
 
@@ -657,6 +653,19 @@ export class CatalogRepository {
           }
         }
 
+        // Resolver ubicación explícita (si la plantilla la incluye en el futuro)
+        const ubiCode = getVal('ubicación', 'ubicacion', 'ubicación física', 'ubicacion fisica', 'posicion', 'posición');
+        let explicitUbicacionId = null;
+        if (ubiCode) {
+          const ubiCheck = await query(
+            'SELECT id FROM ubicaciones_bodega WHERE codigo_ubicacion = $1 OR id::text = $1 LIMIT 1',
+            [ubiCode]
+          );
+          if (ubiCheck.rows.length > 0) {
+            explicitUbicacionId = ubiCheck.rows[0].id;
+          }
+        }
+
         if (existing) {
           // ACTUALIZAR item existente
           const updateData = {
@@ -678,6 +687,7 @@ export class CatalogRepository {
           if (unidadMedidaId) updateData.unidad_medida_id = unidadMedidaId;
           if (refCruzada.length > 0) updateData.referencia_cruzada = refCruzada;
           if (eqCompatibles.length > 0) updateData.equipos_compatibles = eqCompatibles;
+          if (explicitUbicacionId) updateData.ubicacion_id = explicitUbicacionId;
 
           // Si viene stock actual especificado, se actualiza también
           const rawStock = getVal('stock actual', 'stock', 'stock_current', 'stock_actual');
@@ -710,7 +720,7 @@ export class CatalogRepository {
             referencia_cruzada: refCruzada,
             equipos_compatibles: eqCompatibles,
             area: 'MANTENIMIENTO',
-            ubicacion_id: null // El método create calculará el consecutivo por familia automáticamente
+            ubicacion_id: explicitUbicacionId || null // Si es null, create() autogenerará el consecutivo atómico
           };
 
           await this.create(createData, userId);
