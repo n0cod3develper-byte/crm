@@ -6,7 +6,8 @@ import {
   ChevronLeft, Image as ImageIcon, FileSpreadsheet, Upload, Download,
   ArrowUpDown, ArrowUp, ArrowDown, Layers
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { exportCatalogToExcel } from '../../utils/catalogExcelExport';
+import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '../../utils/formatters';
@@ -26,6 +27,7 @@ export function CatalogListPage() {
   const [sortDir, setSortDir] = useState('ASC');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
+  const { user } = useAuth();
   const { puede } = usePermissions();
   const queryClient = useQueryClient();
   const [stockModalItem, setStockModalItem] = useState(null);
@@ -92,42 +94,11 @@ export function CatalogListPage() {
         return;
       }
 
-      const rows = items.map((item) => ({
-        'Tipo': item.tipo === 'PRODUCTO' ? 'Producto' : 'Servicio',
-        'Código Interno': item.codigo_interno || '—',
-        'Nombre Comercial': item.nombre_comercial || '—',
-        'Nombre Interno / Ref': item.nombre_interno || '—',
-        'Referencia Fabricante': item.referencia_fabricante || '—',
-        'Referencia Sistema (SKU)': item.referencia_sistema || '—',
-        'Marca': item.marca || '—',
-        'Familia / Categoría': item.categoria_nombre || '—',
-        'Área': item.area || '—',
-        'Ubicación Física': item.codigo_ubicacion || '—',
-        'Unidad de Medida': item.unidad_medida || '—',
-        'Stock Actual': item.tipo === 'PRODUCTO' ? Number(item.stock_actual || 0) : 'N/A',
-        'Stock Mínimo': item.tipo === 'PRODUCTO' ? Number(item.stock_minimo || 0) : 'N/A',
-        'Precio Unitario': Number(item.precio_venta || 0),
-        'Costo Reposición / Mínimo': Number(item.costo_o_minimo || 0),
-        'Aplica IVA': item.aplica_iva ? 'SÍ' : 'NO',
-        '% IVA': item.iva_pct ? Number(item.iva_pct) : 0,
-        'Estado': item.is_active ? 'Activo' : 'Inactivo',
-        'Fecha de Creación': item.created_at ? new Date(item.created_at).toLocaleDateString('es-CO') : '—'
-      }));
+      await exportCatalogToExcel(items, {
+        tipo,
+        usuario: user?.nombre || 'Mercadeo Cargar'
+      });
 
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const colWidths = Object.keys(rows[0] || {}).map(key => ({
-        wch: Math.max(key.length + 4, 14)
-      }));
-      ws['!cols'] = colWidths;
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Catálogo');
-
-      const todayStr = new Date().toISOString().split('T')[0];
-      const tipoStr = tipo.toLowerCase();
-      const filename = `Catalogo_Productos_Servicios_${tipoStr}_${todayStr}.xlsx`;
-
-      XLSX.writeFile(wb, filename);
       toast.success('Catálogo descargado correctamente en Excel', { id: 'export-cat' });
     } catch (err) {
       console.error(err);
