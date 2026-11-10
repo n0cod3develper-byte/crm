@@ -298,6 +298,8 @@ export function RemisionFormPage() {
   const [horasManual, setHorasManual] = React.useState(false);
   const [currentEstado, setCurrentEstado] = React.useState(null);
   const [estadoManual, setEstadoManual] = React.useState(false);
+  const lastEquipoIdRef = React.useRef(form.equipo_id);
+  const userEditedHoroRef = React.useRef(false);
 
   // ─── Auto-guardar borrador en sessionStorage (solo creación) ──
   React.useEffect(() => {
@@ -549,32 +551,102 @@ export function RemisionFormPage() {
   ]);
 
   React.useEffect(() => {
-    if (form.equipo_id && equiposFiltrados.length) {
-      const eq = equiposFiltrados.find(e => e.id === form.equipo_id);
-      if (eq) {
-        setForm(prev => ({ ...prev, numero_maquina: eq.serie || eq.serial || '' }));
-        
-        const isDifferentEquipment = isEditing && existingData && existingData.equipo_id !== form.equipo_id;
-        if (!isEditing || isDifferentEquipment) {
-          api.get(`/servicios/last-horometro/${form.equipo_id}`)
-            .then(res => {
-              const lastH = res.data?.data;
-              if (lastH !== undefined && lastH !== null) {
-                setForm(prev => ({ ...prev, horometro_salida: lastH }));
-              } else if (eq.horometro_actual !== undefined && eq.horometro_actual !== null) {
-                // Fallback al del maestro si no hay remisiones previas
-                setForm(prev => ({ ...prev, horometro_salida: eq.horometro_actual }));
-              }
-            })
-            .catch(() => {
-              if (eq.horometro_actual !== undefined && eq.horometro_actual !== null) {
-                setForm(prev => ({ ...prev, horometro_salida: eq.horometro_actual }));
-              }
-            });
-        }
-      }
+    let active = true;
+    const controller = new AbortController();
+
+    if (String(lastEquipoIdRef.current) !== String(form.equipo_id)) {
+      lastEquipoIdRef.current = form.equipo_id;
+      userEditedHoroRef.current = false;
     }
-  }, [form.equipo_id, equiposFiltrados, isEditing, existingData]);
+
+    // 1. Si no hay equipo seleccionado, limpiar serial y horómetro para no dejar valores huérfanos
+    if (!form.equipo_id) {
+      if (!isEditing) {
+        setForm(prev => {
+          if (!prev.equipo_id && (prev.numero_maquina || prev.horometro_salida !== '')) {
+            return { ...prev, numero_maquina: '', horometro_salida: '' };
+          }
+          return prev;
+        });
+      }
+      return;
+    }
+
+    // 2. Buscar en la lista correspondiente (internos o externos)
+    const listaEquipos = equipoExterno ? equiposExternosFiltrados : equiposFiltrados;
+    const eq = listaEquipos.find(e => String(e.id) === String(form.equipo_id));
+    if (eq) {
+      setForm(prev => {
+        if (prev.numero_maquina !== (eq.serie || eq.serial || '')) {
+          return { ...prev, numero_maquina: eq.serie || eq.serial || '' };
+        }
+        return prev;
+      });
+    }
+
+    const isDifferentEquipment = isEditing && existingData && String(existingData.equipo_id) !== String(form.equipo_id);
+    if (!isEditing || isDifferentEquipment) {
+      const currentEquipoId = form.equipo_id;
+      const eqHoroRaw = eq?.horometro_actual;
+      const hasEqHoro = eqHoroRaw !== undefined && eqHoroRaw !== null && eqHoroRaw !== '' && !isNaN(parseFloat(eqHoroRaw));
+      const eqHoro = hasEqHoro ? parseFloat(eqHoroRaw) : null;
+
+      // Inmediatamente al cambiar de equipo, asignar el horómetro conocido del maestro (o cadena vacía)
+      // para no dejar visible el valor del equipo anterior ni un instante mientras responde la API.
+      // Si el usuario ya editó manualmente el horómetro para este equipo, no sobreescribir.
+      setForm(prev => {
+        if (String(prev.equipo_id) === String(currentEquipoId)) {
+          if (userEditedHoroRef.current) return prev;
+          const valorInmediato = eqHoro !== null ? eqHoro : '';
+          return { ...prev, horometro_salida: valorInmediato };
+        }
+        return prev;
+      });
+
+      // Consultar siempre la API de último horómetro, incluso si el equipo no está en listaEquipos (F9)
+      api.get(`/servicios/last-horometro/${currentEquipoId}`, { signal: controller.signal })
+        .then(res => {
+          if (!active) return;
+          const apiHoroRaw = res.data?.data;
+          const hasApiHoro = apiHoroRaw !== undefined && apiHoroRaw !== null && apiHoroRaw !== '' && !isNaN(parseFloat(apiHoroRaw));
+          const apiHoro = hasApiHoro ? parseFloat(apiHoroRaw) : null;
+
+          // Determinar el valor final: si la API devuelve un horómetro aplicable (incluso 0), usarlo;
+          // si no, usar el maestro; si ninguno existe, dejar vacío
+          let finalHoro = '';
+          if (apiHoro !== null && apiHoro >= 0) {
+            finalHoro = apiHoro;
+          } else if (eqHoro !== null && eqHoro >= 0) {
+            finalHoro = eqHoro;
+          }
+
+          setForm(prev => {
+            // Protección contra race conditions y edición manual: solo actualizar si el equipo seleccionado sigue siendo este y no ha sido editado por el usuario
+            if (String(prev.equipo_id) === String(currentEquipoId)) {
+              if (userEditedHoroRef.current) return prev;
+              return { ...prev, horometro_salida: finalHoro };
+            }
+            return prev;
+          });
+        })
+        .catch((err) => {
+          if (!active || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
+          // Si la API falla, conservar el valor del maestro si existe (a menos que el usuario lo haya editado)
+          setForm(prev => {
+            if (String(prev.equipo_id) === String(currentEquipoId)) {
+              if (userEditedHoroRef.current) return prev;
+              return { ...prev, horometro_salida: eqHoro !== null ? eqHoro : '' };
+            }
+            return prev;
+          });
+        });
+    }
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [form.equipo_id, equiposFiltrados, equiposExternosFiltrados, equipoExterno, isEditing, existingData]);
 
   // ─── Auto-calcular horas por tiempos (Ambos operarios) ──────────────────
   // IMPORTANTE: Las horas se calculan EXCLUSIVAMENTE a partir de las horas de tiempos.
@@ -955,6 +1027,9 @@ export function RemisionFormPage() {
 
   const handleHorometroChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'horometro_salida') {
+      userEditedHoroRef.current = true;
+    }
     // Los horómetros son sólo informativos: se guardan pero NO disparan el recalculo de horas.
     // El cálculo de horas se realiza exclusivamente a partir de los tiempos (hora_salida_cargar, hora_llegada_cargar).
     setForm(prev => ({ ...prev, [name]: value }));

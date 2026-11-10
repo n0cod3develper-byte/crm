@@ -140,19 +140,160 @@ export class ServiciosRepository {
     return res.rows[0]?.forma_pago || null;
   }
 
-  async findLastHorometro(equipo_id) {
-    const res = await query(`
-      SELECT horometro_regreso
-      FROM remisiones
-      WHERE equipo_id = $1
-        AND estado IN ('REALIZADA', 'LIQUIDADA')
-        AND horometro_regreso IS NOT NULL
-        AND horometro_regreso > 0
-        AND deleted_at IS NULL
-      ORDER BY fecha_servicio DESC, created_at DESC
+  async getUltimoEventoOperativo(client, equipoId, excludeRemisionId = null) {
+    if (!equipoId) return null;
+    const dbClient = client || { query };
+
+    const res = await dbClient.query(`
+      WITH eventos AS (
+        -- 1. Remisiones normales completadas
+        SELECT 
+          horometro_regreso::numeric AS horometro,
+          fecha_servicio AS fecha,
+          created_at,
+          1 AS prioridad
+        FROM remisiones
+        WHERE equipo_id = $1
+          AND ($2::uuid IS NULL OR id != $2)
+          AND estado IN ('REALIZADA', 'LIQUIDADA', 'FACTURADA', 'PARCIALMENTE_FACTURADA')
+          AND horometro_regreso IS NOT NULL
+          AND horometro_regreso >= 0
+          AND deleted_at IS NULL
+
+        UNION ALL
+
+        -- 1.1 Segundo operario / segundo tramo de remisiones completadas
+        SELECT 
+          segundo_horometro_regreso::numeric AS horometro,
+          fecha_servicio AS fecha,
+          created_at,
+          1 AS prioridad
+        FROM remisiones
+        WHERE equipo_id = $1
+          AND ($2::uuid IS NULL OR id != $2)
+          AND estado IN ('REALIZADA', 'LIQUIDADA', 'FACTURADA', 'PARCIALMENTE_FACTURADA')
+          AND segundo_horometro_regreso IS NOT NULL
+          AND segundo_horometro_regreso >= 0
+          AND deleted_at IS NULL
+
+        UNION ALL
+
+        -- 2. Días fijo de remisión (solo remisiones en estados terminales)
+        SELECT 
+          df.horometro_final::numeric AS horometro,
+          df.fecha AS fecha,
+          COALESCE(df.created_at, r.created_at) AS created_at,
+          2 AS prioridad
+        FROM remision_dias_fijo df
+        JOIN remisiones r ON r.id = df.remision_id
+        WHERE r.equipo_id = $1
+          AND ($2::uuid IS NULL OR r.id != $2)
+          AND r.deleted_at IS NULL
+          AND r.estado IN ('REALIZADA', 'LIQUIDADA', 'FACTURADA', 'PARCIALMENTE_FACTURADA')
+          AND df.horometro_final IS NOT NULL
+          AND df.horometro_final >= 0
+
+        UNION ALL
+
+        -- 3. Órdenes de trabajo ejecutadas
+        SELECT 
+          horometro_final::numeric AS horometro,
+          created_at::date AS fecha,
+          created_at,
+          3 AS prioridad
+        FROM ordenes_trabajo
+        WHERE equipo_id = $1
+          AND estado IN ('REALIZADA', 'LIQUIDADA', 'CERRADA', 'LIQUIDADA_CORTE', 'FACTURADA', 'PARCIALMENTE_FACTURADA')
+          AND horometro_final IS NOT NULL
+          AND horometro_final >= 0
+          AND deleted_at IS NULL
+      )
+      SELECT horometro, fecha, created_at
+      FROM eventos
+      ORDER BY fecha DESC, created_at DESC, prioridad ASC, horometro DESC
       LIMIT 1
-    `, [equipo_id]);
-    return res.rows[0]?.horometro_regreso || null;
+    `, [equipoId, excludeRemisionId]);
+
+    return res.rows[0] || null;
+  }
+
+  async sincronizarHorometroEquipo(client, equipoId, excludeRemisionId = null) {
+    if (!equipoId) return;
+
+    const ejecutarSincronizacion = async (txClient) => {
+      // Bloquear la fila del equipo (FOR UPDATE) para serializar sincronizaciones concurrentes (F5)
+      const eqRes = await txClient.query(
+        `SELECT id, horometro_actual, fecha_horometro, updated_at
+         FROM equipos
+         WHERE id = $1
+         FOR UPDATE`,
+        [equipoId]
+      );
+      if (!eqRes.rows.length) return;
+      const currentEq = eqRes.rows[0];
+
+      // Obtener el último evento operativo cronológico (F6)
+      const evento = await this.getUltimoEventoOperativo(txClient, equipoId, excludeRemisionId);
+
+      if (evento) {
+        const eventoHoro = parseFloat(evento.horometro);
+
+        // F2: Preservar corrección manual si existe y su fecha es posterior al evento que se sincroniza
+        if (currentEq.fecha_horometro && evento.fecha) {
+          const fechaEventoStr = typeof evento.fecha === 'string' ? evento.fecha.split('T')[0] : new Date(evento.fecha).toISOString().split('T')[0];
+          const fechaEqStr = typeof currentEq.fecha_horometro === 'string' ? currentEq.fecha_horometro.split('T')[0] : new Date(currentEq.fecha_horometro).toISOString().split('T')[0];
+          if (fechaEventoStr < fechaEqStr && currentEq.horometro_actual !== null && currentEq.horometro_actual !== undefined) {
+            // El evento operativo es cronológicamente anterior a la última actualización/corrección manual del equipo; no degradar el maestro
+            return;
+          }
+        }
+
+        await txClient.query(`
+          UPDATE equipos SET
+            horometro_actual = $1,
+            fecha_horometro  = $2,
+            updated_at       = NOW()
+          WHERE id = $3
+        `, [eventoHoro, evento.fecha, equipoId]);
+      } else {
+        // F1: No hay eventos operativos restantes.
+        // NUNCA reiniciar a cero si el equipo ya tiene un horómetro conocido (ej: valor inicial o corrección manual).
+        // Solo inicializar en 0 si horometro_actual nunca fue informado (null/undefined).
+        if (currentEq.horometro_actual === null || currentEq.horometro_actual === undefined) {
+          await txClient.query(`
+            UPDATE equipos SET
+              horometro_actual = $1,
+              fecha_horometro  = CURRENT_DATE,
+              updated_at       = NOW()
+            WHERE id = $2
+          `, [0, equipoId]);
+        }
+      }
+    };
+
+    if (client) {
+      await ejecutarSincronizacion(client);
+    } else {
+      await withTransaction(ejecutarSincronizacion);
+    }
+  }
+
+  async findLastHorometro(equipo_id) {
+    if (!equipo_id) return null;
+
+    const eqCheck = await query('SELECT id, horometro_actual FROM equipos WHERE id = $1', [equipo_id]);
+    if (!eqCheck.rows.length) return null;
+
+    // 1. Obtener el último evento operativo cronológico (F6)
+    const evento = await this.getUltimoEventoOperativo(null, equipo_id);
+    if (evento) {
+      const val = parseFloat(evento.horometro);
+      return (!isNaN(val) && val >= 0) ? val : null;
+    }
+
+    // 2. Si no existen eventos operativos previos en el historial, usar el maestro de equipos como fallback base (F1)
+    const maestroHoro = parseFloat(eqCheck.rows[0]?.horometro_actual);
+    return (!isNaN(maestroHoro) && maestroHoro >= 0) ? maestroHoro : null;
   }
 
   async generarNumeroRemision(client) {
@@ -277,6 +418,13 @@ export class ServiciosRepository {
             [res.rows[0].id, item.catalogo_servicio_id, item.descripcion || null, cantidadRedondeada, item.valor_unitario || 0, item.aplica_iva || false, orden++]
           );
         }
+      }
+
+      // D. Sincronizar horómetro del equipo al crear una remisión terminal
+      const createdEstado = res.rows[0].estado;
+      const createdEquipoId = res.rows[0].equipo_id;
+      if (createdEquipoId && ['REALIZADA', 'LIQUIDADA', 'FACTURADA', 'PARCIALMENTE_FACTURADA'].includes(createdEstado)) {
+        await this.sincronizarHorometroEquipo(client, createdEquipoId);
       }
 
       return res.rows[0];
@@ -424,22 +572,22 @@ export class ServiciosRepository {
         }
       }
 
-      // C. Actualizar horómetro del equipo al pasar a REALIZADA
-      if (new_estado === 'REALIZADA' && new_equipo_id) {
-        // Usar el horometro_regreso del data actualizado o el que ya tenía la remisión
-        const horometro_llegada = data.horometro_regreso !== undefined
-          ? data.horometro_regreso
-          : (updatedRem?.horometro_regreso ?? current.horometro_regreso);
-        const horoVal = parseFloat(horometro_llegada);
-        if (!isNaN(horoVal) && horoVal > 0) {
-          await client.query(
-            `UPDATE equipos SET
-               horometro_actual = GREATEST(horometro_actual, $1),
-               fecha_horometro  = CURRENT_DATE,
-               updated_at       = NOW()
-             WHERE id = $2`,
-            [horoVal, new_equipo_id]
-          );
+      // C. Sincronizar horómetro del equipo si la remisión está o pasa a un estado terminal
+      if (['REALIZADA', 'LIQUIDADA', 'FACTURADA', 'PARCIALMENTE_FACTURADA'].includes(new_estado) && new_equipo_id) {
+        await this.sincronizarHorometroEquipo(client, new_equipo_id);
+      }
+
+      // Si el equipo cambió en la edición, también sincronizar el equipo anterior
+      if (old_equipo_id && old_equipo_id !== new_equipo_id) {
+        await this.sincronizarHorometroEquipo(client, old_equipo_id, id);
+      }
+
+      // C.1 Si la remisión pasa a ANULADO habiendo estado previamente en un estado terminal completado,
+      // sincronizar el horómetro del equipo excluyendo esta remisión
+      if (['ANULADO', 'ANULADA'].includes(new_estado) && ['REALIZADA', 'LIQUIDADA', 'FACTURADA', 'PARCIALMENTE_FACTURADA'].includes(old_estado)) {
+        const targetEqId = new_equipo_id || old_equipo_id;
+        if (targetEqId) {
+          await this.sincronizarHorometroEquipo(client, targetEqId, id);
         }
       }
 
@@ -688,6 +836,11 @@ export class ServiciosRepository {
               [current.equipo_id, state, 'OPERATIVO', motivoHistorial, userStr]
             );
           }
+        }
+
+        // Si la remisión que se anula/elimina estaba completada, sincronizar el horómetro del equipo excluyéndola
+        if (current.equipo_id && ['REALIZADA', 'LIQUIDADA', 'FACTURADA', 'PARCIALMENTE_FACTURADA'].includes(current.estado)) {
+          await this.sincronizarHorometroEquipo(client, current.equipo_id, id);
         }
       }
 
@@ -967,6 +1120,16 @@ export class ServiciosRepository {
       );
       insertados.push(r.rows[0]);
     }
+
+    // Sincronizar horómetro del equipo si la remisión está en estado terminal
+    if (insertados.length > 0) {
+      const remRes = await query('SELECT equipo_id, estado FROM remisiones WHERE id = $1', [remision_id]);
+      const rem = remRes.rows[0];
+      if (rem?.equipo_id && ['REALIZADA', 'LIQUIDADA', 'FACTURADA', 'PARCIALMENTE_FACTURADA'].includes(rem.estado)) {
+        await this.sincronizarHorometroEquipo(null, rem.equipo_id);
+      }
+    }
+
     return insertados;
   }
 
@@ -975,6 +1138,11 @@ export class ServiciosRepository {
       `DELETE FROM remision_dias_fijo WHERE id = $1 AND remision_id = $2`,
       [did, remision_id]
     );
+    const remRes = await query('SELECT equipo_id, estado FROM remisiones WHERE id = $1', [remision_id]);
+    const rem = remRes.rows[0];
+    if (rem?.equipo_id && ['REALIZADA', 'LIQUIDADA', 'FACTURADA', 'PARCIALMENTE_FACTURADA'].includes(rem.estado)) {
+      await this.sincronizarHorometroEquipo(null, rem.equipo_id);
+    }
     return true;
   }
 

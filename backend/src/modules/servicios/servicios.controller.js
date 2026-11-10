@@ -7,6 +7,35 @@ import { calcularDesdeRemision } from '../horas_extras/horasExtras.service.js';
 const repo = new ServiciosRepository();
 const sustitucionService = new RemisionSustitucionService();
 
+function validarHorometros(data) {
+  const campos = ['horometro_salida', 'horometro_regreso', 'segundo_horometro_salida', 'segundo_horometro_regreso'];
+  for (const campo of campos) {
+    if (data[campo] !== undefined && data[campo] !== null && data[campo] !== '') {
+      const val = parseFloat(data[campo]);
+      if (isNaN(val) || val < 0) {
+        throw new BadRequestError(`El valor de ${campo} debe ser un número mayor o igual a 0`);
+      }
+      data[campo] = val;
+    }
+  }
+
+  const hSalida = parseFloat(data.horometro_salida);
+  const hRegreso = parseFloat(data.horometro_regreso);
+  if (!isNaN(hSalida) && !isNaN(hRegreso) && hSalida >= 0 && hRegreso >= 0) {
+    if (hRegreso < hSalida) {
+      throw new BadRequestError('El horómetro de regreso no puede ser menor al horómetro de salida');
+    }
+  }
+
+  const segHSalida = parseFloat(data.segundo_horometro_salida);
+  const segHRegreso = parseFloat(data.segundo_horometro_regreso);
+  if (!isNaN(segHSalida) && !isNaN(segHRegreso) && segHSalida >= 0 && segHRegreso >= 0) {
+    if (segHRegreso < segHSalida) {
+      throw new BadRequestError('El segundo horómetro de regreso no puede ser menor al segundo horómetro de salida');
+    }
+  }
+}
+
 export const serviciosController = {
   async list(req, res, next) {
     try {
@@ -24,27 +53,29 @@ export const serviciosController = {
     } catch (err) { next(err); }
   },
 
- async create(req, res, next) {
-  try {
-    const { fecha_servicio, company_id, catalogo_servicio_id, items } = req.body;
-    const primerCatalogoId = items && items.length > 0 ? items[0].catalogo_servicio_id : catalogo_servicio_id;
-    if (!fecha_servicio || !company_id || !primerCatalogoId) {
-      throw new BadRequestError('fecha_servicio, company_id y al menos un servicio (catalogo_servicio_id o items) son requeridos');
-    }
-    const item = await repo.create(req.body, req.user);
-    
-    // Auto-calcular horas extras en background
-    calcularDesdeRemision(item.id).catch(err => console.error('Error auto-calculando horas extras:', err));
+  async create(req, res, next) {
+    try {
+      const { fecha_servicio, company_id, catalogo_servicio_id, items } = req.body;
+      const primerCatalogoId = items && items.length > 0 ? items[0].catalogo_servicio_id : catalogo_servicio_id;
+      if (!fecha_servicio || !company_id || !primerCatalogoId) {
+        throw new BadRequestError('fecha_servicio, company_id y al menos un servicio (catalogo_servicio_id o items) son requeridos');
+      }
+      validarHorometros(req.body);
+      const item = await repo.create(req.body, req.user);
+      
+      // Auto-calcular horas extras en background
+      calcularDesdeRemision(item.id).catch(err => console.error('Error auto-calculando horas extras:', err));
 
-    res.status(201).json({ success: true, data: item });
-  } catch (err) { next(err); }
-},
-
+      res.status(201).json({ success: true, data: item });
+    } catch (err) { next(err); }
+  },
 
   async update(req, res, next) {
     try {
       const item = await repo.findById(req.params.id);
       if (!item) throw new NotFoundError('Remisión');
+
+      validarHorometros(req.body);
 
       // Campos que el modal de liquidación puede actualizar incluso en estado LIQUIDADA
       const liquidacionFields = new Set([

@@ -15,6 +15,9 @@
 
 import { withTransaction } from '../../config/database.js';
 import { BadRequestError, NotFoundError } from '../../utils/errors.js';
+import { ServiciosRepository } from './servicios.repository.js';
+
+const serviciosRepo = new ServiciosRepository();
 
 export class RemisionSustitucionService {
 
@@ -197,7 +200,15 @@ export class RemisionSustitucionService {
         );
       }
 
-      // ── 8. Retornar tramos actualizados y datos relevantes ────────────
+      // ── 8. Resincronizar horómetros de ambos equipos dentro de la misma transacción (F3) ──
+      if (equipoActualId) {
+        await serviciosRepo.sincronizarHorometroEquipo(client, equipoActualId, remisionId);
+      }
+      if (equipo_nuevo_id) {
+        await serviciosRepo.sincronizarHorometroEquipo(client, equipo_nuevo_id);
+      }
+
+      // ── 9. Retornar tramos actualizados y datos relevantes ────────────
       const tramosRes = await client.query(
         `SELECT t.*,
                 e.marca AS equipo_marca, e.modelo AS equipo_modelo,
