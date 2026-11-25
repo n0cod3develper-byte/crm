@@ -749,19 +749,49 @@ export class InformesRepository {
    * Resumen de horas totales por operario en un período (quincena anterior).
    * Incluye LIQUIDADA y REALIZADA.
    */
-   async getLiquidacionBonificacionPorOperario(fecha_inicio, fecha_fin) {
+   async getLiquidacionBonificacionPorOperario(fecha_inicio, fecha_fin, quincenas = []) {
+    // Obtener los ajustes manuales del período anterior (misma lógica que usa el frontend)
+    let ajustesMap = new Map();
+    if (quincenas.length > 0) {
+      const ajustesRes = await query(
+        `SELECT remision_id, horas_ajustadas FROM liquidacion_ajustes WHERE quincena = ANY($1::text[]) AND horas_ajustadas IS NOT NULL`,
+        [quincenas]
+      );
+      for (const row of ajustesRes.rows) {
+        ajustesMap.set(row.remision_id, parseFloat(row.horas_ajustadas));
+      }
+    }
+
     const sql = `
       SELECT
-        operario_id,
-        operario_nombre,
-        cedula,
-        COALESCE(numero_equipo, 'Sin equipo') AS maquina_nombre,
-        SUM(horas_efectivas) AS horas_total
+        base.remision_ref_id,
+        base.operario_id,
+        base.operario_nombre,
+        base.cedula,
+        base.horas_efectivas
       FROM (
-        SELECT em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
-               e.serie AS numero_equipo,
+        SELECT r.id AS remision_ref_id, em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
                CASE WHEN r.estado IN ('ANULADO', 'ANULADA') THEN 0 ELSE
-                 COALESCE(r.cantidad_horas, 0)
+                 COALESCE(
+                   (
+                     SELECT NULLIF(SUM(rs.cantidad), 0)
+                     FROM remision_servicios rs
+                     LEFT JOIN inventario inv ON inv.id = rs.catalogo_servicio_id
+                     LEFT JOIN catalogo_servicios cs ON cs.id = rs.catalogo_servicio_id
+                     WHERE rs.remision_id = r.id
+                       AND (inv.nombre_comercial ILIKE '%CON OPERARIO%' OR cs.nombre ILIKE '%CON OPERARIO%' OR rs.descripcion ILIKE '%CON OPERARIO%')
+                   ),
+                   NULLIF(r.cantidad_horas, 0),
+                   GREATEST(1, CASE
+                     WHEN r.hora_salida_cargar IS NOT NULL AND r.hora_llegada_cargar IS NOT NULL THEN
+                       CASE
+                         WHEN r.hora_llegada_cargar::time >= r.hora_salida_cargar::time
+                         THEN EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time)) / 3600.0
+                         ELSE EXTRACT(EPOCH FROM (r.hora_llegada_cargar::time - r.hora_salida_cargar::time + INTERVAL '24 hours')) / 3600.0
+                       END
+                     ELSE 0
+                   END)
+                 )
                END AS horas_efectivas
         FROM remisiones r
         LEFT JOIN remision_operarios ro ON ro.remision_id = r.id
@@ -774,8 +804,7 @@ export class InformesRepository {
 
         UNION ALL
 
-        SELECT em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
-               e.serie AS numero_equipo,
+        SELECT rdf.id AS remision_ref_id, em.id AS operario_id, em.full_name AS operario_nombre, em.numero_documento AS cedula,
                CASE WHEN r.estado IN ('ANULADO', 'ANULADA') THEN 0 ELSE
                  COALESCE(rdf.horas_netas, r.cantidad_horas, 0)
                END AS horas_efectivas
@@ -787,14 +816,37 @@ export class InformesRepository {
           AND r.estado IN ('LIQUIDADA', 'ANULADO', 'ANULADA', 'REALIZADA', 'PENDIENTE', 'BORRADOR', 'FACTURADA', 'PARCIALMENTE_FACTURADA')
           AND rdf.fecha >= $1::date AND rdf.fecha < $2::date
       ) base
-      WHERE operario_id IS NOT NULL
-      GROUP BY operario_id, operario_nombre, cedula, numero_equipo
-      ORDER BY operario_nombre ASC
+      WHERE base.operario_id IS NOT NULL
+      ORDER BY base.operario_nombre ASC
     `;
     const result = await query(sql, [fecha_inicio, fecha_fin]);
-    return result.rows.map(r => ({
+
+    // Aplicar ajustes manuales por fila (misma lógica que el frontend: manualHours reemplaza horas_efectivas)
+    // y luego redondear a 2 decimales por fila antes de sumar (replica parseFloat(parseFloat(...).toFixed(2)))
+    const porOperario = new Map();
+    for (const row of result.rows) {
+      let horas = parseFloat(row.horas_efectivas || 0);
+      // Si existe un ajuste manual para esta remisión, usarlo en lugar de las horas calculadas
+      if (ajustesMap.has(row.remision_ref_id)) {
+        horas = ajustesMap.get(row.remision_ref_id);
+      }
+      horas = parseFloat(horas.toFixed(2));
+
+      const key = row.operario_id;
+      if (!porOperario.has(key)) {
+        porOperario.set(key, {
+          operario_id: row.operario_id,
+          operario_nombre: row.operario_nombre,
+          cedula: row.cedula,
+          horas_total: 0,
+        });
+      }
+      porOperario.get(key).horas_total += horas;
+    }
+
+    return Array.from(porOperario.values()).map(r => ({
       ...r,
-      horas_total: parseFloat(parseFloat(r.horas_total || 0).toFixed(2)),
+      horas_total: parseFloat(r.horas_total.toFixed(2)),
     }));
   }
 

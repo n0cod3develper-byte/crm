@@ -167,9 +167,12 @@ export const informesController = {
       prevFinTmp.setDate(prevFinTmp.getDate() + 1);
       const prevFinExcl = `${prevFinTmp.getFullYear()}-${String(prevFinTmp.getMonth() + 1).padStart(2, '0')}-${String(prevFinTmp.getDate()).padStart(2, '0')}`;
 
+      // Derivar las quincenas del período anterior para aplicar ajustes manuales
+      const prevQuincenas = quincenasEnRango(prevInicio, prevFin);
+
       const [principal, anterior] = await Promise.all([
         informesRepository.getLiquidacionBonificacion(fecha_inicio, fecha_fin_excl, usuario_id),
-        informesRepository.getLiquidacionBonificacionPorOperario(prevInicio, prevFinExcl),
+        informesRepository.getLiquidacionBonificacionPorOperario(prevInicio, prevFinExcl, prevQuincenas),
       ]);
 
       res.json({
