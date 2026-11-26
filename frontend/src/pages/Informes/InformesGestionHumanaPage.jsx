@@ -301,16 +301,17 @@ export function InformesGestionHumanaPage() {
     comision: gruposOperario.filter(g => g.operario_id !== 'sin_operario').reduce((s, g) => s + g.subtotal_comision, 0),
   }), [gruposOperario, data]);
 
-  // Días en el rango para cálculo dinámico de horas esperadas (6h por día)
-  const diasEnRango = useMemo(() => {
-    if (data?.dias_rango) return data.dias_rango;
-    if (!rango?.inicio || !rango?.fin) return 15;
+  // Determina si el rango actual corresponde a una quincena oficial (1-15 o 16-fin de mes)
+  const esQuincena = useMemo(() => {
+    if (!rango?.inicio || !rango?.fin) return false;
     const d1 = new Date(rango.inicio + 'T00:00:00');
     const d2 = new Date(rango.fin + 'T00:00:00');
-    return Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
-  }, [data, rango]);
-
-  const horasEsperadas = useMemo(() => diasEnRango * 6, [diasEnRango]);
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return false;
+    if (d1.getFullYear() !== d2.getFullYear() || d1.getMonth() !== d2.getMonth()) return false;
+    const ultimoDiaMes = new Date(d2.getFullYear(), d2.getMonth() + 1, 0).getDate();
+    return (d1.getDate() === 1 && d2.getDate() === 15) ||
+      (d1.getDate() === 16 && d2.getDate() === ultimoDiaMes);
+  }, [rango]);
 
   // ── Resumen de productividad ────────────────────────────────────────────────
   const resumenProductividad = useMemo(() => {
@@ -325,7 +326,13 @@ export function InformesGestionHumanaPage() {
       const horasAnt = anterior?.horas_total || 0;
       const variacion = g.subtotal_horas - horasAnt;
       const variacionPct = horasAnt > 0 ? (variacion / horasAnt) * 100 : null;
-      const productividad = horasEsperadas > 0 ? (g.subtotal_horas / horasEsperadas) * 100 : 0;
+      const diasTrabajados = new Set(
+        g.filas
+          .filter(f => f.estado !== 'ANULADO' && f.estado !== 'ANULADA' && f.horas_efectivas > 0 && f.fecha_servicio)
+          .map(f => formatDate(f.fecha_servicio))
+      ).size;
+      const horasBaseOperario = esQuincena ? 84 : diasTrabajados * 8.4;
+      const productividad = horasBaseOperario > 0 ? (g.subtotal_horas / horasBaseOperario) * 100 : 0;
       return {
         operario_nombre: g.operario_nombre,
         cedula: g.cedula,
@@ -338,7 +345,7 @@ export function InformesGestionHumanaPage() {
         observacion: generarObservacion(g.subtotal_horas, horasAnt, productividad),
       };
     });
-  }, [gruposOperario, data, horasEsperadas]);
+  }, [gruposOperario, data, esQuincena]);
 
   const alertas = data?.alertas || {};
   const totalAlertas = (alertas.sin_operario?.length || 0) +
@@ -984,7 +991,7 @@ export function InformesGestionHumanaPage() {
                 <div>
                   <h3 style={{ margin: 0, fontWeight: 700, color: 'var(--text-primary)' }}>Sección 2 — Resumen de Productividad</h3>
                   <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Comparación con período anterior ({formatDate(data.quincena_anterior?.fecha_inicio)} – {formatDate(data.quincena_anterior?.fecha_fin)}) · Objetivo: {horasEsperadas}h
+                    Comparación con período anterior ({formatDate(data.quincena_anterior?.fecha_inicio)} – {formatDate(data.quincena_anterior?.fecha_fin)}) · Base: {esQuincena ? '84h (quincena)' : 'Días trabajados × 8.4h'}
                   </p>
                 </div>
               </div>
