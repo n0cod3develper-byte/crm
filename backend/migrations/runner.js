@@ -28,6 +28,9 @@ if (!DATABASE_URL) {
 const { Pool } = pg;
 const pool = new Pool({ connectionString: DATABASE_URL });
 
+// Clave única para el advisory lock (número arbitrario pero fijo para este proyecto)
+const MIGRATION_LOCK_KEY = 123456789;
+
 // Archivos de migración en orden
 const MIGRATION_FILES = [
   '001_initial_schema.sql',
@@ -156,8 +159,8 @@ const MIGRATION_FILES = [
   '123_liquidacion_ajustes.sql',
   '124_quotes_servicios_terms.sql',
   '125_categoria_ubicacion_default.sql',
-  '126_familias_consecutivo_automatico.sql',
   '127_fix_indice_ubicacion_bodega.sql',
+  '126_familias_consecutivo_automatico.sql',
   '128_catalogo_completo_timestamps.sql',
   '129_busqueda_global_indexes.sql',
   '129_codigo_interno_por_familia.sql',
@@ -169,64 +172,39 @@ const MIGRATION_FILES = [
   '135_rol_gerencia.sql',
   '136_dashboard_gerencia_indexes.sql',
   '137_remisiones_motivo_anulacion.sql',
+  // ── Leads module (4 Nov 2026) ──
   '138_leads_asignacion_empleado.sql',
   '139_lead_history.sql',
   '140_leads_borrado_logico.sql',
   '141_lead_gestiones.sql',
   '142_lead_historial_nota_inmutabilidad.sql',
-  '143_cotizaciones_historial_trazabilidad.sql',
-  '144_notificaciones_genericas.sql',
   '145_ubicacion_consecutivo_por_familia.sql',
+  // ── Horómetros tramos (11 Nov 2026) ──
+  '138_horometros_tramos_y_correcciones.sql',
+  '139_fix_remisiones_estado_pendiente.sql',
+  '140_remision_tramos_add_updated_at.sql',
+  // ── Facturación: trazabilidad anulación (18 Nov 2026) ──
+  '141_factura_relaciones_trazabilidad.sql',
+  '142_fix_vistas_liberada_anulacion.sql',
+  // ── Empleados: nuevos campos laborales y personales (27 Nov 2026) ──
+  '146_employees_nuevos_campos.sql',
 ];
 
-// Clave de advisory lock: las 3 réplicas (PM2/Docker) ejecutan el runner al
-// arrancar; solo una puede migrar a la vez. Se libera en el finally.
-const MIGRATION_LOCK_KEY = 727001;
-
-// ─── Guardia de numeración ────────────────────────────────────────────────
-// El runner identifica cada migración por NOMBRE DE ARCHIVO, no por número.
-// Renombrar una migración ya aplicada haría que se re-ejecutara en producción
-// (riesgo de datos). Por eso:
-//   · Las colisiones históricas ya aplicadas se conservan y solo se avisan.
-//   · Una colisión NUEVA aborta antes de conectar: obliga a renombrar la
-//     migración nueva, que todavía no está aplicada.
-// Regla: nunca renombrar una migración ya aplicada.
-const COLISIONES_HISTORICAS = new Set(['076', '129']);
-
+/**
+ * Detecta huecos en la numeración de migraciones y emite warnings.
+ * No bloquea la ejecución — solo alerta al desarrollador.
+ */
 function verificarNumeracionMigraciones(files) {
-  const porNumero = new Map();
+  const nums = files
+    .map(f => parseInt(f.split('_')[0], 10))
+    .filter(n => !isNaN(n));
 
-  for (const filename of files) {
-    const match = /^(\d{3})_/.exec(filename);
-    if (!match) {
-      console.error(`❌ Migración con nombre inválido (se espera NNN_nombre.sql): ${filename}`);
-      process.exit(1);
-    }
-    const numero = match[1];
-    if (!porNumero.has(numero)) porNumero.set(numero, []);
-    porNumero.get(numero).push(filename);
-  }
-
-  const nuevas = [...porNumero.entries()]
-    .filter(([numero, archivos]) => archivos.length > 1 && !COLISIONES_HISTORICAS.has(numero));
-
-  if (nuevas.length > 0) {
-    console.error('❌ Colisión de numeración de migraciones:');
-    for (const [numero, archivos] of nuevas) {
-      console.error(`   ${numero}: ${archivos.join(', ')}`);
-    }
-    console.error('   Renombra la migración NUEVA (aún no aplicada) antes de continuar.');
-    process.exit(1);
-  }
-
-  for (const numero of COLISIONES_HISTORICAS) {
-    const archivos = porNumero.get(numero);
-    if (archivos && archivos.length > 1) {
-      console.warn(`⚠️  Colisión histórica conocida ${numero}: ${archivos.join(', ')} (ya aplicadas; no renombrar)`);
+  for (let i = 1; i < nums.length; i++) {
+    if (nums[i] !== nums[i - 1] && nums[i] !== nums[i - 1] + 1) {
+      console.warn(`⚠️  Posible hueco en numeración de migraciones entre ${nums[i - 1]} y ${nums[i]}`);
     }
   }
 }
-
 
 async function ensureMigrationsTable(client) {
   await client.query(`

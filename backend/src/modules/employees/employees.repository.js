@@ -67,7 +67,8 @@ export class EmployeesRepository {
       hourly_rate, tipo_documento, numero_documento, departamento,
       fecha_nacimiento, direccion, contacto_emergencia_nombre, contacto_emergencia_telefono,
       eps, arl, fondo_pension, tipo_sangre, tipo_contrato, salario,
-      jornada, fecha_ingreso, fecha_retiro, motivo_retiro, correo_personal
+      jornada, fecha_ingreso, fecha_retiro, motivo_retiro, correo_personal,
+      tipo_vinculacion, sede, grado_escolaridad, estado_civil, composicion_familiar, raza, estrato
     } = data;
 
     const result = await query(
@@ -75,14 +76,16 @@ export class EmployeesRepository {
          full_name, phone, email, position, status, user_id, hourly_rate, tipo_documento, numero_documento, departamento,
          fecha_nacimiento, direccion, contacto_emergencia_nombre, contacto_emergencia_telefono,
          eps, arl, fondo_pension, tipo_sangre, tipo_contrato, salario,
-         jornada, fecha_ingreso, fecha_retiro, motivo_retiro, correo_personal
+         jornada, fecha_ingreso, fecha_retiro, motivo_retiro, correo_personal,
+         tipo_vinculacion, sede, grado_escolaridad, estado_civil, composicion_familiar, raza, estrato
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32) RETURNING *`,
       [
         full_name, phone, email, position, status || 'Activo', user_id || null, hourly_rate || 0, tipo_documento || null, numero_documento || null, departamento || null,
         fecha_nacimiento || null, direccion || null, contacto_emergencia_nombre || null, contacto_emergencia_telefono || null,
         eps || null, arl || null, fondo_pension || null, tipo_sangre || null, tipo_contrato || null, salario || 0,
-        jornada || null, fecha_ingreso || null, fecha_retiro || null, motivo_retiro || null, correo_personal || null
+        jornada || null, fecha_ingreso || null, fecha_retiro || null, motivo_retiro || null, correo_personal || null,
+        tipo_vinculacion || null, sede || null, grado_escolaridad || null, estado_civil || null, composicion_familiar || null, raza || null, estrato || null
       ]
     );
     return result.rows[0];
@@ -97,7 +100,8 @@ export class EmployeesRepository {
       'hourly_rate', 'tipo_documento', 'numero_documento', 'departamento',
       'fecha_nacimiento', 'direccion', 'contacto_emergencia_nombre', 'contacto_emergencia_telefono',
       'eps', 'arl', 'fondo_pension', 'tipo_sangre', 'tipo_contrato', 'salario',
-      'jornada', 'fecha_ingreso', 'fecha_retiro', 'motivo_retiro', 'correo_personal'
+      'jornada', 'fecha_ingreso', 'fecha_retiro', 'motivo_retiro', 'correo_personal',
+      'tipo_vinculacion', 'sede', 'grado_escolaridad', 'estado_civil', 'composicion_familiar', 'raza', 'estrato'
     ];
 
     for (const key of allowed) {

@@ -4,12 +4,15 @@ import { toast } from 'react-hot-toast';
 import { Shield } from 'lucide-react';
 import api from '../../lib/api';
 
+const TIPOS_SANGRE = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
+
 export function EmployeeSeguridadSocial({ employee, onSuccess }) {
   const qc = useQueryClient();
   const [form, setForm] = React.useState({
     eps: employee?.eps || '',
     arl: employee?.arl || '',
     fondo_pension: employee?.fondo_pension || '',
+    tipo_sangre: employee?.tipo_sangre || '',
   });
 
   const mutation = useMutation({
@@ -38,10 +41,20 @@ export function EmployeeSeguridadSocial({ employee, onSuccess }) {
         </div>
         <div style={{ background: 'var(--bg-app)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
           <label style={lbl}>Fondo de Pensiones</label>
-          <input name="fondo_pension" className="input" style={{ width: '100%' }} value={form.fondo_pension} onChange={handleChange} placeholder="Ej: Proteccion, Porvenir..." />
+          <input name="fondo_pension" className="input" style={{ width: '100%' }} value={form.fondo_pension} onChange={handleChange} placeholder="Ej: Protección, Porvenir..." />
         </div>
+
+        {/* ─── RH / Tipo de Sangre ─── */}
+        <div style={{ background: 'var(--bg-app)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+          <label style={lbl}>RH (Tipo de Sangre)</label>
+          <select name="tipo_sangre" className="input" style={{ width: '100%' }} value={form.tipo_sangre} onChange={handleChange}>
+            <option value="">Seleccionar...</option>
+            {TIPOS_SANGRE.map(ts => <option key={ts} value={ts}>{ts}</option>)}
+          </select>
+        </div>
+
         <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-          Nota: Los numeros de afiliacion y fechas se pueden agregar en una futura actualizacion.
+          Nota: Los números de afiliación y fechas se pueden agregar en una futura actualización.
         </p>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
           <button type="submit" className="btn btn--primary" disabled={mutation.isPending}>

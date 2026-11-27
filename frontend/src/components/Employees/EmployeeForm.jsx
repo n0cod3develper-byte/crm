@@ -6,6 +6,18 @@ import api from '../../lib/api';
 
 const POSITIONS = ['Administrativo', 'Operario', 'Técnico'];
 const STATUSES = ['Activo', 'Inactivo', 'Vacaciones'];
+const GRADOS_ESCOLARIDAD = [
+  'NINGUNA', 'PRIMARIA INCOMPLETA', 'PRIMARIA', 'BACHILLERATO INCOMPLETO',
+  'BACHILLERATO', 'TECNICA', 'TECNOLOGICA', 'PROFESIONAL'
+];
+const ESTADOS_CIVILES = [
+  'SOLTERO(A)', 'CASADO(A)', 'UNION LIBRE', 'SEPARADO', 'DIVORCIADO', 'VIUDO(A)'
+];
+const COMPOSICION_FAMILIAR = [
+  'SIN HIJOS', '1-2 HIJOS', '3-5 HIJOS', '6 O MAS HIJOS'
+];
+const RAZAS = ['BLANCO', 'NEGRO', 'MESTIZO'];
+const ESTRATOS = ['1', '2', '3', '4', '5', '6'];
 
 export function EmployeeForm({ employee, onSuccess, onCancel }) {
   const qc = useQueryClient();
@@ -20,10 +32,19 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
     tipo_documento: employee?.tipo_documento || '',
     numero_documento: employee?.numero_documento || '',
     departamento: employee?.departamento || '',
+    correo_personal: employee?.correo_personal || '',
+    // Información Personal
     fecha_nacimiento: employee?.fecha_nacimiento ? employee.fecha_nacimiento.substring(0, 10) : '',
+    estado_civil: employee?.estado_civil || '',
+    composicion_familiar: employee?.composicion_familiar || '',
+    grado_escolaridad: employee?.grado_escolaridad || '',
+    raza: employee?.raza || '',
+    estrato: employee?.estrato || '',
+    // Contacto
     direccion: employee?.direccion || '',
     contacto_emergencia_nombre: employee?.contacto_emergencia_nombre || '',
     contacto_emergencia_telefono: employee?.contacto_emergencia_telefono || '',
+    // Campos que se envían en creación (Datos Laborales / Seguridad Social)
     eps: employee?.eps || '',
     arl: employee?.arl || '',
     fondo_pension: employee?.fondo_pension || '',
@@ -34,7 +55,8 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
     fecha_ingreso: employee?.fecha_ingreso ? employee.fecha_ingreso.substring(0, 10) : '',
     fecha_retiro: employee?.fecha_retiro ? employee.fecha_retiro.substring(0, 10) : '',
     motivo_retiro: employee?.motivo_retiro || '',
-    correo_personal: employee?.correo_personal || '',
+    tipo_vinculacion: employee?.tipo_vinculacion || '',
+    sede: employee?.sede || '',
   });
 
   // Obtener usuarios disponibles para vincular
@@ -57,7 +79,7 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
       if (cleanPayload.user_id === '' || cleanPayload.user_id === 'ninguno') {
         cleanPayload.user_id = null;
       }
-      
+
       // Sanitizar campos de fecha vacíos a null para evitar errores en base de datos
       const dateFields = ['fecha_nacimiento', 'fecha_ingreso', 'fecha_retiro'];
       dateFields.forEach(field => {
@@ -96,6 +118,7 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
   const usuarioSeleccionado = usuarios.find(u => u.id === form.user_id);
 
   const labelStyle = { fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.375rem' };
+  const sectionTitle = { fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.75rem', paddingBottom: '0.375rem', borderBottom: '1px solid var(--border-color)' };
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.125rem' }}>
@@ -198,72 +221,72 @@ export function EmployeeForm({ employee, onSuccess, onCancel }) {
         {!form.correo_personal && <p style={{ fontSize: '11px', color: '#f59e0b', marginTop: '0.25rem' }}>⚠️ Sin correo personal — el empleado no podrá usar el portal público de certificados.</p>}
         {form.correo_personal && <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>Distinto del correo empresarial usado para autenticación.</p>}
       </div>
-      {/* ─── Sección de Gestión Humana (Oculta por defecto para no saturar) ── */}
-      <details style={{ background: 'var(--bg-app)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-        <summary style={{ fontWeight: 600, cursor: 'pointer', outline: 'none' }}>Datos de Gestión Humana</summary>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+
+      {/* ─── Información Personal ─────────────────────── */}
+      <div style={{ background: 'var(--bg-app)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+        <div style={sectionTitle}>Información Personal</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
           <div>
             <label style={labelStyle}>Fecha de Nacimiento</label>
             <input type="date" name="fecha_nacimiento" className="input" style={{ width: '100%' }} value={form.fecha_nacimiento} onChange={handleChange} />
           </div>
           <div>
-            <label style={labelStyle}>Dirección</label>
-            <input name="direccion" className="input" style={{ width: '100%' }} value={form.direccion} onChange={handleChange} />
+            <label style={labelStyle}>Estado Civil</label>
+            <select name="estado_civil" className="input" style={{ width: '100%' }} value={form.estado_civil} onChange={handleChange}>
+              <option value="">Seleccionar...</option>
+              {ESTADOS_CIVILES.map(ec => <option key={ec} value={ec}>{ec}</option>)}
+            </select>
           </div>
           <div>
-            <label style={labelStyle}>Contacto Emergencia (Nombre)</label>
-            <input name="contacto_emergencia_nombre" className="input" style={{ width: '100%' }} value={form.contacto_emergencia_nombre} onChange={handleChange} />
+            <label style={labelStyle}>Composición Familiar</label>
+            <select name="composicion_familiar" className="input" style={{ width: '100%' }} value={form.composicion_familiar} onChange={handleChange}>
+              <option value="">Seleccionar...</option>
+              {COMPOSICION_FAMILIAR.map(cf => <option key={cf} value={cf}>{cf}</option>)}
+            </select>
           </div>
           <div>
-            <label style={labelStyle}>Contacto Emergencia (Teléfono)</label>
-            <input name="contacto_emergencia_telefono" className="input" style={{ width: '100%' }} value={form.contacto_emergencia_telefono} onChange={handleChange} />
+            <label style={labelStyle}>Grado de Escolaridad</label>
+            <select name="grado_escolaridad" className="input" style={{ width: '100%' }} value={form.grado_escolaridad} onChange={handleChange}>
+              <option value="">Seleccionar...</option>
+              {GRADOS_ESCOLARIDAD.map(ge => <option key={ge} value={ge}>{ge}</option>)}
+            </select>
           </div>
           <div>
-            <label style={labelStyle}>EPS</label>
-            <input name="eps" className="input" style={{ width: '100%' }} value={form.eps} onChange={handleChange} />
+            <label style={labelStyle}>Raza (Opcional - Autodeclaración)</label>
+            <select name="raza" className="input" style={{ width: '100%' }} value={form.raza} onChange={handleChange}>
+              <option value="">Seleccionar...</option>
+              {RAZAS.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
           </div>
           <div>
-            <label style={labelStyle}>ARL</label>
-            <input name="arl" className="input" style={{ width: '100%' }} value={form.arl} onChange={handleChange} />
+            <label style={labelStyle}>Estrato Socioeconómico</label>
+            <select name="estrato" className="input" style={{ width: '100%' }} value={form.estrato} onChange={handleChange}>
+              <option value="">Seleccionar...</option>
+              {ESTRATOS.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
           </div>
-          <div>
-            <label style={labelStyle}>Fondo de Pensión</label>
-            <input name="fondo_pension" className="input" style={{ width: '100%' }} value={form.fondo_pension} onChange={handleChange} />
-          </div>
-          <div>
-            <label style={labelStyle}>Tipo de Sangre</label>
-            <input name="tipo_sangre" className="input" style={{ width: '100%' }} value={form.tipo_sangre} onChange={handleChange} placeholder="Ej: O+" />
-          </div>
-          <div>
-            <label style={labelStyle}>Tipo de Contrato</label>
-            <input name="tipo_contrato" className="input" style={{ width: '100%' }} value={form.tipo_contrato} onChange={handleChange} placeholder="Término Indefinido, Fijo..." />
-          </div>
-          <div>
-            <label style={labelStyle}>Salario Mensual</label>
-            <input type="number" name="salario" className="input" style={{ width: '100%' }} value={form.salario} onChange={handleChange} />
-          </div>
-          <div>
-            <label style={labelStyle}>Jornada</label>
-            <input name="jornada" className="input" style={{ width: '100%' }} value={form.jornada} onChange={handleChange} placeholder="Completa, Medio tiempo..." />
-          </div>
-          <div>
-            <label style={labelStyle}>Fecha de Ingreso</label>
-            <input type="date" name="fecha_ingreso" className="input" style={{ width: '100%' }} value={form.fecha_ingreso} onChange={handleChange} />
-          </div>
-          {form.status === 'Inactivo' && (
-            <>
-              <div>
-                <label style={labelStyle}>Fecha de Retiro</label>
-                <input type="date" name="fecha_retiro" className="input" style={{ width: '100%' }} value={form.fecha_retiro} onChange={handleChange} />
-              </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={labelStyle}>Motivo de Retiro</label>
-                <input name="motivo_retiro" className="input" style={{ width: '100%' }} value={form.motivo_retiro} onChange={handleChange} />
-              </div>
-            </>
-          )}
         </div>
-      </details>
+      </div>
+
+      {/* ─── Contacto y Emergencia ────────────────────── */}
+      <div style={{ background: 'var(--bg-app)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+        <div style={sectionTitle}>Contacto y Emergencia</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={labelStyle}>Lugar de Residencia</label>
+            <input name="direccion" className="input" style={{ width: '100%' }} value={form.direccion} onChange={handleChange} placeholder="Dirección de residencia" />
+          </div>
+          <div>
+            <label style={labelStyle}>En Caso de Emergencia Llamar a (Nombre)</label>
+            <input name="contacto_emergencia_nombre" className="input" style={{ width: '100%' }} value={form.contacto_emergencia_nombre} onChange={handleChange} placeholder="Nombre del contacto" />
+          </div>
+          <div>
+            <label style={labelStyle}>Teléfono de Emergencia</label>
+            <input name="contacto_emergencia_telefono" className="input" style={{ width: '100%' }} value={form.contacto_emergencia_telefono} onChange={handleChange} placeholder="Teléfono del contacto" />
+          </div>
+        </div>
+      </div>
+
 
       {/* ─── Vinculación con usuario del sistema ──────────────── */}
       <div style={{
